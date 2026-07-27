@@ -64,7 +64,7 @@ export const CATEGORIES: CategoryConfig[] = [
         icon: ShoppingBag,
         chip: 'text-rose-300',
         badge: 'border-rose-400/25 bg-rose-400/[0.12] text-rose-300',
-        usesServiceCatalog: false,
+        usesServiceCatalog: true,
     },
     {
         value: 'autre',

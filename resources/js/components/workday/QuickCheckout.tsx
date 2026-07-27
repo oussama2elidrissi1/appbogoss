@@ -119,7 +119,11 @@ export function QuickCheckout({
         if (!term) return list;
         return list.filter((entry) => entry.name.toLowerCase().includes(term));
     }, [products, services, serviceSearch, usesProductCatalog]);
-    const catalogPending = usesProductCatalog ? productsPending : servicesPending;
+    const catalogPending =
+        usesCatalog &&
+        (usesProductCatalog
+            ? productsPending && products === undefined
+            : servicesPending && services === undefined);
     const catalogIsError = usesProductCatalog ? productsIsError : servicesIsError;
     const catalogError = usesProductCatalog ? productsLoadError : servicesLoadError;
 
