@@ -198,4 +198,15 @@ export interface Service {
     category: string;
     price: number;
     duration_minutes: number;
+    color: string;
+    is_active: boolean;
+}
+
+export interface ServicePayload {
+    name?: string;
+    category?: string;
+    price?: number;
+    duration_minutes?: number;
+    color?: string;
+    is_active?: boolean;
 }

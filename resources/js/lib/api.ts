@@ -13,6 +13,7 @@ import type {
     OpenWorkDayPayload,
     Sale,
     Service,
+    ServicePayload,
     WorkDay,
 } from '@/types/workday';
 
@@ -194,9 +195,38 @@ export async function getClients(search?: string): Promise<Client[]> {
     return data.data;
 }
 
-export async function getServices(category?: string): Promise<Service[]> {
+export async function getServices(
+    categoryOrOptions?:
+        | string
+        | {
+              category?: string;
+              includeInactive?: boolean;
+              search?: string;
+          },
+): Promise<Service[]> {
+    const options =
+        typeof categoryOrOptions === 'string' ? { category: categoryOrOptions } : categoryOrOptions;
+
     const { data } = await api.get<{ data: Service[] }>('/api/services', {
-        params: category ? { category } : undefined,
+        params: {
+            ...(options?.category ? { category: options.category } : {}),
+            ...(options?.includeInactive ? { include_inactive: 1 } : {}),
+            ...(options?.search ? { search: options.search } : {}),
+        },
     });
     return data.data;
+}
+
+export async function createService(payload: ServicePayload): Promise<Service> {
+    const { data } = await api.post<{ data: Service }>('/api/services', payload);
+    return data.data;
+}
+
+export async function updateService(id: number, payload: ServicePayload): Promise<Service> {
+    const { data } = await api.put<{ data: Service }>(`/api/services/${id}`, payload);
+    return data.data;
+}
+
+export async function deleteService(id: number): Promise<void> {
+    await api.delete(`/api/services/${id}`);
 }

@@ -28,6 +28,7 @@ export interface ActiveDaySummary {
     employees_present: number;
     revenue_so_far: number;
     expenses_so_far: number;
+    advances_so_far: number;
     commissions_so_far: number;
     estimated_profit: number;
 }

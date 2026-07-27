@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ArrowRight, Receipt, TrendingUp, Users, Wallet } from 'lucide-react';
+import { ArrowRight, HandCoins, Receipt, TrendingUp, Users, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { ActiveDaySummary } from '@/types/dashboard';
 import { cn, formatCurrency, formatDayLabel } from '@/lib/utils';
@@ -66,7 +66,7 @@ export function ActiveDayCard({ day }: { day: ActiveDaySummary }) {
             </CardHeader>
 
             <CardContent className="relative">
-                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-5">
                     <Figure
                         icon={Wallet}
                         label="Encaissé"
@@ -77,6 +77,12 @@ export function ActiveDayCard({ day }: { day: ActiveDaySummary }) {
                         icon={Receipt}
                         label="Dépenses"
                         value={formatCurrency(day.expenses_so_far, { maximumFractionDigits: 2 })}
+                        tone="destructive"
+                    />
+                    <Figure
+                        icon={HandCoins}
+                        label="Avances"
+                        value={formatCurrency(day.advances_so_far, { maximumFractionDigits: 2 })}
                         tone="destructive"
                     />
                     <Figure

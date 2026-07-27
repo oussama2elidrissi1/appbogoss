@@ -8,9 +8,10 @@ import Depenses from '@/pages/Depenses';
 import Employees from '@/pages/Employees';
 import Login from '@/pages/Login';
 import PlaceholderPage from '@/pages/PlaceholderPage';
+import Services from '@/pages/Services';
 
 /** Nav destinations backed by a real screen; everything else is a placeholder. */
-const realRoutes = new Set(['/dashboard', '/pos', '/expenses', '/employees']);
+const realRoutes = new Set(['/dashboard', '/pos', '/expenses', '/employees', '/services']);
 const placeholderItems = navItems.filter((item) => !realRoutes.has(item.to));
 
 export default function App() {
@@ -25,6 +26,7 @@ export default function App() {
                     <Route path="/pos" element={<Caisse />} />
                     <Route path="/expenses" element={<Depenses />} />
                     <Route path="/employees" element={<Employees />} />
+                    <Route path="/services" element={<Services />} />
 
                     {placeholderItems.map((item) => (
                         <Route

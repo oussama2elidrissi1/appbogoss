@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\DTOs\DashboardStatsDTO;
+use App\Models\Advance;
 use App\Models\Appointment;
 use App\Models\Client;
 use App\Models\Employee;
@@ -75,6 +76,7 @@ class DashboardService
 
         $revenueSoFar = (float) Sale::where('work_day_id', $day->id)->sum('total');
         $expensesSoFar = (float) Expense::where('work_day_id', $day->id)->sum('amount');
+        $advancesSoFar = (float) Advance::where('work_day_id', $day->id)->sum('amount');
         $commissionsSoFar = (float) Sale::where('work_day_id', $day->id)->sum('commission_amount');
         $employeesPresent = $day->employees()->wherePivot('present', true)->count();
 
@@ -85,8 +87,9 @@ class DashboardService
             'employees_present' => $employeesPresent,
             'revenue_so_far' => round($revenueSoFar, 2),
             'expenses_so_far' => round($expensesSoFar, 2),
+            'advances_so_far' => round($advancesSoFar, 2),
             'commissions_so_far' => round($commissionsSoFar, 2),
-            'estimated_profit' => round($revenueSoFar - $expensesSoFar - $commissionsSoFar, 2),
+            'estimated_profit' => round($revenueSoFar - $expensesSoFar - $advancesSoFar - $commissionsSoFar, 2),
         ];
     }
 

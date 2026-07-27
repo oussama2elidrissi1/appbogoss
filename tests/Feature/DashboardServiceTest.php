@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\DTOs\DashboardStatsDTO;
+use App\Models\Advance;
 use App\Models\Appointment;
 use App\Models\Client;
 use App\Models\Employee;
@@ -11,6 +12,7 @@ use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Service;
+use App\Models\WorkDay;
 use App\Services\DashboardService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -79,5 +81,44 @@ class DashboardServiceTest extends TestCase
         $this->assertArrayHasKey('date', $array['revenue_series'][0]);
         $this->assertArrayHasKey('revenue', $array['revenue_series'][0]);
         $this->assertArrayHasKey('expenses', $array['revenue_series'][0]);
+    }
+
+    public function test_active_day_summary_subtracts_advances_from_estimated_profit(): void
+    {
+        $employee = Employee::factory()->create();
+        $workDay = WorkDay::factory()->create([
+            'opening_balance' => 500,
+            'status' => 'open',
+        ]);
+
+        $workDay->employees()->attach($employee->id, ['present' => true]);
+
+        Sale::factory()->create([
+            'work_day_id' => $workDay->id,
+            'employee_id' => $employee->id,
+            'total' => 300,
+            'commission_amount' => 40,
+        ]);
+
+        Expense::factory()->create([
+            'work_day_id' => $workDay->id,
+            'amount' => 50,
+            'spent_on' => $workDay->date->toDateString(),
+        ]);
+
+        Advance::factory()->create([
+            'employee_id' => $employee->id,
+            'work_day_id' => $workDay->id,
+            'amount' => 80,
+            'given_on' => $workDay->date->toDateString(),
+        ]);
+
+        $activeDay = app(DashboardService::class)->getStats()->toArray()['active_day'];
+
+        $this->assertSame(300.0, $activeDay['revenue_so_far']);
+        $this->assertSame(50.0, $activeDay['expenses_so_far']);
+        $this->assertSame(80.0, $activeDay['advances_so_far']);
+        $this->assertSame(40.0, $activeDay['commissions_so_far']);
+        $this->assertSame(130.0, $activeDay['estimated_profit']);
     }
 }
