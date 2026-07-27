@@ -89,14 +89,24 @@ export function QuickCheckout({
     const usesProductCatalog = category?.value === 'vitrine';
     const usesCatalog = category?.usesServiceCatalog ?? false;
 
-    const { data: services, isPending: servicesPending } = useQuery({
+    const {
+        data: services,
+        error: servicesLoadError,
+        isError: servicesIsError,
+        isPending: servicesPending,
+    } = useQuery({
         queryKey: workDayKeys.services(category?.value ?? ''),
         queryFn: () => getServices(category?.value),
         enabled: usesCatalog && !usesProductCatalog && category !== null,
         staleTime: 5 * 60_000,
     });
 
-    const { data: products, isPending: productsPending } = useQuery({
+    const {
+        data: products,
+        error: productsLoadError,
+        isError: productsIsError,
+        isPending: productsPending,
+    } = useQuery({
         queryKey: workDayKeys.products(),
         queryFn: () => getProducts(),
         enabled: usesProductCatalog,
@@ -109,6 +119,9 @@ export function QuickCheckout({
         if (!term) return list;
         return list.filter((entry) => entry.name.toLowerCase().includes(term));
     }, [products, services, serviceSearch, usesProductCatalog]);
+    const catalogPending = usesProductCatalog ? productsPending : servicesPending;
+    const catalogIsError = usesProductCatalog ? productsIsError : servicesIsError;
+    const catalogError = usesProductCatalog ? productsLoadError : servicesLoadError;
 
     const priceValue = Number.parseFloat(price.replace(',', '.'));
     const hasValidPrice = Number.isFinite(priceValue) && priceValue > 0;
@@ -368,11 +381,16 @@ export function QuickCheckout({
                                 />
                             </div>
 
-                            {servicesPending || productsPending ? (
+                            {catalogPending ? (
                                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                     {Array.from({ length: 4 }).map((_, index) => (
                                         <Skeleton key={index} className="h-14 rounded-md" />
                                     ))}
+                                </div>
+                            ) : catalogIsError ? (
+                                <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-xs text-destructive">
+                                    <AlertCircle className="h-4 w-4 shrink-0" />
+                                    <span>{getErrorMessage(catalogError)}</span>
                                 </div>
                             ) : filteredServices.length === 0 ? (
                                 <div className="rounded-md border border-dashed border-white/[0.08] px-4 py-5 text-center text-xs text-muted-foreground">
