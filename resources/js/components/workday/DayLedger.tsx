@@ -1,10 +1,12 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ReceiptText } from 'lucide-react';
-import { getTransactions } from '@/lib/api';
+import { ReceiptText, Trash2 } from 'lucide-react';
+import { deleteTransaction, getTransactions } from '@/lib/api';
 import { workDayKeys } from '@/hooks/useWorkDay';
 import { cn, formatCurrency, formatTime } from '@/lib/utils';
 import type { Sale } from '@/types/workday';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/dashboard/EmptyState';
@@ -23,20 +25,43 @@ function clientName(sale: Sale): string {
 
 /** The running list of the day's encaissements, newest first. */
 export function DayLedger({ workDayId }: DayLedgerProps) {
+    const queryClient = useQueryClient();
     const { data: sales, isPending } = useQuery({
         queryKey: workDayKeys.transactions(workDayId),
         queryFn: () => getTransactions(workDayId),
         refetchInterval: 8000,
     });
 
-    const total = (sales ?? []).reduce((sum, sale) => sum + sale.total, 0);
+    const deleteMutation = useMutation({
+        mutationFn: deleteTransaction,
+        onSuccess: (deletedSale) => {
+            queryClient.setQueryData<Sale[]>(workDayKeys.transactions(workDayId), (current) =>
+                current?.map((sale) => (sale.id === deletedSale.id ? deletedSale : sale)) ?? [
+                    deletedSale,
+                ],
+            );
+            void queryClient.invalidateQueries({ queryKey: workDayKeys.transactions(workDayId) });
+            void queryClient.invalidateQueries({ queryKey: workDayKeys.active });
+            void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+        },
+    });
+
+    const activeSales = (sales ?? []).filter((sale) => !sale.is_deleted);
+    const deletedCount = (sales ?? []).length - activeSales.length;
+    const total = activeSales.reduce((sum, sale) => sum + sale.total, 0);
+
+    function handleDelete(sale: Sale) {
+        const label = sale.items[0]?.label ?? `ticket #${sale.id}`;
+        const confirmed = window.confirm(`Supprimer le ticket "${label}" ?`);
+        if (confirmed) deleteMutation.mutate(sale.id);
+    }
 
     return (
         <Card className="flex h-full flex-col">
             <CardHeader>
                 <div className="flex items-baseline justify-between gap-3">
                     <CardTitle>Encaissements du jour</CardTitle>
-                    {!isPending && (sales?.length ?? 0) > 0 && (
+                    {!isPending && activeSales.length > 0 && (
                         <span className="text-sm font-semibold tabular-nums text-accent">
                             {formatCurrency(total, { maximumFractionDigits: 2 })}
                         </span>
@@ -44,8 +69,8 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
                 </div>
                 <p className="mt-1.5 text-sm text-muted-foreground">
                     {isPending
-                        ? 'Chargement…'
-                        : `${sales?.length ?? 0} ticket${(sales?.length ?? 0) > 1 ? 's' : ''} enregistré${(sales?.length ?? 0) > 1 ? 's' : ''}`}
+                        ? 'Chargement...'
+                        : `${activeSales.length} ticket${activeSales.length > 1 ? 's' : ''} enregistré${activeSales.length > 1 ? 's' : ''}${deletedCount > 0 ? ` · ${deletedCount} supprimé${deletedCount > 1 ? 's' : ''}` : ''}`}
                 </p>
             </CardHeader>
 
@@ -67,13 +92,15 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
                     <EmptyState
                         icon={ReceiptText}
                         title="Aucun encaissement"
-                        description="Les tickets de la journée s’afficheront ici dès le premier enregistrement."
+                        description="Les tickets de la journée s'afficheront ici dès le premier enregistrement."
                     />
                 ) : (
                     <ul className="max-h-[560px] space-y-2 overflow-y-auto pr-0.5">
                         <AnimatePresence initial={false}>
                             {(sales ?? []).map((sale) => {
                                 const config = getCategory(sale.category);
+                                const deleted = sale.is_deleted;
+
                                 return (
                                     <motion.li
                                         key={sale.id}
@@ -85,6 +112,8 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
                                         className={cn(
                                             'flex items-center gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2.5',
                                             'transition-colors duration-200 hover:border-accent/20 hover:bg-white/[0.04]',
+                                            deleted &&
+                                                'border-destructive/20 bg-destructive/[0.06] opacity-80 hover:border-destructive/30',
                                         )}
                                     >
                                         <span className="w-11 shrink-0 text-xs tabular-nums text-muted-foreground/80">
@@ -107,12 +136,20 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
                                                 >
                                                     {config.label}
                                                 </span>
-                                                <span className="truncate text-sm font-medium text-foreground">
+                                                {deleted && (
+                                                    <Badge variant="destructive">Supprimé</Badge>
+                                                )}
+                                                <span
+                                                    className={cn(
+                                                        'truncate text-sm font-medium text-foreground',
+                                                        deleted && 'text-muted-foreground',
+                                                    )}
+                                                >
                                                     {sale.items.length > 0
                                                         ? sale.items
                                                               .map((item) =>
                                                                   item.quantity > 1
-                                                                      ? `${item.label} ×${item.quantity}`
+                                                                      ? `${item.label} x${item.quantity}`
                                                                       : item.label,
                                                               )
                                                               .join(', ')
@@ -125,12 +162,19 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
                                         </div>
 
                                         <div className="shrink-0 text-right">
-                                            <p className="text-sm font-semibold tabular-nums text-foreground">
+                                            <p
+                                                className={cn(
+                                                    'text-sm font-semibold tabular-nums text-foreground',
+                                                    deleted &&
+                                                        'text-muted-foreground line-through decoration-destructive/70',
+                                                )}
+                                            >
                                                 {formatCurrency(sale.total, {
                                                     maximumFractionDigits: 2,
                                                 })}
                                             </p>
-                                            {sale.commission_amount !== null &&
+                                            {!deleted &&
+                                                sale.commission_amount !== null &&
                                                 sale.commission_amount > 0 && (
                                                     <p className="mt-0.5 text-[11px] tabular-nums text-accent">
                                                         +
@@ -140,6 +184,20 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
                                                     </p>
                                                 )}
                                         </div>
+
+                                        {!deleted && (
+                                            <Button
+                                                type="button"
+                                                size="icon"
+                                                variant="ghost"
+                                                aria-label="Supprimer le ticket"
+                                                disabled={deleteMutation.isPending}
+                                                onClick={() => handleDelete(sale)}
+                                                className="h-8 w-8 shrink-0"
+                                            >
+                                                <Trash2 className="text-destructive" />
+                                            </Button>
+                                        )}
                                     </motion.li>
                                 );
                             })}

@@ -109,7 +109,8 @@ export default function Caisse() {
 
     if (!workDay) return <OpenDayCard />;
 
-    const revenueSoFar = (sales ?? []).reduce((sum, sale) => sum + sale.total, 0);
+    const activeSales = (sales ?? []).filter((sale) => !sale.is_deleted);
+    const revenueSoFar = activeSales.reduce((sum, sale) => sum + sale.total, 0);
 
     return (
         <>
@@ -118,7 +119,7 @@ export default function Caisse() {
                     <DayHeader
                         workDay={workDay}
                         revenueSoFar={revenueSoFar}
-                        salesCount={sales?.length ?? 0}
+                        salesCount={activeSales.length}
                         onClose={() => setCloseOpen(true)}
                     />
                 </motion.div>

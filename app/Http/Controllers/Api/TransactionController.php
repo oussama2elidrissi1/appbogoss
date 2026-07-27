@@ -62,11 +62,20 @@ class TransactionController extends Controller
             'work_day_id' => ['required', 'integer', Rule::exists('work_days', 'id')],
         ]);
 
-        $sales = Sale::with(['client', 'employee', 'items'])
+        $sales = Sale::withTrashed()
+            ->with(['client', 'employee', 'items'])
             ->where('work_day_id', $validated['work_day_id'])
             ->orderByDesc('created_at')
             ->get();
 
         return response()->json(['data' => SaleResource::collection($sales)]);
+    }
+
+    public function destroy(Sale $sale): JsonResponse
+    {
+        $sale->delete();
+        $sale->load(['client', 'employee', 'items']);
+
+        return response()->json(['data' => new SaleResource($sale)]);
     }
 }

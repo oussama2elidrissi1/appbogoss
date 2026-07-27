@@ -95,6 +95,9 @@ export interface Sale {
     payment_method: string;
     /** ISO timestamp */
     created_at: string;
+    /** ISO timestamp */
+    deleted_at: string | null;
+    is_deleted: boolean;
     client: { id: number; name: string } | null;
     client_label: string | null;
     employee: { id: number; name: string; avatar_color: string };

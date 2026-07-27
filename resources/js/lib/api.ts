@@ -131,6 +131,11 @@ export async function getTransactions(workDayId: number): Promise<Sale[]> {
     return data.data;
 }
 
+export async function deleteTransaction(id: number): Promise<Sale> {
+    const { data } = await api.delete<{ data: Sale }>(`/api/transactions/${id}`);
+    return data.data;
+}
+
 export async function createAdvance(payload: CreateAdvancePayload): Promise<Advance> {
     const { data } = await api.post<{ data: Advance }>('/api/advances', payload);
     return data.data;
