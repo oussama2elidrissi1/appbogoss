@@ -17,6 +17,14 @@ interface DayLedgerProps {
     workDayId: number;
 }
 
+interface EmployeeSalesSummary {
+    id: number;
+    name: string;
+    avatarColor: string;
+    salesCount: number;
+    total: number;
+}
+
 function clientName(sale: Sale): string {
     if (sale.client) return sale.client.name;
     if (sale.client_label) return sale.client_label;
@@ -35,13 +43,19 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
     const deleteMutation = useMutation({
         mutationFn: deleteTransaction,
         onSuccess: (deletedSale) => {
-            queryClient.setQueryData<Sale[]>(workDayKeys.transactions(workDayId), (current) =>
-                current?.map((sale) => (sale.id === deletedSale.id ? deletedSale : sale)) ?? [
-                    deletedSale,
-                ],
+            queryClient.setQueryData<Sale[]>(
+                workDayKeys.transactions(workDayId),
+                (current) =>
+                    current?.map((sale) => (sale.id === deletedSale.id ? deletedSale : sale)) ?? [
+                        deletedSale,
+                    ],
             );
-            void queryClient.invalidateQueries({ queryKey: workDayKeys.transactions(workDayId) });
-            void queryClient.invalidateQueries({ queryKey: workDayKeys.active });
+            void queryClient.invalidateQueries({
+                queryKey: workDayKeys.transactions(workDayId),
+            });
+            void queryClient.invalidateQueries({
+                queryKey: workDayKeys.active,
+            });
             void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
         },
     });
@@ -49,6 +63,25 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
     const activeSales = (sales ?? []).filter((sale) => !sale.is_deleted);
     const deletedCount = (sales ?? []).length - activeSales.length;
     const total = activeSales.reduce((sum, sale) => sum + sale.total, 0);
+    const salesByEmployee = Array.from(
+        activeSales
+            .reduce((summaries, sale) => {
+                const current = summaries.get(sale.employee.id) ?? {
+                    id: sale.employee.id,
+                    name: sale.employee.name,
+                    avatarColor: sale.employee.avatar_color,
+                    salesCount: 0,
+                    total: 0,
+                };
+
+                current.salesCount += 1;
+                current.total += sale.total;
+                summaries.set(sale.employee.id, current);
+
+                return summaries;
+            }, new Map<number, EmployeeSalesSummary>())
+            .values(),
+    ).sort((left, right) => right.total - left.total || left.name.localeCompare(right.name, 'fr'));
 
     function handleDelete(sale: Sale) {
         const label = sale.items[0]?.label ?? `ticket #${sale.id}`;
@@ -63,7 +96,9 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
                     <CardTitle>Encaissements du jour</CardTitle>
                     {!isPending && activeSales.length > 0 && (
                         <span className="text-sm font-semibold tabular-nums text-accent">
-                            {formatCurrency(total, { maximumFractionDigits: 2 })}
+                            {formatCurrency(total, {
+                                maximumFractionDigits: 2,
+                            })}
                         </span>
                     )}
                 </div>
@@ -95,114 +130,168 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
                         description="Les tickets de la journée s'afficheront ici dès le premier enregistrement."
                     />
                 ) : (
-                    <ul className="max-h-[560px] space-y-2 overflow-y-auto pr-0.5">
-                        <AnimatePresence initial={false}>
-                            {(sales ?? []).map((sale) => {
-                                const config = getCategory(sale.category);
-                                const deleted = sale.is_deleted;
+                    <div className="space-y-4">
+                        {salesByEmployee.length > 0 && (
+                            <section className="space-y-2">
+                                <div className="flex items-center justify-between gap-3">
+                                    <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                                        Par employé
+                                    </h3>
+                                    <span className="text-xs text-muted-foreground">
+                                        Hors tickets supprimés
+                                    </span>
+                                </div>
 
-                                return (
-                                    <motion.li
-                                        key={sale.id}
-                                        layout
-                                        initial={{ opacity: 0, y: -8 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0 }}
-                                        transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-                                        className={cn(
-                                            'flex items-center gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2.5',
-                                            'transition-colors duration-200 hover:border-accent/20 hover:bg-white/[0.04]',
-                                            deleted &&
-                                                'border-destructive/20 bg-destructive/[0.06] opacity-80 hover:border-destructive/30',
-                                        )}
-                                    >
-                                        <span className="w-11 shrink-0 text-xs tabular-nums text-muted-foreground/80">
-                                            {formatTime(sale.created_at)}
-                                        </span>
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    {salesByEmployee.map((employee) => (
+                                        <div
+                                            key={employee.id}
+                                            className="flex items-center gap-3 rounded-md border border-white/[0.06] bg-white/[0.025] px-3 py-2.5"
+                                        >
+                                            <EmployeeAvatar
+                                                name={employee.name}
+                                                color={employee.avatarColor}
+                                                size="sm"
+                                            />
 
-                                        <EmployeeAvatar
-                                            name={sale.employee.name}
-                                            color={sale.employee.avatar_color}
-                                            size="sm"
-                                        />
-
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex items-center gap-2">
-                                                <span
-                                                    className={cn(
-                                                        'inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.06em]',
-                                                        config.badge,
-                                                    )}
-                                                >
-                                                    {config.label}
-                                                </span>
-                                                {deleted && (
-                                                    <Badge variant="destructive">Supprimé</Badge>
-                                                )}
-                                                <span
-                                                    className={cn(
-                                                        'truncate text-sm font-medium text-foreground',
-                                                        deleted && 'text-muted-foreground',
-                                                    )}
-                                                >
-                                                    {sale.items.length > 0
-                                                        ? sale.items
-                                                              .map((item) =>
-                                                                  item.quantity > 1
-                                                                      ? `${item.label} x${item.quantity}`
-                                                                      : item.label,
-                                                              )
-                                                              .join(', ')
-                                                        : config.label}
-                                                </span>
+                                            <div className="min-w-0 flex-1">
+                                                <p className="truncate text-sm font-medium text-foreground">
+                                                    {employee.name}
+                                                </p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {employee.salesCount} ticket
+                                                    {employee.salesCount > 1 ? 's' : ''}
+                                                </p>
                                             </div>
-                                            <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                                                {clientName(sale)} · {sale.employee.name}
-                                            </p>
-                                        </div>
 
-                                        <div className="shrink-0 text-right">
-                                            <p
-                                                className={cn(
-                                                    'text-sm font-semibold tabular-nums text-foreground',
-                                                    deleted &&
-                                                        'text-muted-foreground line-through decoration-destructive/70',
-                                                )}
-                                            >
-                                                {formatCurrency(sale.total, {
+                                            <p className="shrink-0 text-sm font-semibold tabular-nums text-accent">
+                                                {formatCurrency(employee.total, {
                                                     maximumFractionDigits: 2,
                                                 })}
                                             </p>
-                                            {!deleted &&
-                                                sale.commission_amount !== null &&
-                                                sale.commission_amount > 0 && (
-                                                    <p className="mt-0.5 text-[11px] tabular-nums text-accent">
-                                                        +
-                                                        {formatCurrency(sale.commission_amount, {
-                                                            maximumFractionDigits: 2,
-                                                        })}
-                                                    </p>
-                                                )}
                                         </div>
+                                    ))}
+                                </div>
+                            </section>
+                        )}
 
-                                        {!deleted && (
-                                            <Button
-                                                type="button"
-                                                size="icon"
-                                                variant="ghost"
-                                                aria-label="Supprimer le ticket"
-                                                disabled={deleteMutation.isPending}
-                                                onClick={() => handleDelete(sale)}
-                                                className="h-8 w-8 shrink-0"
-                                            >
-                                                <Trash2 className="text-destructive" />
-                                            </Button>
-                                        )}
-                                    </motion.li>
-                                );
-                            })}
-                        </AnimatePresence>
-                    </ul>
+                        <ul className="max-h-[420px] space-y-2 overflow-y-auto pr-0.5">
+                            <AnimatePresence initial={false}>
+                                {(sales ?? []).map((sale) => {
+                                    const config = getCategory(sale.category);
+                                    const deleted = sale.is_deleted;
+
+                                    return (
+                                        <motion.li
+                                            key={sale.id}
+                                            layout
+                                            initial={{ opacity: 0, y: -8 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0 }}
+                                            transition={{
+                                                duration: 0.25,
+                                                ease: [0.4, 0, 0.2, 1],
+                                            }}
+                                            className={cn(
+                                                'flex items-center gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2.5',
+                                                'transition-colors duration-200 hover:border-accent/20 hover:bg-white/[0.04]',
+                                                deleted &&
+                                                    'border-destructive/20 bg-destructive/[0.06] opacity-80 hover:border-destructive/30',
+                                            )}
+                                        >
+                                            <span className="w-11 shrink-0 text-xs tabular-nums text-muted-foreground/80">
+                                                {formatTime(sale.created_at)}
+                                            </span>
+
+                                            <EmployeeAvatar
+                                                name={sale.employee.name}
+                                                color={sale.employee.avatar_color}
+                                                size="sm"
+                                            />
+
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2">
+                                                    <span
+                                                        className={cn(
+                                                            'inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.06em]',
+                                                            config.badge,
+                                                        )}
+                                                    >
+                                                        {config.label}
+                                                    </span>
+                                                    {deleted && (
+                                                        <Badge variant="destructive">
+                                                            Supprimé
+                                                        </Badge>
+                                                    )}
+                                                    <span
+                                                        className={cn(
+                                                            'truncate text-sm font-medium text-foreground',
+                                                            deleted && 'text-muted-foreground',
+                                                        )}
+                                                    >
+                                                        {sale.items.length > 0
+                                                            ? sale.items
+                                                                  .map((item) =>
+                                                                      item.quantity > 1
+                                                                          ? `${item.label} x${item.quantity}`
+                                                                          : item.label,
+                                                                  )
+                                                                  .join(', ')
+                                                            : config.label}
+                                                    </span>
+                                                </div>
+                                                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                                                    {clientName(sale)} · {sale.employee.name}
+                                                </p>
+                                            </div>
+
+                                            <div className="shrink-0 text-right">
+                                                <p
+                                                    className={cn(
+                                                        'text-sm font-semibold tabular-nums text-foreground',
+                                                        deleted &&
+                                                            'text-muted-foreground line-through decoration-destructive/70',
+                                                    )}
+                                                >
+                                                    {formatCurrency(sale.total, {
+                                                        maximumFractionDigits: 2,
+                                                    })}
+                                                </p>
+                                                {!deleted &&
+                                                    sale.commission_amount !== null &&
+                                                    sale.commission_amount > 0 && (
+                                                        <p className="mt-0.5 text-[11px] tabular-nums text-accent">
+                                                            +
+                                                            {formatCurrency(
+                                                                sale.commission_amount,
+                                                                {
+                                                                    maximumFractionDigits: 2,
+                                                                },
+                                                            )}
+                                                        </p>
+                                                    )}
+                                            </div>
+
+                                            {!deleted && (
+                                                <Button
+                                                    type="button"
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    aria-label="Supprimer le ticket"
+                                                    disabled={deleteMutation.isPending}
+                                                    onClick={() => handleDelete(sale)}
+                                                    className="h-8 w-8 shrink-0"
+                                                >
+                                                    <Trash2 className="text-destructive" />
+                                                </Button>
+                                            )}
+                                        </motion.li>
+                                    );
+                                })}
+                            </AnimatePresence>
+                        </ul>
+                    </div>
                 )}
             </CardContent>
         </Card>
