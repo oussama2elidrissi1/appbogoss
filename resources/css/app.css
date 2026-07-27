@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+
+    html {
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+        @apply bg-background text-foreground font-sans antialiased;
+        font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+        line-height: 1.6;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+        @apply font-semibold tracking-tight;
+        line-height: 1.2;
+    }
+
+    /* Dark-theme scrollbar */
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background-color: rgba(148, 163, 184, 0.18);
+        border-radius: 9999px;
+        border: 2px solid transparent;
+        background-clip: content-box;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(200, 162, 76, 0.45);
+        background-clip: content-box;
+    }
+
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(148, 163, 184, 0.18) transparent;
+    }
+
+    :focus-visible {
+        @apply outline-none ring-2 ring-ring/60 ring-offset-2 ring-offset-background;
+    }
+}
+
+@layer components {
+    /* Subtle glassmorphism for elevated surfaces — used sparingly */
+    .glass {
+        background-color: rgba(19, 34, 56, 0.72);
+        backdrop-filter: blur(16px) saturate(140%);
+        -webkit-backdrop-filter: blur(16px) saturate(140%);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    /* Atmospheric radial wash for full-bleed screens */
+    .aurora {
+        background-image:
+            radial-gradient(60rem 40rem at 12% -10%, rgba(200, 162, 76, 0.14), transparent 60%),
+            radial-gradient(48rem 36rem at 92% 8%, rgba(52, 211, 153, 0.07), transparent 62%),
+            radial-gradient(40rem 40rem at 50% 110%, rgba(200, 162, 76, 0.08), transparent 60%);
+    }
+
+    /* Fine grain overlay to kill flat-color banding */
+    .grain::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.035;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    /* Hairline top highlight on elevated cards */
+    .edge-light {
+        position: relative;
+    }
+
+    .edge-light::before {
+        content: '';
+        position: absolute;
+        inset-inline: 1px;
+        top: 0;
+        height: 1px;
+        border-radius: 9999px;
+        background-image: linear-gradient(
+            to right,
+            transparent,
+            rgba(255, 255, 255, 0.14),
+            transparent
+        );
+        pointer-events: none;
+    }
+}
+
+/* Recharts focus outlines are noisy on dark surfaces */
+.recharts-wrapper:focus,
+.recharts-surface:focus {
+    outline: none;
+}
