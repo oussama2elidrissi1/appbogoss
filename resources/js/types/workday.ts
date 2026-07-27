@@ -166,9 +166,23 @@ export interface Employee {
     id: number;
     name: string;
     role: string;
+    email: string | null;
+    phone: string | null;
     avatar_color: string;
+    specialties: string[];
     is_active: boolean;
     default_commission_rate: number | null;
+}
+
+export interface EmployeePayload {
+    name?: string;
+    role?: string;
+    email?: string | null;
+    phone?: string | null;
+    avatar_color?: string;
+    specialties?: string[];
+    is_active?: boolean;
+    default_commission_rate?: number | null;
 }
 
 export interface Client {

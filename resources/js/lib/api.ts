@@ -8,6 +8,7 @@ import type {
     CreateExpensePayload,
     CreateTransactionPayload,
     Employee,
+    EmployeePayload,
     Expense,
     OpenWorkDayPayload,
     Sale,
@@ -159,9 +160,31 @@ export async function getExpenses(workDayId?: number): Promise<Expense[]> {
     return data.data;
 }
 
-export async function getEmployees(): Promise<Employee[]> {
-    const { data } = await api.get<{ data: Employee[] }>('/api/employees');
+export async function getEmployees(options?: {
+    includeInactive?: boolean;
+    search?: string;
+}): Promise<Employee[]> {
+    const { data } = await api.get<{ data: Employee[] }>('/api/employees', {
+        params: {
+            ...(options?.includeInactive ? { include_inactive: 1 } : {}),
+            ...(options?.search ? { search: options.search } : {}),
+        },
+    });
     return data.data;
+}
+
+export async function createEmployee(payload: EmployeePayload): Promise<Employee> {
+    const { data } = await api.post<{ data: Employee }>('/api/employees', payload);
+    return data.data;
+}
+
+export async function updateEmployee(id: number, payload: EmployeePayload): Promise<Employee> {
+    const { data } = await api.put<{ data: Employee }>(`/api/employees/${id}`, payload);
+    return data.data;
+}
+
+export async function deleteEmployee(id: number): Promise<void> {
+    await api.delete(`/api/employees/${id}`);
 }
 
 export async function getClients(search?: string): Promise<Client[]> {

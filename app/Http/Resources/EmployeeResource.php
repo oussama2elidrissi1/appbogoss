@@ -1,0 +1,29 @@
+<?php
+
+namespace App\Http\Resources;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+class EmployeeResource extends JsonResource
+{
+    /**
+     * @return array<string, mixed>
+     */
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'role' => $this->role,
+            'email' => $this->email,
+            'phone' => $this->phone,
+            'avatar_color' => $this->avatar_color,
+            'specialties' => $this->specialties ?? [],
+            'is_active' => (bool) $this->is_active,
+            'default_commission_rate' => $this->default_commission_rate !== null
+                ? (float) $this->default_commission_rate
+                : null,
+        ];
+    }
+}

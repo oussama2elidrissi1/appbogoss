@@ -35,7 +35,7 @@ export function OpenDayCard() {
 
     const { data: employees, isPending: employeesPending } = useQuery({
         queryKey: workDayKeys.employees,
-        queryFn: getEmployees,
+        queryFn: () => getEmployees(),
     });
 
     const {

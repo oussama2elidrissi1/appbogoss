@@ -75,7 +75,7 @@ export default function Caisse() {
 
     const { data: employees, isPending: employeesPending } = useQuery({
         queryKey: workDayKeys.employees,
-        queryFn: getEmployees,
+        queryFn: () => getEmployees(),
         staleTime: 5 * 60_000,
     });
 
