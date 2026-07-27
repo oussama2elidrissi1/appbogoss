@@ -55,20 +55,9 @@ class DemoDataSeeder extends Seeder
             $employee->update(['default_commission_rate' => 40.00]);
         });
 
-        $serviceDefinitions = [
-            ['name' => 'Coupe Homme', 'category' => 'coiffure', 'duration_minutes' => 30, 'price' => 25],
-            ['name' => 'Coupe Femme', 'category' => 'coiffure', 'duration_minutes' => 45, 'price' => 45],
-            ['name' => 'Coloration', 'category' => 'coiffure', 'duration_minutes' => 90, 'price' => 80],
-            ['name' => 'Balayage', 'category' => 'coiffure', 'duration_minutes' => 120, 'price' => 120],
-            ['name' => 'Brushing', 'category' => 'coiffure', 'duration_minutes' => 30, 'price' => 30],
-            ['name' => 'Taille de Barbe', 'category' => 'barbe', 'duration_minutes' => 20, 'price' => 18],
-            ['name' => 'Rasage Traditionnel', 'category' => 'barbe', 'duration_minutes' => 30, 'price' => 28],
-            ['name' => 'Soin Visage', 'category' => 'soin', 'duration_minutes' => 45, 'price' => 55],
-            ['name' => 'Manucure', 'category' => 'esthetique', 'duration_minutes' => 40, 'price' => 35],
-            ['name' => 'Epilation Sourcils', 'category' => 'esthetique', 'duration_minutes' => 15, 'price' => 15],
-        ];
-
-        $services = collect($serviceDefinitions)->map(fn (array $data) => Service::factory()->create($data));
+        $services = collect($this->serviceCatalog())->map(
+            fn (array $data) => Service::updateOrCreate(['name' => $data['name']], $data),
+        );
 
         $clients = Client::factory()->count(40)->create();
 
@@ -163,17 +152,19 @@ class DemoDataSeeder extends Seeder
      */
     protected function seedWorkDays(User $admin, $employees, $clients): void
     {
-        $prestations = [
-            ['category' => 'coiffure', 'label' => 'Coupe + Barbe', 'price' => 50],
-            ['category' => 'coiffure', 'label' => 'Coupe Homme', 'price' => 30],
-            ['category' => 'hammam', 'label' => 'Hammam Classique', 'price' => 150],
-            ['category' => 'hammam', 'label' => 'Hammam Royal', 'price' => 250],
-            ['category' => 'massage', 'label' => 'Massage Relaxant', 'price' => 250],
-            ['category' => 'boisson', 'label' => 'Thé à la menthe', 'price' => 15],
-            ['category' => 'boisson', 'label' => 'Café', 'price' => 12],
-            ['category' => 'vitrine', 'label' => 'Huile d\'argan', 'price' => 90],
-            ['category' => 'vitrine', 'label' => 'Savon noir', 'price' => 45],
-        ];
+        $prestations = collect($this->serviceCatalog())
+            ->map(fn (array $service) => [
+                'category' => $service['category'],
+                'label' => $service['name'],
+                'price' => $service['price'],
+            ])
+            ->merge([
+                ['category' => 'boisson', 'label' => 'Thé à la menthe', 'price' => 15],
+                ['category' => 'boisson', 'label' => 'Café', 'price' => 12],
+                ['category' => 'vitrine', 'label' => 'Huile d\'argan', 'price' => 90],
+                ['category' => 'vitrine', 'label' => 'Savon noir', 'price' => 45],
+            ])
+            ->all();
 
         // 1. Closed work day for yesterday.
         $yesterday = now()->yesterday();
@@ -338,5 +329,37 @@ class DemoDataSeeder extends Seeder
                 'amount' => round(fake()->randomFloat(2, ...$option['amount']), 2),
             ])
             ->all();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    protected function serviceCatalog(): array
+    {
+        return [
+            ['name' => 'Coupe cheveux + barbe', 'category' => 'coiffure', 'duration_minutes' => 45, 'price' => 70, 'color' => '#C8A24C', 'is_active' => true],
+            ['name' => 'Coupe simple', 'category' => 'coiffure', 'duration_minutes' => 30, 'price' => 40, 'color' => '#C8A24C', 'is_active' => true],
+            ['name' => 'Coupe enfant (-12 ans)', 'category' => 'coiffure', 'duration_minutes' => 25, 'price' => 30, 'color' => '#C8A24C', 'is_active' => true],
+            ['name' => 'Soin cheveux', 'category' => 'coiffure', 'duration_minutes' => 30, 'price' => 50, 'color' => '#C8A24C', 'is_active' => true],
+            ['name' => 'Tour d\'oreilles', 'category' => 'coiffure', 'duration_minutes' => 15, 'price' => 30, 'color' => '#C8A24C', 'is_active' => true],
+            ['name' => 'Brushing / Coiffage', 'category' => 'coiffure', 'duration_minutes' => 30, 'price' => 30, 'color' => '#C8A24C', 'is_active' => true],
+            ['name' => 'Coloration cheveux', 'category' => 'coiffure', 'duration_minutes' => 90, 'price' => 150, 'color' => '#C8A24C', 'is_active' => true],
+            ['name' => 'Défrisage', 'category' => 'coiffure', 'duration_minutes' => 90, 'price' => 100, 'color' => '#C8A24C', 'is_active' => true],
+            ['name' => 'Kératine (à partir de)', 'category' => 'coiffure', 'duration_minutes' => 120, 'price' => 300, 'color' => '#C8A24C', 'is_active' => true],
+            ['name' => 'Protéine (à partir de)', 'category' => 'coiffure', 'duration_minutes' => 120, 'price' => 400, 'color' => '#C8A24C', 'is_active' => true],
+            ['name' => 'Barbe simple', 'category' => 'coiffure', 'duration_minutes' => 20, 'price' => 40, 'color' => '#C8A24C', 'is_active' => true],
+            ['name' => 'Barbe tracée', 'category' => 'coiffure', 'duration_minutes' => 25, 'price' => 50, 'color' => '#C8A24C', 'is_active' => true],
+            ['name' => 'Rasage vapeur', 'category' => 'coiffure', 'duration_minutes' => 35, 'price' => 80, 'color' => '#C8A24C', 'is_active' => true],
+            ['name' => 'Coloration barbe', 'category' => 'coiffure', 'duration_minutes' => 45, 'price' => 100, 'color' => '#C8A24C', 'is_active' => true],
+            ['name' => 'Black mask', 'category' => 'coiffure', 'duration_minutes' => 20, 'price' => 40, 'color' => '#C8A24C', 'is_active' => true],
+            ['name' => 'Soin visage express 15 min', 'category' => 'coiffure', 'duration_minutes' => 15, 'price' => 80, 'color' => '#C8A24C', 'is_active' => true],
+            ['name' => 'Soin visage vapeur 30 min', 'category' => 'coiffure', 'duration_minutes' => 30, 'price' => 120, 'color' => '#C8A24C', 'is_active' => true],
+            ['name' => 'L\'hydrafacial', 'category' => 'coiffure', 'duration_minutes' => 45, 'price' => 300, 'color' => '#C8A24C', 'is_active' => true],
+            ['name' => 'Hammam turc', 'category' => 'hammam', 'duration_minutes' => 45, 'price' => 150, 'color' => '#4C7CC8', 'is_active' => true],
+            ['name' => 'Hammam royale', 'category' => 'hammam', 'duration_minutes' => 60, 'price' => 250, 'color' => '#4C7CC8', 'is_active' => true],
+            ['name' => 'Massage sportif 30 min', 'category' => 'massage', 'duration_minutes' => 30, 'price' => 250, 'color' => '#8C6BC8', 'is_active' => true],
+            ['name' => 'Massage sportif 60 min', 'category' => 'massage', 'duration_minutes' => 60, 'price' => 450, 'color' => '#8C6BC8', 'is_active' => true],
+            ['name' => 'Hijama', 'category' => 'massage', 'duration_minutes' => 45, 'price' => 250, 'color' => '#8C6BC8', 'is_active' => true],
+        ];
     }
 }
