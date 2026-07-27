@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, Check, Loader2, Search } from 'lucide-react';
-import { createTransaction, getErrorMessage, getServices } from '@/lib/api';
+import { createTransaction, getErrorMessage, getProducts, getServices } from '@/lib/api';
 import { printSaleReceipt } from '@/lib/receipt';
 import { workDayKeys } from '@/hooks/useWorkDay';
 import { cn, formatCurrency } from '@/lib/utils';
-import type { CreateTransactionPayload, Employee, Sale, Service } from '@/types/workday';
+import type { CreateTransactionPayload, Employee, Product, Sale, Service } from '@/types/workday';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
@@ -86,21 +86,29 @@ export function QuickCheckout({
         [employees, employeeId],
     );
 
+    const usesProductCatalog = category?.value === 'vitrine';
     const usesCatalog = category?.usesServiceCatalog ?? false;
 
     const { data: services, isPending: servicesPending } = useQuery({
         queryKey: workDayKeys.services(category?.value ?? ''),
         queryFn: () => getServices(category?.value),
-        enabled: usesCatalog && category !== null,
+        enabled: usesCatalog && !usesProductCatalog && category !== null,
+        staleTime: 5 * 60_000,
+    });
+
+    const { data: products, isPending: productsPending } = useQuery({
+        queryKey: workDayKeys.products(),
+        queryFn: () => getProducts(),
+        enabled: usesProductCatalog,
         staleTime: 5 * 60_000,
     });
 
     const filteredServices = useMemo(() => {
         const term = serviceSearch.trim().toLowerCase();
-        const list = services ?? [];
+        const list = usesProductCatalog ? (products ?? []) : (services ?? []);
         if (!term) return list;
-        return list.filter((service) => service.name.toLowerCase().includes(term));
-    }, [services, serviceSearch]);
+        return list.filter((entry) => entry.name.toLowerCase().includes(term));
+    }, [products, services, serviceSearch, usesProductCatalog]);
 
     const priceValue = Number.parseFloat(price.replace(',', '.'));
     const hasValidPrice = Number.isFinite(priceValue) && priceValue > 0;
@@ -127,10 +135,10 @@ export function QuickCheckout({
         setCommissionTouched(false);
     }
 
-    function pickService(service: Service) {
-        setServiceId(service.id);
-        setLabel(service.name);
-        setPrice(String(service.price));
+    function pickService(entry: Service | Product) {
+        setServiceId(entry.id);
+        setLabel(entry.name);
+        setPrice(String(entry.price));
         setCommissionTouched(false);
     }
 
@@ -351,12 +359,16 @@ export function QuickCheckout({
                                 <Input
                                     value={serviceSearch}
                                     onChange={(event) => setServiceSearch(event.target.value)}
-                                    placeholder={`Rechercher une prestation ${category.label.toLowerCase()}…`}
+                                    placeholder={
+                                        usesProductCatalog
+                                            ? 'Rechercher un produit...'
+                                            : `Rechercher une prestation ${category.label.toLowerCase()}...`
+                                    }
                                     className="pl-10"
                                 />
                             </div>
 
-                            {servicesPending ? (
+                            {servicesPending || productsPending ? (
                                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                     {Array.from({ length: 4 }).map((_, index) => (
                                         <Skeleton key={index} className="h-14 rounded-md" />
@@ -364,7 +376,7 @@ export function QuickCheckout({
                                 </div>
                             ) : filteredServices.length === 0 ? (
                                 <div className="rounded-md border border-dashed border-white/[0.08] px-4 py-5 text-center text-xs text-muted-foreground">
-                                    Aucune prestation au catalogue — saisissez le libellé et le prix
+                                    Aucun élément au catalogue — saisissez le libellé et le prix
                                     manuellement ci-dessous.
                                 </div>
                             ) : (
@@ -387,7 +399,9 @@ export function QuickCheckout({
                                                     {service.name}
                                                 </span>
                                                 <span className="block text-xs text-muted-foreground">
-                                                    {service.duration_minutes} min
+                                                    {'duration_minutes' in service
+                                                        ? `${service.duration_minutes} min`
+                                                        : `${service.stock_quantity} en stock`}
                                                 </span>
                                             </span>
                                             <span className="shrink-0 text-sm font-semibold tabular-nums text-accent">
@@ -406,7 +420,11 @@ export function QuickCheckout({
                                     setLabel(event.target.value);
                                     setServiceId(null);
                                 }}
-                                placeholder="Libellé de la prestation"
+                                placeholder={
+                                    usesProductCatalog
+                                        ? 'Libellé du produit'
+                                        : 'Libellé de la prestation'
+                                }
                             />
                         </div>
                     ) : (

@@ -15,6 +15,7 @@ export const workDayKeys = {
     advances: (employeeId: number) => ['advances', employeeId] as const,
     employees: ['employees'] as const,
     services: (category: string) => ['services', category] as const,
+    products: (search = '') => ['products', search] as const,
     clients: (search: string) => ['clients', search] as const,
 };
 

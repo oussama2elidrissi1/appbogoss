@@ -11,6 +11,8 @@ import type {
     EmployeePayload,
     Expense,
     OpenWorkDayPayload,
+    Product,
+    ProductPayload,
     Sale,
     Service,
     ServicePayload,
@@ -234,4 +236,31 @@ export async function updateService(id: number, payload: ServicePayload): Promis
 
 export async function deleteService(id: number): Promise<void> {
     await api.delete(`/api/services/${id}`);
+}
+
+export async function getProducts(options?: {
+    search?: string;
+    category?: string;
+}): Promise<Product[]> {
+    const { data } = await api.get<{ data: Product[] }>('/api/products', {
+        params: {
+            ...(options?.search ? { search: options.search } : {}),
+            ...(options?.category ? { category: options.category } : {}),
+        },
+    });
+    return data.data;
+}
+
+export async function createProduct(payload: ProductPayload): Promise<Product> {
+    const { data } = await api.post<{ data: Product }>('/api/products', payload);
+    return data.data;
+}
+
+export async function updateProduct(id: number, payload: ProductPayload): Promise<Product> {
+    const { data } = await api.put<{ data: Product }>(`/api/products/${id}`, payload);
+    return data.data;
+}
+
+export async function deleteProduct(id: number): Promise<void> {
+    await api.delete(`/api/products/${id}`);
 }

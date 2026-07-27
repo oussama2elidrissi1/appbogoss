@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\ExpenseController;
+use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\TransactionController;
 use App\Http\Controllers\Api\WorkDayController;
@@ -48,6 +49,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/expenses', [ExpenseController::class, 'store']);
 
     Route::apiResource('/employees', EmployeeController::class);
+    Route::apiResource('/products', ProductController::class);
     Route::apiResource('/services', ServiceController::class);
     Route::get('/clients', [CatalogController::class, 'clients']);
 });

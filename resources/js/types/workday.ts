@@ -213,3 +213,24 @@ export interface ServicePayload {
     color?: string;
     is_active?: boolean;
 }
+
+export interface Product {
+    id: number;
+    name: string;
+    sku: string;
+    category: string;
+    price: number;
+    cost: number;
+    stock_quantity: number;
+    low_stock_threshold: number;
+}
+
+export interface ProductPayload {
+    name?: string;
+    sku?: string | null;
+    category?: string;
+    price?: number;
+    cost?: number | null;
+    stock_quantity?: number;
+    low_stock_threshold?: number;
+}

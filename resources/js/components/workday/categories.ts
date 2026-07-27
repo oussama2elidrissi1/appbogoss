@@ -16,7 +16,7 @@ export interface CategoryConfig {
     /** Ledger badge / chip colouring, drawn from the theme tokens. */
     chip: string;
     badge: string;
-    /** Prestations come from `GET /api/services`; the rest are free-text + manual price. */
+    /** Catalog categories show saved items; the rest are free-text + manual price. */
     usesServiceCatalog: boolean;
 }
 
@@ -56,7 +56,7 @@ export const CATEGORIES: CategoryConfig[] = [
         icon: Coffee,
         chip: 'text-success',
         badge: 'border-success/25 bg-success/[0.12] text-success',
-        usesServiceCatalog: false,
+        usesServiceCatalog: true,
     },
     {
         value: 'vitrine',
