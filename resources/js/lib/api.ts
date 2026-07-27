@@ -17,6 +17,8 @@ export const api = axios.create({
     headers: {
         Accept: 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
     },
 });
 
@@ -30,9 +32,13 @@ export function getErrorMessage(error: unknown, fallback = 'Une erreur est surve
     return fallback;
 }
 
-/** Primes the XSRF-TOKEN cookie. Must run before the first stateful POST. */
+/**
+ * Primes the XSRF-TOKEN cookie. Must run before the first stateful POST.
+ * The `_` cache-buster guarantees this always hits the server fresh, even if
+ * a proxy/CDN in front of the app ignores the no-store response headers.
+ */
 export async function getCsrfCookie(): Promise<void> {
-    await api.get('/sanctum/csrf-cookie');
+    await api.get('/sanctum/csrf-cookie', { params: { _: Date.now() } });
 }
 
 export async function login(email: string, password: string): Promise<User> {
