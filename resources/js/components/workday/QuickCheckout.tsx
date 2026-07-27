@@ -1,0 +1,490 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AnimatePresence, motion } from 'framer-motion';
+import { AlertCircle, Check, Loader2, Search } from 'lucide-react';
+import { createTransaction, getErrorMessage, getServices } from '@/lib/api';
+import { workDayKeys } from '@/hooks/useWorkDay';
+import { cn, formatCurrency } from '@/lib/utils';
+import type { CreateTransactionPayload, Employee, Sale, Service } from '@/types/workday';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { CATEGORIES, type CategoryConfig } from './categories';
+import { ClientPicker, EMPTY_CLIENT_SELECTION, type ClientSelection } from './ClientPicker';
+import { EmployeeAvatar } from './EmployeeAvatar';
+
+interface QuickCheckoutProps {
+    workDayId: number;
+    employees: Employee[];
+    employeesPending: boolean;
+    /** Employees marked present at opening — surfaced first in the picker. */
+    presentIds: number[];
+    onSaleRecorded: () => void;
+}
+
+/** Numbered step wrapper — keeps the vertical rhythm identical across all six steps. */
+function Step({
+    index,
+    title,
+    hint,
+    children,
+}: {
+    index: number;
+    title: string;
+    hint?: string;
+    children: React.ReactNode;
+}) {
+    return (
+        <section className="relative pl-9">
+            <span className="absolute left-0 top-0 flex h-6 w-6 items-center justify-center rounded-full bg-white/[0.05] text-[11px] font-semibold text-muted-foreground ring-1 ring-white/[0.07]">
+                {index}
+            </span>
+            <div className="flex items-baseline justify-between gap-3">
+                <Label className="text-foreground">{title}</Label>
+                {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
+            </div>
+            <div className="mt-2.5">{children}</div>
+        </section>
+    );
+}
+
+export function QuickCheckout({
+    workDayId,
+    employees,
+    employeesPending,
+    presentIds,
+    onSaleRecorded,
+}: QuickCheckoutProps) {
+    const queryClient = useQueryClient();
+
+    const [employeeId, setEmployeeId] = useState<number | null>(null);
+    const [client, setClient] = useState<ClientSelection>(EMPTY_CLIENT_SELECTION);
+    const [category, setCategory] = useState<CategoryConfig | null>(null);
+    const [serviceId, setServiceId] = useState<number | null>(null);
+    const [serviceSearch, setServiceSearch] = useState('');
+    const [label, setLabel] = useState('');
+    const [price, setPrice] = useState('');
+    const [commission, setCommission] = useState('');
+    /** Once the operator edits the commission by hand we stop auto-suggesting. */
+    const [commissionTouched, setCommissionTouched] = useState(false);
+    const [justSaved, setJustSaved] = useState(false);
+
+    // Present employees first, then the rest of the active roster.
+    const orderedEmployees = useMemo(() => {
+        const present = new Set(presentIds);
+        return employees
+            .filter((employee) => employee.is_active || present.has(employee.id))
+            .sort((a, b) => Number(present.has(b.id)) - Number(present.has(a.id)));
+    }, [employees, presentIds]);
+
+    const selectedEmployee = useMemo(
+        () => employees.find((employee) => employee.id === employeeId) ?? null,
+        [employees, employeeId],
+    );
+
+    const usesCatalog = category?.usesServiceCatalog ?? false;
+
+    const { data: services, isPending: servicesPending } = useQuery({
+        queryKey: workDayKeys.services(category?.value ?? ''),
+        queryFn: () => getServices(category?.value),
+        enabled: usesCatalog && category !== null,
+        staleTime: 5 * 60_000,
+    });
+
+    const filteredServices = useMemo(() => {
+        const term = serviceSearch.trim().toLowerCase();
+        const list = services ?? [];
+        if (!term) return list;
+        return list.filter((service) => service.name.toLowerCase().includes(term));
+    }, [services, serviceSearch]);
+
+    const priceValue = Number.parseFloat(price.replace(',', '.'));
+    const hasValidPrice = Number.isFinite(priceValue) && priceValue > 0;
+
+    const commissionValue = commission.trim() === '' ? null : Number.parseFloat(commission.replace(',', '.'));
+
+    // Suggest a commission from the employee's default rate until it is overridden.
+    useEffect(() => {
+        if (commissionTouched) return;
+        const rate = selectedEmployee?.default_commission_rate;
+        if (!rate || !hasValidPrice) {
+            setCommission('');
+            return;
+        }
+        setCommission(String(Math.round((priceValue * rate) / 100)));
+    }, [selectedEmployee, priceValue, hasValidPrice, commissionTouched]);
+
+    function pickCategory(next: CategoryConfig) {
+        setCategory(next);
+        setServiceId(null);
+        setServiceSearch('');
+        setLabel('');
+        setPrice('');
+        setCommissionTouched(false);
+    }
+
+    function pickService(service: Service) {
+        setServiceId(service.id);
+        setLabel(service.name);
+        setPrice(String(service.price));
+        setCommissionTouched(false);
+    }
+
+    const canSubmit =
+        employeeId !== null && category !== null && label.trim().length > 0 && hasValidPrice;
+
+    const mutation = useMutation({
+        mutationFn: createTransaction,
+        onSuccess: (sale: Sale) => {
+            // Optimistically prepend so the ledger reacts instantly, then reconcile.
+            queryClient.setQueryData<Sale[]>(workDayKeys.transactions(workDayId), (current) =>
+                current ? [sale, ...current] : [sale],
+            );
+            void queryClient.invalidateQueries({ queryKey: workDayKeys.transactions(workDayId) });
+            onSaleRecorded();
+
+            // Keep the employee selected — same person usually rings up several sales.
+            setClient(EMPTY_CLIENT_SELECTION);
+            setCategory(null);
+            setServiceId(null);
+            setServiceSearch('');
+            setLabel('');
+            setPrice('');
+            setCommission('');
+            setCommissionTouched(false);
+
+            setJustSaved(true);
+            window.setTimeout(() => setJustSaved(false), 1600);
+        },
+        onError: () => {
+            // A 422 "Aucune journée ouverte." means the day was closed on another
+            // device — resync rather than leaving the operator on a stale screen.
+            void queryClient.invalidateQueries({ queryKey: workDayKeys.active });
+        },
+    });
+
+    const submit = useCallback(() => {
+        if (!canSubmit || employeeId === null || category === null || mutation.isPending) return;
+
+        const payload: CreateTransactionPayload = {
+            employee_id: employeeId,
+            category: category.value,
+            label: label.trim(),
+            price: priceValue,
+            commission_amount:
+                commissionValue !== null && Number.isFinite(commissionValue)
+                    ? commissionValue
+                    : null,
+        };
+
+        if (client.mode === 'client' && client.client) {
+            payload.client_id = client.client.id;
+        } else if (client.mode === 'walkin' && client.label.trim()) {
+            payload.client_label = client.label.trim();
+        }
+
+        mutation.mutate(payload);
+    }, [canSubmit, employeeId, category, label, priceValue, commissionValue, client, mutation]);
+
+    /**
+     * Shortcuts: 1–6 pick a category, Enter submits. Both are suppressed while a
+     * text field has focus so normal typing is never hijacked.
+     */
+    useEffect(() => {
+        function onKeyDown(event: KeyboardEvent) {
+            const target = event.target as HTMLElement | null;
+            const typing =
+                target instanceof HTMLInputElement ||
+                target instanceof HTMLTextAreaElement ||
+                target?.isContentEditable === true;
+
+            if (event.key === 'Enter' && !event.shiftKey) {
+                if (typing && target instanceof HTMLTextAreaElement) return;
+                if (canSubmit) {
+                    event.preventDefault();
+                    submit();
+                }
+                return;
+            }
+
+            if (typing || event.metaKey || event.ctrlKey || event.altKey) return;
+
+            const index = Number.parseInt(event.key, 10) - 1;
+            if (index >= 0 && index < CATEGORIES.length) {
+                event.preventDefault();
+                pickCategory(CATEGORIES[index]);
+            }
+        }
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [canSubmit, submit]);
+
+    return (
+        <Card className="relative overflow-hidden">
+            {/* Success pulse — a full-card wash rather than a toast dependency. */}
+            <AnimatePresence>
+                {justSaved && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.25 }}
+                        className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-background/70 backdrop-blur-[2px]"
+                    >
+                        <motion.div
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+                            className="flex flex-col items-center"
+                        >
+                            <span className="relative flex h-16 w-16 items-center justify-center rounded-full bg-success/[0.16]">
+                                <Check className="h-7 w-7 text-success" />
+                                <motion.span
+                                    aria-hidden
+                                    className="absolute inset-0 rounded-full ring-1 ring-success/40"
+                                    animate={{ scale: [1, 1.5], opacity: [0.7, 0] }}
+                                    transition={{ duration: 1, repeat: Infinity, ease: 'easeOut' }}
+                                />
+                            </span>
+                            <p className="mt-3 text-sm font-medium text-foreground">
+                                Encaissement enregistré
+                            </p>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            <div className="space-y-7 p-6">
+                <div>
+                    <h3 className="text-base font-semibold leading-none tracking-tight">
+                        Nouvel encaissement
+                    </h3>
+                    <p className="mt-1.5 text-sm text-muted-foreground">
+                        Six étapes, quelques secondes. Touches 1–6 pour la catégorie, Entrée pour
+                        valider.
+                    </p>
+                </div>
+
+                <Step index={1} title="Employé">
+                    {employeesPending ? (
+                        <div className="flex flex-wrap gap-2">
+                            {Array.from({ length: 4 }).map((_, index) => (
+                                <Skeleton key={index} className="h-11 w-32 rounded-md" />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex flex-wrap gap-2">
+                            {orderedEmployees.map((employee) => (
+                                <Chip
+                                    key={employee.id}
+                                    selected={employeeId === employee.id}
+                                    onClick={() => {
+                                        setEmployeeId(employee.id);
+                                        setCommissionTouched(false);
+                                    }}
+                                    className="pl-1.5"
+                                >
+                                    <EmployeeAvatar
+                                        name={employee.name}
+                                        color={employee.avatar_color}
+                                        size="sm"
+                                    />
+                                    {employee.name}
+                                </Chip>
+                            ))}
+                        </div>
+                    )}
+                </Step>
+
+                <Step index={2} title="Client" hint="Optionnel">
+                    <ClientPicker value={client} onChange={setClient} />
+                </Step>
+
+                <Step index={3} title="Catégorie" hint="Touches 1 à 6">
+                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                        {CATEGORIES.map((config, index) => {
+                            const Icon = config.icon;
+                            const selected = category?.value === config.value;
+                            return (
+                                <Chip
+                                    key={config.value}
+                                    size="lg"
+                                    selected={selected}
+                                    onClick={() => pickCategory(config)}
+                                >
+                                    <Icon
+                                        className={cn(
+                                            selected ? config.chip : 'text-muted-foreground',
+                                        )}
+                                    />
+                                    <span className="text-xs">{config.label}</span>
+                                    <span className="absolute right-1.5 top-1.5 text-[10px] font-semibold text-muted-foreground/50">
+                                        {index + 1}
+                                    </span>
+                                </Chip>
+                            );
+                        })}
+                    </div>
+                </Step>
+
+                <Step
+                    index={4}
+                    title="Prestation"
+                    hint={category ? undefined : 'Choisissez une catégorie'}
+                >
+                    {!category ? (
+                        <div className="rounded-md border border-dashed border-white/[0.08] px-4 py-6 text-center text-xs text-muted-foreground">
+                            Sélectionnez d’abord une catégorie.
+                        </div>
+                    ) : usesCatalog ? (
+                        <div className="space-y-2.5">
+                            <div className="relative">
+                                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
+                                <Input
+                                    value={serviceSearch}
+                                    onChange={(event) => setServiceSearch(event.target.value)}
+                                    placeholder={`Rechercher une prestation ${category.label.toLowerCase()}…`}
+                                    className="pl-10"
+                                />
+                            </div>
+
+                            {servicesPending ? (
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                    {Array.from({ length: 4 }).map((_, index) => (
+                                        <Skeleton key={index} className="h-14 rounded-md" />
+                                    ))}
+                                </div>
+                            ) : filteredServices.length === 0 ? (
+                                <div className="rounded-md border border-dashed border-white/[0.08] px-4 py-5 text-center text-xs text-muted-foreground">
+                                    Aucune prestation au catalogue — saisissez le libellé et le prix
+                                    manuellement ci-dessous.
+                                </div>
+                            ) : (
+                                <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto pr-0.5 sm:grid-cols-2">
+                                    {filteredServices.map((service) => (
+                                        <button
+                                            key={service.id}
+                                            type="button"
+                                            onClick={() => pickService(service)}
+                                            className={cn(
+                                                'flex items-center justify-between gap-3 rounded-md border px-3.5 py-2.5 text-left',
+                                                'transition-all duration-200 active:scale-[0.98]',
+                                                serviceId === service.id
+                                                    ? 'border-accent/60 bg-accent/[0.12]'
+                                                    : 'border-white/[0.08] bg-white/[0.03] hover:border-accent/30 hover:bg-white/[0.06]',
+                                            )}
+                                        >
+                                            <span className="min-w-0">
+                                                <span className="block truncate text-sm font-medium text-foreground">
+                                                    {service.name}
+                                                </span>
+                                                <span className="block text-xs text-muted-foreground">
+                                                    {service.duration_minutes} min
+                                                </span>
+                                            </span>
+                                            <span className="shrink-0 text-sm font-semibold tabular-nums text-accent">
+                                                {formatCurrency(service.price, {
+                                                    maximumFractionDigits: 2,
+                                                })}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            <Input
+                                value={label}
+                                onChange={(event) => {
+                                    setLabel(event.target.value);
+                                    setServiceId(null);
+                                }}
+                                placeholder="Libellé de la prestation"
+                            />
+                        </div>
+                    ) : (
+                        <Input
+                            value={label}
+                            onChange={(event) => setLabel(event.target.value)}
+                            placeholder={
+                                category.value === 'boisson'
+                                    ? 'Ex. Thé à la menthe'
+                                    : category.value === 'vitrine'
+                                      ? 'Ex. Shampooing argan 250ml'
+                                      : 'Libellé'
+                            }
+                        />
+                    )}
+                </Step>
+
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <Step index={5} title="Prix">
+                        <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            inputMode="decimal"
+                            value={price}
+                            onChange={(event) => {
+                                setPrice(event.target.value);
+                                setServiceId(null);
+                            }}
+                            placeholder="0,00"
+                            className="text-lg font-semibold tabular-nums"
+                        />
+                    </Step>
+
+                    <Step
+                        index={6}
+                        title="Commission"
+                        hint={
+                            selectedEmployee?.default_commission_rate
+                                ? `${selectedEmployee.default_commission_rate}% suggéré`
+                                : 'Optionnel'
+                        }
+                    >
+                        <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            inputMode="decimal"
+                            value={commission}
+                            onChange={(event) => {
+                                setCommission(event.target.value);
+                                setCommissionTouched(true);
+                            }}
+                            placeholder="—"
+                            className="tabular-nums"
+                        />
+                    </Step>
+                </div>
+
+                {mutation.isError && (
+                    <div className="flex items-start gap-2.5 rounded-md border border-destructive/25 bg-destructive/[0.10] px-3.5 py-3">
+                        <AlertCircle className="mt-px h-4 w-4 shrink-0 text-destructive" />
+                        <p className="text-sm text-destructive">{getErrorMessage(mutation.error)}</p>
+                    </div>
+                )}
+
+                <Button
+                    variant="accent"
+                    size="lg"
+                    className="w-full"
+                    disabled={!canSubmit || mutation.isPending}
+                    onClick={submit}
+                >
+                    {mutation.isPending && <Loader2 className="animate-spin" />}
+                    {mutation.isPending
+                        ? 'Enregistrement…'
+                        : hasValidPrice
+                          ? `Enregistrer · ${formatCurrency(priceValue, { maximumFractionDigits: 2 })}`
+                          : 'Enregistrer'}
+                </Button>
+            </div>
+        </Card>
+    );
+}

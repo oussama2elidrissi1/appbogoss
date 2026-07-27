@@ -1,5 +1,19 @@
 import axios, { AxiosError } from 'axios';
 import type { DashboardData, User } from '@/types/dashboard';
+import type {
+    Advance,
+    AdvancesResponse,
+    Client,
+    CreateAdvancePayload,
+    CreateExpensePayload,
+    CreateTransactionPayload,
+    Employee,
+    Expense,
+    OpenWorkDayPayload,
+    Sale,
+    Service,
+    WorkDay,
+} from '@/types/workday';
 
 /**
  * Sanctum SPA (cookie) authentication:
@@ -59,4 +73,107 @@ export async function getMe(): Promise<User> {
 export async function getDashboard(): Promise<DashboardData> {
     const { data } = await api.get<DashboardData>('/api/dashboard');
     return data;
+}
+
+/* ------------------------------------------------------------------ *
+ * Exploitation quotidienne
+ *
+ * Unlike `/api/dashboard` (bare object), every endpoint below wraps its
+ * payload in `{ "data": ... }` — hence the `.data.data` unwrap. The single
+ * exception is `getAdvances`, which carries `outstanding_total` alongside
+ * `data` and is therefore returned as the full envelope.
+ * ------------------------------------------------------------------ */
+
+/** `null` when no day is currently open. */
+export async function getActiveWorkDay(): Promise<WorkDay | null> {
+    const { data } = await api.get<{ data: WorkDay | null }>('/api/work-days/active');
+    return data.data;
+}
+
+export async function getWorkDay(id: number): Promise<WorkDay> {
+    const { data } = await api.get<{ data: WorkDay }>(`/api/work-days/${id}`);
+    return data.data;
+}
+
+/** 422 "Une journée est déjà ouverte." when a day is already open. */
+export async function openWorkDay(payload: OpenWorkDayPayload): Promise<WorkDay> {
+    const { data } = await api.post<{ data: WorkDay }>('/api/work-days', payload);
+    return data.data;
+}
+
+/** Resolves with the day now carrying a populated `closing_report`. */
+export async function closeWorkDay(id: number): Promise<WorkDay> {
+    const { data } = await api.post<{ data: WorkDay }>(`/api/work-days/${id}/close`);
+    return data.data;
+}
+
+/**
+ * URL of the end-of-day PDF. Deliberately not an axios call — this is a binary
+ * download handed to `window.open`, and the session cookie carries same-origin.
+ */
+export function getWorkDayPdfUrl(id: number): string {
+    return `/api/work-days/${id}/pdf`;
+}
+
+/** 422 "Aucune journée ouverte." when no day is open. */
+export async function createTransaction(payload: CreateTransactionPayload): Promise<Sale> {
+    const { data } = await api.post<{ data: Sale }>('/api/transactions', payload);
+    return data.data;
+}
+
+/** Newest first. */
+export async function getTransactions(workDayId: number): Promise<Sale[]> {
+    const { data } = await api.get<{ data: Sale[] }>('/api/transactions', {
+        params: { work_day_id: workDayId },
+    });
+    return data.data;
+}
+
+export async function createAdvance(payload: CreateAdvancePayload): Promise<Advance> {
+    const { data } = await api.post<{ data: Advance }>('/api/advances', payload);
+    return data.data;
+}
+
+/** Returns the full envelope — `outstanding_total` sits next to `data`. */
+export async function getAdvances(employeeId: number): Promise<AdvancesResponse> {
+    const { data } = await api.get<AdvancesResponse>('/api/advances', {
+        params: { employee_id: employeeId },
+    });
+    return data;
+}
+
+export async function settleAdvance(id: number): Promise<Advance> {
+    const { data } = await api.post<{ data: Advance }>(`/api/advances/${id}/settle`);
+    return data.data;
+}
+
+export async function createExpense(payload: CreateExpensePayload): Promise<Expense> {
+    const { data } = await api.post<{ data: Expense }>('/api/expenses', payload);
+    return data.data;
+}
+
+export async function getExpenses(workDayId?: number): Promise<Expense[]> {
+    const { data } = await api.get<{ data: Expense[] }>('/api/expenses', {
+        params: workDayId ? { work_day_id: workDayId } : undefined,
+    });
+    return data.data;
+}
+
+export async function getEmployees(): Promise<Employee[]> {
+    const { data } = await api.get<{ data: Employee[] }>('/api/employees');
+    return data.data;
+}
+
+export async function getClients(search?: string): Promise<Client[]> {
+    const { data } = await api.get<{ data: Client[] }>('/api/clients', {
+        params: search ? { search } : undefined,
+    });
+    return data.data;
+}
+
+export async function getServices(category?: string): Promise<Service[]> {
+    const { data } = await api.get<{ data: Service[] }>('/api/services', {
+        params: category ? { category } : undefined,
+    });
+    return data.data;
 }

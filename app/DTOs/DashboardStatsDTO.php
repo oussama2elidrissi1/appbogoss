@@ -10,6 +10,7 @@ class DashboardStatsDTO
         public readonly array $lowStockProducts,
         public readonly array $recentActivity,
         public readonly array $appointmentQueue,
+        public readonly ?array $activeDay = null,
     ) {
     }
 
@@ -21,6 +22,7 @@ class DashboardStatsDTO
             'low_stock_products' => $this->lowStockProducts,
             'recent_activity' => $this->recentActivity,
             'appointment_queue' => $this->appointmentQueue,
+            'active_day' => $this->activeDay,
         ];
     }
 }

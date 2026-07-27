@@ -12,14 +12,19 @@ class Sale extends Model
     use HasFactory;
 
     protected $fillable = [
+        'work_day_id',
         'client_id',
+        'client_label',
         'employee_id',
+        'category',
         'total',
+        'commission_amount',
         'payment_method',
     ];
 
     protected $casts = [
         'total' => 'decimal:2',
+        'commission_amount' => 'decimal:2',
     ];
 
     public function client(): BelongsTo
@@ -35,5 +40,10 @@ class Sale extends Model
     public function items(): HasMany
     {
         return $this->hasMany(SaleItem::class);
+    }
+
+    public function workDay(): BelongsTo
+    {
+        return $this->belongsTo(WorkDay::class);
     }
 }

@@ -20,11 +20,13 @@ class Employee extends Model
         'avatar_color',
         'specialties',
         'is_active',
+        'default_commission_rate',
     ];
 
     protected $casts = [
         'specialties' => 'array',
         'is_active' => 'boolean',
+        'default_commission_rate' => 'decimal:2',
     ];
 
     public function user(): BelongsTo
@@ -40,5 +42,10 @@ class Employee extends Model
     public function sales(): HasMany
     {
         return $this->hasMany(Sale::class);
+    }
+
+    public function advances(): HasMany
+    {
+        return $this->hasMany(Advance::class);
     }
 }

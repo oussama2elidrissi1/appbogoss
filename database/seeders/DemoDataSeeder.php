@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Advance;
 use App\Models\Appointment;
 use App\Models\Client;
 use App\Models\Employee;
@@ -11,6 +12,8 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Service;
 use App\Models\User;
+use App\Models\WorkDay;
+use App\Services\WorkDayService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -45,6 +48,11 @@ class DemoDataSeeder extends Seeder
                 'avatar_color' => $employeeColors[$index % count($employeeColors)],
                 'is_active' => true,
             ]);
+        });
+
+        // A few employees get a default commission rate pre-filled for convenience.
+        $employees->take(3)->each(function (Employee $employee) {
+            $employee->update(['default_commission_rate' => 40.00]);
         });
 
         $serviceDefinitions = [
@@ -143,6 +151,163 @@ class DemoDataSeeder extends Seeder
             ]);
         }
 
+        // "Exploitation Quotidienne": one closed work day (yesterday) and one open work day (today).
+        $this->seedWorkDays($admin, $employees, $clients);
+
         $this->command?->info('Demo data seeded. Admin login: admin@bogosland.com / password (user #'.$admin->id.').');
+    }
+
+    /**
+     * Seed one closed work day (yesterday) and one open work day (today),
+     * representing the new "Exploitation Quotidienne" module.
+     */
+    protected function seedWorkDays(User $admin, $employees, $clients): void
+    {
+        $prestations = [
+            ['category' => 'coiffure', 'label' => 'Coupe + Barbe', 'price' => 50],
+            ['category' => 'coiffure', 'label' => 'Coupe Homme', 'price' => 30],
+            ['category' => 'hammam', 'label' => 'Hammam Classique', 'price' => 150],
+            ['category' => 'hammam', 'label' => 'Hammam Royal', 'price' => 250],
+            ['category' => 'massage', 'label' => 'Massage Relaxant', 'price' => 250],
+            ['category' => 'boisson', 'label' => 'Thé à la menthe', 'price' => 15],
+            ['category' => 'boisson', 'label' => 'Café', 'price' => 12],
+            ['category' => 'vitrine', 'label' => 'Huile d\'argan', 'price' => 90],
+            ['category' => 'vitrine', 'label' => 'Savon noir', 'price' => 45],
+        ];
+
+        // 1. Closed work day for yesterday.
+        $yesterday = now()->yesterday();
+
+        $closedDay = WorkDay::create([
+            'date' => $yesterday->toDateString(),
+            'opened_by_user_id' => $admin->id,
+            'opening_balance' => 500,
+            'status' => 'open',
+            'notes' => null,
+        ]);
+
+        $closedDay->employees()->attach($employees->pluck('id')->mapWithKeys(fn ($id) => [$id => ['present' => true]])->all());
+
+        for ($i = 0; $i < 10; $i++) {
+            $prestation = $prestations[array_rand($prestations)];
+            $createdAt = $yesterday->copy()->setTime(random_int(9, 19), random_int(0, 59));
+
+            $sale = Sale::create([
+                'work_day_id' => $closedDay->id,
+                'client_id' => fake()->boolean(70) ? $clients->random()->id : null,
+                'client_label' => fake()->boolean(70) ? null : 'Client de passage',
+                'employee_id' => $employees->random()->id,
+                'category' => $prestation['category'],
+                'total' => $prestation['price'],
+                'commission_amount' => fake()->boolean(60) ? round($prestation['price'] * 0.4, 2) : null,
+                'payment_method' => fake()->randomElement(['especes', 'carte']),
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ]);
+
+            SaleItem::create([
+                'sale_id' => $sale->id,
+                'itemable_type' => null,
+                'itemable_id' => null,
+                'label' => $prestation['label'],
+                'quantity' => 1,
+                'unit_price' => $prestation['price'],
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ]);
+        }
+
+        for ($i = 0; $i < 2; $i++) {
+            Expense::factory()->create([
+                'work_day_id' => $closedDay->id,
+                'spent_on' => $yesterday->toDateString(),
+            ]);
+        }
+
+        Advance::create([
+            'employee_id' => $employees->random()->id,
+            'work_day_id' => $closedDay->id,
+            'amount' => 100,
+            'reason' => 'avance sur salaire',
+            'given_on' => $yesterday->toDateString(),
+            'settled_at' => now(),
+        ]);
+
+        // Close it via the same service logic the API uses, to guarantee the exact shape.
+        $closingReport = app(WorkDayService::class)->buildClosingReport($closedDay);
+        $closedDay->update([
+            'status' => 'closed',
+            'closed_at' => $yesterday->copy()->setTime(21, 30),
+            'closing_report' => $closingReport,
+        ]);
+
+        // 2. Open work day for today.
+        $today = now();
+
+        $openDay = WorkDay::create([
+            'date' => $today->toDateString(),
+            'opened_by_user_id' => $admin->id,
+            'opening_balance' => 500,
+            'status' => 'open',
+            'notes' => null,
+        ]);
+
+        $openDay->employees()->attach($employees->pluck('id')->mapWithKeys(fn ($id) => [$id => ['present' => true]])->all());
+
+        $transactionCount = random_int(8, 12);
+
+        for ($i = 0; $i < $transactionCount; $i++) {
+            $prestation = $prestations[array_rand($prestations)];
+            $createdAt = $today->copy()->subMinutes(random_int(0, 300));
+
+            $sale = Sale::create([
+                'work_day_id' => $openDay->id,
+                'client_id' => fake()->boolean(70) ? $clients->random()->id : null,
+                'client_label' => fake()->boolean(70) ? null : 'Client de passage',
+                'employee_id' => $employees->random()->id,
+                'category' => $prestation['category'],
+                'total' => $prestation['price'],
+                'commission_amount' => fake()->boolean(60) ? round($prestation['price'] * 0.4, 2) : null,
+                'payment_method' => fake()->randomElement(['especes', 'carte']),
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ]);
+
+            SaleItem::create([
+                'sale_id' => $sale->id,
+                'itemable_type' => null,
+                'itemable_id' => null,
+                'label' => $prestation['label'],
+                'quantity' => 1,
+                'unit_price' => $prestation['price'],
+                'created_at' => $createdAt,
+                'updated_at' => $createdAt,
+            ]);
+        }
+
+        for ($i = 0; $i < random_int(2, 3); $i++) {
+            Expense::factory()->create([
+                'work_day_id' => $openDay->id,
+                'spent_on' => $today->toDateString(),
+            ]);
+        }
+
+        Advance::create([
+            'employee_id' => $employees->random()->id,
+            'work_day_id' => $openDay->id,
+            'amount' => 80,
+            'reason' => 'avance sur salaire',
+            'given_on' => $today->toDateString(),
+            'settled_at' => null,
+        ]);
+
+        Advance::create([
+            'employee_id' => $employees->random()->id,
+            'work_day_id' => null,
+            'amount' => 150,
+            'reason' => 'avance urgente',
+            'given_on' => $today->copy()->subDays(3)->toDateString(),
+            'settled_at' => $today->copy()->subDay(),
+        ]);
     }
 }

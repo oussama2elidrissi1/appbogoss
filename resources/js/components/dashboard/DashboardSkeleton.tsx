@@ -10,8 +10,8 @@ export function DashboardSkeleton() {
                 <Skeleton className="mt-2.5 h-4 w-72" />
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-                {Array.from({ length: 5 }).map((_, index) => (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                {Array.from({ length: 6 }).map((_, index) => (
                     <Card key={index} className="p-5">
                         <div className="flex items-start justify-between">
                             <Skeleton className="h-10 w-10 rounded-md" />

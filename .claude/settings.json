@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mv 2026_07_27_200511_create_work_days_table.php 2026_07_27_200510_create_work_days_table.php)",
+      "Bash(mv 2026_07_27_200511_create_work_day_employees_table.php 2026_07_27_200511_create_work_day_employees_table.php)",
+      "Bash(mv 2026_07_27_200512_create_advances_table.php 2026_07_27_200512_create_advances_table.php)",
+      "Bash(mv 2026_07_27_200512_add_work_day_fields_to_sales_table.php 2026_07_27_200513_add_work_day_fields_to_sales_table.php)",
+      "Bash(mv 2026_07_27_200512_make_sale_items_itemable_nullable.php 2026_07_27_200514_make_sale_items_itemable_nullable.php)",
+      "Bash(composer show *)",
+      "Bash(composer require *)",
+      "Bash(xargs grep -l \"class Pdf\")",
+      "Bash(php -l tests/Feature/WorkDayServiceTest.php)",
+      "Bash(php -l database/factories/WorkDayFactory.php)",
+      "Bash(php -l database/factories/AdvanceFactory.php)",
+      "Bash(php -r ' *)",
+      "PowerShell(npx tsc --noEmit)",
+      "Bash(node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit)",
+      "Bash(php -l app/Http/Resources/WorkDayResource.php)",
+      "Bash(php -l app/Http/Resources/SaleResource.php)",
+      "Bash(php -l app/Http/Resources/AdvanceResource.php)"
+    ]
+  }
+}

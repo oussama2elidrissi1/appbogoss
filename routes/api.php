@@ -1,7 +1,12 @@
 <?php
 
+use App\Http\Controllers\Api\AdvanceController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\ExpenseController;
+use App\Http\Controllers\Api\TransactionController;
+use App\Http\Controllers\Api\WorkDayController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -21,4 +26,25 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
     Route::get('/dashboard', [DashboardController::class, 'index']);
+
+    Route::get('/work-days/active', [WorkDayController::class, 'activeDay']);
+    Route::get('/work-days/{workDay}/pdf', [WorkDayController::class, 'pdf']);
+    Route::post('/work-days/{workDay}/close', [WorkDayController::class, 'close']);
+    Route::get('/work-days/{workDay}', [WorkDayController::class, 'show']);
+    Route::get('/work-days', [WorkDayController::class, 'index']);
+    Route::post('/work-days', [WorkDayController::class, 'store']);
+
+    Route::get('/transactions', [TransactionController::class, 'index']);
+    Route::post('/transactions', [TransactionController::class, 'store']);
+
+    Route::post('/advances/{advance}/settle', [AdvanceController::class, 'settle']);
+    Route::get('/advances', [AdvanceController::class, 'index']);
+    Route::post('/advances', [AdvanceController::class, 'store']);
+
+    Route::get('/expenses', [ExpenseController::class, 'index']);
+    Route::post('/expenses', [ExpenseController::class, 'store']);
+
+    Route::get('/employees', [CatalogController::class, 'employees']);
+    Route::get('/clients', [CatalogController::class, 'clients']);
+    Route::get('/services', [CatalogController::class, 'services']);
 });

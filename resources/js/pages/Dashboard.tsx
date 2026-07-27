@@ -1,6 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { AlertCircle, CalendarDays, Receipt, UserSquare2, Users, Wallet } from 'lucide-react';
+import {
+    AlertCircle,
+    CalendarDays,
+    Receipt,
+    UserCheck,
+    UserSquare2,
+    Users,
+    Wallet,
+} from 'lucide-react';
 import { getDashboard, getErrorMessage } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { formatCurrency, formatNumber } from '@/lib/utils';
@@ -12,6 +20,7 @@ import { LowStockCard } from '@/components/dashboard/LowStockCard';
 import { RecentActivityCard } from '@/components/dashboard/RecentActivityCard';
 import { AppointmentQueueCard } from '@/components/dashboard/AppointmentQueueCard';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
+import { ActiveDayCard } from '@/components/dashboard/ActiveDayCard';
 
 const container = {
     hidden: { opacity: 0 },
@@ -42,6 +51,8 @@ export default function Dashboard() {
     const { data, isPending, isError, error, refetch } = useQuery({
         queryKey: ['dashboard'],
         queryFn: getDashboard,
+        // "Temps réel": the salon leaves this screen up all day.
+        refetchInterval: 7000,
     });
 
     if (isPending) return <DashboardSkeleton />;
@@ -63,7 +74,14 @@ export default function Dashboard() {
         );
     }
 
-    const { kpis, revenue_series, low_stock_products, recent_activity, appointment_queue } = data;
+    const {
+        kpis,
+        revenue_series,
+        low_stock_products,
+        recent_activity,
+        appointment_queue,
+        active_day,
+    } = data;
 
     return (
         <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
@@ -81,7 +99,7 @@ export default function Dashboard() {
             {/* KPI row */}
             <motion.div
                 variants={item}
-                className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5"
+                className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
             >
                 <KpiCard
                     label="CA du jour"
@@ -98,6 +116,13 @@ export default function Dashboard() {
                     format={(n) => formatNumber(Math.round(n))}
                     trend={kpis.appointments_trend_pct}
                     hint="Programmés aujourd’hui"
+                />
+                <KpiCard
+                    label="Clients servis"
+                    value={kpis.clients_today}
+                    icon={UserCheck}
+                    format={(n) => formatNumber(Math.round(n))}
+                    hint="Aujourd’hui en caisse"
                 />
                 <KpiCard
                     label="Clients"
@@ -121,6 +146,13 @@ export default function Dashboard() {
                     hint="Charges cumulées"
                 />
             </motion.div>
+
+            {/* Journée en cours — only while a work day is open */}
+            {active_day && (
+                <motion.div variants={item}>
+                    <ActiveDayCard day={active_day} />
+                </motion.div>
+            )}
 
             {/* Main grid */}
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">

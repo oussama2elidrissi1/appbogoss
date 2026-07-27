@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\Expense;
 use App\Models\Product;
 use App\Models\Sale;
+use App\Models\WorkDay;
 use Carbon\Carbon;
 
 class DashboardService
@@ -21,6 +22,7 @@ class DashboardService
             lowStockProducts: $this->buildLowStockProducts(),
             recentActivity: $this->buildRecentActivity(),
             appointmentQueue: $this->buildAppointmentQueue(),
+            activeDay: $this->buildActiveDay(),
         );
     }
 
@@ -44,6 +46,11 @@ class DashboardService
 
         $expensesMonth = (float) Expense::where('spent_on', '>=', $monthStart->toDateString())->sum('amount');
 
+        $clientsToday = Sale::whereDate('created_at', $today)
+            ->whereNotNull('client_id')
+            ->distinct('client_id')
+            ->count('client_id');
+
         return [
             'revenue_today' => $revenueToday,
             'revenue_month' => $revenueMonth,
@@ -54,6 +61,32 @@ class DashboardService
             'clients_new_this_month' => $clientsNewThisMonth,
             'employees_active' => $employeesActive,
             'expenses_month' => $expensesMonth,
+            'clients_today' => $clientsToday,
+        ];
+    }
+
+    protected function buildActiveDay(): ?array
+    {
+        $day = WorkDay::where('status', 'open')->first();
+
+        if ($day === null) {
+            return null;
+        }
+
+        $revenueSoFar = (float) Sale::where('work_day_id', $day->id)->sum('total');
+        $expensesSoFar = (float) Expense::where('work_day_id', $day->id)->sum('amount');
+        $commissionsSoFar = (float) Sale::where('work_day_id', $day->id)->sum('commission_amount');
+        $employeesPresent = $day->employees()->wherePivot('present', true)->count();
+
+        return [
+            'id' => $day->id,
+            'date' => $day->date->toDateString(),
+            'opening_balance' => (float) $day->opening_balance,
+            'employees_present' => $employeesPresent,
+            'revenue_so_far' => round($revenueSoFar, 2),
+            'expenses_so_far' => round($expensesSoFar, 2),
+            'commissions_so_far' => round($commissionsSoFar, 2),
+            'estimated_profit' => round($revenueSoFar - $expensesSoFar - $commissionsSoFar, 2),
         ];
     }
 

@@ -15,6 +15,21 @@ export interface DashboardKpis {
     clients_new_this_month: number;
     employees_active: number;
     expenses_month: number;
+    /** Clients servis aujourd'hui — alimenté par la journée d'exploitation en cours. */
+    clients_today: number;
+}
+
+/** Live snapshot of the open work day, mirrored on the dashboard. */
+export interface ActiveDaySummary {
+    id: number;
+    /** 'YYYY-MM-DD' */
+    date: string;
+    opening_balance: number;
+    employees_present: number;
+    revenue_so_far: number;
+    expenses_so_far: number;
+    commissions_so_far: number;
+    estimated_profit: number;
 }
 
 export interface RevenuePoint {
@@ -61,4 +76,6 @@ export interface DashboardData {
     low_stock_products: LowStockProduct[];
     recent_activity: ActivityItem[];
     appointment_queue: QueuedAppointment[];
+    /** `null` when no work day is open. */
+    active_day: ActiveDaySummary | null;
 }
