@@ -17,7 +17,12 @@
       "Bash(node --max-old-space-size=4096 node_modules/typescript/bin/tsc --noEmit)",
       "Bash(php -l app/Http/Resources/WorkDayResource.php)",
       "Bash(php -l app/Http/Resources/SaleResource.php)",
-      "Bash(php -l app/Http/Resources/AdvanceResource.php)"
+      "Bash(php -l app/Http/Resources/AdvanceResource.php)",
+      "Bash(php -l database/seeders/DemoDataSeeder.php)",
+      "Bash(/d/pytools/venv/Scripts/python.exe \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\a7507d71-47ad-4d86-acf2-034166f0a673\\\\scratchpad\\\\test_workday.py\")",
+      "Bash(/d/pytools/venv/Scripts/python.exe \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\a7507d71-47ad-4d86-acf2-034166f0a673\\\\scratchpad\\\\test_workday_flow.py\")",
+      "Bash(/d/pytools/venv/Scripts/python.exe \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\a7507d71-47ad-4d86-acf2-034166f0a673\\\\scratchpad\\\\flow2.py\")",
+      "Bash(/d/pytools/venv/Scripts/python.exe \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\a7507d71-47ad-4d86-acf2-034166f0a673\\\\scratchpad\\\\test_pdf.py\")"
     ]
   }
 }

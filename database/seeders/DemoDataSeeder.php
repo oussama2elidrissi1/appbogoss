@@ -217,8 +217,9 @@ class DemoDataSeeder extends Seeder
             ]);
         }
 
-        for ($i = 0; $i < 2; $i++) {
-            Expense::factory()->create([
+        foreach ($this->dailyExpenseBatch(2) as $expense) {
+            Expense::create([
+                ...$expense,
                 'work_day_id' => $closedDay->id,
                 'spent_on' => $yesterday->toDateString(),
             ]);
@@ -285,8 +286,9 @@ class DemoDataSeeder extends Seeder
             ]);
         }
 
-        for ($i = 0; $i < random_int(2, 3); $i++) {
-            Expense::factory()->create([
+        foreach ($this->dailyExpenseBatch(random_int(2, 3)) as $expense) {
+            Expense::create([
+                ...$expense,
                 'work_day_id' => $openDay->id,
                 'spent_on' => $today->toDateString(),
             ]);
@@ -309,5 +311,32 @@ class DemoDataSeeder extends Seeder
             'given_on' => $today->copy()->subDays(3)->toDateString(),
             'settled_at' => $today->copy()->subDay(),
         ]);
+    }
+
+    /**
+     * Small, realistic petty-cash expenses for a single day's ledger — unlike
+     * the generic ExpenseFactory (which can roll 'loyer'/'salaires' worth
+     * hundreds), a day-to-day expense here is a supply run or a repair, not
+     * a monthly overhead line, so revenue vs. expenses stays believable.
+     */
+    protected function dailyExpenseBatch(int $count): array
+    {
+        $options = [
+            ['label' => 'Produits capillaires', 'category' => 'produits', 'amount' => [30, 120]],
+            ['label' => 'Boissons pour la clientele', 'category' => 'boissons', 'amount' => [15, 60]],
+            ['label' => 'Petite reparation materiel', 'category' => 'reparations', 'amount' => [25, 150]],
+            ['label' => 'Fournitures diverses', 'category' => 'achats', 'amount' => [20, 90]],
+            ['label' => 'Depense imprevue', 'category' => 'divers', 'amount' => [10, 50]],
+        ];
+
+        return collect($options)
+            ->shuffle()
+            ->take($count)
+            ->map(fn (array $option) => [
+                'label' => $option['label'],
+                'category' => $option['category'],
+                'amount' => round(fake()->randomFloat(2, ...$option['amount']), 2),
+            ])
+            ->all();
     }
 }

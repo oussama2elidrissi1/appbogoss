@@ -74,6 +74,7 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
         <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden"
         >

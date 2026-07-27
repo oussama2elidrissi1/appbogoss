@@ -2,7 +2,6 @@ import { useMutation } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { AlertCircle, Download, Loader2, Lock } from 'lucide-react';
 import { closeWorkDay, getErrorMessage, getWorkDayPdfUrl } from '@/lib/api';
-import { useRefreshDay } from '@/hooks/useWorkDay';
 import { cn, formatCurrency, formatDayLabel } from '@/lib/utils';
 import type { ClosingReport, WorkDay } from '@/types/workday';
 import { Button } from '@/components/ui/button';
@@ -200,15 +199,15 @@ function Report({ report }: { report: ClosingReport }) {
 
 /**
  * Two-phase dialog: confirmation first, then the closing report returned by the
- * API. Dismissing after a successful close hands the page back to the
- * "Ouvrir la journée" state.
+ * API. The active-day query is deliberately NOT refreshed on a successful
+ * close — Caisse.tsx renders `<OpenDayCard />` the instant `workDay` goes
+ * null, which would unmount this dialog (report included) mid-view. Only
+ * `onClosed` (fired when the operator dismisses via "Fermer") refreshes it,
+ * handing the page back to the "Ouvrir la journée" state at that point.
  */
 export function CloseDayDialog({ open, onOpenChange, workDay, onClosed }: CloseDayDialogProps) {
-    const refreshDay = useRefreshDay();
-
     const mutation = useMutation({
         mutationFn: () => closeWorkDay(workDay.id),
-        onSuccess: () => refreshDay(),
     });
 
     const closed = mutation.data;
