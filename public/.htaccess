@@ -1,3 +1,13 @@
+# This app is a fully authenticated dashboard — nothing it serves should ever
+# be cached by LiteSpeed's server-level page cache (LSCache). Standard
+# Cache-Control response headers are NOT enough to stop LSCache; it needs
+# this directive explicitly, otherwise it keeps serving stale HTML/assets
+# (including outdated hashed JS/CSS filenames) regardless of what PHP sends.
+<IfModule LiteSpeed>
+    CacheLookup off
+</IfModule>
+Header always set X-LiteSpeed-Cache-Control "no-cache"
+
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes
