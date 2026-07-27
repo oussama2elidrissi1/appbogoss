@@ -5,11 +5,11 @@ export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
 }
 
-/** Currency formatting for the app locale (fr-FR / EUR). */
+/** Currency formatting for the app locale (fr-MA / MAD). */
 export function formatCurrency(value: number, opts: Intl.NumberFormatOptions = {}) {
-    return new Intl.NumberFormat('fr-FR', {
+    return new Intl.NumberFormat('fr-MA', {
         style: 'currency',
-        currency: 'EUR',
+        currency: 'MAD',
         maximumFractionDigits: 0,
         ...opts,
     }).format(value);

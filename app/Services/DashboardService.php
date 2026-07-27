@@ -161,7 +161,7 @@ class DashboardService
                     'id' => $sale->id,
                     'type' => 'sale',
                     'label' => 'Vente encaissée',
-                    'description' => sprintf('%s - %s €', $clientName, number_format((float) $sale->total, 2)),
+                    'description' => sprintf('%s - %s MAD', $clientName, number_format((float) $sale->total, 2)),
                     'amount' => (float) $sale->total,
                     'created_at' => $sale->created_at->toIso8601String(),
                 ];

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, Check, Loader2, Search } from 'lucide-react';
 import { createTransaction, getErrorMessage, getServices } from '@/lib/api';
+import { printSaleReceipt } from '@/lib/receipt';
 import { workDayKeys } from '@/hooks/useWorkDay';
 import { cn, formatCurrency } from '@/lib/utils';
 import type { CreateTransactionPayload, Employee, Sale, Service } from '@/types/workday';
@@ -139,6 +140,8 @@ export function QuickCheckout({
     const mutation = useMutation({
         mutationFn: createTransaction,
         onSuccess: (sale: Sale) => {
+            printSaleReceipt(sale);
+
             // Optimistically prepend so the ledger reacts instantly, then reconcile.
             queryClient.setQueryData<Sale[]>(workDayKeys.transactions(workDayId), (current) =>
                 current ? [sale, ...current] : [sale],

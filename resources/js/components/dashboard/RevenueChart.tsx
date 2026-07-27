@@ -17,7 +17,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyState } from './EmptyState';
 
 /**
- * Both series are EUR on one shared axis — never a dual-axis chart.
+ * Both series are MAD on one shared axis — never a dual-axis chart.
  * Colors: brand gold for revenue, muted red for expenses (validated pair).
  */
 const REVENUE_COLOR = '#C8A24C';
