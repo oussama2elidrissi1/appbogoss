@@ -72,25 +72,27 @@ class WorkDayController extends Controller
         return response()->json(['data' => new WorkDayResource($workDay)]);
     }
 
-    public function pdf(WorkDay $workDay): Response|JsonResponse
+    public function pdf(WorkDay $workDay, WorkDayService $service): Response|JsonResponse
     {
-        if ($workDay->status !== 'closed' || $workDay->closing_report === null) {
+        if ($workDay->status !== 'closed') {
             return response()->json([
                 'message' => "Cette journée n'est pas encore clôturée.",
             ], 422);
         }
 
         $workDay->load(['employees', 'openedBy', 'advances.employee']);
+        $report = $service->buildClosingReport($workDay);
+        $viewData = ['day' => $workDay, 'report' => $report];
 
         if (! class_exists(Pdf::class)) {
-            return response()->view('pdf.work-day-report', ['day' => $workDay]);
+            return response()->view('pdf.work-day-report', $viewData);
         }
 
         try {
-            return Pdf::loadView('pdf.work-day-report', ['day' => $workDay])
+            return Pdf::loadView('pdf.work-day-report', $viewData)
                 ->download("journee-{$workDay->date->toDateString()}.pdf");
         } catch (Throwable) {
-            return response()->view('pdf.work-day-report', ['day' => $workDay]);
+            return response()->view('pdf.work-day-report', $viewData);
         }
     }
 }

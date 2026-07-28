@@ -23,7 +23,7 @@
         Fonds de caisse : {{ number_format((float) $day->opening_balance, 2) }} MAD
     </p>
 
-    @php($report = $day->closing_report ?? [])
+    @php($report = $report ?? [])
 
     <h2>Résumé</h2>
     <table class="summary">
@@ -44,9 +44,9 @@
         <tbody>
             @forelse (($report['revenue_by_category'] ?? []) as $row)
                 <tr>
-                    <td>{{ $row['category'] }}</td>
-                    <td class="text-right">{{ $row['count'] }}</td>
-                    <td class="text-right">{{ number_format($row['total'], 2) }} MAD</td>
+                    <td>{{ $row['category'] ?? 'Autre' }}</td>
+                    <td class="text-right">{{ $row['count'] ?? 0 }}</td>
+                    <td class="text-right">{{ number_format($row['total'] ?? 0, 2) }} MAD</td>
                 </tr>
             @empty
                 <tr><td colspan="3">Aucune donnée</td></tr>
@@ -62,10 +62,10 @@
         <tbody>
             @forelse (($report['revenue_by_employee'] ?? []) as $row)
                 <tr>
-                    <td>{{ $row['employee_name'] }}</td>
-                    <td class="text-right">{{ $row['count'] }}</td>
-                    <td class="text-right">{{ number_format($row['total'], 2) }} MAD</td>
-                    <td class="text-right">{{ number_format($row['commission'], 2) }} MAD</td>
+                    <td>{{ $row['employee_name'] ?? 'EmployÃ©' }}</td>
+                    <td class="text-right">{{ $row['count'] ?? 0 }}</td>
+                    <td class="text-right">{{ number_format($row['total'] ?? 0, 2) }} MAD</td>
+                    <td class="text-right">{{ number_format($row['commission'] ?? 0, 2) }} MAD</td>
                 </tr>
             @empty
                 <tr><td colspan="4">Aucune donnée</td></tr>
@@ -100,9 +100,9 @@
         <tbody>
             @forelse (($report['top_prestations'] ?? []) as $row)
                 <tr>
-                    <td>{{ $row['label'] }}</td>
-                    <td class="text-right">{{ $row['count'] }}</td>
-                    <td class="text-right">{{ number_format($row['total'], 2) }} MAD</td>
+                    <td>{{ $row['label'] ?? 'Prestation' }}</td>
+                    <td class="text-right">{{ $row['count'] ?? 0 }}</td>
+                    <td class="text-right">{{ number_format($row['total'] ?? 0, 2) }} MAD</td>
                 </tr>
             @empty
                 <tr><td colspan="3">Aucune donnée</td></tr>
