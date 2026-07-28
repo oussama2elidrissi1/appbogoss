@@ -32,8 +32,11 @@ class DashboardService
         $today = Carbon::today();
         $yesterday = Carbon::yesterday();
         $monthStart = Carbon::today()->startOfMonth();
+        $activeDay = WorkDay::where('status', 'open')->first();
 
-        $revenueToday = (float) Sale::whereDate('created_at', $today)->sum('total');
+        $revenueToday = $activeDay
+            ? (float) Sale::where('work_day_id', $activeDay->id)->sum('total')
+            : 0.0;
         $revenueYesterday = (float) Sale::whereDate('created_at', $yesterday)->sum('total');
         $revenueMonth = (float) Sale::where('created_at', '>=', $monthStart)->sum('total');
 
@@ -47,10 +50,9 @@ class DashboardService
 
         $expensesMonth = (float) Expense::where('spent_on', '>=', $monthStart->toDateString())->sum('amount');
 
-        $clientsToday = Sale::whereDate('created_at', $today)
-            ->whereNotNull('client_id')
-            ->distinct('client_id')
-            ->count('client_id');
+        $clientsToday = $activeDay
+            ? Sale::where('work_day_id', $activeDay->id)->count()
+            : 0;
 
         return [
             'revenue_today' => $revenueToday,

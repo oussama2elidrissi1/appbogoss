@@ -99,6 +99,11 @@ export async function getWorkDay(id: number): Promise<WorkDay> {
     return data.data;
 }
 
+export async function getWorkDays(): Promise<WorkDay[]> {
+    const { data } = await api.get<{ data: WorkDay[] }>('/api/work-days');
+    return data.data;
+}
+
 /** 422 "Une journée est déjà ouverte." when a day is already open. */
 export async function openWorkDay(payload: OpenWorkDayPayload): Promise<WorkDay> {
     const { data } = await api.post<{ data: WorkDay }>('/api/work-days', payload);
@@ -135,6 +140,11 @@ export async function getTransactions(workDayId: number): Promise<Sale[]> {
 
 export async function deleteTransaction(id: number): Promise<Sale> {
     const { data } = await api.delete<{ data: Sale }>(`/api/transactions/${id}`);
+    return data.data;
+}
+
+export async function recordTransactionPrint(id: number): Promise<Sale> {
+    const { data } = await api.post<{ data: Sale }>(`/api/transactions/${id}/print`);
     return data.data;
 }
 

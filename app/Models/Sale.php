@@ -22,11 +22,13 @@ class Sale extends Model
         'total',
         'commission_amount',
         'payment_method',
+        'print_count',
     ];
 
     protected $casts = [
         'total' => 'decimal:2',
         'commission_amount' => 'decimal:2',
+        'print_count' => 'integer',
     ];
 
     public function client(): BelongsTo

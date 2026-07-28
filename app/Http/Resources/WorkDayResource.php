@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Services\WorkDayService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -14,6 +15,12 @@ class WorkDayResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $reportSnapshot = $this->closing_report;
+
+        if ($reportSnapshot === null && $this->status === 'open') {
+            $reportSnapshot = app(WorkDayService::class)->buildClosingReport($this->resource);
+        }
+
         return [
             'id' => $this->id,
             'date' => $this->date->toDateString(),
@@ -33,6 +40,7 @@ class WorkDayResource extends JsonResource
                 'present' => (bool) $employee->pivot->present,
             ])->all(),
             'closing_report' => $this->closing_report,
+            'report_snapshot' => $reportSnapshot,
         ];
     }
 }

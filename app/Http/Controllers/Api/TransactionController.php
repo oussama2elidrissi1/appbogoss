@@ -37,6 +37,7 @@ class TransactionController extends Controller
                 'total' => $data['price'],
                 'commission_amount' => $data['commission_amount'] ?? null,
                 'payment_method' => $data['payment_method'] ?? 'especes',
+                'print_count' => 1,
             ]);
 
             SaleItem::create([
@@ -69,6 +70,14 @@ class TransactionController extends Controller
             ->get();
 
         return response()->json(['data' => SaleResource::collection($sales)]);
+    }
+
+    public function recordPrint(Sale $sale): JsonResponse
+    {
+        $sale->increment('print_count');
+        $sale->refresh()->load(['client', 'employee', 'items']);
+
+        return response()->json(['data' => new SaleResource($sale)]);
     }
 
     public function destroy(Sale $sale): JsonResponse

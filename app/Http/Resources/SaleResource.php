@@ -21,6 +21,7 @@ class SaleResource extends JsonResource
             'total' => (float) $this->total,
             'commission_amount' => $this->commission_amount !== null ? (float) $this->commission_amount : null,
             'payment_method' => $this->payment_method,
+            'print_count' => (int) $this->print_count,
             'created_at' => $this->created_at,
             'deleted_at' => $this->deleted_at,
             'is_deleted' => $this->trashed(),

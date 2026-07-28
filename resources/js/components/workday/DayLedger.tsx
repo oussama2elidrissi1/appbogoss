@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ReceiptText, Trash2 } from 'lucide-react';
-import { deleteTransaction, getTransactions } from '@/lib/api';
+import { Printer, ReceiptText, Trash2 } from 'lucide-react';
+import { deleteTransaction, getTransactions, recordTransactionPrint } from '@/lib/api';
+import { printSaleReceipt } from '@/lib/receipt';
 import { workDayKeys } from '@/hooks/useWorkDay';
 import { cn, formatCurrency, formatTime } from '@/lib/utils';
 import type { Sale } from '@/types/workday';
@@ -40,16 +41,18 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
         refetchInterval: 8000,
     });
 
+    function updateSaleInCache(nextSale: Sale) {
+        queryClient.setQueryData<Sale[]>(
+            workDayKeys.transactions(workDayId),
+            (current) =>
+                current?.map((sale) => (sale.id === nextSale.id ? nextSale : sale)) ?? [nextSale],
+        );
+    }
+
     const deleteMutation = useMutation({
         mutationFn: deleteTransaction,
         onSuccess: (deletedSale) => {
-            queryClient.setQueryData<Sale[]>(
-                workDayKeys.transactions(workDayId),
-                (current) =>
-                    current?.map((sale) => (sale.id === deletedSale.id ? deletedSale : sale)) ?? [
-                        deletedSale,
-                    ],
-            );
+            updateSaleInCache(deletedSale);
             void queryClient.invalidateQueries({
                 queryKey: workDayKeys.transactions(workDayId),
             });
@@ -57,6 +60,14 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
                 queryKey: workDayKeys.active,
             });
             void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+        },
+    });
+
+    const printMutation = useMutation({
+        mutationFn: recordTransactionPrint,
+        onSuccess: (printedSale) => {
+            updateSaleInCache(printedSale);
+            printSaleReceipt(printedSale);
         },
     });
 
@@ -87,6 +98,11 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
         const label = sale.items[0]?.label ?? `ticket #${sale.id}`;
         const confirmed = window.confirm(`Supprimer le ticket "${label}" ?`);
         if (confirmed) deleteMutation.mutate(sale.id);
+    }
+
+    function handleReprint(sale: Sale) {
+        if (printMutation.isPending) return;
+        printMutation.mutate(sale.id);
     }
 
     return (
@@ -271,20 +287,36 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
                                                             )}
                                                         </p>
                                                     )}
+                                                <p className="mt-0.5 text-[11px] tabular-nums text-muted-foreground">
+                                                    {sale.print_count} impr.
+                                                </p>
                                             </div>
 
                                             {!deleted && (
-                                                <Button
-                                                    type="button"
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    aria-label="Supprimer le ticket"
-                                                    disabled={deleteMutation.isPending}
-                                                    onClick={() => handleDelete(sale)}
-                                                    className="h-8 w-8 shrink-0"
-                                                >
-                                                    <Trash2 className="text-destructive" />
-                                                </Button>
+                                                <div className="flex shrink-0 items-center gap-1">
+                                                    <Button
+                                                        type="button"
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        aria-label="Réimprimer le ticket"
+                                                        disabled={printMutation.isPending}
+                                                        onClick={() => handleReprint(sale)}
+                                                        className="h-8 w-8"
+                                                    >
+                                                        <Printer className="text-muted-foreground" />
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        aria-label="Supprimer le ticket"
+                                                        disabled={deleteMutation.isPending}
+                                                        onClick={() => handleDelete(sale)}
+                                                        className="h-8 w-8"
+                                                    >
+                                                        <Trash2 className="text-destructive" />
+                                                    </Button>
+                                                </div>
                                             )}
                                         </motion.li>
                                     );

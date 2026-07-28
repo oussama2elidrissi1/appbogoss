@@ -50,4 +50,32 @@ class TransactionApiTest extends TestCase
             ->assertJsonPath('data.0.is_deleted', true)
             ->assertJsonPath('data.0.items.0.label', 'Coupe cheveux + barbe');
     }
+
+    public function test_print_count_is_recorded_and_incremented(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+
+        $employee = Employee::factory()->create();
+        $workDay = WorkDay::factory()->create(['status' => 'open']);
+
+        $created = $this->postJson('/api/transactions', [
+            'employee_id' => $employee->id,
+            'category' => 'hammam',
+            'label' => 'Hammam turc',
+            'price' => 150,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('data.print_count', 1)
+            ->json('data');
+
+        $this->postJson('/api/transactions/'.$created['id'].'/print')
+            ->assertOk()
+            ->assertJsonPath('data.print_count', 2);
+
+        $this->assertDatabaseHas('sales', [
+            'id' => $created['id'],
+            'work_day_id' => $workDay->id,
+            'print_count' => 2,
+        ]);
+    }
 }

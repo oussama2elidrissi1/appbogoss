@@ -107,7 +107,7 @@ export default function Dashboard() {
                     icon={Wallet}
                     format={(n) => formatCurrency(n)}
                     trend={kpis.revenue_trend_pct}
-                    hint={`${formatCurrency(kpis.revenue_month)} ce mois-ci`}
+                    hint={active_day ? 'Journée de caisse ouverte' : 'Aucune journée ouverte'}
                 />
                 <KpiCard
                     label="Rendez-vous"

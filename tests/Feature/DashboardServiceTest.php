@@ -121,4 +121,31 @@ class DashboardServiceTest extends TestCase
         $this->assertSame(40.0, $activeDay['commissions_so_far']);
         $this->assertSame(130.0, $activeDay['estimated_profit']);
     }
+
+    public function test_revenue_today_uses_active_work_day_not_calendar_day(): void
+    {
+        $employee = Employee::factory()->create();
+        $activeDay = WorkDay::factory()->create([
+            'date' => now()->toDateString(),
+            'status' => 'open',
+        ]);
+
+        Sale::factory()->create([
+            'work_day_id' => $activeDay->id,
+            'employee_id' => $employee->id,
+            'total' => 300,
+        ]);
+
+        Sale::factory()->create([
+            'work_day_id' => null,
+            'employee_id' => $employee->id,
+            'total' => 150,
+            'created_at' => now(),
+        ]);
+
+        $kpis = app(DashboardService::class)->getStats()->toArray()['kpis'];
+
+        $this->assertSame(300.0, $kpis['revenue_today']);
+        $this->assertSame(1, $kpis['clients_today']);
+    }
 }

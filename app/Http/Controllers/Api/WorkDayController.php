@@ -49,7 +49,9 @@ class WorkDayController extends Controller
     {
         $workDays = WorkDay::with(['employees', 'openedBy'])
             ->orderByDesc('date')
-            ->paginate(20);
+            ->orderByDesc('id')
+            ->limit(60)
+            ->get();
 
         return response()->json([
             'data' => WorkDayResource::collection($workDays),

@@ -71,6 +71,7 @@ export interface WorkDay {
     opened_by: { id: number; name: string } | null;
     employees: WorkDayEmployee[];
     closing_report: ClosingReport | null;
+    report_snapshot: ClosingReport | null;
 }
 
 export interface OpenWorkDayPayload {
@@ -93,6 +94,7 @@ export interface Sale {
     total: number;
     commission_amount: number | null;
     payment_method: string;
+    print_count: number;
     /** ISO timestamp */
     created_at: string;
     /** ISO timestamp */
