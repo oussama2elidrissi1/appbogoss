@@ -3,7 +3,10 @@ import type { DashboardData, User } from '@/types/dashboard';
 import type {
     Advance,
     AdvancesResponse,
+    Appointment,
+    AppointmentPayload,
     Client,
+    ClientPayload,
     CreateAdvancePayload,
     CreateExpensePayload,
     CreateTransactionPayload,
@@ -212,6 +215,11 @@ export async function getClients(search?: string): Promise<Client[]> {
     return data.data;
 }
 
+export async function createClient(payload: ClientPayload): Promise<Client> {
+    const { data } = await api.post<{ data: Client }>('/api/clients', payload);
+    return data.data;
+}
+
 export async function getServices(
     categoryOrOptions?:
         | string
@@ -273,4 +281,40 @@ export async function updateProduct(id: number, payload: ProductPayload): Promis
 
 export async function deleteProduct(id: number): Promise<void> {
     await api.delete(`/api/products/${id}`);
+}
+
+export async function getAppointments(options?: {
+    date?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    employeeId?: number;
+    status?: string;
+}): Promise<Appointment[]> {
+    const { data } = await api.get<{ data: Appointment[] }>('/api/appointments', {
+        params: {
+            ...(options?.date ? { date: options.date } : {}),
+            ...(options?.dateFrom ? { date_from: options.dateFrom } : {}),
+            ...(options?.dateTo ? { date_to: options.dateTo } : {}),
+            ...(options?.employeeId ? { employee_id: options.employeeId } : {}),
+            ...(options?.status ? { status: options.status } : {}),
+        },
+    });
+    return data.data;
+}
+
+export async function createAppointment(payload: AppointmentPayload): Promise<Appointment> {
+    const { data } = await api.post<{ data: Appointment }>('/api/appointments', payload);
+    return data.data;
+}
+
+export async function updateAppointment(
+    id: number,
+    payload: AppointmentPayload,
+): Promise<Appointment> {
+    const { data } = await api.put<{ data: Appointment }>(`/api/appointments/${id}`, payload);
+    return data.data;
+}
+
+export async function deleteAppointment(id: number): Promise<void> {
+    await api.delete(`/api/appointments/${id}`);
 }

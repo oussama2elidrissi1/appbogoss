@@ -198,6 +198,13 @@ export interface Client {
     loyalty_points: number;
 }
 
+export interface ClientPayload {
+    name: string;
+    email?: string | null;
+    phone?: string | null;
+    notes?: string | null;
+}
+
 export interface Service {
     id: number;
     name: string;
@@ -236,4 +243,36 @@ export interface ProductPayload {
     cost?: number | null;
     stock_quantity?: number;
     low_stock_threshold?: number;
+}
+
+export type AppointmentStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
+
+export interface Appointment {
+    id: number;
+    client_id: number;
+    employee_id: number;
+    service_id: number;
+    starts_at: string;
+    ends_at: string;
+    status: AppointmentStatus;
+    notes: string | null;
+    client: { id: number; name: string; phone: string | null } | null;
+    employee: { id: number; name: string; avatar_color: string } | null;
+    service: {
+        id: number;
+        name: string;
+        category: string;
+        duration_minutes: number;
+        price: number;
+        color: string;
+    } | null;
+}
+
+export interface AppointmentPayload {
+    client_id?: number;
+    employee_id?: number;
+    service_id?: number;
+    starts_at?: string;
+    status?: AppointmentStatus;
+    notes?: string | null;
 }

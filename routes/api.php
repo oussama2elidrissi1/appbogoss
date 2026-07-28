@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AdvanceController;
+use App\Http\Controllers\Api\AppointmentController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\DashboardController;
@@ -30,6 +31,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::get('/dashboard', [DashboardController::class, 'index']);
 
+    Route::apiResource('/appointments', AppointmentController::class);
+
     Route::get('/work-days/active', [WorkDayController::class, 'activeDay']);
     Route::get('/work-days/{workDay}/pdf', [WorkDayController::class, 'pdf']);
     Route::post('/work-days/{workDay}/close', [WorkDayController::class, 'close']);
@@ -53,4 +56,5 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('/products', ProductController::class);
     Route::apiResource('/services', ServiceController::class);
     Route::get('/clients', [CatalogController::class, 'clients']);
+    Route::post('/clients', [CatalogController::class, 'storeClient']);
 });

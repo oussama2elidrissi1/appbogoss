@@ -51,6 +51,27 @@ class CatalogController extends Controller
         return response()->json(['data' => $clients]);
     }
 
+    public function storeClient(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'notes' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $client = Client::create($data);
+
+        return response()->json([
+            'data' => [
+                'id' => $client->id,
+                'name' => $client->name,
+                'phone' => $client->phone,
+                'loyalty_points' => $client->loyalty_points,
+            ],
+        ], 201);
+    }
+
     public function services(Request $request): JsonResponse
     {
         $query = Service::where('is_active', true);

@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { navItems } from '@/lib/navigation';
+import Agenda from '@/pages/Agenda';
 import Caisse from '@/pages/Caisse';
 import Dashboard from '@/pages/Dashboard';
 import Depenses from '@/pages/Depenses';
@@ -12,7 +13,15 @@ import Reports from '@/pages/Reports';
 import Services from '@/pages/Services';
 
 /** Nav destinations backed by a real screen; everything else is a placeholder. */
-const realRoutes = new Set(['/dashboard', '/pos', '/expenses', '/employees', '/services', '/reports']);
+const realRoutes = new Set([
+    '/dashboard',
+    '/agenda',
+    '/pos',
+    '/expenses',
+    '/employees',
+    '/services',
+    '/reports',
+]);
 const placeholderItems = navItems.filter((item) => !realRoutes.has(item.to));
 
 export default function App() {
@@ -24,6 +33,7 @@ export default function App() {
                 <Route element={<AppLayout />}>
                     <Route index element={<Navigate to="/dashboard" replace />} />
                     <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/agenda" element={<Agenda />} />
                     <Route path="/pos" element={<Caisse />} />
                     <Route path="/expenses" element={<Depenses />} />
                     <Route path="/employees" element={<Employees />} />
