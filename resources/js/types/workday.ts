@@ -70,6 +70,7 @@ export interface WorkDay {
     notes: string | null;
     opened_by: { id: number; name: string } | null;
     employees: WorkDayEmployee[];
+    advances: Advance[];
     closing_report: ClosingReport | null;
     report_snapshot: ClosingReport | null;
 }

@@ -43,7 +43,7 @@ class WorkDayService
 
     public function getActiveDay(): ?WorkDay
     {
-        return WorkDay::with(['employees', 'openedBy'])
+        return WorkDay::with(['employees', 'openedBy', 'advances.employee'])
             ->where('status', 'open')
             ->first();
     }

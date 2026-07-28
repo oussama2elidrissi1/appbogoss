@@ -15,6 +15,8 @@ class WorkDayResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $this->resource->loadMissing('advances.employee');
+
         $reportSnapshot = $this->closing_report;
 
         if ($reportSnapshot === null && $this->status === 'open') {
@@ -38,6 +40,16 @@ class WorkDayResource extends JsonResource
                 'avatar_color' => $employee->avatar_color,
                 'role' => $employee->role,
                 'present' => (bool) $employee->pivot->present,
+            ])->all(),
+            'advances' => $this->advances->map(fn ($advance) => [
+                'id' => $advance->id,
+                'employee_id' => $advance->employee_id,
+                'employee_name' => $advance->employee->name ?? null,
+                'work_day_id' => $advance->work_day_id,
+                'amount' => (float) $advance->amount,
+                'reason' => $advance->reason,
+                'given_on' => $advance->given_on?->toDateString(),
+                'settled_at' => $advance->settled_at,
             ])->all(),
             'closing_report' => $this->closing_report,
             'report_snapshot' => $reportSnapshot,

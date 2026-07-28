@@ -33,21 +33,21 @@ class WorkDayController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        $workDay->load(['employees', 'openedBy']);
+        $workDay->load(['employees', 'openedBy', 'advances.employee']);
 
         return response()->json(['data' => new WorkDayResource($workDay)], 201);
     }
 
     public function show(WorkDay $workDay): JsonResponse
     {
-        $workDay->load(['employees', 'openedBy']);
+        $workDay->load(['employees', 'openedBy', 'advances.employee']);
 
         return response()->json(['data' => new WorkDayResource($workDay)]);
     }
 
     public function index(Request $request): JsonResponse
     {
-        $workDays = WorkDay::with(['employees', 'openedBy'])
+        $workDays = WorkDay::with(['employees', 'openedBy', 'advances.employee'])
             ->orderByDesc('date')
             ->orderByDesc('id')
             ->limit(60)
@@ -66,7 +66,7 @@ class WorkDayController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        $workDay->load(['employees', 'openedBy']);
+        $workDay->load(['employees', 'openedBy', 'advances.employee']);
 
         return response()->json(['data' => new WorkDayResource($workDay)]);
     }
@@ -79,7 +79,7 @@ class WorkDayController extends Controller
             ], 422);
         }
 
-        $workDay->load(['employees', 'openedBy']);
+        $workDay->load(['employees', 'openedBy', 'advances.employee']);
 
         if (! class_exists(Pdf::class)) {
             // TODO: requires barryvdh/laravel-dompdf, run composer require barryvdh/laravel-dompdf

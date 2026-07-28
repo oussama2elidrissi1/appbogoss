@@ -1,12 +1,20 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, BarChart3, Download } from 'lucide-react';
-import { getErrorMessage, getWorkDayPdfUrl, getWorkDays } from '@/lib/api';
-import { formatCurrency, formatDayLabel } from '@/lib/utils';
-import type { ClosingReport, WorkDay } from '@/types/workday';
+import { AlertCircle, BarChart3, Download, ReceiptText } from 'lucide-react';
+import { getErrorMessage, getTransactions, getWorkDayPdfUrl, getWorkDays } from '@/lib/api';
+import { cn, formatCurrency, formatDayLabel, formatTime } from '@/lib/utils';
+import type { ClosingReport, RevenueByEmployee, Sale, WorkDay } from '@/types/workday';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { getCategoryLabel } from '@/components/workday/categories';
@@ -23,6 +31,12 @@ function dayNet(day: WorkDay): number {
     return reportFor(day)?.net_result ?? 0;
 }
 
+function clientName(sale: Sale): string {
+    if (sale.client) return sale.client.name;
+    if (sale.client_label) return sale.client_label;
+    return 'Client de passage';
+}
+
 function ReportStat({ label, value }: { label: string; value: string }) {
     return (
         <div className="rounded-md border border-white/[0.06] bg-white/[0.025] px-3 py-2.5">
@@ -34,164 +48,347 @@ function ReportStat({ label, value }: { label: string; value: string }) {
     );
 }
 
+function EmployeeTicketsDialog({
+    day,
+    employee,
+    open,
+    onOpenChange,
+}: {
+    day: WorkDay;
+    employee: RevenueByEmployee | null;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+}) {
+    const { data: sales, isPending } = useQuery({
+        queryKey: ['work-day', day.id, 'tickets'],
+        queryFn: () => getTransactions(day.id),
+        enabled: open,
+    });
+
+    const employeeSales = (sales ?? []).filter(
+        (sale) => sale.employee.id === employee?.employee_id,
+    );
+    const activeTotal = employeeSales
+        .filter((sale) => !sale.is_deleted)
+        .reduce((sum, sale) => sum + sale.total, 0);
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-3xl">
+                <DialogHeader>
+                    <DialogTitle>Tickets de {employee?.employee_name ?? 'employé'}</DialogTitle>
+                    <DialogDescription>
+                        Journée du {formatDayLabel(day.date)} ·{' '}
+                        {formatCurrency(activeTotal, { maximumFractionDigits: 2 })} encaissés
+                    </DialogDescription>
+                </DialogHeader>
+
+                {isPending ? (
+                    <div className="space-y-2">
+                        {Array.from({ length: 5 }).map((_, index) => (
+                            <Skeleton key={index} className="h-16 rounded-md" />
+                        ))}
+                    </div>
+                ) : employeeSales.length === 0 ? (
+                    <div className="rounded-md border border-dashed border-white/[0.08] px-4 py-8 text-center text-sm text-muted-foreground">
+                        Aucun ticket pour cet employé sur cette journée.
+                    </div>
+                ) : (
+                    <ScrollArea className="max-h-[520px] pr-3">
+                        <div className="space-y-2">
+                            {employeeSales.map((sale) => (
+                                <div
+                                    key={sale.id}
+                                    className={cn(
+                                        'rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2.5',
+                                        sale.is_deleted &&
+                                            'border-destructive/25 bg-destructive/[0.06]',
+                                    )}
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="text-xs tabular-nums text-muted-foreground">
+                                                    #{sale.id} · {formatTime(sale.created_at)}
+                                                </span>
+                                                <Badge variant="accent">
+                                                    {getCategoryLabel(sale.category)}
+                                                </Badge>
+                                                {sale.is_deleted && (
+                                                    <Badge variant="destructive">Supprimé</Badge>
+                                                )}
+                                            </div>
+                                            <p className="mt-1 truncate text-sm font-medium text-foreground">
+                                                {sale.items.length > 0
+                                                    ? sale.items
+                                                          .map((item) =>
+                                                              item.quantity > 1
+                                                                  ? `${item.label} x${item.quantity}`
+                                                                  : item.label,
+                                                          )
+                                                          .join(', ')
+                                                    : getCategoryLabel(sale.category)}
+                                            </p>
+                                            <p className="mt-0.5 text-xs text-muted-foreground">
+                                                {clientName(sale)} · {sale.print_count} impr.
+                                            </p>
+                                        </div>
+
+                                        <p
+                                            className={cn(
+                                                'shrink-0 text-sm font-semibold tabular-nums text-foreground',
+                                                sale.is_deleted &&
+                                                    'text-muted-foreground line-through decoration-destructive/70',
+                                            )}
+                                        >
+                                            {formatCurrency(sale.total, {
+                                                maximumFractionDigits: 2,
+                                            })}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </ScrollArea>
+                )}
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 function WorkDayReportCard({ day }: { day: WorkDay }) {
     const report = reportFor(day);
     const statusLabel = day.status === 'open' ? 'Ouverte' : 'Clôturée';
     const statusVariant = day.status === 'open' ? 'success' : 'outline';
+    const [ticketsEmployee, setTicketsEmployee] = useState<RevenueByEmployee | null>(null);
 
     return (
-        <Card>
-            <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
-                <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <CardTitle>Journée du {formatDayLabel(day.date)}</CardTitle>
-                        <Badge variant={statusVariant}>{statusLabel}</Badge>
-                    </div>
-                    <p className="mt-1.5 text-sm text-muted-foreground">
-                        {day.employees.length} employé{day.employees.length > 1 ? 's' : ''} en
-                        service · fond de caisse{' '}
-                        {formatCurrency(day.opening_balance, { maximumFractionDigits: 2 })}
-                    </p>
-                </div>
-
-                {day.status === 'closed' && (
-                    <Button asChild variant="outline" size="sm">
-                        <a href={getWorkDayPdfUrl(day.id)} target="_blank" rel="noreferrer">
-                            <Download />
-                            PDF
-                        </a>
-                    </Button>
-                )}
-            </CardHeader>
-
-            <CardContent className="space-y-4">
-                {report ? (
-                    <>
-                        <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
-                            <ReportStat
-                                label="CA"
-                                value={formatCurrency(report.revenue_total, {
-                                    maximumFractionDigits: 2,
-                                })}
-                            />
-                            <ReportStat
-                                label="Dépenses"
-                                value={formatCurrency(report.expenses_total, {
-                                    maximumFractionDigits: 2,
-                                })}
-                            />
-                            <ReportStat
-                                label="Avances"
-                                value={formatCurrency(report.advances_total, {
-                                    maximumFractionDigits: 2,
-                                })}
-                            />
-                            <ReportStat
-                                label="Commissions"
-                                value={formatCurrency(report.commissions_total, {
-                                    maximumFractionDigits: 2,
-                                })}
-                            />
-                            <ReportStat
-                                label="Résultat"
-                                value={formatCurrency(report.net_result, {
-                                    maximumFractionDigits: 2,
-                                })}
-                            />
+        <>
+            <Card>
+                <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
+                    <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <CardTitle>Journée du {formatDayLabel(day.date)}</CardTitle>
+                            <Badge variant={statusVariant}>{statusLabel}</Badge>
                         </div>
-
-                        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-                            <section className="space-y-2">
-                                <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                                    Par catégorie
-                                </h3>
-                                <div className="space-y-2">
-                                    {report.revenue_by_category.map((row) => (
-                                        <div
-                                            key={row.category}
-                                            className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2"
-                                        >
-                                            <span className="truncate text-sm">
-                                                {getCategoryLabel(row.category)}
-                                            </span>
-                                            <span className="text-sm font-semibold tabular-nums text-accent">
-                                                {formatCurrency(row.total, {
-                                                    maximumFractionDigits: 2,
-                                                })}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </section>
-
-                            <section className="space-y-2">
-                                <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                                    Par employé
-                                </h3>
-                                <div className="space-y-2">
-                                    {report.revenue_by_employee.map((row) => (
-                                        <div
-                                            key={row.employee_id}
-                                            className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2"
-                                        >
-                                            <span className="min-w-0">
-                                                <span className="block truncate text-sm">
-                                                    {row.employee_name}
-                                                </span>
-                                                <span className="text-xs text-muted-foreground">
-                                                    {row.count} ticket{row.count > 1 ? 's' : ''}
-                                                </span>
-                                            </span>
-                                            <span className="text-sm font-semibold tabular-nums text-accent">
-                                                {formatCurrency(row.total, {
-                                                    maximumFractionDigits: 2,
-                                                })}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </section>
-
-                            <section className="space-y-2">
-                                <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                                    Top prestations
-                                </h3>
-                                <div className="space-y-2">
-                                    {report.top_prestations.map((row) => (
-                                        <div
-                                            key={row.label}
-                                            className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2"
-                                        >
-                                            <span className="min-w-0">
-                                                <span className="block truncate text-sm">{row.label}</span>
-                                                <span className="text-xs text-muted-foreground">
-                                                    {row.count} passage{row.count > 1 ? 's' : ''}
-                                                </span>
-                                            </span>
-                                            <span className="text-sm font-semibold tabular-nums text-accent">
-                                                {formatCurrency(row.total, {
-                                                    maximumFractionDigits: 2,
-                                                })}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </section>
-                        </div>
-                    </>
-                ) : (
-                    <div className="rounded-md border border-dashed border-white/[0.08] px-4 py-5 text-sm text-muted-foreground">
-                        Les totaux seront disponibles dès les premiers encaissements. Le PDF sera
-                        disponible après clôture.
+                        <p className="mt-1.5 text-sm text-muted-foreground">
+                            {day.employees.length} employé{day.employees.length > 1 ? 's' : ''} en
+                            service · fond de caisse{' '}
+                            {formatCurrency(day.opening_balance, { maximumFractionDigits: 2 })}
+                        </p>
                     </div>
-                )}
-            </CardContent>
-        </Card>
+
+                    {day.status === 'closed' && (
+                        <Button asChild variant="outline" size="sm">
+                            <a href={getWorkDayPdfUrl(day.id)} target="_blank" rel="noreferrer">
+                                <Download />
+                                PDF
+                            </a>
+                        </Button>
+                    )}
+                </CardHeader>
+
+                <CardContent className="space-y-4">
+                    {report ? (
+                        <>
+                            <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+                                <ReportStat
+                                    label="CA"
+                                    value={formatCurrency(report.revenue_total, {
+                                        maximumFractionDigits: 2,
+                                    })}
+                                />
+                                <ReportStat
+                                    label="Dépenses"
+                                    value={formatCurrency(report.expenses_total, {
+                                        maximumFractionDigits: 2,
+                                    })}
+                                />
+                                <ReportStat
+                                    label="Avances"
+                                    value={formatCurrency(report.advances_total, {
+                                        maximumFractionDigits: 2,
+                                    })}
+                                />
+                                <ReportStat
+                                    label="Commissions"
+                                    value={formatCurrency(report.commissions_total, {
+                                        maximumFractionDigits: 2,
+                                    })}
+                                />
+                                <ReportStat
+                                    label="Résultat"
+                                    value={formatCurrency(report.net_result, {
+                                        maximumFractionDigits: 2,
+                                    })}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+                                <section className="space-y-2">
+                                    <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                                        Par catégorie
+                                    </h3>
+                                    <div className="space-y-2">
+                                        {report.revenue_by_category.map((row) => (
+                                            <div
+                                                key={row.category}
+                                                className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2"
+                                            >
+                                                <span className="truncate text-sm">
+                                                    {getCategoryLabel(row.category)}
+                                                </span>
+                                                <span className="text-sm font-semibold tabular-nums text-accent">
+                                                    {formatCurrency(row.total, {
+                                                        maximumFractionDigits: 2,
+                                                    })}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </section>
+
+                                <section className="space-y-2">
+                                    <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                                        Par employé
+                                    </h3>
+                                    <div className="space-y-2">
+                                        {report.revenue_by_employee.map((row) => (
+                                            <div
+                                                key={row.employee_id}
+                                                className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2"
+                                            >
+                                                <span className="min-w-0">
+                                                    <span className="block truncate text-sm">
+                                                        {row.employee_name}
+                                                    </span>
+                                                    <span className="text-xs text-muted-foreground">
+                                                        {row.count} ticket{row.count > 1 ? 's' : ''}
+                                                    </span>
+                                                </span>
+                                                <div className="flex shrink-0 items-center gap-2">
+                                                    <span className="text-sm font-semibold tabular-nums text-accent">
+                                                        {formatCurrency(row.total, {
+                                                            maximumFractionDigits: 2,
+                                                        })}
+                                                    </span>
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={() => setTicketsEmployee(row)}
+                                                    >
+                                                        <ReceiptText />
+                                                        Tickets
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </section>
+
+                                <section className="space-y-2">
+                                    <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                                        Top prestations
+                                    </h3>
+                                    <div className="space-y-2">
+                                        {report.top_prestations.map((row) => (
+                                            <div
+                                                key={row.label}
+                                                className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2"
+                                            >
+                                                <span className="min-w-0">
+                                                    <span className="block truncate text-sm">
+                                                        {row.label}
+                                                    </span>
+                                                    <span className="text-xs text-muted-foreground">
+                                                        {row.count} passage
+                                                        {row.count > 1 ? 's' : ''}
+                                                    </span>
+                                                </span>
+                                                <span className="text-sm font-semibold tabular-nums text-accent">
+                                                    {formatCurrency(row.total, {
+                                                        maximumFractionDigits: 2,
+                                                    })}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </section>
+                            </div>
+
+                            <section className="space-y-2">
+                                <div className="flex items-center justify-between gap-3">
+                                    <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                                        Détails avances
+                                    </h3>
+                                    <span className="text-xs text-muted-foreground">
+                                        {day.advances.length} avance
+                                        {day.advances.length > 1 ? 's' : ''}
+                                    </span>
+                                </div>
+
+                                {day.advances.length === 0 ? (
+                                    <div className="rounded-md border border-dashed border-white/[0.08] px-4 py-4 text-sm text-muted-foreground">
+                                        Aucune avance enregistrée sur cette journée.
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+                                        {day.advances.map((advance) => (
+                                            <div
+                                                key={advance.id}
+                                                className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2"
+                                            >
+                                                <span className="min-w-0">
+                                                    <span className="block truncate text-sm font-medium">
+                                                        {advance.employee_name ?? 'Employé'}
+                                                    </span>
+                                                    <span className="block truncate text-xs text-muted-foreground">
+                                                        {advance.reason || 'Sans motif'} ·{' '}
+                                                        {advance.settled_at
+                                                            ? 'réglée'
+                                                            : 'non réglée'}
+                                                    </span>
+                                                </span>
+                                                <span className="shrink-0 text-sm font-semibold tabular-nums text-destructive">
+                                                    {formatCurrency(advance.amount, {
+                                                        maximumFractionDigits: 2,
+                                                    })}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </section>
+                        </>
+                    ) : (
+                        <div className="rounded-md border border-dashed border-white/[0.08] px-4 py-5 text-sm text-muted-foreground">
+                            Les totaux seront disponibles dès les premiers encaissements. Le PDF
+                            sera disponible après clôture.
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+            <EmployeeTicketsDialog
+                day={day}
+                employee={ticketsEmployee}
+                open={ticketsEmployee !== null}
+                onOpenChange={(open) => {
+                    if (!open) setTicketsEmployee(null);
+                }}
+            />
+        </>
     );
 }
 
 export default function Reports() {
-    const { data: workDays, isPending, isError, error, refetch } = useQuery({
+    const {
+        data: workDays,
+        isPending,
+        isError,
+        error,
+        refetch,
+    } = useQuery({
         queryKey: ['work-days', 'reports'],
         queryFn: getWorkDays,
         refetchInterval: 15_000,
