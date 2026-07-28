@@ -73,6 +73,25 @@
         </tbody>
     </table>
 
+    <h2>DÃ©tails avances</h2>
+    <table>
+        <thead>
+            <tr><th>EmployÃ©</th><th>Motif</th><th>Statut</th><th class="text-right">Montant</th></tr>
+        </thead>
+        <tbody>
+            @forelse ($day->advances as $advance)
+                <tr>
+                    <td>{{ $advance->employee->name ?? 'EmployÃ©' }}</td>
+                    <td>{{ $advance->reason ?: 'Sans motif' }}</td>
+                    <td>{{ $advance->settled_at ? 'RÃ©glÃ©e' : 'Non rÃ©glÃ©e' }}</td>
+                    <td class="text-right">{{ number_format((float) $advance->amount, 2) }} MAD</td>
+                </tr>
+            @empty
+                <tr><td colspan="4">Aucune avance</td></tr>
+            @endforelse
+        </tbody>
+    </table>
+
     <h2>Top prestations</h2>
     <table>
         <thead>

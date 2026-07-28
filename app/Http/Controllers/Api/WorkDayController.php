@@ -13,6 +13,7 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Throwable;
 
 class WorkDayController extends Controller
 {
@@ -82,13 +83,14 @@ class WorkDayController extends Controller
         $workDay->load(['employees', 'openedBy', 'advances.employee']);
 
         if (! class_exists(Pdf::class)) {
-            // TODO: requires barryvdh/laravel-dompdf, run composer require barryvdh/laravel-dompdf
-            return response()->json([
-                'work_day' => new WorkDayResource($workDay),
-            ]);
+            return response()->view('pdf.work-day-report', ['day' => $workDay]);
         }
 
-        return Pdf::loadView('pdf.work-day-report', ['day' => $workDay])
-            ->download("journee-{$workDay->date->toDateString()}.pdf");
+        try {
+            return Pdf::loadView('pdf.work-day-report', ['day' => $workDay])
+                ->download("journee-{$workDay->date->toDateString()}.pdf");
+        } catch (Throwable) {
+            return response()->view('pdf.work-day-report', ['day' => $workDay]);
+        }
     }
 }

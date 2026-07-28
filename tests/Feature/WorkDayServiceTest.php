@@ -11,6 +11,7 @@ use App\Models\SaleItem;
 use App\Models\WorkDay;
 use App\Services\WorkDayService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class WorkDayServiceTest extends TestCase
@@ -139,5 +140,18 @@ class WorkDayServiceTest extends TestCase
         $this->expectException(\App\Exceptions\DayAlreadyOpenException::class);
 
         app(WorkDayService::class)->openDay(['opening_balance' => 100]);
+    }
+
+    public function test_closed_day_pdf_route_returns_a_report_response(): void
+    {
+        Sanctum::actingAs(\App\Models\User::factory()->create());
+
+        $day = WorkDay::factory()->create([
+            'status' => 'closed',
+            'closed_at' => now(),
+            'closing_report' => ['revenue_total' => 0],
+        ]);
+
+        $this->get('/api/work-days/'.$day->id.'/pdf')->assertOk();
     }
 }
