@@ -1,6 +1,15 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, CalendarDays, CheckCircle2, Clock, Plus, Trash2, XCircle } from 'lucide-react';
+import {
+    AlertCircle,
+    CalendarDays,
+    CheckCircle2,
+    Clock,
+    Plus,
+    Search,
+    Trash2,
+    XCircle,
+} from 'lucide-react';
 import {
     createAppointment,
     createClient,
@@ -17,6 +26,7 @@ import type {
     Appointment,
     AppointmentPayload,
     AppointmentStatus,
+    Service,
 } from '@/types/workday';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,6 +34,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/dashboard/EmptyState';
+import { CATEGORIES, type CategoryConfig } from '@/components/workday/categories';
 import { EmployeeAvatar } from '@/components/workday/EmployeeAvatar';
 
 const statuses: Array<{ value: AppointmentStatus; label: string; variant: BadgeProps['variant'] }> = [
@@ -68,6 +79,8 @@ export default function Agenda() {
     const [date, setDate] = useState(today());
     const [clientSearch, setClientSearch] = useState('');
     const [clientPhone, setClientPhone] = useState('');
+    const [serviceCategory, setServiceCategory] = useState<CategoryConfig>(CATEGORIES[0]);
+    const [serviceSearch, setServiceSearch] = useState('');
     const [payload, setPayload] = useState<AppointmentPayload>({
         starts_at: defaultStart(),
         status: 'confirmed',
@@ -89,8 +102,8 @@ export default function Agenda() {
     });
 
     const { data: services, isPending: servicesPending } = useQuery({
-        queryKey: ['services', 'agenda'],
-        queryFn: () => getServices(),
+        queryKey: ['services', 'agenda', serviceCategory.value],
+        queryFn: () => getServices(serviceCategory.value),
         staleTime: 5 * 60_000,
     });
 
@@ -104,6 +117,13 @@ export default function Agenda() {
         () => services?.find((service) => service.id === payload.service_id) ?? null,
         [services, payload.service_id],
     );
+
+    const filteredServices = useMemo(() => {
+        const term = serviceSearch.trim().toLowerCase();
+        if (!term) return services ?? [];
+
+        return (services ?? []).filter((service) => service.name.toLowerCase().includes(term));
+    }, [services, serviceSearch]);
 
     const canSubmit =
         Boolean(payload.client_id) &&
@@ -193,7 +213,7 @@ export default function Agenda() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-[560px_minmax(0,1fr)]">
                 <Card>
                     <CardHeader>
                         <CardTitle>Nouvelle réservation</CardTitle>
@@ -264,6 +284,92 @@ export default function Agenda() {
                             </div>
                         )}
 
+                        <Field label="Catégorie">
+                            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                                {CATEGORIES.map((category, index) => {
+                                    const Icon = category.icon;
+                                    const selected = serviceCategory.value === category.value;
+
+                                    return (
+                                        <button
+                                            key={category.value}
+                                            type="button"
+                                            onClick={() => {
+                                                setServiceCategory(category);
+                                                setServiceSearch('');
+                                                setPayload((current) => ({
+                                                    ...current,
+                                                    service_id: undefined,
+                                                }));
+                                            }}
+                                            className={cn(
+                                                'relative flex h-16 min-w-0 flex-col items-center justify-center gap-1 rounded-md border px-2 text-center transition-all duration-200 active:scale-[0.98]',
+                                                selected
+                                                    ? 'border-accent/60 bg-accent/[0.12] text-foreground shadow-glow'
+                                                    : 'border-white/[0.08] bg-white/[0.03] text-muted-foreground hover:border-accent/30 hover:bg-white/[0.06] hover:text-foreground',
+                                            )}
+                                        >
+                                            <Icon
+                                                className={cn(
+                                                    'h-4 w-4',
+                                                    selected ? category.chip : 'text-muted-foreground',
+                                                )}
+                                            />
+                                            <span className="truncate text-xs font-medium">
+                                                {category.label}
+                                            </span>
+                                            <span className="absolute right-1.5 top-1.5 text-[10px] font-semibold text-muted-foreground/50">
+                                                {index + 1}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </Field>
+
+                        <Field label="Service">
+                            <div className="space-y-2.5">
+                                <div className="relative">
+                                    <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
+                                    <Input
+                                        value={serviceSearch}
+                                        onChange={(event) => setServiceSearch(event.target.value)}
+                                        placeholder={`Rechercher une prestation ${serviceCategory.label.toLowerCase()}...`}
+                                        className="pl-10"
+                                    />
+                                </div>
+
+                                {servicesPending ? (
+                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                        {Array.from({ length: 4 }).map((_, index) => (
+                                            <Skeleton key={index} className="h-16 rounded-md" />
+                                        ))}
+                                    </div>
+                                ) : filteredServices.length === 0 ? (
+                                    <div className="rounded-md border border-dashed border-white/[0.08] px-4 py-5 text-center text-xs text-muted-foreground">
+                                        Aucun service dans cette catégorie.
+                                    </div>
+                                ) : (
+                                    <div className="grid max-h-64 grid-cols-1 gap-2 overflow-y-auto pr-0.5 sm:grid-cols-2">
+                                        {filteredServices.map((service) => (
+                                            <ServiceCard
+                                                key={service.id}
+                                                service={service}
+                                                selected={payload.service_id === service.id}
+                                                onClick={() =>
+                                                    setPayload((current) => ({
+                                                        ...current,
+                                                        service_id: service.id,
+                                                    }))
+                                                }
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </Field>
+
+                        <div className="hidden" aria-hidden="true">
                         <Field label="Service">
                             <select
                                 value={payload.service_id ?? ''}
@@ -285,6 +391,8 @@ export default function Agenda() {
                                 ))}
                             </select>
                         </Field>
+
+                        </div>
 
                         <Field label="Employé">
                             <div className="grid grid-cols-2 gap-2">
@@ -484,6 +592,41 @@ function PickerButton({
             )}
         >
             {children}
+        </button>
+    );
+}
+
+function ServiceCard({
+    service,
+    selected,
+    onClick,
+}: {
+    service: Service;
+    selected: boolean;
+    onClick: () => void;
+}) {
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            className={cn(
+                'flex items-center justify-between gap-3 rounded-md border px-3.5 py-2.5 text-left transition-all duration-200 active:scale-[0.98]',
+                selected
+                    ? 'border-accent/60 bg-accent/[0.12] shadow-glow'
+                    : 'border-white/[0.08] bg-white/[0.03] hover:border-accent/30 hover:bg-white/[0.06]',
+            )}
+        >
+            <span className="min-w-0">
+                <span className="block truncate text-sm font-medium text-foreground">
+                    {service.name}
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                    {service.duration_minutes} min
+                </span>
+            </span>
+            <span className="shrink-0 text-sm font-semibold tabular-nums text-accent">
+                {formatCurrency(service.price, { maximumFractionDigits: 2 })}
+            </span>
         </button>
     );
 }
