@@ -121,7 +121,7 @@ export async function closeWorkDay(id: number): Promise<WorkDay> {
  * download handed to `window.open`, and the session cookie carries same-origin.
  */
 export function getWorkDayPdfUrl(id: number): string {
-    return `/api/work-days/${id}/pdf`;
+    return `/work-days/${id}/pdf`;
 }
 
 /** 422 "Aucune journée ouverte." when no day is open. */

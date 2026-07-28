@@ -154,4 +154,17 @@ class WorkDayServiceTest extends TestCase
 
         $this->get('/api/work-days/'.$day->id.'/pdf')->assertOk();
     }
+
+    public function test_closed_day_web_pdf_route_returns_a_report_response(): void
+    {
+        $this->actingAs(\App\Models\User::factory()->create());
+
+        $day = WorkDay::factory()->create([
+            'status' => 'closed',
+            'closed_at' => now(),
+            'closing_report' => ['revenue_total' => 0],
+        ]);
+
+        $this->get('/work-days/'.$day->id.'/pdf')->assertOk();
+    }
 }

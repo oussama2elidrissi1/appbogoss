@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\WorkDayController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -14,4 +15,6 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::get('/login', fn () => view('app'))->name('login');
+Route::middleware('auth')->get('/work-days/{workDay}/pdf', [WorkDayController::class, 'pdf'])
+    ->name('work-days.pdf');
 Route::get('/{any}', fn () => view('app'))->where('any', '^(?!api).*$');
