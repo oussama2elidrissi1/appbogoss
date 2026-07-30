@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\WorkDayController;
+use App\Http\Controllers\Api\ReportController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -17,4 +18,6 @@ use Illuminate\Support\Facades\Route;
 Route::get('/login', fn () => view('app'))->name('login');
 Route::middleware('auth')->get('/work-days/{workDay}/pdf', [WorkDayController::class, 'pdf'])
     ->name('work-days.pdf');
+Route::middleware('auth')->get('/reports/monthly/pdf', [ReportController::class, 'monthlyPdf'])
+    ->name('reports.monthly.pdf');
 Route::get('/{any}', fn () => view('app'))->where('any', '^(?!api).*$');

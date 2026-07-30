@@ -38,6 +38,7 @@ export interface RevenueByEmployee {
     total: number;
     commission: number;
     count: number;
+    prestations?: TopPrestation[];
 }
 
 export interface TopPrestation {
@@ -46,7 +47,35 @@ export interface TopPrestation {
     total: number;
 }
 
+export interface PrestationByEmployee extends TopPrestation {
+    employees: RevenueByEmployee[];
+}
+
+export interface ExpenseReportRow {
+    id?: number;
+    label?: string;
+    category: string;
+    count?: number;
+    amount?: number;
+    total: number;
+    spent_on?: string;
+}
+
+export interface AdvanceReportRow {
+    id?: number;
+    employee_id: number;
+    employee_name: string;
+    count?: number;
+    amount?: number;
+    total: number;
+    settled_total?: number;
+    reason?: string | null;
+    given_on?: string;
+    settled_at?: string | null;
+}
+
 export interface ClosingReport {
+    opening_balance?: number;
     revenue_total: number;
     expenses_total: number;
     advances_total: number;
@@ -54,9 +83,55 @@ export interface ClosingReport {
     net_result: number;
     clients_count: number;
     average_ticket: number;
+    cash_expected?: number;
+    ticket_count?: number;
+    deleted_ticket_count?: number;
+    deleted_ticket_total?: number;
+    print_count?: number;
+    printed_ticket_count?: number;
     revenue_by_category: RevenueByCategory[];
     revenue_by_employee: RevenueByEmployee[];
+    employee_by_prestation?: RevenueByEmployee[];
+    prestation_by_employee?: PrestationByEmployee[];
     top_prestations: TopPrestation[];
+    expenses_by_category?: ExpenseReportRow[];
+    expense_details?: ExpenseReportRow[];
+    advances_by_employee?: AdvanceReportRow[];
+    advance_details?: AdvanceReportRow[];
+    payment_methods?: Array<{ method: string; count: number; total: number }>;
+    ticket_details?: Array<{
+        id: number;
+        created_at: string | null;
+        employee_id: number | null;
+        employee_name: string;
+        client_name: string;
+        category: string | null;
+        label: string;
+        total: number;
+        print_count: number;
+        printed_ticket_count?: number;
+        is_deleted: boolean;
+    }>;
+}
+
+export interface MonthlyReport {
+    period: { month: string; start: string; end: string };
+    totals: ClosingReport;
+    days: Array<{
+        id: number;
+        date: string;
+        status: WorkDayStatus;
+        opening_balance: number;
+        closed_at: string | null;
+        tickets: number;
+        deleted_tickets: number;
+        revenue_total: number;
+        expenses_total: number;
+        advances_total: number;
+        commissions_total: number;
+        net_result: number;
+        top_prestations: TopPrestation[];
+    }>;
 }
 
 export interface WorkDay {
@@ -96,6 +171,7 @@ export interface Sale {
     commission_amount: number | null;
     payment_method: string;
     print_count: number;
+    printed_ticket_count?: number;
     /** ISO timestamp */
     created_at: string;
     /** ISO timestamp */

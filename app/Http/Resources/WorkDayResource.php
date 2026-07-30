@@ -19,7 +19,9 @@ class WorkDayResource extends JsonResource
 
         $reportSnapshot = $this->closing_report;
 
-        if ($reportSnapshot === null && $this->status === 'open') {
+        // Older closed days contain the initial, shorter report snapshot. Rebuild
+        // those reports so the history exposes the same detail as new days.
+        if ($reportSnapshot === null || ! array_key_exists('employee_by_prestation', $reportSnapshot)) {
             $reportSnapshot = app(WorkDayService::class)->buildClosingReport($this->resource);
         }
 

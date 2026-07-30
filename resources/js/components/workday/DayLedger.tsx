@@ -288,7 +288,8 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
                                                         </p>
                                                     )}
                                                 <p className="mt-0.5 text-[11px] tabular-nums text-muted-foreground">
-                                                    {sale.print_count} impr.
+                                                    {sale.printed_ticket_count ?? sale.print_count * 2} tickets
+                                                    {' '}Â· {sale.print_count} impr.
                                                 </p>
                                             </div>
 

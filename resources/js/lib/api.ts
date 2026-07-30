@@ -19,6 +19,7 @@ import type {
     Sale,
     Service,
     ServicePayload,
+    MonthlyReport,
     WorkDay,
 } from '@/types/workday';
 
@@ -125,6 +126,17 @@ export async function closeWorkDay(id: number): Promise<WorkDay> {
  */
 export function getWorkDayPdfUrl(id: number): string {
     return `/work-days/${id}/pdf`;
+}
+
+export async function getMonthlyReport(month?: string): Promise<MonthlyReport> {
+    const { data } = await api.get<{ data: MonthlyReport }>('/api/reports/monthly', {
+        params: month ? { month } : undefined,
+    });
+    return data.data;
+}
+
+export function getMonthlyReportPdfUrl(month: string): string {
+    return `/reports/monthly/pdf?month=${encodeURIComponent(month)}`;
 }
 
 /** 422 "Aucune journée ouverte." when no day is open. */

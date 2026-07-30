@@ -1,7 +1,14 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, BarChart3, Download, ReceiptText } from 'lucide-react';
-import { getErrorMessage, getTransactions, getWorkDayPdfUrl, getWorkDays } from '@/lib/api';
+import {
+    getErrorMessage,
+    getMonthlyReport,
+    getMonthlyReportPdfUrl,
+    getTransactions,
+    getWorkDayPdfUrl,
+    getWorkDays,
+} from '@/lib/api';
 import { cn, formatCurrency, formatDayLabel, formatTime } from '@/lib/utils';
 import type { ClosingReport, RevenueByEmployee, Sale, WorkDay } from '@/types/workday';
 import { Badge } from '@/components/ui/badge';
@@ -45,6 +52,145 @@ function ReportStat({ label, value }: { label: string; value: string }) {
             </p>
             <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{value}</p>
         </div>
+    );
+}
+
+function monthValue(): string {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function MonthlyReportPanel({ month }: { month: string }) {
+    const { data: report, isPending, isError, error } = useQuery({
+        queryKey: ['reports', 'monthly', month],
+        queryFn: () => getMonthlyReport(month),
+        refetchInterval: 15_000,
+    });
+
+    if (isPending) {
+        return <Skeleton className="h-96 rounded-md" />;
+    }
+
+    if (isError || !report) {
+        return (
+            <Card className="border-destructive/25 bg-destructive/[0.04] p-5 text-sm text-destructive">
+                {getErrorMessage(error, 'Impossible de charger le rapport mensuel.')}
+            </Card>
+        );
+    }
+
+    const totals = report.totals;
+    const employees = totals.employee_by_prestation ?? totals.revenue_by_employee;
+    const prestations = totals.prestation_by_employee ?? totals.top_prestations.map((row) => ({
+        ...row,
+        employees: [],
+    }));
+
+    return (
+        <Card>
+            <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
+                <div>
+                    <CardTitle>Rapport du mois</CardTitle>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        Du {formatDayLabel(report.period.start)} au {formatDayLabel(report.period.end)}
+                    </p>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                    <a href={getMonthlyReportPdfUrl(month)} target="_blank" rel="noreferrer">
+                        <Download /> PDF mensuel
+                    </a>
+                </Button>
+            </CardHeader>
+
+            <CardContent className="space-y-5">
+                <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
+                    <ReportStat label="CA" value={formatCurrency(totals.revenue_total)} />
+                    <ReportStat label="Depenses" value={formatCurrency(totals.expenses_total)} />
+                    <ReportStat label="Avances" value={formatCurrency(totals.advances_total)} />
+                    <ReportStat label="Commissions" value={formatCurrency(totals.commissions_total)} />
+                    <ReportStat label="Resultat" value={formatCurrency(totals.net_result)} />
+                    <ReportStat label="Tickets" value={String(totals.ticket_count ?? 0)} />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                    <ReportTable title="Employes par CA et prestation">
+                        {employees.map((row) => (
+                            <div key={row.employee_id} className="flex items-start justify-between gap-3 border-b border-white/[0.06] py-2 last:border-0">
+                                <div className="min-w-0">
+                                    <p className="truncate text-sm font-medium">{row.employee_name}</p>
+                                    <p className="mt-0.5 text-xs text-muted-foreground">
+                                        {row.count} ticket{row.count > 1 ? 's' : ''} - {(row.prestations ?? []).map((item) => `${item.label} (${item.count})`).join(', ') || 'Aucune prestation detaillee'}
+                                    </p>
+                                </div>
+                                <span className="shrink-0 text-sm font-semibold tabular-nums text-accent">{formatCurrency(row.total)}</span>
+                            </div>
+                        ))}
+                    </ReportTable>
+
+                    <ReportTable title="Prestations par employe">
+                        {prestations.map((row) => (
+                            <div key={row.label} className="flex items-start justify-between gap-3 border-b border-white/[0.06] py-2 last:border-0">
+                                <div className="min-w-0">
+                                    <p className="truncate text-sm font-medium">{row.label}</p>
+                                    <p className="mt-0.5 text-xs text-muted-foreground">
+                                        {row.count} passage{row.count > 1 ? 's' : ''} - {(row.employees ?? []).map((employee) => `${employee.employee_name} (${employee.count})`).join(', ') || 'Employe non detaille'}
+                                    </p>
+                                </div>
+                                <span className="shrink-0 text-sm font-semibold tabular-nums text-accent">{formatCurrency(row.total)}</span>
+                            </div>
+                        ))}
+                    </ReportTable>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                    <ReportTable title="Depenses detaillees">
+                        {(totals.expense_details ?? []).map((expense) => (
+                            <div key={expense.id ?? `${expense.spent_on}-${expense.label}`} className="flex items-center justify-between gap-3 border-b border-white/[0.06] py-2 last:border-0">
+                                <div className="min-w-0"><p className="truncate text-sm">{expense.label}</p><p className="text-xs text-muted-foreground">{expense.spent_on} - {expense.category}</p></div>
+                                <span className="shrink-0 text-sm font-semibold tabular-nums text-destructive">{formatCurrency(expense.amount ?? expense.total)}</span>
+                            </div>
+                        ))}
+                        {(totals.expense_details ?? []).length === 0 && <p className="py-2 text-sm text-muted-foreground">Aucune depense.</p>}
+                    </ReportTable>
+
+                    <ReportTable title="Avances detaillees">
+                        {(totals.advance_details ?? []).map((advance) => (
+                            <div key={advance.id ?? `${advance.given_on}-${advance.employee_id}`} className="flex items-center justify-between gap-3 border-b border-white/[0.06] py-2 last:border-0">
+                                <div className="min-w-0"><p className="truncate text-sm">{advance.employee_name}</p><p className="text-xs text-muted-foreground">{advance.given_on} - {advance.reason || 'Sans motif'} - {advance.settled_at ? 'Reglee' : 'Non reglee'}</p></div>
+                                <span className="shrink-0 text-sm font-semibold tabular-nums text-destructive">{formatCurrency(advance.amount ?? advance.total)}</span>
+                            </div>
+                        ))}
+                        {(totals.advance_details ?? []).length === 0 && <p className="py-2 text-sm text-muted-foreground">Aucune avance.</p>}
+                    </ReportTable>
+                </div>
+
+                <ReportTable title="Historique journee par journee">
+                    <div className="overflow-x-auto">
+                        <table className="w-full min-w-[720px] text-left text-sm">
+                            <thead className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
+                                <tr><th className="pb-2">Journee</th><th className="pb-2">Statut</th><th className="pb-2 text-right">Tickets</th><th className="pb-2 text-right">CA</th><th className="pb-2 text-right">Depenses</th><th className="pb-2 text-right">Avances</th><th className="pb-2 text-right">Resultat</th></tr>
+                            </thead>
+                            <tbody>
+                                {report.days.map((day) => (
+                                    <tr key={day.id} className="border-t border-white/[0.06]">
+                                        <td className="py-2">{formatDayLabel(day.date)}</td><td className="py-2 text-muted-foreground">{day.status === 'closed' ? 'Cloturee' : 'Ouverte'}</td><td className="py-2 text-right tabular-nums">{day.tickets}{day.deleted_tickets ? ` + ${day.deleted_tickets} suppr.` : ''}</td><td className="py-2 text-right tabular-nums text-accent">{formatCurrency(day.revenue_total)}</td><td className="py-2 text-right tabular-nums">{formatCurrency(day.expenses_total)}</td><td className="py-2 text-right tabular-nums">{formatCurrency(day.advances_total)}</td><td className="py-2 text-right tabular-nums">{formatCurrency(day.net_result)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </ReportTable>
+            </CardContent>
+        </Card>
+    );
+}
+
+function ReportTable({ title, children }: { title: string; children: React.ReactNode }) {
+    return (
+        <section className="rounded-md border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{title}</h3>
+            <div className="mt-2">{children}</div>
+        </section>
     );
 }
 
@@ -130,7 +276,9 @@ function EmployeeTicketsDialog({
                                                     : getCategoryLabel(sale.category)}
                                             </p>
                                             <p className="mt-0.5 text-xs text-muted-foreground">
-                                                {clientName(sale)} · {sale.print_count} impr.
+                                                {clientName(sale)} ·{' '}
+                                                {sale.printed_ticket_count ?? sale.print_count * 2} tickets
+                                                {' '}· {sale.print_count} impr.
                                             </p>
                                         </div>
 
@@ -265,6 +413,13 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                                                     <span className="text-xs text-muted-foreground">
                                                         {row.count} ticket{row.count > 1 ? 's' : ''}
                                                     </span>
+                                                    {(row.prestations ?? []).length > 0 && (
+                                                        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                                                            {(row.prestations ?? [])
+                                                                .map((prestation) => `${prestation.label} (${prestation.count})`)
+                                                                .join(', ')}
+                                                        </span>
+                                                    )}
                                                 </span>
                                                 <div className="flex shrink-0 items-center gap-2">
                                                     <span className="text-sm font-semibold tabular-nums text-accent">
@@ -360,6 +515,48 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                                     </div>
                                 )}
                             </section>
+
+                            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                                <section className="space-y-2">
+                                    <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                                        DÃ©penses dÃ©taillÃ©es
+                                    </h3>
+                                    {(report.expense_details ?? []).length === 0 ? (
+                                        <div className="rounded-md border border-dashed border-white/[0.08] px-4 py-4 text-sm text-muted-foreground">
+                                            Aucune dÃ©pense enregistrÃ©e sur cette journÃ©e.
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {(report.expense_details ?? []).map((expense) => (
+                                                <div key={expense.id ?? `${expense.spent_on}-${expense.label}`} className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                                                    <span className="min-w-0"><span className="block truncate text-sm">{expense.label}</span><span className="text-xs text-muted-foreground">{expense.spent_on} - {expense.category}</span></span>
+                                                    <span className="shrink-0 text-sm font-semibold tabular-nums text-destructive">{formatCurrency(expense.amount ?? expense.total, { maximumFractionDigits: 2 })}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </section>
+
+                                <section className="space-y-2">
+                                    <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                                        Moyens de paiement
+                                    </h3>
+                                    {(report.payment_methods ?? []).length === 0 ? (
+                                        <div className="rounded-md border border-dashed border-white/[0.08] px-4 py-4 text-sm text-muted-foreground">
+                                            Aucun paiement enregistrÃ©.
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {(report.payment_methods ?? []).map((payment) => (
+                                                <div key={payment.method} className="flex items-center justify-between rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                                                    <span className="text-sm">{payment.method} <span className="text-xs text-muted-foreground">({payment.count})</span></span>
+                                                    <span className="text-sm font-semibold tabular-nums text-accent">{formatCurrency(payment.total, { maximumFractionDigits: 2 })}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </section>
+                            </div>
                         </>
                     ) : (
                         <div className="rounded-md border border-dashed border-white/[0.08] px-4 py-5 text-sm text-muted-foreground">
@@ -382,6 +579,7 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
 }
 
 export default function Reports() {
+    const [month, setMonth] = useState(monthValue);
     const {
         data: workDays,
         isPending,
@@ -447,6 +645,23 @@ export default function Reports() {
                     Historique des journées de caisse, totaux et rapports de clôture.
                 </p>
             </div>
+
+            <Card>
+                <CardContent className="flex flex-wrap items-end justify-between gap-4 p-4">
+                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                        Periode mensuelle
+                        <input
+                            type="month"
+                            value={month}
+                            onChange={(event) => setMonth(event.target.value)}
+                            className="block h-10 rounded-md border border-white/[0.08] bg-white/[0.04] px-3 text-sm font-normal normal-case tracking-normal text-foreground outline-none transition-colors focus:border-accent/60"
+                        />
+                    </label>
+                    <span className="text-sm text-muted-foreground">Les totaux utilisent les journees de caisse, pas seulement la date d’encaissement.</span>
+                </CardContent>
+            </Card>
+
+            <MonthlyReportPanel month={month} />
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                 <ReportStat label="Journées" value={String(totals.days)} />

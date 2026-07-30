@@ -67,6 +67,10 @@ body {
 .ticket {
     width: 58mm;
     padding: 3mm;
+    page-break-after: always;
+}
+.ticket:last-child {
+    page-break-after: auto;
 }
 .center {
     text-align: center;
@@ -113,10 +117,12 @@ body {
 </style>
 </head>
 <body>
-<main class="ticket">
+${['Client', 'Employe']
+    .map(
+        (copyLabel) => `<main class="ticket">
     <section class="center">
         <div class="brand">BOGOSLAND</div>
-        <div class="muted">Ticket de caisse</div>
+        <div class="muted">Ticket ${copyLabel}</div>
         <div class="muted">No ${sale.id} - ${escapeHtml(dateLabel)}</div>
     </section>
 
@@ -177,6 +183,9 @@ body {
         Merci pour votre visite
     </section>
 </main>
+`,
+    )
+    .join('')}
 <script>
 window.addEventListener('load', function () {
     window.focus();
