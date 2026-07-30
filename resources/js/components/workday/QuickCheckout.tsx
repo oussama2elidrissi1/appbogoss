@@ -204,7 +204,7 @@ export function QuickCheckout({
     });
 
     const submit = useCallback(() => {
-        if (!canSubmit || employeeId === null || category === null || mutation.isPending) return;
+        if (!canSubmit || category === null || mutation.isPending) return;
 
         const payload: CreateTransactionPayload = {
             employee_id: usesProductCatalog ? null : employeeId,
