@@ -3,6 +3,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, LogOut, Scissors } from 'lucide-react';
 import { navSections, type NavItem } from '@/lib/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { useQuery } from '@tanstack/react-query';
+import { getSettings } from '@/lib/api';
 import { cn, getInitials } from '@/lib/utils';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -22,6 +24,7 @@ export function Sidebar({ collapsed, onToggle, variant = 'desktop', onNavigate }
     const isMobile = variant === 'mobile';
     const isCollapsed = isMobile ? false : collapsed;
     const { user, logout } = useAuth();
+    const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings, staleTime: 5 * 60_000 });
     const location = useLocation();
 
     return (
@@ -38,8 +41,8 @@ export function Sidebar({ collapsed, onToggle, variant = 'desktop', onNavigate }
                     isCollapsed && 'justify-center px-0',
                 )}
             >
-                <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent/[0.14] ring-1 ring-accent/25">
-                    <Scissors className="h-[18px] w-[18px] text-accent" />
+                <span className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-accent/[0.14] ring-1 ring-accent/25">
+                    {settings?.logo_url ? <img src={settings.logo_url} alt="Logo" className="h-full w-full object-contain p-1" /> : <Scissors className="h-[18px] w-[18px] text-accent" />}
                 </span>
 
                 <AnimatePresence initial={false}>
@@ -52,7 +55,7 @@ export function Sidebar({ collapsed, onToggle, variant = 'desktop', onNavigate }
                             className="overflow-hidden whitespace-nowrap"
                         >
                             <div className="text-[15px] font-semibold leading-none tracking-tight text-foreground">
-                                BOGOS<span className="text-accent">LAND</span>
+                                {settings?.salon_name ?? 'BOGOSLAND'}
                             </div>
                             <div className="mt-1 text-[10px] font-medium uppercase leading-none tracking-[0.16em] text-muted-foreground">
                                 Manager

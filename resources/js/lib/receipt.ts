@@ -17,7 +17,7 @@ function clientName(sale: Sale): string {
     return 'Client de passage';
 }
 
-function receiptHtml(sale: Sale): string {
+function receiptHtml(sale: Sale, copyLabel: string): string {
     const date = new Date(sale.created_at);
     const dateLabel = Number.isNaN(date.getTime())
         ? sale.created_at
@@ -28,7 +28,6 @@ function receiptHtml(sale: Sale): string {
               hour: '2-digit',
               minute: '2-digit',
           }).format(date);
-
     const items = sale.items.length > 0 ? sale.items : [
         {
             id: sale.id,
@@ -42,92 +41,32 @@ function receiptHtml(sale: Sale): string {
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<title>Ticket ${sale.id}</title>
+<title>Ticket ${sale.id} - ${escapeHtml(copyLabel)}</title>
 <style>
-@page {
-    size: 58mm auto;
-    margin: 0;
-}
-* {
-    box-sizing: border-box;
-}
-html,
-body {
-    margin: 0;
-    padding: 0;
-    width: 58mm;
-    background: #fff;
-    color: #000;
-}
-body {
-    font-family: "Courier New", monospace;
-    font-size: 10px;
-    line-height: 1.35;
-}
-.ticket {
-    width: 58mm;
-    padding: 3mm;
-    page-break-after: always;
-}
-.ticket:last-child {
-    page-break-after: auto;
-}
-.center {
-    text-align: center;
-}
-.brand {
-    font-size: 15px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-}
-.muted {
-    font-size: 9px;
-}
-.line {
-    border-top: 1px dashed #000;
-    margin: 7px 0;
-}
-.row {
-    display: flex;
-    justify-content: space-between;
-    gap: 6px;
-}
-.label {
-    overflow-wrap: anywhere;
-}
-.amount {
-    flex: 0 0 auto;
-    text-align: right;
-    white-space: nowrap;
-}
-.item {
-    margin: 5px 0;
-}
-.total {
-    font-size: 12px;
-    font-weight: 700;
-}
-@media print {
-    html,
-    body,
-    .ticket {
-        width: 58mm;
-    }
-}
+@page { size: 58mm auto; margin: 0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; width: 58mm; background: #fff; color: #000; }
+body { font-family: "Courier New", monospace; font-size: 10px; line-height: 1.35; }
+.ticket { width: 58mm; padding: 3mm; }
+.center { text-align: center; }
+.brand { font-size: 15px; font-weight: 700; letter-spacing: 0.5px; }
+.muted { font-size: 9px; }
+.line { border-top: 1px dashed #000; margin: 7px 0; }
+.row { display: flex; justify-content: space-between; gap: 6px; }
+.label { overflow-wrap: anywhere; }
+.amount { flex: 0 0 auto; text-align: right; white-space: nowrap; }
+.item { margin: 5px 0; }
+.total { font-size: 12px; font-weight: 700; }
 </style>
 </head>
 <body>
-${['Client', 'Employe']
-    .map(
-        (copyLabel) => `<main class="ticket">
+<main class="ticket">
     <section class="center">
         <div class="brand">BOGOSLAND</div>
-        <div class="muted">Ticket ${copyLabel}</div>
+        <div class="muted">Ticket ${escapeHtml(copyLabel)}</div>
         <div class="muted">No ${sale.id} - ${escapeHtml(dateLabel)}</div>
     </section>
-
     <div class="line"></div>
-
     <section>
         <div>Employe: ${escapeHtml(sale.employee.name)}</div>
         <div>Client: ${escapeHtml(clientName(sale))}</div>
@@ -135,79 +74,41 @@ ${['Client', 'Employe']
         <div>Paiement: ${escapeHtml(sale.payment_method)}</div>
         <div>Heure: ${escapeHtml(formatTime(sale.created_at))}</div>
     </section>
-
     <div class="line"></div>
-
     <section>
-        ${items
-            .map(
-                (item) => `
+        ${items.map((item) => `
         <div class="item">
             <div class="row">
                 <span class="label">${escapeHtml(item.label)} x${item.quantity}</span>
-                <span class="amount">${escapeHtml(
-                    formatCurrency(item.quantity * item.unit_price, {
-                        maximumFractionDigits: 2,
-                    }),
-                )}</span>
+                <span class="amount">${escapeHtml(formatCurrency(item.quantity * item.unit_price, { maximumFractionDigits: 2 }))}</span>
             </div>
-            <div class="muted">${escapeHtml(
-                formatCurrency(item.unit_price, { maximumFractionDigits: 2 }),
-            )} / unite</div>
-        </div>`,
-            )
-            .join('')}
+            <div class="muted">${escapeHtml(formatCurrency(item.unit_price, { maximumFractionDigits: 2 }))} / unite</div>
+        </div>`).join('')}
     </section>
-
     <div class="line"></div>
-
     <section class="row total">
         <span>Total</span>
         <span class="amount">${escapeHtml(formatCurrency(sale.total, { maximumFractionDigits: 2 }))}</span>
     </section>
-
-    ${
-        sale.commission_amount !== null && sale.commission_amount > 0
-            ? `<section class="row muted">
-        <span>Commission</span>
-        <span class="amount">${escapeHtml(
-            formatCurrency(sale.commission_amount, { maximumFractionDigits: 2 }),
-        )}</span>
-    </section>`
-            : ''
-    }
-
+    ${sale.commission_amount !== null && sale.commission_amount > 0
+        ? `<section class="row muted"><span>Commission</span><span class="amount">${escapeHtml(formatCurrency(sale.commission_amount, { maximumFractionDigits: 2 }))}</span></section>`
+        : ''}
     <div class="line"></div>
-
-    <section class="center muted">
-        Merci pour votre visite
-    </section>
+    <section class="center muted">Merci pour votre visite</section>
 </main>
-`,
-    )
-    .join('')}
-<script>
-window.addEventListener('load', function () {
-    window.focus();
-    setTimeout(function () {
-        window.print();
-    }, 120);
-});
-</script>
 </body>
 </html>`;
 }
 
-export function printSaleReceipt(sale: Sale): void {
+function printSingleReceipt(sale: Sale, copyLabel: string): void {
     const frame = document.createElement('iframe');
-    frame.title = `Ticket ${sale.id}`;
+    frame.title = `Ticket ${sale.id} - ${copyLabel}`;
     frame.style.position = 'fixed';
     frame.style.right = '0';
     frame.style.bottom = '0';
     frame.style.width = '0';
     frame.style.height = '0';
     frame.style.border = '0';
-
     document.body.appendChild(frame);
 
     const doc = frame.contentDocument ?? frame.contentWindow?.document;
@@ -217,13 +118,20 @@ export function printSaleReceipt(sale: Sale): void {
     }
 
     doc.open();
-    doc.write(receiptHtml(sale));
+    doc.write(receiptHtml(sale, copyLabel));
     doc.close();
 
-    const removeFrame = () => {
-        window.setTimeout(() => frame.remove(), 500);
-    };
-
+    const removeFrame = () => window.setTimeout(() => frame.remove(), 500);
     frame.contentWindow?.addEventListener('afterprint', removeFrame, { once: true });
     window.setTimeout(removeFrame, 10_000);
+    window.setTimeout(() => {
+        frame.contentWindow?.focus();
+        frame.contentWindow?.print();
+    }, 120);
+}
+
+/** Prints the client copy first, then the employee copy two seconds later. */
+export function printSaleReceipt(sale: Sale): void {
+    printSingleReceipt(sale, 'Client');
+    window.setTimeout(() => printSingleReceipt(sale, 'Employe'), 2_000);
 }

@@ -4,12 +4,14 @@ use App\Http\Controllers\Api\AdvanceController;
 use App\Http\Controllers\Api\AppointmentController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CatalogController;
+use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\ServiceController;
+use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\TransactionController;
 use App\Http\Controllers\Api\WorkDayController;
 use Illuminate\Support\Facades\Route;
@@ -32,6 +34,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::get('/dashboard', [DashboardController::class, 'index']);
     Route::get('/reports/monthly', [ReportController::class, 'monthly']);
+    Route::get('/settings', [SettingsController::class, 'show']);
+    Route::match(['post', 'put'], '/settings', [SettingsController::class, 'update']);
+    Route::delete('/settings/logo', [SettingsController::class, 'removeLogo']);
+    Route::put('/profile', [SettingsController::class, 'updateProfile']);
+    Route::post('/profile/password', [SettingsController::class, 'updatePassword']);
 
     Route::apiResource('/appointments', AppointmentController::class);
 
@@ -55,8 +62,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/expenses', [ExpenseController::class, 'store']);
 
     Route::apiResource('/employees', EmployeeController::class);
+    Route::apiResource('/clients', ClientController::class);
     Route::apiResource('/products', ProductController::class);
     Route::apiResource('/services', ServiceController::class);
-    Route::get('/clients', [CatalogController::class, 'clients']);
-    Route::post('/clients', [CatalogController::class, 'storeClient']);
 });

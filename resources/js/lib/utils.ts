@@ -36,6 +36,17 @@ export function formatDayLabel(date: string) {
     return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' }).format(d);
 }
 
+/** Localized date and time for entity detail cards. */
+export function formatDate(iso: string) {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return iso;
+    return new Intl.DateTimeFormat('fr-FR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+    }).format(date);
+}
+
 /**
  * Compact relative time in French — "à l'instant", "il y a 5 min", "il y a 2 h", "il y a 3 j".
  * Hand-rolled on purpose: no extra dependency for this.

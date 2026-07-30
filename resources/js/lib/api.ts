@@ -1,5 +1,5 @@
 import axios, { AxiosError } from 'axios';
-import type { DashboardData, User } from '@/types/dashboard';
+import type { ApplicationSettings, ApplicationSettingsPayload, DashboardData, User } from '@/types/dashboard';
 import type {
     Advance,
     AdvancesResponse,
@@ -76,6 +76,36 @@ export async function logout(): Promise<void> {
 export async function getMe(): Promise<User> {
     const { data } = await api.get<User>('/api/me');
     return data;
+}
+
+export async function getSettings(): Promise<ApplicationSettings> {
+    const { data } = await api.get<{ data: ApplicationSettings }>('/api/settings');
+    return data.data;
+}
+
+export async function updateSettings(payload: ApplicationSettingsPayload): Promise<ApplicationSettings> {
+    const formData = new FormData();
+    Object.entries(payload).forEach(([key, value]) => {
+        if (value !== null && value !== undefined) formData.append(key, value instanceof File ? value : String(value));
+    });
+    const { data } = await api.post<{ data: ApplicationSettings }>('/api/settings', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data.data;
+}
+
+export async function removeSettingsLogo(): Promise<ApplicationSettings> {
+    const { data } = await api.delete<{ data: ApplicationSettings }>('/api/settings/logo');
+    return data.data;
+}
+
+export async function updateProfile(payload: { name: string; email: string }): Promise<User> {
+    const { data } = await api.put<User>('/api/profile', payload);
+    return data;
+}
+
+export async function updatePassword(payload: { current_password: string; password: string; password_confirmation: string }): Promise<void> {
+    await api.post('/api/profile/password', payload);
 }
 
 export async function getDashboard(): Promise<DashboardData> {
@@ -230,6 +260,15 @@ export async function getClients(search?: string): Promise<Client[]> {
 export async function createClient(payload: ClientPayload): Promise<Client> {
     const { data } = await api.post<{ data: Client }>('/api/clients', payload);
     return data.data;
+}
+
+export async function updateClient(id: number, payload: ClientPayload): Promise<Client> {
+    const { data } = await api.put<{ data: Client }>(`/api/clients/${id}`, payload);
+    return data.data;
+}
+
+export async function deleteClient(id: number): Promise<void> {
+    await api.delete(`/api/clients/${id}`);
 }
 
 export async function getServices(

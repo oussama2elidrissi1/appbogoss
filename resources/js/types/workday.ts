@@ -270,8 +270,14 @@ export interface EmployeePayload {
 export interface Client {
     id: number;
     name: string;
+    email?: string | null;
     phone: string | null;
+    avatar_color?: string;
     loyalty_points: number;
+    notes?: string | null;
+    last_visit_at?: string | null;
+    sales_count?: number;
+    appointments_count?: number;
 }
 
 export interface ClientPayload {
@@ -279,6 +285,7 @@ export interface ClientPayload {
     email?: string | null;
     phone?: string | null;
     notes?: string | null;
+    avatar_color?: string | null;
 }
 
 export interface Service {

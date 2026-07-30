@@ -5,6 +5,26 @@ export interface User {
     role: string;
 }
 
+export interface ApplicationSettings {
+    salon_name: string;
+    salon_phone: string;
+    salon_email: string;
+    salon_address: string;
+    currency: string;
+    receipt_footer: string;
+    logo_url: string | null;
+}
+
+export interface ApplicationSettingsPayload {
+    salon_name: string;
+    salon_phone?: string | null;
+    salon_email?: string | null;
+    salon_address?: string | null;
+    currency: string;
+    receipt_footer?: string | null;
+    logo?: File | null;
+}
+
 export interface DashboardKpis {
     revenue_today: number;
     revenue_month: number;

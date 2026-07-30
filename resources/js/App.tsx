@@ -4,6 +4,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { navItems } from '@/lib/navigation';
 import Agenda from '@/pages/Agenda';
 import Caisse from '@/pages/Caisse';
+import Clients from '@/pages/Clients';
 import Dashboard from '@/pages/Dashboard';
 import Depenses from '@/pages/Depenses';
 import Employees from '@/pages/Employees';
@@ -11,6 +12,7 @@ import Login from '@/pages/Login';
 import PlaceholderPage from '@/pages/PlaceholderPage';
 import Reports from '@/pages/Reports';
 import Services from '@/pages/Services';
+import Settings from '@/pages/Settings';
 
 /** Nav destinations backed by a real screen; everything else is a placeholder. */
 const realRoutes = new Set([
@@ -19,8 +21,10 @@ const realRoutes = new Set([
     '/pos',
     '/expenses',
     '/employees',
+    '/clients',
     '/services',
     '/reports',
+    '/settings',
 ]);
 const placeholderItems = navItems.filter((item) => !realRoutes.has(item.to));
 
@@ -37,8 +41,10 @@ export default function App() {
                     <Route path="/pos" element={<Caisse />} />
                     <Route path="/expenses" element={<Depenses />} />
                     <Route path="/employees" element={<Employees />} />
+                    <Route path="/clients" element={<Clients />} />
                     <Route path="/services" element={<Services />} />
                     <Route path="/reports" element={<Reports />} />
+                    <Route path="/settings" element={<Settings />} />
 
                     {placeholderItems.map((item) => (
                         <Route

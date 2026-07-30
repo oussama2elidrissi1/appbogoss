@@ -25,6 +25,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { getCategoryLabel } from '@/components/workday/categories';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 function reportFor(day: WorkDay): ClosingReport | null {
     return day.report_snapshot ?? day.closing_report;
@@ -580,6 +581,10 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
 
 export default function Reports() {
     const [month, setMonth] = useState(monthValue);
+    const [dailyFrom, setDailyFrom] = useState('');
+    const [dailyTo, setDailyTo] = useState('');
+    const [dailyStatus, setDailyStatus] = useState<'all' | 'open' | 'closed'>('all');
+    const [dailyEmployee, setDailyEmployee] = useState('all');
     const {
         data: workDays,
         isPending,
@@ -592,16 +597,26 @@ export default function Reports() {
         refetchInterval: 15_000,
     });
 
-    const totals = useMemo(() => {
-        const days = workDays ?? [];
-
-        return {
-            days: days.length,
-            closedDays: days.filter((day) => day.status === 'closed').length,
-            revenue: days.reduce((sum, day) => sum + dayRevenue(day), 0),
-            net: days.reduce((sum, day) => sum + dayNet(day), 0),
-        };
+    const employeeOptions = useMemo(() => {
+        const employees = new Map<number, string>();
+        (workDays ?? []).forEach((day) => day.employees.forEach((employee) => employees.set(employee.id, employee.name)));
+        return Array.from(employees.entries()).sort((a, b) => a[1].localeCompare(b[1], 'fr'));
     }, [workDays]);
+
+    const filteredWorkDays = useMemo(() => (workDays ?? []).filter((day) => {
+        const inFrom = !dailyFrom || day.date >= dailyFrom;
+        const inTo = !dailyTo || day.date <= dailyTo;
+        const inStatus = dailyStatus === 'all' || day.status === dailyStatus;
+        const inEmployee = dailyEmployee === 'all' || day.employees.some((employee) => String(employee.id) === dailyEmployee);
+        return inFrom && inTo && inStatus && inEmployee;
+    }), [dailyEmployee, dailyFrom, dailyStatus, dailyTo, workDays]);
+
+    const totals = useMemo(() => ({
+        days: filteredWorkDays.length,
+        closedDays: filteredWorkDays.filter((day) => day.status === 'closed').length,
+        revenue: filteredWorkDays.reduce((sum, day) => sum + dayRevenue(day), 0),
+        net: filteredWorkDays.reduce((sum, day) => sum + dayNet(day), 0),
+    }), [filteredWorkDays]);
 
     if (isPending) {
         return (
@@ -639,6 +654,12 @@ export default function Reports() {
 
     return (
         <div className="space-y-6">
+            <Tabs defaultValue="monthly" className="space-y-5">
+                <TabsList>
+                    <TabsTrigger value="monthly">Rapport mensuel</TabsTrigger>
+                    <TabsTrigger value="daily">Rapports par jour</TabsTrigger>
+                </TabsList>
+                <TabsContent value="monthly" className="space-y-5">
             <div>
                 <h2 className="text-2xl font-semibold tracking-tight">Rapports</h2>
                 <p className="mt-1.5 text-sm text-muted-foreground">
@@ -663,6 +684,23 @@ export default function Reports() {
 
             <MonthlyReportPanel month={month} />
 
+                </TabsContent>
+                <TabsContent value="daily" className="space-y-5">
+
+            <div>
+                <h2 className="text-2xl font-semibold tracking-tight">Rapports par jour</h2>
+                <p className="mt-1.5 text-sm text-muted-foreground">Filtrez et ouvrez le détail de chaque journée de caisse.</p>
+            </div>
+
+            <Card>
+                <CardContent className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Du<input type="date" value={dailyFrom} onChange={(event) => setDailyFrom(event.target.value)} className="block h-10 w-full rounded-md border border-white/[0.08] bg-white/[0.04] px-3 text-sm" /></label>
+                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Au<input type="date" value={dailyTo} onChange={(event) => setDailyTo(event.target.value)} className="block h-10 w-full rounded-md border border-white/[0.08] bg-white/[0.04] px-3 text-sm" /></label>
+                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Statut<select value={dailyStatus} onChange={(event) => setDailyStatus(event.target.value as 'all' | 'open' | 'closed')} className="block h-10 w-full rounded-md border border-white/[0.08] bg-white/[0.04] px-3 text-sm"><option value="all">Toutes</option><option value="open">Ouvertes</option><option value="closed">Cloturees</option></select></label>
+                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Employe<select value={dailyEmployee} onChange={(event) => setDailyEmployee(event.target.value)} className="block h-10 w-full rounded-md border border-white/[0.08] bg-white/[0.04] px-3 text-sm"><option value="all">Tous les employes</option>{employeeOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+                </CardContent>
+            </Card>
+
             <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                 <ReportStat label="Journées" value={String(totals.days)} />
                 <ReportStat label="Clôturées" value={String(totals.closedDays)} />
@@ -676,7 +714,7 @@ export default function Reports() {
                 />
             </div>
 
-            {(workDays ?? []).length === 0 ? (
+            {filteredWorkDays.length === 0 ? (
                 <EmptyState
                     icon={BarChart3}
                     title="Aucune journée de caisse"
@@ -684,11 +722,13 @@ export default function Reports() {
                 />
             ) : (
                 <div className="space-y-4">
-                    {(workDays ?? []).map((day) => (
+                    {filteredWorkDays.map((day) => (
                         <WorkDayReportCard key={day.id} day={day} />
                     ))}
                 </div>
             )}
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }
