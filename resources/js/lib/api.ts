@@ -310,11 +310,13 @@ export async function deleteService(id: number): Promise<void> {
 export async function getProducts(options?: {
     search?: string;
     category?: string;
+    stockArea?: 'vitrine' | 'refrigerateur';
 }): Promise<Product[]> {
     const { data } = await api.get<{ data: Product[] }>('/api/products', {
         params: {
             ...(options?.search ? { search: options.search } : {}),
             ...(options?.category ? { category: options.category } : {}),
+            ...(options?.stockArea ? { stock_area: options.stockArea } : {}),
         },
     });
     return data.data;

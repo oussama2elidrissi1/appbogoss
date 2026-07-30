@@ -18,12 +18,17 @@ class ProductController extends Controller
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
             'category' => ['nullable', 'string', 'max:80'],
+            'stock_area' => ['nullable', 'string', 'in:vitrine,refrigerateur'],
         ]);
 
         $query = Product::query()->orderBy('name');
 
         if (! empty($validated['category'])) {
             $query->where('category', $validated['category']);
+        }
+
+        if (! empty($validated['stock_area'])) {
+            $query->where('stock_area', $validated['stock_area']);
         }
 
         if (! empty($validated['search'])) {
@@ -71,6 +76,10 @@ class ProductController extends Controller
      */
     private function normalize(array $data, bool $creating = false): array
     {
+        if ($creating && empty($data['stock_area'])) {
+            $data['stock_area'] = 'vitrine';
+        }
+
         if (($creating && empty($data['sku'])) || (array_key_exists('sku', $data) && blank($data['sku']))) {
             $base = Str::upper(Str::slug($data['name'] ?? 'PRODUIT', '-'));
             $data['sku'] = Str::limit($base, 30, '').'-'.now()->format('His');

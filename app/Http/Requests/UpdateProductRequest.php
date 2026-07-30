@@ -23,6 +23,7 @@ class UpdateProductRequest extends FormRequest
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'sku' => ['nullable', 'string', 'max:80', Rule::unique('products', 'sku')->ignore($productId)],
             'category' => ['sometimes', 'required', 'string', 'max:80'],
+            'stock_area' => ['sometimes', 'required', 'string', 'in:vitrine,refrigerateur'],
             'price' => ['sometimes', 'required', 'numeric', 'min:0', 'max:999999.99'],
             'cost' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
             'stock_quantity' => ['sometimes', 'required', 'integer', 'min:0', 'max:1000000'],

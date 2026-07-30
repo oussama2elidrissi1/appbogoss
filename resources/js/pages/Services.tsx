@@ -78,6 +78,7 @@ const emptyProductForm = {
     name: '',
     sku: '',
     category: 'vitrine',
+    stock_area: 'vitrine' as 'vitrine' | 'refrigerateur',
     price: '',
     cost: '',
     stock_quantity: '0',
@@ -104,6 +105,7 @@ function productToForm(product: Product): ProductFormState {
         name: product.name,
         sku: product.sku,
         category: product.category,
+        stock_area: product.stock_area,
         price: String(product.price),
         cost: String(product.cost),
         stock_quantity: String(product.stock_quantity),
@@ -127,6 +129,7 @@ function productPayload(form: ProductFormState): ProductPayload {
         name: form.name.trim(),
         sku: form.sku.trim() || null,
         category: form.category.trim() || 'vitrine',
+        stock_area: form.stock_area,
         price: Number(form.price.replace(',', '.')),
         cost: form.cost.trim() === '' ? null : Number(form.cost.replace(',', '.')),
         stock_quantity: Number(form.stock_quantity),
@@ -970,6 +973,23 @@ function ProductDialog({
                             }
                             placeholder="vitrine"
                         />
+                        <div className="space-y-2">
+                            <Label htmlFor="product-stock-area">Emplacement du stock</Label>
+                            <select
+                                id="product-stock-area"
+                                value={form.stock_area}
+                                onChange={(event) =>
+                                    setForm((current) => ({
+                                        ...current,
+                                        stock_area: event.target.value as ProductFormState['stock_area'],
+                                    }))
+                                }
+                                className="flex h-10 w-full rounded-md border border-input bg-white/[0.03] px-3 text-sm text-foreground outline-none focus:border-accent/60"
+                            >
+                                <option value="vitrine">Vitrine</option>
+                                <option value="refrigerateur">Réfrigérateur</option>
+                            </select>
+                        </div>
                         <Field
                             id="product-price"
                             label="Prix MAD"

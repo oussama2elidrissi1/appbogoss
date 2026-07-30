@@ -6,11 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreTransactionRequest;
 use App\Http\Resources\SaleResource;
 use App\Models\Sale;
+use App\Models\Product;
 use App\Models\SaleItem;
 use App\Services\WorkDayService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 
 class TransactionController extends Controller
@@ -28,13 +30,38 @@ class TransactionController extends Controller
         $data = $request->validated();
 
         $sale = DB::transaction(function () use ($data, $activeDay) {
+            $product = null;
+            $label = $data['label'];
+            $price = (float) $data['price'];
+
+            if (! empty($data['product_id'])) {
+                $product = Product::query()->lockForUpdate()->find($data['product_id']);
+
+                if ($product === null) {
+                    throw ValidationException::withMessages(['product_id' => 'Ce produit n’existe plus.']);
+                }
+
+                $expectedArea = $data['category'] === 'boisson' ? 'refrigerateur' : 'vitrine';
+                if (($product->stock_area ?: 'vitrine') !== $expectedArea) {
+                    throw ValidationException::withMessages(['product_id' => 'Ce produit n’est pas disponible dans cet espace de stock.']);
+                }
+
+                if ($product->stock_quantity < 1) {
+                    throw ValidationException::withMessages(['product_id' => 'Ce produit est en rupture de stock.']);
+                }
+
+                $label = $product->name;
+                $price = (float) $product->price;
+                $product->decrement('stock_quantity');
+            }
+
             $sale = Sale::create([
                 'work_day_id' => $activeDay->id,
                 'client_id' => $data['client_id'] ?? null,
                 'client_label' => $data['client_label'] ?? null,
                 'employee_id' => $data['employee_id'],
                 'category' => $data['category'],
-                'total' => $data['price'],
+                'total' => $price,
                 'commission_amount' => $data['commission_amount'] ?? null,
                 'payment_method' => $data['payment_method'] ?? 'especes',
                 'print_count' => 1,
@@ -42,11 +69,11 @@ class TransactionController extends Controller
 
             SaleItem::create([
                 'sale_id' => $sale->id,
-                'itemable_type' => null,
-                'itemable_id' => null,
-                'label' => $data['label'],
+                'itemable_type' => $product ? Product::class : null,
+                'itemable_id' => $product?->id,
+                'label' => $label,
                 'quantity' => 1,
-                'unit_price' => $data['price'],
+                'unit_price' => $price,
             ]);
 
             return $sale;
@@ -82,7 +109,20 @@ class TransactionController extends Controller
 
     public function destroy(Sale $sale): JsonResponse
     {
-        $sale->delete();
+        DB::transaction(function () use ($sale): void {
+            if ($sale->trashed()) {
+                return;
+            }
+
+            $sale->load('items');
+            foreach ($sale->items as $item) {
+                if ($item->itemable_type === Product::class && $item->itemable_id) {
+                    Product::query()->whereKey($item->itemable_id)->increment('stock_quantity', $item->quantity);
+                }
+            }
+
+            $sale->delete();
+        });
         $sale->load(['client', 'employee', 'items']);
 
         return response()->json(['data' => new SaleResource($sale)]);

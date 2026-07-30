@@ -185,6 +185,7 @@ export interface Sale {
 
 export interface CreateTransactionPayload {
     employee_id: number;
+    product_id?: number | null;
     client_id?: number | null;
     client_label?: string | null;
     category: TransactionCategory;
@@ -312,6 +313,7 @@ export interface Product {
     name: string;
     sku: string;
     category: string;
+    stock_area: 'vitrine' | 'refrigerateur';
     price: number;
     cost: number;
     stock_quantity: number;
@@ -322,6 +324,7 @@ export interface ProductPayload {
     name?: string;
     sku?: string | null;
     category?: string;
+    stock_area?: 'vitrine' | 'refrigerateur';
     price?: number;
     cost?: number | null;
     stock_quantity?: number;

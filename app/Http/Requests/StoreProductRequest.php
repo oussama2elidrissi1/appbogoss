@@ -21,6 +21,7 @@ class StoreProductRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'sku' => ['nullable', 'string', 'max:80', Rule::unique('products', 'sku')],
             'category' => ['required', 'string', 'max:80'],
+            'stock_area' => ['sometimes', 'string', 'in:vitrine,refrigerateur'],
             'price' => ['required', 'numeric', 'min:0', 'max:999999.99'],
             'cost' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
             'stock_quantity' => ['required', 'integer', 'min:0', 'max:1000000'],

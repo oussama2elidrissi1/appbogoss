@@ -86,7 +86,8 @@ export function QuickCheckout({
         [employees, employeeId],
     );
 
-    const usesProductCatalog = category?.value === 'vitrine';
+    const usesProductCatalog = category?.value === 'vitrine' || category?.value === 'boisson';
+    const productStockArea = category?.value === 'boisson' ? 'refrigerateur' : 'vitrine';
     const usesCatalog = category?.usesServiceCatalog ?? false;
 
     const {
@@ -107,8 +108,8 @@ export function QuickCheckout({
         isError: productsIsError,
         isPending: productsPending,
     } = useQuery({
-        queryKey: workDayKeys.products(),
-        queryFn: () => getProducts(),
+        queryKey: workDayKeys.products('', productStockArea),
+        queryFn: () => getProducts({ stockArea: productStockArea }),
         enabled: usesProductCatalog,
         staleTime: 5 * 60_000,
     });
@@ -160,7 +161,11 @@ export function QuickCheckout({
     }
 
     const canSubmit =
-        employeeId !== null && category !== null && label.trim().length > 0 && hasValidPrice;
+        employeeId !== null &&
+        category !== null &&
+        label.trim().length > 0 &&
+        hasValidPrice &&
+        (!usesProductCatalog || serviceId !== null);
 
     const mutation = useMutation({
         mutationFn: createTransaction,
@@ -172,6 +177,7 @@ export function QuickCheckout({
                 current ? [sale, ...current] : [sale],
             );
             void queryClient.invalidateQueries({ queryKey: workDayKeys.transactions(workDayId) });
+            void queryClient.invalidateQueries({ queryKey: ['products'] });
             onSaleRecorded();
 
             // Keep the employee selected — same person usually rings up several sales.
@@ -202,6 +208,7 @@ export function QuickCheckout({
             category: category.value,
             label: label.trim(),
             price: priceValue,
+            product_id: usesProductCatalog ? serviceId : null,
             commission_amount:
                 commissionValue !== null && Number.isFinite(commissionValue)
                     ? commissionValue
@@ -215,7 +222,7 @@ export function QuickCheckout({
         }
 
         mutation.mutate(payload);
-    }, [canSubmit, employeeId, category, label, priceValue, commissionValue, client, mutation]);
+    }, [canSubmit, employeeId, category, label, priceValue, commissionValue, client, mutation, serviceId, usesProductCatalog]);
 
     /**
      * Shortcuts: 1–6 pick a category, Enter submits. Both are suppressed while a
@@ -403,14 +410,16 @@ export function QuickCheckout({
                                 </div>
                             ) : (
                                 <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto pr-0.5 sm:grid-cols-2">
-                                    {filteredServices.map((service) => (
-                                        <button
+                                    {filteredServices.map((service) => {
+                                        const outOfStock = 'stock_quantity' in service && service.stock_quantity < 1;
+                                        return <button
                                             key={service.id}
                                             type="button"
                                             onClick={() => pickService(service)}
+                                            disabled={outOfStock}
                                             className={cn(
                                                 'flex items-center justify-between gap-3 rounded-md border px-3.5 py-2.5 text-left',
-                                                'transition-all duration-200 active:scale-[0.98]',
+                                                'transition-all duration-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45',
                                                 serviceId === service.id
                                                     ? 'border-accent/60 bg-accent/[0.12]'
                                                     : 'border-white/[0.08] bg-white/[0.03] hover:border-accent/30 hover:bg-white/[0.06]',
@@ -431,8 +440,8 @@ export function QuickCheckout({
                                                     maximumFractionDigits: 2,
                                                 })}
                                             </span>
-                                        </button>
-                                    ))}
+                                        </button>;
+                                    })}
                                 </div>
                             )}
 
@@ -442,6 +451,7 @@ export function QuickCheckout({
                                     setLabel(event.target.value);
                                     setServiceId(null);
                                 }}
+                                readOnly={usesProductCatalog}
                                 placeholder={
                                     usesProductCatalog
                                         ? 'Libellé du produit'
@@ -476,6 +486,7 @@ export function QuickCheckout({
                                 setPrice(event.target.value);
                                 setServiceId(null);
                             }}
+                            readOnly={usesProductCatalog}
                             placeholder="0,00"
                             className="text-lg font-semibold tabular-nums"
                         />

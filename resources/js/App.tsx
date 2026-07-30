@@ -12,6 +12,7 @@ import Login from '@/pages/Login';
 import PlaceholderPage from '@/pages/PlaceholderPage';
 import Reports from '@/pages/Reports';
 import Services from '@/pages/Services';
+import Stock from '@/pages/Stock';
 import Settings from '@/pages/Settings';
 
 /** Nav destinations backed by a real screen; everything else is a placeholder. */
@@ -23,6 +24,7 @@ const realRoutes = new Set([
     '/employees',
     '/clients',
     '/services',
+    '/stock',
     '/reports',
     '/settings',
 ]);
@@ -43,6 +45,7 @@ export default function App() {
                     <Route path="/employees" element={<Employees />} />
                     <Route path="/clients" element={<Clients />} />
                     <Route path="/services" element={<Services />} />
+                    <Route path="/stock" element={<Stock />} />
                     <Route path="/reports" element={<Reports />} />
                     <Route path="/settings" element={<Settings />} />
 

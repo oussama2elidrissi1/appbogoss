@@ -59,6 +59,7 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
             void queryClient.invalidateQueries({
                 queryKey: workDayKeys.active,
             });
+            void queryClient.invalidateQueries({ queryKey: ['products'] });
             void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
         },
     });
