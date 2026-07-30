@@ -7,6 +7,7 @@ use App\Http\Requests\StoreTransactionRequest;
 use App\Http\Resources\SaleResource;
 use App\Models\Sale;
 use App\Models\Product;
+use App\Models\Employee;
 use App\Models\SaleItem;
 use App\Services\WorkDayService;
 use Illuminate\Http\JsonResponse;
@@ -29,8 +30,13 @@ class TransactionController extends Controller
 
         $data = $request->validated();
 
+        if (empty($data['product_id']) && empty($data['employee_id'])) {
+            throw ValidationException::withMessages(['employee_id' => 'Sélectionnez un employé pour cette prestation.']);
+        }
+
         $sale = DB::transaction(function () use ($data, $activeDay) {
             $product = null;
+            $employeeId = $data['employee_id'] ?? null;
             $label = $data['label'];
             $price = (float) $data['price'];
 
@@ -42,6 +48,14 @@ class TransactionController extends Controller
                 }
 
                 $expectedArea = $data['category'] === 'boisson' ? 'refrigerateur' : 'vitrine';
+                $companyOwner = Employee::query()
+                    ->where('is_company', true)
+                    ->where('company_area', $expectedArea)
+                    ->first();
+                if ($companyOwner === null) {
+                    throw ValidationException::withMessages(['product_id' => 'L’espace société n’est pas configuré.']);
+                }
+                $employeeId = $companyOwner->id;
                 if (($product->stock_area ?: 'vitrine') !== $expectedArea) {
                     throw ValidationException::withMessages(['product_id' => 'Ce produit n’est pas disponible dans cet espace de stock.']);
                 }
@@ -59,7 +73,7 @@ class TransactionController extends Controller
                 'work_day_id' => $activeDay->id,
                 'client_id' => $data['client_id'] ?? null,
                 'client_label' => $data['client_label'] ?? null,
-                'employee_id' => $data['employee_id'],
+                'employee_id' => $employeeId,
                 'category' => $data['category'],
                 'total' => $price,
                 'commission_amount' => $data['commission_amount'] ?? null,

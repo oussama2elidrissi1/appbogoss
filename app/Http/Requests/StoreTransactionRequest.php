@@ -22,7 +22,7 @@ class StoreTransactionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'employee_id' => ['required', 'integer', 'exists:employees,id'],
+            'employee_id' => ['nullable', 'integer', 'exists:employees,id'],
             'client_id' => ['nullable', 'integer', 'exists:clients,id'],
             'client_label' => ['nullable', 'string', 'max:255'],
             'product_id' => ['nullable', 'integer', 'exists:products,id'],

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, Check, Loader2, Search } from 'lucide-react';
+import { AlertCircle, Check, Loader2, Package, Refrigerator, Search } from 'lucide-react';
 import { createTransaction, getErrorMessage, getProducts, getServices } from '@/lib/api';
 import { printSaleReceipt } from '@/lib/receipt';
 import { workDayKeys } from '@/hooks/useWorkDay';
@@ -146,6 +146,9 @@ export function QuickCheckout({
 
     function pickCategory(next: CategoryConfig) {
         setCategory(next);
+        if (next.value === 'vitrine' || next.value === 'boisson') {
+            setEmployeeId(null);
+        }
         setServiceId(null);
         setServiceSearch('');
         setLabel('');
@@ -161,7 +164,7 @@ export function QuickCheckout({
     }
 
     const canSubmit =
-        employeeId !== null &&
+        (usesProductCatalog || employeeId !== null) &&
         category !== null &&
         label.trim().length > 0 &&
         hasValidPrice &&
@@ -204,7 +207,7 @@ export function QuickCheckout({
         if (!canSubmit || employeeId === null || category === null || mutation.isPending) return;
 
         const payload: CreateTransactionPayload = {
-            employee_id: employeeId,
+            employee_id: usesProductCatalog ? null : employeeId,
             category: category.value,
             label: label.trim(),
             price: priceValue,
@@ -306,7 +309,22 @@ export function QuickCheckout({
                 </div>
 
                 <Step index={1} title="Employé">
-                    {employeesPending ? (
+                    {usesProductCatalog ? (
+                        <div className="flex items-center gap-3 rounded-md border border-accent/30 bg-accent/[0.08] px-3.5 py-3">
+                            {productStockArea === 'refrigerateur' ? (
+                                <Refrigerator className="h-5 w-5 text-accent" />
+                            ) : (
+                                <Package className="h-5 w-5 text-accent" />
+                            )}
+                            <div>
+                                <p className="text-sm font-semibold text-foreground">Vente directe du stock société</p>
+                                <p className="text-xs text-muted-foreground">
+                                    Aucun employé à sélectionner. Le ticket sera rattaché au stock{' '}
+                                    {productStockArea === 'refrigerateur' ? 'réfrigérateur' : 'vitrine'}.
+                                </p>
+                            </div>
+                        </div>
+                    ) : employeesPending ? (
                         <div className="flex flex-wrap gap-2">
                             {Array.from({ length: 4 }).map((_, index) => (
                                 <Skeleton key={index} className="h-11 w-32 rounded-md" />

@@ -599,7 +599,12 @@ export default function Reports() {
 
     const employeeOptions = useMemo(() => {
         const employees = new Map<number, string>();
-        (workDays ?? []).forEach((day) => day.employees.forEach((employee) => employees.set(employee.id, employee.name)));
+        (workDays ?? []).forEach((day) => {
+            day.employees.forEach((employee) => employees.set(employee.id, employee.name));
+            (day.closing_report?.revenue_by_employee ?? []).forEach((employee) => {
+                employees.set(employee.employee_id, employee.employee_name);
+            });
+        });
         return Array.from(employees.entries()).sort((a, b) => a[1].localeCompare(b[1], 'fr'));
     }, [workDays]);
 
@@ -607,7 +612,9 @@ export default function Reports() {
         const inFrom = !dailyFrom || day.date >= dailyFrom;
         const inTo = !dailyTo || day.date <= dailyTo;
         const inStatus = dailyStatus === 'all' || day.status === dailyStatus;
-        const inEmployee = dailyEmployee === 'all' || day.employees.some((employee) => String(employee.id) === dailyEmployee);
+        const inEmployee = dailyEmployee === 'all'
+            || day.employees.some((employee) => String(employee.id) === dailyEmployee)
+            || (day.closing_report?.revenue_by_employee ?? []).some((employee) => String(employee.employee_id) === dailyEmployee);
         return inFrom && inTo && inStatus && inEmployee;
     }), [dailyEmployee, dailyFrom, dailyStatus, dailyTo, workDays]);
 

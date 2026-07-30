@@ -35,7 +35,11 @@ class SaleResource extends JsonResource
                 'id' => $this->employee->id,
                 'name' => $this->employee->name,
                 'avatar_color' => $this->employee->avatar_color,
-            ] : null,
+            ] : [
+                'id' => 0,
+                'name' => 'Société',
+                'avatar_color' => '#C8A24C',
+            ],
             'items' => $this->items->map(fn ($item) => [
                 'id' => $item->id,
                 'label' => $item->label,

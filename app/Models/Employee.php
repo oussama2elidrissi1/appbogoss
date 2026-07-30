@@ -20,12 +20,15 @@ class Employee extends Model
         'avatar_color',
         'specialties',
         'is_active',
+        'is_company',
+        'company_area',
         'default_commission_rate',
     ];
 
     protected $casts = [
         'specialties' => 'array',
         'is_active' => 'boolean',
+        'is_company' => 'boolean',
         'default_commission_rate' => 'decimal:2',
     ];
 

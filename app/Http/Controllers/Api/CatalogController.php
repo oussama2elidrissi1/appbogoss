@@ -14,6 +14,7 @@ class CatalogController extends Controller
     public function employees(): JsonResponse
     {
         $employees = Employee::where('is_active', true)
+            ->where('is_company', false)
             ->orderBy('name')
             ->get()
             ->map(fn (Employee $employee) => [

@@ -46,7 +46,7 @@ class DashboardService
         $clientsTotal = Client::count();
         $clientsNewThisMonth = Client::where('created_at', '>=', $monthStart)->count();
 
-        $employeesActive = Employee::where('is_active', true)->count();
+        $employeesActive = Employee::where('is_active', true)->where('is_company', false)->count();
 
         $expensesMonth = (float) Expense::where('spent_on', '>=', $monthStart->toDateString())->sum('amount');
 

@@ -184,7 +184,7 @@ export interface Sale {
 }
 
 export interface CreateTransactionPayload {
-    employee_id: number;
+    employee_id: number | null;
     product_id?: number | null;
     client_id?: number | null;
     client_label?: string | null;

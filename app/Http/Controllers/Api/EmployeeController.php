@@ -19,7 +19,7 @@ class EmployeeController extends Controller
             'search' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $query = Employee::query()->orderBy('name');
+        $query = Employee::query()->where('is_company', false)->orderBy('name');
 
         if (! ($validated['include_inactive'] ?? false)) {
             $query->where('is_active', true);
