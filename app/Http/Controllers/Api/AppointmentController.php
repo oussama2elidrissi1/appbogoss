@@ -7,6 +7,8 @@ use App\Http\Requests\StoreAppointmentRequest;
 use App\Http\Requests\UpdateAppointmentRequest;
 use App\Http\Resources\AppointmentResource;
 use App\Models\Appointment;
+use App\Models\Client;
+use App\Models\Employee;
 use App\Models\Service;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -83,18 +85,88 @@ class AppointmentController extends Controller
      */
     private function payloadWithEnd(array $data, ?Appointment $appointment = null): array
     {
-        if (! array_key_exists('starts_at', $data) && ! array_key_exists('service_id', $data)) {
+        if (! array_key_exists('starts_at', $data)
+            && ! array_key_exists('service_id', $data)
+            && ! array_key_exists('employee_id', $data)
+            && ! array_key_exists('items', $data)) {
             return $data;
         }
 
-        $serviceId = $data['service_id'] ?? $appointment?->service_id;
+        $items = $data['items'] ?? $appointment?->reservation_items;
+        if (empty($items)) {
+            $items = [[
+                'service_id' => $data['service_id'] ?? $appointment?->service_id,
+                'employee_id' => $data['employee_id'] ?? $appointment?->employee_id,
+            ]];
+        }
+
+        $items = collect($items)
+            ->map(fn (array $item) => [
+                'service_id' => (int) $item['service_id'],
+                'employee_id' => (int) $item['employee_id'],
+            ])
+            ->values()
+            ->all();
+
+        $serviceIds = collect($items)->pluck('service_id')->unique()->values();
+        $services = Service::query()->whereIn('id', $serviceIds)->get()->keyBy('id');
+        if ($services->count() !== $serviceIds->count()) {
+            abort(422, 'Une prestation sélectionnée n’existe plus.');
+        }
+
+        $employeeIds = collect($items)->pluck('employee_id')->unique()->values();
+        if (Employee::query()->whereIn('id', $employeeIds)->count() !== $employeeIds->count()) {
+            abort(422, 'Un employé sélectionné n’existe plus.');
+        }
+
         $startsAt = Carbon::parse($data['starts_at'] ?? $appointment?->starts_at);
-        $duration = Service::findOrFail($serviceId)->duration_minutes;
+        $durationByEmployee = collect($items)->groupBy('employee_id')->map(
+            fn ($employeeItems) => $employeeItems->sum(fn (array $item) => (int) $services[$item['service_id']]->duration_minutes),
+        );
+        $duration = (int) $durationByEmployee->max();
 
         $data['starts_at'] = $startsAt;
         $data['ends_at'] = $startsAt->copy()->addMinutes($duration);
+        $data['service_id'] = $items[0]['service_id'];
+        $data['employee_id'] = $items[0]['employee_id'];
+        $data['reservation_items'] = $items;
+        $clientIds = collect($data['client_ids'] ?? ($appointment?->client_ids ?: [$data['client_id'] ?? $appointment?->client_id]))
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+        if ($clientIds->isEmpty() || Client::query()->whereIn('id', $clientIds)->count() !== $clientIds->count()) {
+            abort(422, 'Un client sélectionné n’existe plus.');
+        }
+        $data['client_ids'] = $clientIds->all();
+        $data['client_id'] = $clientIds->first();
+        unset($data['items']);
         $data['status'] = $data['status'] ?? $appointment?->status ?? 'confirmed';
 
+        $this->assertNoConflict($items, $startsAt, $data['ends_at'], $appointment);
+
         return $data;
+    }
+
+    /** @param array<int, array{service_id: int, employee_id: int}> $items */
+    private function assertNoConflict(array $items, Carbon $startsAt, Carbon $endsAt, ?Appointment $appointment = null): void
+    {
+        $employeeIds = collect($items)->pluck('employee_id')->unique()->values();
+        $existing = Appointment::query()
+            ->when($appointment, fn ($query) => $query->where('id', '!=', $appointment->id))
+            ->whereNotIn('status', ['cancelled', 'no_show'])
+            ->where('starts_at', '<', $endsAt)
+            ->where('ends_at', '>', $startsAt)
+            ->get(['id', 'employee_id', 'reservation_items']);
+
+        foreach ($existing as $candidate) {
+            $candidateEmployees = collect($candidate->reservation_items ?: [[
+                'employee_id' => $candidate->employee_id,
+            ]])->pluck('employee_id')->map(fn ($id) => (int) $id);
+
+            if ($candidateEmployees->intersect($employeeIds)->isNotEmpty()) {
+                abort(422, 'Un employé est déjà réservé sur ce créneau.');
+            }
+        }
     }
 }

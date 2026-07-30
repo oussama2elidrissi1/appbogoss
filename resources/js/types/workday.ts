@@ -336,12 +336,25 @@ export type AppointmentStatus = 'pending' | 'confirmed' | 'completed' | 'cancell
 export interface Appointment {
     id: number;
     client_id: number;
+    client_ids?: number[];
+    clients?: Array<{ id: number; name: string; phone: string | null }>;
     employee_id: number;
     service_id: number;
     starts_at: string;
     ends_at: string;
     status: AppointmentStatus;
     notes: string | null;
+    duration_minutes?: number;
+    reservation_items?: ReservationItem[];
+    services?: Array<{
+        id: number;
+        name: string;
+        category: string;
+        duration_minutes: number;
+        price: number;
+        color: string;
+    }>;
+    employees?: Array<{ id: number; name: string; avatar_color: string }>;
     client: { id: number; name: string; phone: string | null } | null;
     employee: { id: number; name: string; avatar_color: string } | null;
     service: {
@@ -354,11 +367,26 @@ export interface Appointment {
     } | null;
 }
 
+export interface ReservationItem {
+    service_id: number;
+    employee_id: number;
+    service: {
+        id: number;
+        name: string;
+        duration_minutes: number;
+        price: number;
+        color: string;
+    } | null;
+    employee: { id: number; name: string; avatar_color: string } | null;
+}
+
 export interface AppointmentPayload {
     client_id?: number;
+    client_ids?: number[];
     employee_id?: number;
     service_id?: number;
     starts_at?: string;
     status?: AppointmentStatus;
     notes?: string | null;
+    items?: Array<{ service_id: number; employee_id: number }>;
 }

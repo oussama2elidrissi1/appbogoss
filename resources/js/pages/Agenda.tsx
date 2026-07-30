@@ -35,7 +35,6 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { CATEGORIES, type CategoryConfig } from '@/components/workday/categories';
-import { EmployeeAvatar } from '@/components/workday/EmployeeAvatar';
 
 const statuses: Array<{ value: AppointmentStatus; label: string; variant: BadgeProps['variant'] }> = [
     { value: 'pending', label: 'En attente', variant: 'default' },
@@ -88,6 +87,7 @@ export default function Agenda() {
     });
 
     const appointmentKey = ['appointments', date] as const;
+    const participantIds = payload.client_ids ?? (payload.client_id ? [payload.client_id] : []);
 
     const { data: appointments, isPending: appointmentsPending } = useQuery({
         queryKey: appointmentKey,
@@ -95,15 +95,15 @@ export default function Agenda() {
         refetchInterval: 10_000,
     });
 
-    const { data: employees, isPending: employeesPending } = useQuery({
+    const { data: employees } = useQuery({
         queryKey: ['employees', 'agenda'],
         queryFn: () => getEmployees(),
         staleTime: 5 * 60_000,
     });
 
     const { data: services, isPending: servicesPending } = useQuery({
-        queryKey: ['services', 'agenda', serviceCategory.value],
-        queryFn: () => getServices(serviceCategory.value),
+        queryKey: ['services', 'agenda', 'all'],
+        queryFn: () => getServices(),
         staleTime: 5 * 60_000,
     });
 
@@ -113,22 +113,75 @@ export default function Agenda() {
         staleTime: 30_000,
     });
 
-    const selectedService = useMemo(
-        () => services?.find((service) => service.id === payload.service_id) ?? null,
-        [services, payload.service_id],
+    const reservationItems = payload.items ?? [];
+    const selectedServices = useMemo(
+        () => reservationItems
+            .map((item) => services?.find((service) => service.id === item.service_id) ?? null)
+            .filter((service): service is Service => service !== null),
+        [reservationItems, services],
     );
+    const selectedService = selectedServices[0] ?? null;
+    const totalDuration = useMemo(() => {
+        const byEmployee = new Map<number, number>();
+        reservationItems.forEach((item) => {
+            const service = services?.find((entry) => entry.id === item.service_id);
+            if (service) byEmployee.set(item.employee_id, (byEmployee.get(item.employee_id) ?? 0) + service.duration_minutes);
+        });
+        return Math.max(0, ...byEmployee.values());
+    }, [reservationItems, services]);
+    const totalPrice = selectedServices.reduce((total, service) => total + service.price, 0);
 
     const filteredServices = useMemo(() => {
         const term = serviceSearch.trim().toLowerCase();
-        if (!term) return services ?? [];
+        const categoryServices = (services ?? []).filter((service) => service.category === serviceCategory.value);
+        if (!term) return categoryServices;
 
-        return (services ?? []).filter((service) => service.name.toLowerCase().includes(term));
-    }, [services, serviceSearch]);
+        return categoryServices.filter((service) => service.name.toLowerCase().includes(term));
+    }, [services, serviceCategory.value, serviceSearch]);
+
+    function toggleService(service: Service) {
+        setPayload((current) => {
+            const currentItems = current.items ?? [];
+            const exists = currentItems.some((item) => item.service_id === service.id);
+            const items = exists
+                ? currentItems.filter((item) => item.service_id !== service.id)
+                : [...currentItems, { service_id: service.id, employee_id: employees?.[0]?.id ?? 0 }];
+            return {
+                ...current,
+                items,
+                service_id: items[0]?.service_id,
+                employee_id: items[0]?.employee_id || undefined,
+            };
+        });
+    }
+
+    function assignEmployee(serviceId: number, employeeId: number) {
+        setPayload((current) => {
+            const items = (current.items ?? []).map((item) =>
+                item.service_id === serviceId ? { ...item, employee_id: employeeId } : item,
+            );
+            return {
+                ...current,
+                items,
+                employee_id: items[0]?.employee_id || undefined,
+            };
+        });
+    }
+
+    function toggleClient(clientId: number) {
+        setPayload((current) => {
+            const currentIds = current.client_ids ?? (current.client_id ? [current.client_id] : []);
+            const client_ids = currentIds.includes(clientId)
+                ? currentIds.filter((id) => id !== clientId)
+                : [...currentIds, clientId];
+            return { ...current, client_ids, client_id: client_ids[0] };
+        });
+    }
 
     const canSubmit =
-        Boolean(payload.client_id) &&
-        Boolean(payload.employee_id) &&
-        Boolean(payload.service_id) &&
+        participantIds.length > 0 &&
+        reservationItems.length > 0 &&
+        reservationItems.every((item) => item.employee_id > 0) &&
         Boolean(payload.starts_at);
 
     const createMutation = useMutation({
@@ -144,7 +197,8 @@ export default function Agenda() {
                 starts_at: defaultStart(),
                 status: 'confirmed',
                 notes: '',
-                employee_id: payload.employee_id,
+                items: [],
+                client_ids: [],
             });
             setClientSearch('');
             setClientPhone('');
@@ -158,7 +212,11 @@ export default function Agenda() {
                 if (!Array.isArray(current)) return [client];
                 return [client, ...current.filter((item) => item.id !== client.id)];
             });
-            setPayload((current) => ({ ...current, client_id: client.id }));
+            setPayload((current) => ({
+                ...current,
+                client_id: client.id,
+                client_ids: [...(current.client_ids ?? []), client.id],
+            }));
         },
     });
 
@@ -259,13 +317,8 @@ export default function Agenda() {
                                     (clients ?? []).map((client) => (
                                         <PickerButton
                                             key={client.id}
-                                            selected={payload.client_id === client.id}
-                                            onClick={() =>
-                                                setPayload((current) => ({
-                                                    ...current,
-                                                    client_id: client.id,
-                                                }))
-                                            }
+                                            selected={participantIds.includes(client.id)}
+                                            onClick={() => toggleClient(client.id)}
                                         >
                                             <span className="truncate">{client.name}</span>
                                             <span className="text-xs text-muted-foreground">
@@ -276,6 +329,12 @@ export default function Agenda() {
                                 )}
                             </div>
                         </Field>
+
+                        {participantIds.length > 0 && (
+                            <p className="text-xs text-muted-foreground">
+                                {participantIds.length} participant{participantIds.length > 1 ? 's' : ''} sélectionné{participantIds.length > 1 ? 's' : ''}.
+                            </p>
+                        )}
 
                         {createClientMutation.isError && (
                             <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -297,10 +356,6 @@ export default function Agenda() {
                                             onClick={() => {
                                                 setServiceCategory(category);
                                                 setServiceSearch('');
-                                                setPayload((current) => ({
-                                                    ...current,
-                                                    service_id: undefined,
-                                                }));
                                             }}
                                             className={cn(
                                                 'relative flex h-16 min-w-0 flex-col items-center justify-center gap-1 rounded-md border px-2 text-center transition-all duration-200 active:scale-[0.98]',
@@ -355,13 +410,8 @@ export default function Agenda() {
                                             <ServiceCard
                                                 key={service.id}
                                                 service={service}
-                                                selected={payload.service_id === service.id}
-                                                onClick={() =>
-                                                    setPayload((current) => ({
-                                                        ...current,
-                                                        service_id: service.id,
-                                                    }))
-                                                }
+                                                selected={reservationItems.some((item) => item.service_id === service.id)}
+                                                onClick={() => toggleService(service)}
                                             />
                                         ))}
                                     </div>
@@ -395,31 +445,30 @@ export default function Agenda() {
                         </div>
 
                         <Field label="Employé">
-                            <div className="grid grid-cols-2 gap-2">
-                                {employeesPending ? (
-                                    <Skeleton className="h-10 rounded-md" />
-                                ) : (
-                                    (employees ?? []).map((employee) => (
-                                        <PickerButton
-                                            key={employee.id}
-                                            selected={payload.employee_id === employee.id}
-                                            onClick={() =>
-                                                setPayload((current) => ({
-                                                    ...current,
-                                                    employee_id: employee.id,
-                                                }))
-                                            }
-                                        >
-                                            <EmployeeAvatar
-                                                name={employee.name}
-                                                color={employee.avatar_color}
-                                                size="sm"
-                                            />
-                                            <span className="truncate">{employee.name}</span>
-                                        </PickerButton>
-                                    ))
-                                )}
-                            </div>
+                            {reservationItems.length === 0 ? (
+                                <div className="rounded-md border border-dashed border-white/[0.08] px-4 py-5 text-center text-xs text-muted-foreground">
+                                    Sélectionnez une ou plusieurs prestations ci-dessus.
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {reservationItems.map((item) => {
+                                        const service = services?.find((entry) => entry.id === item.service_id);
+                                        return (
+                                            <div key={item.service_id} className="flex items-center gap-3 rounded-md border border-white/[0.08] bg-white/[0.025] px-3 py-2.5">
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="truncate text-sm font-medium">{service?.name ?? 'Prestation'}</p>
+                                                    <p className="text-xs text-muted-foreground">{service?.duration_minutes ?? 0} min · {formatCurrency(service?.price ?? 0)}</p>
+                                                </div>
+                                                <select value={item.employee_id || ''} onChange={(event) => assignEmployee(item.service_id, Number(event.target.value))} className={cn(selectClass, 'h-9 max-w-[170px]')}>
+                                                    <option value="">Choisir un employé</option>
+                                                    {(employees ?? []).map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}
+                                                </select>
+                                                <Button type="button" size="icon" variant="ghost" aria-label="Retirer la prestation" onClick={() => service && toggleService(service)}><XCircle className="text-destructive" /></Button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </Field>
 
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -468,6 +517,13 @@ export default function Agenda() {
                                 className={cn(selectClass, 'min-h-24 resize-y py-3')}
                             />
                         </Field>
+
+                        {reservationItems.length > 0 && (
+                            <div className="flex items-center justify-between rounded-md border border-accent/20 bg-accent/[0.06] px-3 py-2 text-xs text-muted-foreground">
+                                <span>{reservationItems.length} prestation{reservationItems.length > 1 ? 's' : ''} · durée estimée {totalDuration} min</span>
+                                <span className="font-semibold text-accent">{formatCurrency(totalPrice)}</span>
+                            </div>
+                        )}
 
                         {createMutation.isError && (
                             <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -673,6 +729,16 @@ function AppointmentRow({
                         {appointment.service?.name ?? 'Service'} ·{' '}
                         {appointment.employee?.name ?? 'Employé'}
                     </p>
+                    {(appointment.clients?.length ?? 0) > 1 && (
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                            Participants : {appointment.clients?.map((client) => client.name).join(', ')}
+                        </p>
+                    )}
+                    {((appointment.services?.length ?? 0) > 1 || (appointment.employees?.length ?? 0) > 1) && (
+                        <p className="mt-1 truncate text-xs text-muted-foreground">
+                            {(appointment.services ?? []).map((service) => service.name).join(' · ')} · {(appointment.employees ?? []).map((employee) => employee.name).join(', ')}
+                        </p>
+                    )}
                     {appointment.notes && (
                         <p className="mt-1 truncate text-xs text-muted-foreground">
                             {appointment.notes}

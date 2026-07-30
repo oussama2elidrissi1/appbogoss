@@ -12,17 +12,21 @@ class Appointment extends Model
 
     protected $fillable = [
         'client_id',
+        'client_ids',
         'employee_id',
         'service_id',
         'starts_at',
         'ends_at',
         'status',
         'notes',
+        'reservation_items',
     ];
 
     protected $casts = [
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
+        'reservation_items' => 'array',
+        'client_ids' => 'array',
     ];
 
     public function client(): BelongsTo
