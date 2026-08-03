@@ -88,7 +88,8 @@ class AppointmentController extends Controller
         if (! array_key_exists('starts_at', $data)
             && ! array_key_exists('service_id', $data)
             && ! array_key_exists('employee_id', $data)
-            && ! array_key_exists('items', $data)) {
+            && ! array_key_exists('items', $data)
+            && ! array_key_exists('duration_override_minutes', $data)) {
             return $data;
         }
 
@@ -103,7 +104,9 @@ class AppointmentController extends Controller
         $items = collect($items)
             ->map(fn (array $item) => [
                 'service_id' => (int) $item['service_id'],
-                'employee_id' => (int) $item['employee_id'],
+                'employee_id' => isset($item['employee_id']) && $item['employee_id'] !== '' && $item['employee_id'] !== null
+                    ? (int) $item['employee_id']
+                    : null,
             ])
             ->values()
             ->all();
@@ -114,22 +117,43 @@ class AppointmentController extends Controller
             abort(422, 'Une prestation sélectionnée n’existe plus.');
         }
 
-        $employeeIds = collect($items)->pluck('employee_id')->unique()->values();
+        $employeeIds = collect($items)->pluck('employee_id')->filter()->unique()->values();
         if (Employee::query()->whereIn('id', $employeeIds)->count() !== $employeeIds->count()) {
             abort(422, 'Un employé sélectionné n’existe plus.');
         }
 
         $startsAt = Carbon::parse($data['starts_at'] ?? $appointment?->starts_at);
-        $durationByEmployee = collect($items)->groupBy('employee_id')->map(
+        $assigned = collect($items)->filter(fn (array $item) => $item['employee_id'] !== null);
+        $unassigned = collect($items)->filter(fn (array $item) => $item['employee_id'] === null);
+        $durationByEmployee = $assigned->groupBy('employee_id')->map(
             fn ($employeeItems) => $employeeItems->sum(fn (array $item) => (int) $services[$item['service_id']]->duration_minutes),
         );
-        $duration = (int) $durationByEmployee->max();
+        $unassignedDuration = $unassigned->sum(fn (array $item) => (int) $services[$item['service_id']]->duration_minutes);
+        $autoDuration = max((int) $durationByEmployee->max(), $unassignedDuration);
+
+        $itemsProvided = array_key_exists('items', $data);
+        $overrideProvided = array_key_exists('duration_override_minutes', $data);
+
+        if ($overrideProvided && $data['duration_override_minutes'] !== null) {
+            // Explicit resize from the calendar (drag the bottom edge) — trust it as-is.
+            $duration = max(5, (int) $data['duration_override_minutes']);
+            $durationOverride = $duration;
+        } elseif (! $itemsProvided && ! $overrideProvided && $appointment?->duration_override_minutes) {
+            // Move without touching services/duration — keep the previously resized length.
+            $duration = (int) $appointment->duration_override_minutes;
+            $durationOverride = $duration;
+        } else {
+            // Services changed (or first creation) — fall back to the catalog-derived duration.
+            $duration = $autoDuration;
+            $durationOverride = null;
+        }
 
         $data['starts_at'] = $startsAt;
         $data['ends_at'] = $startsAt->copy()->addMinutes($duration);
         $data['service_id'] = $items[0]['service_id'];
-        $data['employee_id'] = $items[0]['employee_id'];
+        $data['employee_id'] = $assigned->first()['employee_id'] ?? null;
         $data['reservation_items'] = $items;
+        $data['duration_override_minutes'] = $durationOverride;
         $clientIds = collect($data['client_ids'] ?? ($appointment?->client_ids ?: [$data['client_id'] ?? $appointment?->client_id]))
             ->filter()
             ->map(fn ($id) => (int) $id)
@@ -148,10 +172,14 @@ class AppointmentController extends Controller
         return $data;
     }
 
-    /** @param array<int, array{service_id: int, employee_id: int}> $items */
+    /** @param array<int, array{service_id: int, employee_id: ?int}> $items */
     private function assertNoConflict(array $items, Carbon $startsAt, Carbon $endsAt, ?Appointment $appointment = null): void
     {
-        $employeeIds = collect($items)->pluck('employee_id')->unique()->values();
+        $employeeIds = collect($items)->pluck('employee_id')->filter()->unique()->values();
+        if ($employeeIds->isEmpty()) {
+            return;
+        }
+
         $existing = Appointment::query()
             ->when($appointment, fn ($query) => $query->where('id', '!=', $appointment->id))
             ->whereNotIn('status', ['cancelled', 'no_show'])
@@ -162,7 +190,7 @@ class AppointmentController extends Controller
         foreach ($existing as $candidate) {
             $candidateEmployees = collect($candidate->reservation_items ?: [[
                 'employee_id' => $candidate->employee_id,
-            ]])->pluck('employee_id')->map(fn ($id) => (int) $id);
+            ]])->pluck('employee_id')->filter()->map(fn ($id) => (int) $id);
 
             if ($candidateEmployees->intersect($employeeIds)->isNotEmpty()) {
                 abort(422, 'Un employé est déjà réservé sur ce créneau.');

@@ -27,7 +27,7 @@ function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) 
     if (!active || !payload?.length) return null;
 
     return (
-        <div className="rounded-md border border-white/[0.10] bg-popover/95 px-3.5 py-2.5 shadow-soft-lg backdrop-blur-md">
+        <div className="rounded-md border border-tint/[0.10] bg-popover/95 px-3.5 py-2.5 shadow-soft-lg backdrop-blur-md">
             <p className="text-xs font-medium text-muted-foreground">
                 {formatDayLabel(String(label))}
             </p>
@@ -121,7 +121,7 @@ export function RevenueChart({ data }: { data: RevenuePoint[] }) {
                                     {/* Recessive grid — horizontal only */}
                                     <CartesianGrid
                                         vertical={false}
-                                        stroke="rgba(255,255,255,0.06)"
+                                        stroke="hsl(var(--border))"
                                         strokeDasharray="4 4"
                                     />
 
@@ -130,7 +130,7 @@ export function RevenueChart({ data }: { data: RevenuePoint[] }) {
                                         tickFormatter={formatDayLabel}
                                         tickLine={false}
                                         axisLine={false}
-                                        tick={{ fill: '#94A3B8', fontSize: 11 }}
+                                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
                                         tickMargin={12}
                                         minTickGap={24}
                                     />
@@ -140,7 +140,7 @@ export function RevenueChart({ data }: { data: RevenuePoint[] }) {
                                         }
                                         tickLine={false}
                                         axisLine={false}
-                                        tick={{ fill: '#94A3B8', fontSize: 11 }}
+                                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
                                         tickMargin={8}
                                         width={56}
                                     />
@@ -163,7 +163,7 @@ export function RevenueChart({ data }: { data: RevenuePoint[] }) {
                                         activeDot={{
                                             r: 4,
                                             fill: EXPENSES_COLOR,
-                                            stroke: '#132238',
+                                            stroke: 'hsl(var(--card))',
                                             strokeWidth: 2,
                                         }}
                                     />
@@ -176,7 +176,7 @@ export function RevenueChart({ data }: { data: RevenuePoint[] }) {
                                         activeDot={{
                                             r: 4,
                                             fill: REVENUE_COLOR,
-                                            stroke: '#132238',
+                                            stroke: 'hsl(var(--card))',
                                             strokeWidth: 2,
                                         }}
                                     />

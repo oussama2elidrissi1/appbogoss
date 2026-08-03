@@ -15,7 +15,7 @@ const DialogOverlay = React.forwardRef<
     <DialogPrimitive.Overlay
         ref={ref}
         className={cn(
-            'fixed inset-0 z-50 bg-[#040A12]/70 backdrop-blur-sm',
+            'fixed inset-0 z-50 bg-scrim/70 backdrop-blur-sm',
             'data-[state=open]:animate-in data-[state=open]:fade-in-0',
             'data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
             className,
@@ -35,7 +35,7 @@ const DialogContent = React.forwardRef<
             ref={ref}
             className={cn(
                 'fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4',
-                'edge-light rounded-lg border border-white/[0.08] bg-card p-6 shadow-soft-lg',
+                'edge-light rounded-lg border border-tint/[0.08] bg-card p-6 shadow-soft-lg',
                 'duration-200 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
                 'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
                 className,
@@ -46,7 +46,7 @@ const DialogContent = React.forwardRef<
             <DialogPrimitive.Close
                 className={cn(
                     'absolute right-4 top-4 rounded-sm p-1 text-muted-foreground opacity-70 transition-all duration-200',
-                    'hover:bg-white/[0.06] hover:text-foreground hover:opacity-100',
+                    'hover:bg-tint/[0.06] hover:text-foreground hover:opacity-100',
                     'focus:outline-none focus:ring-2 focus:ring-ring/60 disabled:pointer-events-none',
                 )}
             >

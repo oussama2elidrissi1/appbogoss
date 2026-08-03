@@ -3,6 +3,84 @@
 @tailwind utilities;
 
 @layer base {
+    :root {
+        --background: 40 25% 97%;
+        --foreground: 213 55% 12%;
+
+        --sidebar: 40 20% 95%;
+        --sidebar-foreground: 215 18% 38%;
+
+        --card: 0 0% 100%;
+        --card-foreground: 213 55% 12%;
+
+        --popover: 0 0% 100%;
+        --popover-foreground: 213 55% 12%;
+
+        --primary: 42 58% 40%;
+        --primary-foreground: 0 0% 100%;
+
+        --secondary: 40 22% 93%;
+        --secondary-foreground: 213 40% 20%;
+
+        --muted: 40 18% 93%;
+        --muted-foreground: 215 15% 42%;
+
+        --accent: 42 58% 40%;
+        --accent-foreground: 0 0% 100%;
+
+        --destructive: 358 70% 45%;
+        --destructive-foreground: 0 0% 100%;
+
+        --success: 158 64% 30%;
+        --success-foreground: 0 0% 100%;
+
+        --border: 40 16% 87%;
+        --input: 40 16% 87%;
+        --ring: 42 58% 40%;
+
+        --tint-rgb: 15 23 42;
+        --scrim-rgb: 15 23 42;
+    }
+
+    .dark {
+        --background: 213 63% 8%;
+        --foreground: 0 0% 100%;
+
+        --sidebar: 211 53% 11%;
+        --sidebar-foreground: 215 20% 65%;
+
+        --card: 216 49% 15%;
+        --card-foreground: 0 0% 100%;
+
+        --popover: 217 48% 17%;
+        --popover-foreground: 0 0% 100%;
+
+        --primary: 42 53% 54%;
+        --primary-foreground: 213 63% 8%;
+
+        --secondary: 216 47% 20%;
+        --secondary-foreground: 214 32% 91%;
+
+        --muted: 216 47% 20%;
+        --muted-foreground: 215 20% 65%;
+
+        --accent: 42 53% 54%;
+        --accent-foreground: 213 63% 8%;
+
+        --destructive: 358 75% 59%;
+        --destructive-foreground: 0 0% 100%;
+
+        --success: 158 64% 52%;
+        --success-foreground: 8 35% 10%;
+
+        --border: 212 36% 21%;
+        --input: 212 36% 21%;
+        --ring: 42 53% 54%;
+
+        --tint-rgb: 255 255 255;
+        --scrim-rgb: 2 6 12;
+    }
+
     * {
         @apply border-border;
     }
@@ -11,10 +89,16 @@
         -webkit-tap-highlight-color: transparent;
     }
 
+    html,
     body {
-        @apply bg-background text-foreground font-sans antialiased;
+        @apply bg-background;
+    }
+
+    body {
+        @apply text-foreground font-sans antialiased;
         font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
         line-height: 1.6;
+        transition: background-color 0.25s ease, color 0.25s ease;
     }
 
     h1,
@@ -25,7 +109,6 @@
         line-height: 1.2;
     }
 
-    /* Dark-theme scrollbar */
     ::-webkit-scrollbar {
         width: 10px;
         height: 10px;
@@ -36,7 +119,7 @@
     }
 
     ::-webkit-scrollbar-thumb {
-        background-color: rgba(148, 163, 184, 0.18);
+        background-color: rgb(var(--tint-rgb) / 0.18);
         border-radius: 9999px;
         border: 2px solid transparent;
         background-clip: content-box;
@@ -49,7 +132,7 @@
 
     * {
         scrollbar-width: thin;
-        scrollbar-color: rgba(148, 163, 184, 0.18) transparent;
+        scrollbar-color: rgb(var(--tint-rgb) / 0.18) transparent;
     }
 
     :focus-visible {
@@ -60,10 +143,10 @@
 @layer components {
     /* Subtle glassmorphism for elevated surfaces — used sparingly */
     .glass {
-        background-color: rgba(19, 34, 56, 0.72);
+        background-color: hsl(var(--card) / 0.72);
         backdrop-filter: blur(16px) saturate(140%);
         -webkit-backdrop-filter: blur(16px) saturate(140%);
-        border: 1px solid rgba(255, 255, 255, 0.06);
+        border: 1px solid rgb(var(--tint-rgb) / 0.06);
     }
 
     /* Atmospheric radial wash for full-bleed screens */
@@ -99,7 +182,7 @@
         background-image: linear-gradient(
             to right,
             transparent,
-            rgba(255, 255, 255, 0.14),
+            rgb(var(--tint-rgb) / 0.14),
             transparent
         );
         pointer-events: none;
@@ -110,4 +193,109 @@
 .recharts-wrapper:focus,
 .recharts-surface:focus {
     outline: none;
+}
+
+/* react-big-calendar re-themed onto our tokens — the library ships fixed light
+   colors, so every surface/border/text here is remapped by hand. */
+.agenda-calendar {
+    --rbc-border: hsl(var(--border) / 1);
+    --rbc-today: rgb(var(--tint-rgb) / 0.05);
+}
+
+.agenda-calendar .rbc-calendar {
+    color: hsl(var(--foreground));
+    font-family: inherit;
+}
+
+.agenda-calendar .rbc-off-range-bg {
+    background: rgb(var(--tint-rgb) / 0.035);
+}
+
+.agenda-calendar .rbc-off-range {
+    color: hsl(var(--muted-foreground) / 0.6);
+}
+
+.agenda-calendar .rbc-today {
+    background-color: var(--rbc-today);
+}
+
+.agenda-calendar .rbc-header,
+.agenda-calendar .rbc-time-header-content,
+.agenda-calendar .rbc-time-header.rbc-overflowing,
+.agenda-calendar .rbc-time-content,
+.agenda-calendar .rbc-time-header-gutter,
+.agenda-calendar .rbc-timeslot-group,
+.agenda-calendar .rbc-day-bg + .rbc-day-bg,
+.agenda-calendar .rbc-month-row + .rbc-month-row,
+.agenda-calendar .rbc-month-view,
+.agenda-calendar .rbc-day-slot .rbc-time-slot,
+.agenda-calendar .rbc-header + .rbc-header,
+.agenda-calendar .rbc-row-bg > .rbc-day-bg + .rbc-day-bg {
+    border-color: var(--rbc-border) !important;
+}
+
+.agenda-calendar .rbc-header {
+    padding: 6px 4px;
+    font-weight: 600;
+    background: rgb(var(--tint-rgb) / 0.02);
+}
+
+.agenda-calendar .rbc-label {
+    color: hsl(var(--muted-foreground));
+    font-size: 0.75rem;
+}
+
+.agenda-calendar .rbc-time-gutter .rbc-timeslot-group {
+    background: transparent;
+}
+
+.agenda-calendar .rbc-current-time-indicator {
+    background-color: hsl(var(--destructive));
+    height: 2px;
+}
+
+.agenda-calendar .rbc-event {
+    border-radius: 0.4rem;
+    border: 1px solid;
+    padding: 2px 4px;
+    box-shadow: none;
+}
+
+.agenda-calendar .rbc-event.rbc-selected {
+    box-shadow: 0 0 0 2px hsl(var(--accent) / 0.5);
+}
+
+.agenda-calendar .rbc-event-label {
+    display: none;
+}
+
+.agenda-calendar .agenda-event--dimmed {
+    opacity: 0.45;
+    text-decoration: line-through;
+}
+
+.agenda-calendar .rbc-slot-selection {
+    background-color: hsl(var(--accent) / 0.18);
+    border: 1px dashed hsl(var(--accent) / 0.6);
+}
+
+.agenda-calendar .rbc-day-slot .rbc-events-container {
+    margin-right: 2px;
+}
+
+.agenda-calendar .rbc-show-more {
+    color: hsl(var(--accent));
+    background: transparent;
+}
+
+.agenda-calendar .rbc-overlay {
+    background: hsl(var(--popover));
+    border: 1px solid hsl(var(--border));
+    border-radius: 0.75rem;
+    box-shadow: 0 8px 24px rgba(3, 8, 16, 0.28);
+    color: hsl(var(--popover-foreground));
+}
+
+.agenda-calendar .rbc-overlay-header {
+    border-color: hsl(var(--border));
 }

@@ -34,7 +34,7 @@ function Metric({
     tone?: 'default' | 'accent' | 'success' | 'destructive';
 }) {
     return (
-        <div className="rounded-md border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
+        <div className="rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3.5 py-3">
             <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 {label}
             </p>
@@ -110,7 +110,7 @@ function Report({ report }: { report: ClosingReport }) {
                                         {formatCurrency(row.total, { maximumFractionDigits: 2 })}
                                     </span>
                                 </div>
-                                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/[0.05]">
+                                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-tint/[0.05]">
                                     <motion.div
                                         initial={{ width: 0 }}
                                         animate={{
@@ -142,7 +142,7 @@ function Report({ report }: { report: ClosingReport }) {
                             {report.revenue_by_employee.map((row) => (
                                 <tr
                                     key={row.employee_id}
-                                    className="border-t border-white/[0.06] text-foreground"
+                                    className="border-t border-tint/[0.06] text-foreground"
                                 >
                                     <td className="py-2 pr-3">{row.employee_name}</td>
                                     <td className="py-2 text-right tabular-nums text-muted-foreground">
@@ -175,7 +175,7 @@ function Report({ report }: { report: ClosingReport }) {
                                 className="flex items-center justify-between gap-3 text-sm"
                             >
                                 <span className="flex min-w-0 items-center gap-2.5">
-                                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white/[0.05] text-[10px] font-semibold text-muted-foreground">
+                                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-tint/[0.05] text-[10px] font-semibold text-muted-foreground">
                                         {index + 1}
                                     </span>
                                     <span className="truncate text-foreground">

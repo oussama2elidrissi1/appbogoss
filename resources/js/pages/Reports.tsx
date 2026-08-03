@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
 import { AlertCircle, BarChart3, Download, ReceiptText } from 'lucide-react';
 import {
     getErrorMessage,
@@ -10,6 +11,7 @@ import {
     getWorkDays,
 } from '@/lib/api';
 import { cn, formatCurrency, formatDayLabel, formatTime } from '@/lib/utils';
+import { pageFade } from '@/lib/motion';
 import type { ClosingReport, RevenueByEmployee, Sale, WorkDay } from '@/types/workday';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -47,7 +49,7 @@ function clientName(sale: Sale): string {
 
 function ReportStat({ label, value }: { label: string; value: string }) {
     return (
-        <div className="rounded-md border border-white/[0.06] bg-white/[0.025] px-3 py-2.5">
+        <div className="rounded-md border border-tint/[0.06] bg-tint/[0.025] px-3 py-2.5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 {label}
             </p>
@@ -116,7 +118,7 @@ function MonthlyReportPanel({ month }: { month: string }) {
                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                     <ReportTable title="Employes par CA et prestation">
                         {employees.map((row) => (
-                            <div key={row.employee_id} className="flex items-start justify-between gap-3 border-b border-white/[0.06] py-2 last:border-0">
+                            <div key={row.employee_id} className="flex items-start justify-between gap-3 border-b border-tint/[0.06] py-2 last:border-0">
                                 <div className="min-w-0">
                                     <p className="truncate text-sm font-medium">{row.employee_name}</p>
                                     <p className="mt-0.5 text-xs text-muted-foreground">
@@ -130,7 +132,7 @@ function MonthlyReportPanel({ month }: { month: string }) {
 
                     <ReportTable title="Prestations par employe">
                         {prestations.map((row) => (
-                            <div key={row.label} className="flex items-start justify-between gap-3 border-b border-white/[0.06] py-2 last:border-0">
+                            <div key={row.label} className="flex items-start justify-between gap-3 border-b border-tint/[0.06] py-2 last:border-0">
                                 <div className="min-w-0">
                                     <p className="truncate text-sm font-medium">{row.label}</p>
                                     <p className="mt-0.5 text-xs text-muted-foreground">
@@ -146,7 +148,7 @@ function MonthlyReportPanel({ month }: { month: string }) {
                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                     <ReportTable title="Depenses detaillees">
                         {(totals.expense_details ?? []).map((expense) => (
-                            <div key={expense.id ?? `${expense.spent_on}-${expense.label}`} className="flex items-center justify-between gap-3 border-b border-white/[0.06] py-2 last:border-0">
+                            <div key={expense.id ?? `${expense.spent_on}-${expense.label}`} className="flex items-center justify-between gap-3 border-b border-tint/[0.06] py-2 last:border-0">
                                 <div className="min-w-0"><p className="truncate text-sm">{expense.label}</p><p className="text-xs text-muted-foreground">{expense.spent_on} - {expense.category}</p></div>
                                 <span className="shrink-0 text-sm font-semibold tabular-nums text-destructive">{formatCurrency(expense.amount ?? expense.total)}</span>
                             </div>
@@ -156,7 +158,7 @@ function MonthlyReportPanel({ month }: { month: string }) {
 
                     <ReportTable title="Avances detaillees">
                         {(totals.advance_details ?? []).map((advance) => (
-                            <div key={advance.id ?? `${advance.given_on}-${advance.employee_id}`} className="flex items-center justify-between gap-3 border-b border-white/[0.06] py-2 last:border-0">
+                            <div key={advance.id ?? `${advance.given_on}-${advance.employee_id}`} className="flex items-center justify-between gap-3 border-b border-tint/[0.06] py-2 last:border-0">
                                 <div className="min-w-0"><p className="truncate text-sm">{advance.employee_name}</p><p className="text-xs text-muted-foreground">{advance.given_on} - {advance.reason || 'Sans motif'} - {advance.settled_at ? 'Reglee' : 'Non reglee'}</p></div>
                                 <span className="shrink-0 text-sm font-semibold tabular-nums text-destructive">{formatCurrency(advance.amount ?? advance.total)}</span>
                             </div>
@@ -173,7 +175,7 @@ function MonthlyReportPanel({ month }: { month: string }) {
                             </thead>
                             <tbody>
                                 {report.days.map((day) => (
-                                    <tr key={day.id} className="border-t border-white/[0.06]">
+                                    <tr key={day.id} className="border-t border-tint/[0.06]">
                                         <td className="py-2">{formatDayLabel(day.date)}</td><td className="py-2 text-muted-foreground">{day.status === 'closed' ? 'Cloturee' : 'Ouverte'}</td><td className="py-2 text-right tabular-nums">{day.tickets}{day.deleted_tickets ? ` + ${day.deleted_tickets} suppr.` : ''}</td><td className="py-2 text-right tabular-nums text-accent">{formatCurrency(day.revenue_total)}</td><td className="py-2 text-right tabular-nums">{formatCurrency(day.expenses_total)}</td><td className="py-2 text-right tabular-nums">{formatCurrency(day.advances_total)}</td><td className="py-2 text-right tabular-nums">{formatCurrency(day.net_result)}</td>
                                     </tr>
                                 ))}
@@ -188,7 +190,7 @@ function MonthlyReportPanel({ month }: { month: string }) {
 
 function ReportTable({ title, children }: { title: string; children: React.ReactNode }) {
     return (
-        <section className="rounded-md border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+        <section className="rounded-md border border-tint/[0.06] bg-tint/[0.02] px-4 py-3">
             <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{title}</h3>
             <div className="mt-2">{children}</div>
         </section>
@@ -237,7 +239,7 @@ function EmployeeTicketsDialog({
                         ))}
                     </div>
                 ) : employeeSales.length === 0 ? (
-                    <div className="rounded-md border border-dashed border-white/[0.08] px-4 py-8 text-center text-sm text-muted-foreground">
+                    <div className="rounded-md border border-dashed border-tint/[0.08] px-4 py-8 text-center text-sm text-muted-foreground">
                         Aucun ticket pour cet employé sur cette journée.
                     </div>
                 ) : (
@@ -247,7 +249,7 @@ function EmployeeTicketsDialog({
                                 <div
                                     key={sale.id}
                                     className={cn(
-                                        'rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2.5',
+                                        'rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3 py-2.5',
                                         sale.is_deleted &&
                                             'border-destructive/25 bg-destructive/[0.06]',
                                     )}
@@ -382,7 +384,7 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                                         {report.revenue_by_category.map((row) => (
                                             <div
                                                 key={row.category}
-                                                className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2"
+                                                className="flex items-center justify-between gap-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3 py-2"
                                             >
                                                 <span className="truncate text-sm">
                                                     {getCategoryLabel(row.category)}
@@ -405,7 +407,7 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                                         {report.revenue_by_employee.map((row) => (
                                             <div
                                                 key={row.employee_id}
-                                                className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2"
+                                                className="flex items-center justify-between gap-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3 py-2"
                                             >
                                                 <span className="min-w-0">
                                                     <span className="block truncate text-sm">
@@ -451,7 +453,7 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                                         {report.top_prestations.map((row) => (
                                             <div
                                                 key={row.label}
-                                                className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2"
+                                                className="flex items-center justify-between gap-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3 py-2"
                                             >
                                                 <span className="min-w-0">
                                                     <span className="block truncate text-sm">
@@ -485,7 +487,7 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                                 </div>
 
                                 {day.advances.length === 0 ? (
-                                    <div className="rounded-md border border-dashed border-white/[0.08] px-4 py-4 text-sm text-muted-foreground">
+                                    <div className="rounded-md border border-dashed border-tint/[0.08] px-4 py-4 text-sm text-muted-foreground">
                                         Aucune avance enregistrée sur cette journée.
                                     </div>
                                 ) : (
@@ -493,7 +495,7 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                                         {day.advances.map((advance) => (
                                             <div
                                                 key={advance.id}
-                                                className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2"
+                                                className="flex items-center justify-between gap-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3 py-2"
                                             >
                                                 <span className="min-w-0">
                                                     <span className="block truncate text-sm font-medium">
@@ -523,13 +525,13 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                                         DÃ©penses dÃ©taillÃ©es
                                     </h3>
                                     {(report.expense_details ?? []).length === 0 ? (
-                                        <div className="rounded-md border border-dashed border-white/[0.08] px-4 py-4 text-sm text-muted-foreground">
+                                        <div className="rounded-md border border-dashed border-tint/[0.08] px-4 py-4 text-sm text-muted-foreground">
                                             Aucune dÃ©pense enregistrÃ©e sur cette journÃ©e.
                                         </div>
                                     ) : (
                                         <div className="space-y-2">
                                             {(report.expense_details ?? []).map((expense) => (
-                                                <div key={expense.id ?? `${expense.spent_on}-${expense.label}`} className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                                                <div key={expense.id ?? `${expense.spent_on}-${expense.label}`} className="flex items-center justify-between gap-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3 py-2">
                                                     <span className="min-w-0"><span className="block truncate text-sm">{expense.label}</span><span className="text-xs text-muted-foreground">{expense.spent_on} - {expense.category}</span></span>
                                                     <span className="shrink-0 text-sm font-semibold tabular-nums text-destructive">{formatCurrency(expense.amount ?? expense.total, { maximumFractionDigits: 2 })}</span>
                                                 </div>
@@ -543,13 +545,13 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                                         Moyens de paiement
                                     </h3>
                                     {(report.payment_methods ?? []).length === 0 ? (
-                                        <div className="rounded-md border border-dashed border-white/[0.08] px-4 py-4 text-sm text-muted-foreground">
+                                        <div className="rounded-md border border-dashed border-tint/[0.08] px-4 py-4 text-sm text-muted-foreground">
                                             Aucun paiement enregistrÃ©.
                                         </div>
                                     ) : (
                                         <div className="space-y-2">
                                             {(report.payment_methods ?? []).map((payment) => (
-                                                <div key={payment.method} className="flex items-center justify-between rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+                                                <div key={payment.method} className="flex items-center justify-between rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3 py-2">
                                                     <span className="text-sm">{payment.method} <span className="text-xs text-muted-foreground">({payment.count})</span></span>
                                                     <span className="text-sm font-semibold tabular-nums text-accent">{formatCurrency(payment.total, { maximumFractionDigits: 2 })}</span>
                                                 </div>
@@ -560,7 +562,7 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                             </div>
                         </>
                     ) : (
-                        <div className="rounded-md border border-dashed border-white/[0.08] px-4 py-5 text-sm text-muted-foreground">
+                        <div className="rounded-md border border-dashed border-tint/[0.08] px-4 py-5 text-sm text-muted-foreground">
                             Les totaux seront disponibles dès les premiers encaissements. Le PDF
                             sera disponible après clôture.
                         </div>
@@ -660,7 +662,7 @@ export default function Reports() {
     }
 
     return (
-        <div className="space-y-6">
+        <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-6">
             <Tabs defaultValue="monthly" className="space-y-5">
                 <TabsList>
                     <TabsTrigger value="monthly">Rapport mensuel</TabsTrigger>
@@ -682,7 +684,7 @@ export default function Reports() {
                             type="month"
                             value={month}
                             onChange={(event) => setMonth(event.target.value)}
-                            className="block h-10 rounded-md border border-white/[0.08] bg-white/[0.04] px-3 text-sm font-normal normal-case tracking-normal text-foreground outline-none transition-colors focus:border-accent/60"
+                            className="block h-10 rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 text-sm font-normal normal-case tracking-normal text-foreground outline-none transition-colors focus:border-accent/60"
                         />
                     </label>
                     <span className="text-sm text-muted-foreground">Les totaux utilisent les journees de caisse, pas seulement la date d’encaissement.</span>
@@ -701,10 +703,10 @@ export default function Reports() {
 
             <Card>
                 <CardContent className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Du<input type="date" value={dailyFrom} onChange={(event) => setDailyFrom(event.target.value)} className="block h-10 w-full rounded-md border border-white/[0.08] bg-white/[0.04] px-3 text-sm" /></label>
-                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Au<input type="date" value={dailyTo} onChange={(event) => setDailyTo(event.target.value)} className="block h-10 w-full rounded-md border border-white/[0.08] bg-white/[0.04] px-3 text-sm" /></label>
-                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Statut<select value={dailyStatus} onChange={(event) => setDailyStatus(event.target.value as 'all' | 'open' | 'closed')} className="block h-10 w-full rounded-md border border-white/[0.08] bg-white/[0.04] px-3 text-sm"><option value="all">Toutes</option><option value="open">Ouvertes</option><option value="closed">Cloturees</option></select></label>
-                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Employe<select value={dailyEmployee} onChange={(event) => setDailyEmployee(event.target.value)} className="block h-10 w-full rounded-md border border-white/[0.08] bg-white/[0.04] px-3 text-sm"><option value="all">Tous les employes</option>{employeeOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Du<input type="date" value={dailyFrom} onChange={(event) => setDailyFrom(event.target.value)} className="block h-10 w-full rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 text-sm" /></label>
+                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Au<input type="date" value={dailyTo} onChange={(event) => setDailyTo(event.target.value)} className="block h-10 w-full rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 text-sm" /></label>
+                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Statut<select value={dailyStatus} onChange={(event) => setDailyStatus(event.target.value as 'all' | 'open' | 'closed')} className="block h-10 w-full rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 text-sm"><option value="all">Toutes</option><option value="open">Ouvertes</option><option value="closed">Cloturees</option></select></label>
+                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Employe<select value={dailyEmployee} onChange={(event) => setDailyEmployee(event.target.value)} className="block h-10 w-full rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 text-sm"><option value="all">Tous les employes</option>{employeeOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
                 </CardContent>
             </Card>
 
@@ -736,6 +738,6 @@ export default function Reports() {
             )}
                 </TabsContent>
             </Tabs>
-        </div>
+        </motion.div>
     );
 }

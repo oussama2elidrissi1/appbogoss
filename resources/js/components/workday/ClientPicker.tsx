@@ -130,7 +130,7 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
                     <button
                         type="button"
                         onClick={clearClient}
-                        className="rounded-sm p-1 text-muted-foreground transition-colors duration-200 hover:bg-white/[0.06] hover:text-foreground"
+                        className="rounded-sm p-1 text-muted-foreground transition-colors duration-200 hover:bg-tint/[0.06] hover:text-foreground"
                     >
                         <X className="h-4 w-4" />
                         <span className="sr-only">Retirer le client</span>
@@ -160,7 +160,7 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, y: -4 }}
                                 transition={{ duration: 0.15 }}
-                                className="absolute z-30 mt-1.5 max-h-64 w-full overflow-y-auto rounded-md border border-white/[0.08] bg-popover p-1.5 shadow-soft-lg"
+                                className="absolute z-30 mt-1.5 max-h-64 w-full overflow-y-auto rounded-md border border-tint/[0.08] bg-popover p-1.5 shadow-soft-lg"
                             >
                                 {(clients ?? []).length === 0 ? (
                                     <li className="px-3 py-3 text-center text-xs text-muted-foreground">
@@ -176,7 +176,7 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
                                                 onClick={() => selectClient(client)}
                                                 className={cn(
                                                     'flex w-full items-center justify-between gap-3 rounded-sm px-3 py-2.5 text-left',
-                                                    'transition-colors duration-150 hover:bg-white/[0.06]',
+                                                    'transition-colors duration-150 hover:bg-tint/[0.06]',
                                                 )}
                                             >
                                                 <span className="min-w-0">

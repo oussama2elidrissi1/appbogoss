@@ -35,6 +35,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -107,6 +108,7 @@ export default function Employees() {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [form, setForm] = useState<EmployeeFormState>(emptyForm);
     const [formError, setFormError] = useState<string | null>(null);
+    const [deletingEmployee, setDeletingEmployee] = useState<Employee | null>(null);
 
     const { data: workDay } = useActiveWorkDay();
     const {
@@ -204,8 +206,12 @@ export default function Employees() {
     }
 
     function handleDelete(employee: Employee) {
-        const confirmed = window.confirm(`Supprimer ${employee.name} ?`);
-        if (confirmed) deleteMutation.mutate(employee.id);
+        setDeletingEmployee(employee);
+    }
+
+    function confirmDelete() {
+        if (!deletingEmployee) return;
+        deleteMutation.mutate(deletingEmployee.id, { onSuccess: () => setDeletingEmployee(null) });
     }
 
     if (isError) {
@@ -566,7 +572,7 @@ export default function Employees() {
                                             'h-9 w-9 rounded-full border transition-all duration-200',
                                             form.avatar_color === color
                                                 ? 'border-accent ring-4 ring-accent/15'
-                                                : 'border-white/10 hover:border-white/30',
+                                                : 'border-tint/10 hover:border-tint/30',
                                         )}
                                         style={{ backgroundColor: color }}
                                     />
@@ -585,7 +591,7 @@ export default function Employees() {
                             </div>
                         </div>
 
-                        <label className="flex items-center gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
+                        <label className="flex items-center gap-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3.5 py-3">
                             <input
                                 type="checkbox"
                                 checked={form.is_active}
@@ -595,7 +601,7 @@ export default function Employees() {
                                         is_active: event.target.checked,
                                     }))
                                 }
-                                className="h-4 w-4 accent-[#C8A24C]"
+                                className="h-4 w-4 accent-accent"
                             />
                             <span className="text-sm font-medium text-foreground">Employé actif</span>
                         </label>
@@ -619,6 +625,22 @@ export default function Employees() {
                     </form>
                 </DialogContent>
             </Dialog>
+
+            <ConfirmDialog
+                open={deletingEmployee !== null}
+                onOpenChange={(open) => {
+                    if (!open) setDeletingEmployee(null);
+                }}
+                title="Supprimer cet employé ?"
+                description={
+                    deletingEmployee
+                        ? `${deletingEmployee.name} sera définitivement supprimé(e). Cette action est irréversible.`
+                        : undefined
+                }
+                confirmLabel="Supprimer"
+                loading={deleteMutation.isPending}
+                onConfirm={confirmDelete}
+            />
         </>
     );
 }

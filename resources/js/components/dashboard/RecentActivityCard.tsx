@@ -22,9 +22,9 @@ const typeConfig: Record<
     },
     client: {
         icon: UserPlus,
-        ring: 'ring-white/10',
+        ring: 'ring-tint/10',
         text: 'text-muted-foreground',
-        bg: 'bg-white/[0.06]',
+        bg: 'bg-tint/[0.06]',
     },
 };
 
@@ -58,7 +58,7 @@ export function RecentActivityCard({ items }: { items: ActivityItem[] }) {
                                     {!isLast && (
                                         <span
                                             aria-hidden
-                                            className="absolute left-[17px] top-9 h-[calc(100%+4px)] w-px bg-white/[0.07]"
+                                            className="absolute left-[17px] top-9 h-[calc(100%+4px)] w-px bg-tint/[0.07]"
                                         />
                                     )}
 

@@ -33,7 +33,7 @@ function Stat({
                     'flex h-9 w-9 shrink-0 items-center justify-center rounded-md ring-1',
                     accent
                         ? 'bg-accent/[0.10] ring-accent/15'
-                        : 'bg-white/[0.04] ring-white/[0.06]',
+                        : 'bg-tint/[0.04] ring-tint/[0.06]',
                 )}
             >
                 <Icon className={cn('h-4 w-4', accent ? 'text-accent' : 'text-muted-foreground')} />

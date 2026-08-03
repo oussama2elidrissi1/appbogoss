@@ -20,6 +20,7 @@ class Appointment extends Model
         'status',
         'notes',
         'reservation_items',
+        'duration_override_minutes',
     ];
 
     protected $casts = [

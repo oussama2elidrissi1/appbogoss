@@ -49,13 +49,13 @@ export function AppointmentQueueCard({ appointments }: { appointments: QueuedApp
                         description="Aucun rendez-vous n’est programmé pour aujourd’hui."
                     />
                 ) : (
-                    <ul className="divide-y divide-white/[0.06]">
+                    <ul className="divide-y divide-tint/[0.06]">
                         {appointments.map((appointment) => (
                             <li
                                 key={appointment.id}
                                 className={cn(
                                     'flex items-center gap-3.5 py-3 first:pt-0 last:pb-0',
-                                    '-mx-2 rounded-md px-2 transition-colors duration-200 hover:bg-white/[0.03]',
+                                    '-mx-2 rounded-md px-2 transition-colors duration-200 hover:bg-tint/[0.03]',
                                 )}
                             >
                                 <span className="w-11 shrink-0 text-sm font-semibold tabular-nums text-foreground">

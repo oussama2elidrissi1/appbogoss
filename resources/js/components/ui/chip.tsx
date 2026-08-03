@@ -22,7 +22,7 @@ const chipVariants = cva(
         variants: {
             selected: {
                 true: 'border-accent/60 bg-accent/[0.14] text-foreground shadow-glow',
-                false: 'border-white/[0.08] bg-white/[0.03] text-muted-foreground hover:border-accent/30 hover:bg-white/[0.06] hover:text-foreground',
+                false: 'border-tint/[0.08] bg-tint/[0.03] text-muted-foreground hover:border-accent/30 hover:bg-tint/[0.06] hover:text-foreground',
             },
             size: {
                 default: 'h-11 px-4 [&_svg]:size-4',

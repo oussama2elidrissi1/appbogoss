@@ -357,7 +357,7 @@ export default function Depenses() {
                                                 animate={{ opacity: 1, y: 0 }}
                                                 exit={{ opacity: 0 }}
                                                 transition={{ duration: 0.25 }}
-                                                className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3.5 py-2.5 transition-colors duration-200 hover:border-destructive/20"
+                                                className="flex items-center justify-between gap-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3.5 py-2.5 transition-colors duration-200 hover:border-destructive/20"
                                             >
                                                 <div className="min-w-0">
                                                     <p className="truncate text-sm font-medium text-foreground">

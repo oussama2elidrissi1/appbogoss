@@ -10,58 +10,62 @@ export default {
     theme: {
         extend: {
             colors: {
-                background: '#081423',
-                foreground: '#FFFFFF',
+                background: 'hsl(var(--background) / <alpha-value>)',
+                foreground: 'hsl(var(--foreground) / <alpha-value>)',
 
                 sidebar: {
-                    DEFAULT: '#0D1B2A',
-                    foreground: '#94A3B8',
+                    DEFAULT: 'hsl(var(--sidebar) / <alpha-value>)',
+                    foreground: 'hsl(var(--sidebar-foreground) / <alpha-value>)',
                 },
 
                 card: {
-                    DEFAULT: '#132238',
-                    foreground: '#FFFFFF',
+                    DEFAULT: 'hsl(var(--card) / <alpha-value>)',
+                    foreground: 'hsl(var(--card-foreground) / <alpha-value>)',
                 },
 
                 popover: {
-                    DEFAULT: '#16263F',
-                    foreground: '#FFFFFF',
+                    DEFAULT: 'hsl(var(--popover) / <alpha-value>)',
+                    foreground: 'hsl(var(--popover-foreground) / <alpha-value>)',
                 },
 
                 primary: {
-                    DEFAULT: '#C8A24C',
-                    foreground: '#081423',
+                    DEFAULT: 'hsl(var(--primary) / <alpha-value>)',
+                    foreground: 'hsl(var(--primary-foreground) / <alpha-value>)',
                 },
 
                 secondary: {
-                    DEFAULT: '#1B2E4A',
-                    foreground: '#E2E8F0',
+                    DEFAULT: 'hsl(var(--secondary) / <alpha-value>)',
+                    foreground: 'hsl(var(--secondary-foreground) / <alpha-value>)',
                 },
 
                 muted: {
-                    DEFAULT: '#1B2E4A',
-                    foreground: '#94A3B8',
+                    DEFAULT: 'hsl(var(--muted) / <alpha-value>)',
+                    foreground: 'hsl(var(--muted-foreground) / <alpha-value>)',
                 },
 
                 accent: {
-                    DEFAULT: '#C8A24C',
-                    foreground: '#081423',
-                    muted: 'rgba(200, 162, 76, 0.12)',
+                    DEFAULT: 'hsl(var(--accent) / <alpha-value>)',
+                    foreground: 'hsl(var(--accent-foreground) / <alpha-value>)',
                 },
 
                 destructive: {
-                    DEFAULT: '#E5484D',
-                    foreground: '#FFFFFF',
+                    DEFAULT: 'hsl(var(--destructive) / <alpha-value>)',
+                    foreground: 'hsl(var(--destructive-foreground) / <alpha-value>)',
                 },
 
                 success: {
-                    DEFAULT: '#34D399',
-                    foreground: '#08231A',
+                    DEFAULT: 'hsl(var(--success) / <alpha-value>)',
+                    foreground: 'hsl(var(--success-foreground) / <alpha-value>)',
                 },
 
-                border: '#223449',
-                input: '#223449',
-                ring: '#C8A24C',
+                border: 'hsl(var(--border) / <alpha-value>)',
+                input: 'hsl(var(--input) / <alpha-value>)',
+                ring: 'hsl(var(--ring) / <alpha-value>)',
+
+                /** Theme-relative wash — white in dark mode, near-black in light mode. Use for subtle panels/borders instead of a literal `white`. */
+                tint: 'rgb(var(--tint-rgb) / <alpha-value>)',
+                /** Always-dark scrim for modal/drawer backdrops, regardless of theme. */
+                scrim: 'rgb(var(--scrim-rgb) / <alpha-value>)',
             },
             fontFamily: {
                 sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],

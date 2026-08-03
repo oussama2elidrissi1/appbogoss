@@ -20,6 +20,7 @@ import type {
     Service,
     ServicePayload,
     MonthlyReport,
+    UpdateAdvancePayload,
     WorkDay,
 } from '@/types/workday';
 
@@ -209,6 +210,15 @@ export async function getAdvances(employeeId: number): Promise<AdvancesResponse>
 export async function settleAdvance(id: number): Promise<Advance> {
     const { data } = await api.post<{ data: Advance }>(`/api/advances/${id}/settle`);
     return data.data;
+}
+
+export async function updateAdvance(id: number, payload: UpdateAdvancePayload): Promise<Advance> {
+    const { data } = await api.put<{ data: Advance }>(`/api/advances/${id}`, payload);
+    return data.data;
+}
+
+export async function deleteAdvance(id: number, password: string): Promise<void> {
+    await api.delete(`/api/advances/${id}`, { data: { password } });
 }
 
 export async function createExpense(payload: CreateExpensePayload): Promise<Expense> {

@@ -4,12 +4,14 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreAdvanceRequest;
+use App\Http\Requests\UpdateAdvanceRequest;
 use App\Http\Resources\AdvanceResource;
 use App\Models\Advance;
 use App\Services\WorkDayService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class AdvanceController extends Controller
 {
@@ -55,5 +57,32 @@ class AdvanceController extends Controller
         $advance->load('employee');
 
         return response()->json(['data' => new AdvanceResource($advance)]);
+    }
+
+    public function update(UpdateAdvanceRequest $request, Advance $advance): JsonResponse
+    {
+        $advance->update($request->validated());
+        $advance->load('employee');
+
+        return response()->json(['data' => new AdvanceResource($advance)]);
+    }
+
+    public function destroy(Request $request, Advance $advance): JsonResponse
+    {
+        $validated = $request->validate([
+            'password' => ['required', 'string'],
+        ]);
+
+        $expected = (string) config('services.patron_password');
+
+        if ($expected === '' || ! hash_equals($expected, $validated['password'])) {
+            throw ValidationException::withMessages([
+                'password' => 'Mot de passe patron incorrect.',
+            ]);
+        }
+
+        $advance->delete();
+
+        return response()->json(status: 204);
     }
 }

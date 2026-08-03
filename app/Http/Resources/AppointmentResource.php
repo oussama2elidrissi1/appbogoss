@@ -20,7 +20,7 @@ class AppointmentResource extends JsonResource
             'employee_id' => $this->employee_id,
         ]]);
         $serviceModels = Service::query()->whereIn('id', $items->pluck('service_id')->unique())->get()->keyBy('id');
-        $employeeModels = Employee::query()->whereIn('id', $items->pluck('employee_id')->unique())->get()->keyBy('id');
+        $employeeModels = Employee::query()->whereIn('id', $items->pluck('employee_id')->filter()->unique())->get()->keyBy('id');
         $clientIds = collect($this->client_ids ?: [$this->client_id])->filter()->unique()->values();
         $clientModels = Client::query()->whereIn('id', $clientIds)->get()->keyBy('id');
 
@@ -40,9 +40,10 @@ class AppointmentResource extends JsonResource
             'status' => $this->status,
             'notes' => $this->notes,
             'duration_minutes' => $this->starts_at && $this->ends_at ? $this->starts_at->diffInMinutes($this->ends_at) : 0,
+            'duration_override_minutes' => $this->duration_override_minutes,
             'reservation_items' => $items->map(fn (array $item) => [
                 'service_id' => (int) $item['service_id'],
-                'employee_id' => (int) $item['employee_id'],
+                'employee_id' => $item['employee_id'] !== null ? (int) $item['employee_id'] : null,
                 'service' => $serviceModels->get($item['service_id']) ? [
                     'id' => $serviceModels[$item['service_id']]->id,
                     'name' => $serviceModels[$item['service_id']]->name,

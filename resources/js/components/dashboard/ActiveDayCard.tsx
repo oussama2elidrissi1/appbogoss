@@ -19,7 +19,7 @@ function Figure({
     tone?: 'default' | 'accent' | 'success' | 'destructive';
 }) {
     return (
-        <div className="rounded-md border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
+        <div className="rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3.5 py-3">
             <span className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 <Icon className="h-3.5 w-3.5" />
                 {label}

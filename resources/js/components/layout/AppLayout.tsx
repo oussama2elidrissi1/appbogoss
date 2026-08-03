@@ -63,7 +63,7 @@ export function AppLayout() {
                                 exit={{ opacity: 0 }}
                                 transition={{ duration: 0.2 }}
                                 onClick={() => setMobileNavOpen(false)}
-                                className="fixed inset-0 z-40 bg-[#040A12]/70 backdrop-blur-sm lg:hidden"
+                                className="fixed inset-0 z-40 bg-scrim/70 backdrop-blur-sm lg:hidden"
                             />
                             <motion.div
                                 key="drawer"

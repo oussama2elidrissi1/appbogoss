@@ -60,7 +60,7 @@ export function LowStockCard({ products }: { products: LowStockProduct[] }) {
                                     </div>
 
                                     <div
-                                        className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]"
+                                        className="h-1.5 w-full overflow-hidden rounded-full bg-tint/[0.06]"
                                         role="progressbar"
                                         aria-valuenow={product.stock_quantity}
                                         aria-valuemin={0}

@@ -217,6 +217,13 @@ export interface CreateAdvancePayload {
     work_day_id?: number;
 }
 
+export interface UpdateAdvancePayload {
+    amount?: number;
+    reason?: string | null;
+    /** 'YYYY-MM-DD' */
+    given_on?: string;
+}
+
 /**
  * `GET /api/advances` is the one endpoint carrying a sibling field next to `data`,
  * so this envelope is returned whole rather than unwrapped.
@@ -338,13 +345,14 @@ export interface Appointment {
     client_id: number;
     client_ids?: number[];
     clients?: Array<{ id: number; name: string; phone: string | null }>;
-    employee_id: number;
+    employee_id: number | null;
     service_id: number;
     starts_at: string;
     ends_at: string;
     status: AppointmentStatus;
     notes: string | null;
     duration_minutes?: number;
+    duration_override_minutes?: number | null;
     reservation_items?: ReservationItem[];
     services?: Array<{
         id: number;
@@ -369,7 +377,7 @@ export interface Appointment {
 
 export interface ReservationItem {
     service_id: number;
-    employee_id: number;
+    employee_id: number | null;
     service: {
         id: number;
         name: string;
@@ -383,10 +391,12 @@ export interface ReservationItem {
 export interface AppointmentPayload {
     client_id?: number;
     client_ids?: number[];
-    employee_id?: number;
+    employee_id?: number | null;
     service_id?: number;
     starts_at?: string;
     status?: AppointmentStatus;
     notes?: string | null;
-    items?: Array<{ service_id: number; employee_id: number }>;
+    items?: Array<{ service_id: number; employee_id: number | null }>;
+    /** Manual length override in minutes, set by dragging an event's edge on the calendar. */
+    duration_override_minutes?: number | null;
 }

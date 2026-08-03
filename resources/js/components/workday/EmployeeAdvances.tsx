@@ -1,16 +1,24 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { AlertCircle, Check, HandCoins, Loader2 } from 'lucide-react';
-import { createAdvance, getAdvances, getErrorMessage, settleAdvance } from '@/lib/api';
+import { AlertCircle, Check, HandCoins, Loader2, Pencil, Trash2, X } from 'lucide-react';
+import {
+    createAdvance,
+    deleteAdvance,
+    getAdvances,
+    getErrorMessage,
+    settleAdvance,
+    updateAdvance,
+} from '@/lib/api';
 import { workDayKeys } from '@/hooks/useWorkDay';
-import { formatCurrency } from '@/lib/utils';
-import type { Employee } from '@/types/workday';
+import { cn, formatCurrency } from '@/lib/utils';
+import type { Advance, Employee } from '@/types/workday';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PatronPasswordDialog } from '@/components/workday/PatronPasswordDialog';
 
 interface EmployeeAdvancesProps {
     employee: Employee;
@@ -28,6 +36,10 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
     const [amount, setAmount] = useState('');
     const [reason, setReason] = useState('');
     const [givenOn, setGivenOn] = useState(today());
+    const [editingAdvance, setEditingAdvance] = useState<Advance | null>(null);
+    const [editForm, setEditForm] = useState({ amount: '', reason: '', given_on: '' });
+    const [deletingAdvance, setDeletingAdvance] = useState<Advance | null>(null);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
 
     const { data, isPending } = useQuery({
         queryKey: workDayKeys.advances(employee.id),
@@ -54,6 +66,25 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
         onSuccess: invalidate,
     });
 
+    const updateMutation = useMutation({
+        mutationFn: ({ id, payload }: { id: number; payload: Parameters<typeof updateAdvance>[1] }) =>
+            updateAdvance(id, payload),
+        onSuccess: () => {
+            invalidate();
+            setEditingAdvance(null);
+        },
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: ({ id, password }: { id: number; password: string }) => deleteAdvance(id, password),
+        onSuccess: () => {
+            invalidate();
+            setDeletingAdvance(null);
+            setDeleteError(null);
+        },
+        onError: (mutationError) => setDeleteError(getErrorMessage(mutationError)),
+    });
+
     const amountValue = Number.parseFloat(amount.replace(',', '.'));
     const canSubmit = Number.isFinite(amountValue) && amountValue > 0 && givenOn.length > 0;
 
@@ -65,6 +96,29 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
             given_on: givenOn,
             ...(reason.trim() ? { reason: reason.trim() } : {}),
             ...(workDayId ? { work_day_id: workDayId } : {}),
+        });
+    }
+
+    function startEdit(advance: Advance) {
+        setEditingAdvance(advance);
+        setEditForm({
+            amount: String(advance.amount),
+            reason: advance.reason ?? '',
+            given_on: advance.given_on,
+        });
+    }
+
+    function submitEdit() {
+        if (!editingAdvance) return;
+        const nextAmount = Number.parseFloat(editForm.amount.replace(',', '.'));
+        if (!Number.isFinite(nextAmount) || nextAmount <= 0) return;
+        updateMutation.mutate({
+            id: editingAdvance.id,
+            payload: {
+                amount: nextAmount,
+                reason: editForm.reason.trim() || null,
+                given_on: editForm.given_on,
+            },
         });
     }
 
@@ -101,48 +155,140 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
                     ))}
                 </div>
             ) : advances.length === 0 ? (
-                <p className="mt-3 rounded-md border border-dashed border-white/[0.08] px-3 py-3 text-center text-xs text-muted-foreground">
+                <p className="mt-3 rounded-md border border-dashed border-tint/[0.08] px-3 py-3 text-center text-xs text-muted-foreground">
                     Aucune avance enregistrée.
                 </p>
             ) : (
-                <ul className="mt-3 max-h-44 space-y-1.5 overflow-y-auto pr-0.5">
-                    {advances.map((advance) => (
-                        <li
-                            key={advance.id}
-                            className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2"
-                        >
-                            <div className="min-w-0">
-                                <p className="text-sm font-medium tabular-nums text-foreground">
-                                    {formatCurrency(advance.amount, { maximumFractionDigits: 2 })}
-                                </p>
-                                <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                                    {advance.given_on}
-                                    {advance.reason ? ` · ${advance.reason}` : ''}
-                                </p>
-                            </div>
+                <ul className="mt-3 max-h-56 space-y-1.5 overflow-y-auto pr-0.5">
+                    {advances.map((advance) => {
+                        const isEditing = editingAdvance?.id === advance.id;
 
-                            {advance.settled_at ? (
-                                <span className="inline-flex shrink-0 items-center gap-1 text-xs text-success">
-                                    <Check className="h-3.5 w-3.5" />
-                                    Réglée
-                                </span>
-                            ) : (
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="shrink-0"
-                                    disabled={settleMutation.isPending}
-                                    onClick={() => settleMutation.mutate(advance.id)}
+                        if (isEditing) {
+                            return (
+                                <li
+                                    key={advance.id}
+                                    className="space-y-2 rounded-md border border-accent/25 bg-accent/[0.05] px-3 py-2.5"
                                 >
-                                    Solder
-                                </Button>
-                            )}
-                        </li>
-                    ))}
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            inputMode="decimal"
+                                            value={editForm.amount}
+                                            onChange={(event) =>
+                                                setEditForm((current) => ({ ...current, amount: event.target.value }))
+                                            }
+                                            className="h-8 tabular-nums"
+                                        />
+                                        <Input
+                                            type="date"
+                                            value={editForm.given_on}
+                                            onChange={(event) =>
+                                                setEditForm((current) => ({ ...current, given_on: event.target.value }))
+                                            }
+                                            className="h-8"
+                                        />
+                                    </div>
+                                    <Input
+                                        value={editForm.reason}
+                                        onChange={(event) =>
+                                            setEditForm((current) => ({ ...current, reason: event.target.value }))
+                                        }
+                                        placeholder="Motif (optionnel)"
+                                        className="h-8"
+                                    />
+                                    <div className="flex items-center justify-end gap-1.5">
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setEditingAdvance(null)}
+                                            disabled={updateMutation.isPending}
+                                        >
+                                            <X className="h-3.5 w-3.5" />
+                                            Annuler
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="accent"
+                                            size="sm"
+                                            onClick={submitEdit}
+                                            disabled={updateMutation.isPending}
+                                        >
+                                            {updateMutation.isPending && <Loader2 className="animate-spin" />}
+                                            Enregistrer
+                                        </Button>
+                                    </div>
+                                    {updateMutation.isError && (
+                                        <p className="text-xs text-destructive">{getErrorMessage(updateMutation.error)}</p>
+                                    )}
+                                </li>
+                            );
+                        }
+
+                        return (
+                            <li
+                                key={advance.id}
+                                className="flex items-center justify-between gap-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3 py-2"
+                            >
+                                <div className="min-w-0">
+                                    <p className="text-sm font-medium tabular-nums text-foreground">
+                                        {formatCurrency(advance.amount, { maximumFractionDigits: 2 })}
+                                    </p>
+                                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                                        {advance.given_on}
+                                        {advance.reason ? ` · ${advance.reason}` : ''}
+                                    </p>
+                                </div>
+
+                                <div className="flex shrink-0 items-center gap-1">
+                                    {advance.settled_at ? (
+                                        <span className="inline-flex items-center gap-1 text-xs text-success">
+                                            <Check className="h-3.5 w-3.5" />
+                                            Réglée
+                                        </span>
+                                    ) : (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            disabled={settleMutation.isPending}
+                                            onClick={() => settleMutation.mutate(advance.id)}
+                                        >
+                                            Solder
+                                        </Button>
+                                    )}
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        aria-label="Modifier l'avance"
+                                        onClick={() => startEdit(advance)}
+                                    >
+                                        <Pencil className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8"
+                                        aria-label="Supprimer l'avance"
+                                        onClick={() => {
+                                            setDeleteError(null);
+                                            setDeletingAdvance(advance);
+                                        }}
+                                    >
+                                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                    </Button>
+                                </div>
+                            </li>
+                        );
+                    })}
                 </ul>
             )}
 
-            <div className="mt-4 space-y-3 rounded-md border border-white/[0.06] bg-white/[0.02] p-3.5">
+            <div className="mt-4 space-y-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] p-3.5">
                 <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
                     Donner une avance
                 </p>
@@ -203,7 +349,7 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
                 <Button
                     variant="accent"
                     size="sm"
-                    className="w-full"
+                    className={cn('w-full')}
                     disabled={!canSubmit || createMutation.isPending}
                     onClick={submit}
                 >
@@ -211,6 +357,28 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
                     Enregistrer l’avance
                 </Button>
             </div>
+
+            <PatronPasswordDialog
+                open={deletingAdvance !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setDeletingAdvance(null);
+                        setDeleteError(null);
+                    }
+                }}
+                title="Supprimer cette avance ?"
+                description={
+                    deletingAdvance
+                        ? `L'avance de ${formatCurrency(deletingAdvance.amount, { maximumFractionDigits: 2 })} du ${deletingAdvance.given_on} sera définitivement supprimée. Cette action nécessite le mot de passe patron.`
+                        : undefined
+                }
+                loading={deleteMutation.isPending}
+                error={deleteError}
+                onConfirm={(password) => {
+                    if (!deletingAdvance) return;
+                    deleteMutation.mutate({ id: deletingAdvance.id, password });
+                }}
+            />
         </motion.div>
     );
 }

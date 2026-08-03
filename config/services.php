@@ -31,4 +31,17 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Patron action password
+    |--------------------------------------------------------------------------
+    |
+    | Required to confirm irreversible actions initiated by staff, such as
+    | deleting a salary advance entered by mistake. Verified server-side
+    | with hash_equals() — never trust a client-side check alone.
+    |
+    */
+
+    'patron_password' => env('PATRON_ACTION_PASSWORD'),
+
 ];

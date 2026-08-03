@@ -39,6 +39,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -152,6 +153,8 @@ export default function Services() {
     const [serviceForm, setServiceForm] = useState<ServiceFormState>(emptyServiceForm);
     const [productForm, setProductForm] = useState<ProductFormState>(emptyProductForm);
     const [formError, setFormError] = useState<string | null>(null);
+    const [deletingService, setDeletingService] = useState<Service | null>(null);
+    const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
 
     const serviceQuery = useQuery({
         queryKey: [...workDayKeys.services('admin'), serviceCategory, serviceSearch],
@@ -349,11 +352,21 @@ export default function Services() {
     }
 
     function handleDeleteService(service: Service) {
-        if (window.confirm(`Supprimer ${service.name} ?`)) deleteServiceMutation.mutate(service.id);
+        setDeletingService(service);
+    }
+
+    function confirmDeleteService() {
+        if (!deletingService) return;
+        deleteServiceMutation.mutate(deletingService.id, { onSuccess: () => setDeletingService(null) });
     }
 
     function handleDeleteProduct(product: Product) {
-        if (window.confirm(`Supprimer ${product.name} ?`)) deleteProductMutation.mutate(product.id);
+        setDeletingProduct(product);
+    }
+
+    function confirmDeleteProduct() {
+        if (!deletingProduct) return;
+        deleteProductMutation.mutate(deletingProduct.id, { onSuccess: () => setDeletingProduct(null) });
     }
 
     const serviceSaving = createServiceMutation.isPending || updateServiceMutation.isPending;
@@ -411,7 +424,7 @@ export default function Services() {
                             'inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition-all duration-200',
                             mode === 'services'
                                 ? 'border-accent/50 bg-accent/[0.12] text-accent'
-                                : 'border-white/[0.08] bg-white/[0.03] text-muted-foreground hover:border-accent/30 hover:text-foreground',
+                                : 'border-tint/[0.08] bg-tint/[0.03] text-muted-foreground hover:border-accent/30 hover:text-foreground',
                         )}
                     >
                         <Sparkles className="h-4 w-4" />
@@ -424,7 +437,7 @@ export default function Services() {
                             'inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition-all duration-200',
                             mode === 'products'
                                 ? 'border-accent/50 bg-accent/[0.12] text-accent'
-                                : 'border-white/[0.08] bg-white/[0.03] text-muted-foreground hover:border-accent/30 hover:text-foreground',
+                                : 'border-tint/[0.08] bg-tint/[0.03] text-muted-foreground hover:border-accent/30 hover:text-foreground',
                         )}
                     >
                         <Package className="h-4 w-4" />
@@ -448,7 +461,7 @@ export default function Services() {
                                             'inline-flex h-10 items-center gap-2 rounded-md border px-4 text-sm font-medium transition-all duration-200',
                                             selected
                                                 ? 'border-accent/50 bg-accent/[0.12] text-accent'
-                                                : 'border-white/[0.08] bg-white/[0.03] text-muted-foreground hover:border-accent/30 hover:text-foreground',
+                                                : 'border-tint/[0.08] bg-tint/[0.03] text-muted-foreground hover:border-accent/30 hover:text-foreground',
                                         )}
                                     >
                                         <Icon className="h-4 w-4" />
@@ -692,6 +705,26 @@ export default function Services() {
                 onClose={closeProductDialog}
                 onSubmit={submitProduct}
             />
+
+            <ConfirmDialog
+                open={deletingService !== null}
+                onOpenChange={(open) => { if (!open) setDeletingService(null); }}
+                title="Supprimer cette prestation ?"
+                description={deletingService ? `${deletingService.name} sera définitivement supprimée.` : undefined}
+                confirmLabel="Supprimer"
+                loading={deleteServiceMutation.isPending}
+                onConfirm={confirmDeleteService}
+            />
+
+            <ConfirmDialog
+                open={deletingProduct !== null}
+                onOpenChange={(open) => { if (!open) setDeletingProduct(null); }}
+                title="Supprimer cet article ?"
+                description={deletingProduct ? `${deletingProduct.name} sera définitivement supprimé du catalogue.` : undefined}
+                confirmLabel="Supprimer"
+                loading={deleteProductMutation.isPending}
+                onConfirm={confirmDeleteProduct}
+            />
         </>
     );
 }
@@ -828,7 +861,7 @@ function ServiceDialog({
                                             'flex h-11 items-center justify-center gap-2 rounded-md border text-sm font-medium transition-all duration-200',
                                             selected
                                                 ? 'border-accent/50 bg-accent/[0.12] text-accent'
-                                                : 'border-white/[0.08] bg-white/[0.03] text-muted-foreground hover:border-accent/30 hover:text-foreground',
+                                                : 'border-tint/[0.08] bg-tint/[0.03] text-muted-foreground hover:border-accent/30 hover:text-foreground',
                                         )}
                                     >
                                         <Icon className="h-4 w-4" />
@@ -882,7 +915,7 @@ function ServiceDialog({
                         </div>
                     </div>
 
-                    <label className="flex items-center gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3.5 py-3">
+                    <label className="flex items-center gap-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3.5 py-3">
                         <input
                             type="checkbox"
                             checked={form.is_active}
@@ -892,7 +925,7 @@ function ServiceDialog({
                                     is_active: event.target.checked,
                                 }))
                             }
-                            className="h-4 w-4 accent-[#C8A24C]"
+                            className="h-4 w-4 accent-accent"
                         />
                         <span className="text-sm font-medium text-foreground">Service actif</span>
                     </label>
@@ -984,7 +1017,7 @@ function ProductDialog({
                                         stock_area: event.target.value as ProductFormState['stock_area'],
                                     }))
                                 }
-                                className="flex h-10 w-full rounded-md border border-input bg-white/[0.03] px-3 text-sm text-foreground outline-none focus:border-accent/60"
+                                className="flex h-10 w-full rounded-md border border-input bg-tint/[0.03] px-3 text-sm text-foreground outline-none focus:border-accent/60"
                             >
                                 <option value="vitrine">Vitrine</option>
                                 <option value="refrigerateur">Réfrigérateur</option>

@@ -40,7 +40,7 @@ function Step({
 }) {
     return (
         <section className="relative pl-9">
-            <span className="absolute left-0 top-0 flex h-6 w-6 items-center justify-center rounded-full bg-white/[0.05] text-[11px] font-semibold text-muted-foreground ring-1 ring-white/[0.07]">
+            <span className="absolute left-0 top-0 flex h-6 w-6 items-center justify-center rounded-full bg-tint/[0.05] text-[11px] font-semibold text-muted-foreground ring-1 ring-tint/[0.07]">
                 {index}
             </span>
             <div className="flex items-baseline justify-between gap-3">
@@ -391,7 +391,7 @@ export function QuickCheckout({
                     hint={category ? undefined : 'Choisissez une catégorie'}
                 >
                     {!category ? (
-                        <div className="rounded-md border border-dashed border-white/[0.08] px-4 py-6 text-center text-xs text-muted-foreground">
+                        <div className="rounded-md border border-dashed border-tint/[0.08] px-4 py-6 text-center text-xs text-muted-foreground">
                             Sélectionnez d’abord une catégorie.
                         </div>
                     ) : usesCatalog ? (
@@ -422,7 +422,7 @@ export function QuickCheckout({
                                     <span>{getErrorMessage(catalogError)}</span>
                                 </div>
                             ) : filteredServices.length === 0 ? (
-                                <div className="rounded-md border border-dashed border-white/[0.08] px-4 py-5 text-center text-xs text-muted-foreground">
+                                <div className="rounded-md border border-dashed border-tint/[0.08] px-4 py-5 text-center text-xs text-muted-foreground">
                                     Aucun élément au catalogue — saisissez le libellé et le prix
                                     manuellement ci-dessous.
                                 </div>
@@ -440,7 +440,7 @@ export function QuickCheckout({
                                                 'transition-all duration-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45',
                                                 serviceId === service.id
                                                     ? 'border-accent/60 bg-accent/[0.12]'
-                                                    : 'border-white/[0.08] bg-white/[0.03] hover:border-accent/30 hover:bg-white/[0.06]',
+                                                    : 'border-tint/[0.08] bg-tint/[0.03] hover:border-accent/30 hover:bg-tint/[0.06]',
                                             )}
                                         >
                                             <span className="min-w-0">

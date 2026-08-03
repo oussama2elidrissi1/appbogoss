@@ -57,6 +57,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/advances/{advance}/settle', [AdvanceController::class, 'settle']);
     Route::get('/advances', [AdvanceController::class, 'index']);
     Route::post('/advances', [AdvanceController::class, 'store']);
+    Route::put('/advances/{advance}', [AdvanceController::class, 'update']);
+    Route::delete('/advances/{advance}', [AdvanceController::class, 'destroy']);
 
     Route::get('/expenses', [ExpenseController::class, 'index']);
     Route::post('/expenses', [ExpenseController::class, 'store']);

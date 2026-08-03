@@ -12,7 +12,7 @@ const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
 /** Shared interactive-row styling — hover/focus stays neutral so gold reads as accent, not chrome. */
 const itemBase =
-    'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors duration-150 text-muted-foreground focus:bg-white/[0.06] focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0';
+    'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors duration-150 text-muted-foreground focus:bg-tint/[0.06] focus:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0';
 
 const DropdownMenuSubTrigger = React.forwardRef<
     React.ElementRef<typeof DropdownMenuPrimitive.SubTrigger>,
@@ -22,7 +22,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
 >(({ className, inset, children, ...props }, ref) => (
     <DropdownMenuPrimitive.SubTrigger
         ref={ref}
-        className={cn(itemBase, 'data-[state=open]:bg-white/[0.06]', inset && 'pl-8', className)}
+        className={cn(itemBase, 'data-[state=open]:bg-tint/[0.06]', inset && 'pl-8', className)}
         {...props}
     >
         {children}
@@ -38,7 +38,7 @@ const DropdownMenuSubContent = React.forwardRef<
     <DropdownMenuPrimitive.SubContent
         ref={ref}
         className={cn(
-            'z-50 min-w-[8rem] overflow-hidden rounded-md border border-white/[0.08] bg-popover p-1 text-popover-foreground shadow-soft-lg',
+            'z-50 min-w-[8rem] overflow-hidden rounded-md border border-tint/[0.08] bg-popover p-1 text-popover-foreground shadow-soft-lg',
             'animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
             className,
         )}
@@ -56,7 +56,7 @@ const DropdownMenuContent = React.forwardRef<
             ref={ref}
             sideOffset={sideOffset}
             className={cn(
-                'z-50 min-w-[10rem] overflow-hidden rounded-md border border-white/[0.08] bg-popover p-1 text-popover-foreground shadow-soft-lg',
+                'z-50 min-w-[10rem] overflow-hidden rounded-md border border-tint/[0.08] bg-popover p-1 text-popover-foreground shadow-soft-lg',
                 'animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
                 'data-[side=bottom]:slide-in-from-top-1 data-[side=top]:slide-in-from-bottom-1',
                 className,
@@ -143,7 +143,7 @@ const DropdownMenuSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
     <DropdownMenuPrimitive.Separator
         ref={ref}
-        className={cn('-mx-1 my-1 h-px bg-white/[0.07]', className)}
+        className={cn('-mx-1 my-1 h-px bg-tint/[0.07]', className)}
         {...props}
     />
 ));

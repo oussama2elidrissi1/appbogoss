@@ -32,7 +32,7 @@ export function Sidebar({ collapsed, onToggle, variant = 'desktop', onNavigate }
             initial={false}
             animate={{ width: isMobile ? SIDEBAR_WIDTH : isCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH }}
             transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
-            className="relative flex h-full shrink-0 flex-col border-r border-white/[0.06] bg-sidebar"
+            className="relative flex h-full shrink-0 flex-col border-r border-tint/[0.06] bg-sidebar"
         >
             {/* Brand */}
             <div
@@ -100,14 +100,14 @@ export function Sidebar({ collapsed, onToggle, variant = 'desktop', onNavigate }
             </nav>
 
             {/* User + logout */}
-            <div className="border-t border-white/[0.06] p-3">
+            <div className="border-t border-tint/[0.06] p-3">
                 <div
                     className={cn(
                         'flex items-center gap-3 rounded-md px-2 py-2',
                         isCollapsed && 'justify-center px-0',
                     )}
                 >
-                    <Avatar className="h-9 w-9 ring-1 ring-white/10">
+                    <Avatar className="h-9 w-9 ring-1 ring-tint/10">
                         <AvatarFallback>{user ? getInitials(user.name) : '--'}</AvatarFallback>
                     </Avatar>
 
@@ -172,7 +172,7 @@ export function Sidebar({ collapsed, onToggle, variant = 'desktop', onNavigate }
                     aria-label={isCollapsed ? 'Déplier le menu' : 'Replier le menu'}
                     className={cn(
                         'absolute -right-3 top-[72px] z-20 flex h-6 w-6 items-center justify-center rounded-full',
-                        'border border-white/10 bg-card text-muted-foreground shadow-soft',
+                        'border border-tint/10 bg-card text-muted-foreground shadow-soft',
                         'transition-all duration-200 hover:border-accent/40 hover:text-accent',
                     )}
                 >
@@ -210,7 +210,7 @@ function SidebarLink({
                 collapsed ? 'justify-center px-0' : 'px-3',
                 active
                     ? 'bg-accent/[0.10] text-foreground'
-                    : 'text-muted-foreground hover:bg-white/[0.04] hover:text-foreground',
+                    : 'text-muted-foreground hover:bg-tint/[0.04] hover:text-foreground',
             )}
         >
             {/* Active rail */}

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Printer, ReceiptText, Trash2 } from 'lucide-react';
@@ -9,6 +10,7 @@ import type { Sale } from '@/types/workday';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { getCategory } from './categories';
@@ -35,6 +37,7 @@ function clientName(sale: Sale): string {
 /** The running list of the day's encaissements, newest first. */
 export function DayLedger({ workDayId }: DayLedgerProps) {
     const queryClient = useQueryClient();
+    const [deletingSale, setDeletingSale] = useState<Sale | null>(null);
     const { data: sales, isPending } = useQuery({
         queryKey: workDayKeys.transactions(workDayId),
         queryFn: () => getTransactions(workDayId),
@@ -96,9 +99,12 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
     ).sort((left, right) => right.total - left.total || left.name.localeCompare(right.name, 'fr'));
 
     function handleDelete(sale: Sale) {
-        const label = sale.items[0]?.label ?? `ticket #${sale.id}`;
-        const confirmed = window.confirm(`Supprimer le ticket "${label}" ?`);
-        if (confirmed) deleteMutation.mutate(sale.id);
+        setDeletingSale(sale);
+    }
+
+    function confirmDelete() {
+        if (!deletingSale) return;
+        deleteMutation.mutate(deletingSale.id, { onSuccess: () => setDeletingSale(null) });
     }
 
     function handleReprint(sale: Sale) {
@@ -107,6 +113,7 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
     }
 
     return (
+        <>
         <Card className="flex h-full flex-col">
             <CardHeader>
                 <div className="flex items-baseline justify-between gap-3">
@@ -163,7 +170,7 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
                                     {salesByEmployee.map((employee) => (
                                         <div
                                             key={employee.id}
-                                            className="flex items-center gap-3 rounded-md border border-white/[0.06] bg-white/[0.025] px-3 py-2.5"
+                                            className="flex items-center gap-3 rounded-md border border-tint/[0.06] bg-tint/[0.025] px-3 py-2.5"
                                         >
                                             <EmployeeAvatar
                                                 name={employee.name}
@@ -210,8 +217,8 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
                                                 ease: [0.4, 0, 0.2, 1],
                                             }}
                                             className={cn(
-                                                'flex items-center gap-3 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2.5',
-                                                'transition-colors duration-200 hover:border-accent/20 hover:bg-white/[0.04]',
+                                                'flex items-center gap-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3 py-2.5',
+                                                'transition-colors duration-200 hover:border-accent/20 hover:bg-tint/[0.04]',
                                                 deleted &&
                                                     'border-destructive/20 bg-destructive/[0.06] opacity-80 hover:border-destructive/30',
                                             )}
@@ -329,5 +336,20 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
                 )}
             </CardContent>
         </Card>
+
+        <ConfirmDialog
+            open={deletingSale !== null}
+            onOpenChange={(open) => { if (!open) setDeletingSale(null); }}
+            title="Supprimer ce ticket ?"
+            description={
+                deletingSale
+                    ? `Le ticket "${deletingSale.items[0]?.label ?? `#${deletingSale.id}`}" sera annulé et retiré du chiffre d'affaires du jour.`
+                    : undefined
+            }
+            confirmLabel="Supprimer"
+            loading={deleteMutation.isPending}
+            onConfirm={confirmDelete}
+        />
+        </>
     );
 }

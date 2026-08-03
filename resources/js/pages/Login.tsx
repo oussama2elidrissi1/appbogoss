@@ -54,7 +54,7 @@ export default function Login() {
     return (
         <div className="grain relative flex min-h-screen bg-background">
             {/* Left — brand panel */}
-            <div className="aurora relative hidden w-1/2 flex-col justify-between overflow-hidden border-r border-white/[0.06] p-12 lg:flex xl:p-16">
+            <div className="aurora relative hidden w-1/2 flex-col justify-between overflow-hidden border-r border-tint/[0.06] p-12 lg:flex xl:p-16">
                 <motion.div
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -226,7 +226,7 @@ export default function Login() {
                         </Button>
                     </form>
 
-                    <div className="mt-8 rounded-md border border-white/[0.06] bg-white/[0.02] px-4 py-3">
+                    <div className="mt-8 rounded-md border border-tint/[0.06] bg-tint/[0.02] px-4 py-3">
                         <p className="text-xs leading-relaxed text-muted-foreground">
                             <span className="font-medium text-foreground">Démo :</span>{' '}
                             admin@bogosland.com / password
