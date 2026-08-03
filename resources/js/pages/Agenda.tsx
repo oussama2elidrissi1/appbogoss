@@ -19,11 +19,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { AgendaCalendar } from '@/components/agenda/AgendaCalendar';
 import { ReservationDialog } from '@/components/agenda/ReservationDialog';
+import { ReservationDetailsDialog } from '@/components/agenda/ReservationDetailsDialog';
 import { itemsOf, UNASSIGNED_RESOURCE_ID, type AgendaEvent } from '@/components/agenda/agendaEvents';
 
 interface DialogState {
     open: boolean;
-    mode: 'create' | 'edit';
+    mode: 'create' | 'edit' | 'view';
     appointment: Appointment | null;
     initialStart: Date | null;
     initialResourceId: number | typeof UNASSIGNED_RESOURCE_ID | null;
@@ -96,8 +97,12 @@ export default function Agenda() {
         setDialog({ open: true, mode: 'create', appointment: null, initialStart: start, initialResourceId: resourceId });
     }
 
-    function openEditDialog(appointment: Appointment) {
-        setDialog({ open: true, mode: 'edit', appointment, initialStart: null, initialResourceId: null });
+    function openViewDialog(appointment: Appointment) {
+        setDialog({ open: true, mode: 'view', appointment, initialStart: null, initialResourceId: null });
+    }
+
+    function switchToEdit() {
+        setDialog((current) => ({ ...current, mode: 'edit' }));
     }
 
     function handleEventDrop({ event, start, resourceId }: EventInteractionArgs<AgendaEvent>) {
@@ -168,17 +173,24 @@ export default function Agenda() {
                         onViewChange={setView}
                         onDateChange={setDate}
                         onSelectSlot={(start, _end, resourceId) => openCreateDialog(start, resourceId)}
-                        onSelectEvent={openEditDialog}
+                        onSelectEvent={openViewDialog}
                         onEventDrop={handleEventDrop}
                         onEventResize={handleEventResize}
                     />
                 </CardContent>
             </Card>
 
-            <ReservationDialog
-                open={dialog.open}
+            <ReservationDetailsDialog
+                open={dialog.open && dialog.mode === 'view'}
                 onOpenChange={(open) => setDialog((current) => ({ ...current, open }))}
-                mode={dialog.mode}
+                appointment={dialog.appointment}
+                onEdit={switchToEdit}
+            />
+
+            <ReservationDialog
+                open={dialog.open && dialog.mode !== 'view'}
+                onOpenChange={(open) => setDialog((current) => ({ ...current, open }))}
+                mode={dialog.mode === 'view' ? 'edit' : dialog.mode}
                 appointment={dialog.appointment}
                 initialStart={dialog.initialStart}
                 initialResourceId={dialog.initialResourceId}

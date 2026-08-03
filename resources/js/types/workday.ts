@@ -222,6 +222,8 @@ export interface UpdateAdvancePayload {
     reason?: string | null;
     /** 'YYYY-MM-DD' */
     given_on?: string;
+    /** Patron-only password — required server-side to correct an advance. */
+    password: string;
 }
 
 /**
@@ -231,6 +233,35 @@ export interface UpdateAdvancePayload {
 export interface AdvancesResponse {
     data: Advance[];
     outstanding_total: number;
+}
+
+export interface AdvancesReportEmployeeGroup {
+    employee_id: number;
+    employee_name: string;
+    count: number;
+    total: number;
+    settled_total: number;
+    outstanding_total: number;
+}
+
+export interface AdvancesReportDetail {
+    id: number;
+    employee_id: number;
+    employee_name: string;
+    amount: number;
+    reason: string | null;
+    /** 'YYYY-MM-DD' */
+    given_on: string;
+    settled_at: string | null;
+}
+
+export interface AdvancesReport {
+    period: { from: string; to: string };
+    total: number;
+    settled_total: number;
+    outstanding_total: number;
+    by_employee: AdvancesReportEmployeeGroup[];
+    details: AdvancesReportDetail[];
 }
 
 export interface Expense {

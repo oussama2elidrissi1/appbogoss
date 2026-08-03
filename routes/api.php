@@ -34,6 +34,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::get('/dashboard', [DashboardController::class, 'index']);
     Route::get('/reports/monthly', [ReportController::class, 'monthly']);
+    Route::get('/reports/advances', [ReportController::class, 'advances']);
     Route::get('/settings', [SettingsController::class, 'show']);
     Route::match(['post', 'put'], '/settings', [SettingsController::class, 'update']);
     Route::delete('/settings/logo', [SettingsController::class, 'removeLogo']);

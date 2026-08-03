@@ -149,24 +149,30 @@ export function ReservationDialog({
         return categoryServices.filter((service) => service.name.toLowerCase().includes(term));
     }, [services, serviceCategory.value, serviceSearch]);
 
-    function toggleService(service: Service) {
+    /** Cart-style: every click adds a new line, even for a service already in the cart. */
+    function addService(service: Service) {
         setPayload((current) => {
-            const currentItems = current.items ?? [];
-            const exists = currentItems.some((item) => item.service_id === service.id);
             const preferredEmployee =
                 initialResourceId && initialResourceId !== UNASSIGNED_RESOURCE_ID ? initialResourceId : null;
-            const items = exists
-                ? currentItems.filter((item) => item.service_id !== service.id)
-                : [...currentItems, { service_id: service.id, employee_id: preferredEmployee }];
-            return { ...current, items };
+            return {
+                ...current,
+                items: [...(current.items ?? []), { service_id: service.id, employee_id: preferredEmployee }],
+            };
         });
     }
 
-    function assignEmployee(serviceId: number, employeeId: number | null) {
+    function removeItemAt(index: number) {
         setPayload((current) => ({
             ...current,
-            items: (current.items ?? []).map((item) =>
-                item.service_id === serviceId ? { ...item, employee_id: employeeId } : item,
+            items: (current.items ?? []).filter((_, itemIndex) => itemIndex !== index),
+        }));
+    }
+
+    function assignEmployeeAt(index: number, employeeId: number | null) {
+        setPayload((current) => ({
+            ...current,
+            items: (current.items ?? []).map((item, itemIndex) =>
+                itemIndex === index ? { ...item, employee_id: employeeId } : item,
             ),
         }));
     }
@@ -371,27 +377,35 @@ export function ReservationDialog({
                                         <ServiceCard
                                             key={service.id}
                                             service={service}
-                                            selected={reservationItems.some((item) => item.service_id === service.id)}
-                                            onClick={() => toggleService(service)}
+                                            count={
+                                                reservationItems.filter((item) => item.service_id === service.id)
+                                                    .length
+                                            }
+                                            onClick={() => addService(service)}
                                         />
                                     ))}
                                 </div>
                             )}
+                            {reservationItems.length > 0 && (
+                                <p className="text-xs text-muted-foreground">
+                                    Cliquez à nouveau sur une prestation pour l'ajouter une seconde fois au panier.
+                                </p>
+                            )}
                         </div>
                     </Field>
 
-                    <Field label="Employé (facultatif)">
+                    <Field label="Panier & employé (facultatif)">
                         {reservationItems.length === 0 ? (
                             <div className="rounded-md border border-dashed border-tint/[0.08] px-4 py-5 text-center text-xs text-muted-foreground">
                                 Sélectionnez une ou plusieurs prestations ci-dessus.
                             </div>
                         ) : (
                             <div className="space-y-2">
-                                {reservationItems.map((item) => {
+                                {reservationItems.map((item, index) => {
                                     const service = services.find((entry) => entry.id === item.service_id);
                                     return (
                                         <div
-                                            key={item.service_id}
+                                            key={`${item.service_id}-${index}`}
                                             className="flex items-center gap-3 rounded-md border border-tint/[0.08] bg-tint/[0.025] px-3 py-2.5"
                                         >
                                             <div className="min-w-0 flex-1">
@@ -403,8 +417,8 @@ export function ReservationDialog({
                                             <select
                                                 value={item.employee_id ?? ''}
                                                 onChange={(event) =>
-                                                    assignEmployee(
-                                                        item.service_id,
+                                                    assignEmployeeAt(
+                                                        index,
                                                         event.target.value ? Number(event.target.value) : null,
                                                     )
                                                 }
@@ -421,8 +435,8 @@ export function ReservationDialog({
                                                 type="button"
                                                 size="icon"
                                                 variant="ghost"
-                                                aria-label="Retirer la prestation"
-                                                onClick={() => service && toggleService(service)}
+                                                aria-label="Retirer cette ligne du panier"
+                                                onClick={() => removeItemAt(index)}
                                             >
                                                 <XCircle className="text-destructive" />
                                             </Button>
@@ -567,18 +581,25 @@ function PickerButton({ selected, onClick, children }: { selected: boolean; onCl
     );
 }
 
-function ServiceCard({ service, selected, onClick }: { service: Service; selected: boolean; onClick: () => void }) {
+function ServiceCard({ service, count, onClick }: { service: Service; count: number; onClick: () => void }) {
+    const selected = count > 0;
+
     return (
         <button
             type="button"
             onClick={onClick}
             className={cn(
-                'flex items-center justify-between gap-3 rounded-md border px-3.5 py-2.5 text-left transition-all duration-200 active:scale-[0.98]',
+                'relative flex items-center justify-between gap-3 rounded-md border px-3.5 py-2.5 text-left transition-all duration-200 active:scale-[0.98]',
                 selected
                     ? 'border-accent/60 bg-accent/[0.12] shadow-glow'
                     : 'border-tint/[0.08] bg-tint/[0.03] hover:border-accent/30 hover:bg-tint/[0.06]',
             )}
         >
+            {selected && (
+                <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1 text-[11px] font-bold text-accent-foreground shadow-soft">
+                    {count}
+                </span>
+            )}
             <span className="min-w-0">
                 <span className="block truncate text-sm font-medium text-foreground">{service.name}</span>
                 <span className="block text-xs text-muted-foreground">{service.duration_minutes} min</span>

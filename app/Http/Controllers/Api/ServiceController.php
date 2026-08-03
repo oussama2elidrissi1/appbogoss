@@ -16,7 +16,7 @@ class ServiceController extends Controller
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'category' => ['nullable', 'string', Rule::in(['coiffure', 'hammam', 'massage'])],
+            'category' => ['nullable', 'string', Rule::in(['coiffure', 'hammam', 'massage', 'boisson'])],
             'include_inactive' => ['sometimes', 'boolean'],
             'search' => ['nullable', 'string', 'max:255'],
         ]);

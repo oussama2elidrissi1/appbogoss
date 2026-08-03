@@ -38,8 +38,12 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
     const [givenOn, setGivenOn] = useState(today());
     const [editingAdvance, setEditingAdvance] = useState<Advance | null>(null);
     const [editForm, setEditForm] = useState({ amount: '', reason: '', given_on: '' });
-    const [deletingAdvance, setDeletingAdvance] = useState<Advance | null>(null);
-    const [deleteError, setDeleteError] = useState<string | null>(null);
+    const [pendingAction, setPendingAction] = useState<
+        | { type: 'edit'; advance: Advance; payload: Omit<Parameters<typeof updateAdvance>[1], 'password'> }
+        | { type: 'delete'; advance: Advance }
+        | null
+    >(null);
+    const [passwordError, setPasswordError] = useState<string | null>(null);
 
     const { data, isPending } = useQuery({
         queryKey: workDayKeys.advances(employee.id),
@@ -72,17 +76,20 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
         onSuccess: () => {
             invalidate();
             setEditingAdvance(null);
+            setPendingAction(null);
+            setPasswordError(null);
         },
+        onError: (mutationError) => setPasswordError(getErrorMessage(mutationError)),
     });
 
     const deleteMutation = useMutation({
         mutationFn: ({ id, password }: { id: number; password: string }) => deleteAdvance(id, password),
         onSuccess: () => {
             invalidate();
-            setDeletingAdvance(null);
-            setDeleteError(null);
+            setPendingAction(null);
+            setPasswordError(null);
         },
-        onError: (mutationError) => setDeleteError(getErrorMessage(mutationError)),
+        onError: (mutationError) => setPasswordError(getErrorMessage(mutationError)),
     });
 
     const amountValue = Number.parseFloat(amount.replace(',', '.'));
@@ -112,14 +119,28 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
         if (!editingAdvance) return;
         const nextAmount = Number.parseFloat(editForm.amount.replace(',', '.'));
         if (!Number.isFinite(nextAmount) || nextAmount <= 0) return;
-        updateMutation.mutate({
-            id: editingAdvance.id,
+        setPasswordError(null);
+        setPendingAction({
+            type: 'edit',
+            advance: editingAdvance,
             payload: {
                 amount: nextAmount,
                 reason: editForm.reason.trim() || null,
                 given_on: editForm.given_on,
             },
         });
+    }
+
+    function confirmPendingAction(password: string) {
+        if (!pendingAction) return;
+        if (pendingAction.type === 'edit') {
+            updateMutation.mutate({
+                id: pendingAction.advance.id,
+                payload: { ...pendingAction.payload, password },
+            });
+        } else {
+            deleteMutation.mutate({ id: pendingAction.advance.id, password });
+        }
     }
 
     const advances = data?.data ?? [];
@@ -275,8 +296,8 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
                                         className="h-8 w-8"
                                         aria-label="Supprimer l'avance"
                                         onClick={() => {
-                                            setDeleteError(null);
-                                            setDeletingAdvance(advance);
+                                            setPasswordError(null);
+                                            setPendingAction({ type: 'delete', advance });
                                         }}
                                     >
                                         <Trash2 className="h-3.5 w-3.5 text-destructive" />
@@ -359,25 +380,26 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
             </div>
 
             <PatronPasswordDialog
-                open={deletingAdvance !== null}
+                open={pendingAction !== null}
                 onOpenChange={(open) => {
                     if (!open) {
-                        setDeletingAdvance(null);
-                        setDeleteError(null);
+                        setPendingAction(null);
+                        setPasswordError(null);
                     }
                 }}
-                title="Supprimer cette avance ?"
+                title={pendingAction?.type === 'delete' ? 'Supprimer cette avance ?' : 'Confirmer la modification'}
                 description={
-                    deletingAdvance
-                        ? `L'avance de ${formatCurrency(deletingAdvance.amount, { maximumFractionDigits: 2 })} du ${deletingAdvance.given_on} sera définitivement supprimée. Cette action nécessite le mot de passe patron.`
-                        : undefined
+                    pendingAction?.type === 'delete'
+                        ? `L'avance de ${formatCurrency(pendingAction.advance.amount, { maximumFractionDigits: 2 })} du ${pendingAction.advance.given_on} sera définitivement supprimée. Cette action nécessite le mot de passe patron.`
+                        : pendingAction?.type === 'edit'
+                          ? "Toute correction d'une avance nécessite le mot de passe patron."
+                          : undefined
                 }
-                loading={deleteMutation.isPending}
-                error={deleteError}
-                onConfirm={(password) => {
-                    if (!deletingAdvance) return;
-                    deleteMutation.mutate({ id: deletingAdvance.id, password });
-                }}
+                confirmLabel={pendingAction?.type === 'edit' ? 'Enregistrer la correction' : undefined}
+                tone={pendingAction?.type === 'edit' ? 'accent' : 'destructive'}
+                loading={updateMutation.isPending || deleteMutation.isPending}
+                error={passwordError}
+                onConfirm={confirmPendingAction}
             />
         </motion.div>
     );

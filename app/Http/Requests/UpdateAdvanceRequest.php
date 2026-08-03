@@ -20,6 +20,7 @@ class UpdateAdvanceRequest extends FormRequest
             'amount' => ['sometimes', 'required', 'numeric', 'min:0.01'],
             'reason' => ['sometimes', 'nullable', 'string'],
             'given_on' => ['sometimes', 'required', 'date'],
+            'password' => ['required', 'string'],
         ];
     }
 }

@@ -58,7 +58,25 @@
       "Read(//c/laragon/data/mysql-8/**)",
       "Bash(sleep 6 && cat /tmp/mysqld.log 2>/dev/null | tail -40)",
       "Bash(curl -s -o /dev/null -w \"artisan serve: %{http_code}\\\\n\" http://127.0.0.1:8000)",
-      "Bash(curl -s -o /dev/null -w \"vite: %{http_code}\\\\n\" http://localhost:5173)"
+      "Bash(curl -s -o /dev/null -w \"vite: %{http_code}\\\\n\" http://localhost:5173)",
+      "Bash(php -l app/Http/Controllers/Api/ServiceController.php)",
+      "Bash(php -l app/Http/Requests/StoreServiceRequest.php)",
+      "Bash(php -l app/Http/Requests/UpdateServiceRequest.php)",
+      "Bash(php -l app/Http/Controllers/Api/AdvanceController.php)",
+      "Bash(php -l app/Http/Requests/UpdateAdvanceRequest.php)",
+      "Bash(php -l app/Http/Controllers/Api/ReportController.php)",
+      "Bash(/c/laragon/bin/mysql/mysql-8.0.30-winx64/bin/mysql.exe -u root -e \"CREATE DATABASE IF NOT EXISTS appbogoss CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;\")",
+      "Bash(curl -s -o /dev/null -w \"vite: %{http_code}\\\\n\" http://localhost:5173/@vite/client)",
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_pass.py\")",
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_pass2.py\")",
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_pass3.py\")",
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_pass4.py\")",
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_pass5.py\")",
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_pass6.py\")",
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_pass7.py\")",
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_pass8.py\")",
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_pass9.py\")",
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_pass10.py\")"
     ]
   }
 }

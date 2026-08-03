@@ -2,6 +2,7 @@ import axios, { AxiosError } from 'axios';
 import type { ApplicationSettings, ApplicationSettingsPayload, DashboardData, User } from '@/types/dashboard';
 import type {
     Advance,
+    AdvancesReport,
     AdvancesResponse,
     Appointment,
     AppointmentPayload,
@@ -168,6 +169,21 @@ export async function getMonthlyReport(month?: string): Promise<MonthlyReport> {
 
 export function getMonthlyReportPdfUrl(month: string): string {
     return `/reports/monthly/pdf?month=${encodeURIComponent(month)}`;
+}
+
+export async function getAdvancesReport(options?: {
+    from?: string;
+    to?: string;
+    employeeId?: number;
+}): Promise<AdvancesReport> {
+    const { data } = await api.get<{ data: AdvancesReport }>('/api/reports/advances', {
+        params: {
+            ...(options?.from ? { from: options.from } : {}),
+            ...(options?.to ? { to: options.to } : {}),
+            ...(options?.employeeId ? { employee_id: options.employeeId } : {}),
+        },
+    });
+    return data.data;
 }
 
 /** 422 "Aucune journée ouverte." when no day is open. */

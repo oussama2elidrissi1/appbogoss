@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, KeyRound, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
     Dialog,
     DialogContent,
@@ -8,7 +9,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { Button, type ButtonProps } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -17,6 +18,8 @@ interface PatronPasswordDialogProps {
     onOpenChange: (open: boolean) => void;
     title: string;
     description?: string;
+    confirmLabel?: string;
+    tone?: ButtonProps['variant'];
     loading?: boolean;
     /** Server-side error message (e.g. "Mot de passe patron incorrect."). Never validated client-side. */
     error?: string | null;
@@ -33,6 +36,8 @@ export function PatronPasswordDialog({
     onOpenChange,
     title,
     description,
+    confirmLabel = 'Supprimer définitivement',
+    tone = 'destructive',
     loading = false,
     error,
     onConfirm,
@@ -48,8 +53,15 @@ export function PatronPasswordDialog({
             <DialogContent className="max-w-sm">
                 <DialogHeader>
                     <div className="flex items-center gap-3">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/[0.12]">
-                            <KeyRound className="h-5 w-5 text-destructive" />
+                        <span
+                            className={cn(
+                                'flex h-10 w-10 shrink-0 items-center justify-center rounded-full',
+                                tone === 'destructive' ? 'bg-destructive/[0.12]' : 'bg-accent/[0.12]',
+                            )}
+                        >
+                            <KeyRound
+                                className={cn('h-5 w-5', tone === 'destructive' ? 'text-destructive' : 'text-accent')}
+                            />
                         </span>
                         <DialogTitle>{title}</DialogTitle>
                     </div>
@@ -88,9 +100,9 @@ export function PatronPasswordDialog({
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
                             Annuler
                         </Button>
-                        <Button type="submit" variant="destructive" disabled={loading || !password}>
+                        <Button type="submit" variant={tone} disabled={loading || !password}>
                             {loading && <Loader2 className="animate-spin" />}
-                            Supprimer définitivement
+                            {confirmLabel}
                         </Button>
                     </DialogFooter>
                 </form>

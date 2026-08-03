@@ -61,13 +61,25 @@ class AdvanceController extends Controller
 
     public function update(UpdateAdvanceRequest $request, Advance $advance): JsonResponse
     {
-        $advance->update($request->validated());
+        $this->assertPatronPassword($request);
+
+        $advance->update(collect($request->validated())->except('password')->all());
         $advance->load('employee');
 
         return response()->json(['data' => new AdvanceResource($advance)]);
     }
 
     public function destroy(Request $request, Advance $advance): JsonResponse
+    {
+        $this->assertPatronPassword($request);
+
+        $advance->delete();
+
+        return response()->json(status: 204);
+    }
+
+    /** Correcting or erasing an advance requires the patron-only password, verified server-side. */
+    private function assertPatronPassword(Request $request): void
     {
         $validated = $request->validate([
             'password' => ['required', 'string'],
@@ -80,9 +92,5 @@ class AdvanceController extends Controller
                 'password' => 'Mot de passe patron incorrect.',
             ]);
         }
-
-        $advance->delete();
-
-        return response()->json(status: 204);
     }
 }

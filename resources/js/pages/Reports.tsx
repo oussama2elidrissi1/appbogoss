@@ -27,6 +27,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { getCategoryLabel } from '@/components/workday/categories';
+import { AdvancesReportPanel } from '@/components/reports/AdvancesReportPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 function reportFor(day: WorkDay): ClosingReport | null {
@@ -667,6 +668,7 @@ export default function Reports() {
                 <TabsList>
                     <TabsTrigger value="monthly">Rapport mensuel</TabsTrigger>
                     <TabsTrigger value="daily">Rapports par jour</TabsTrigger>
+                    <TabsTrigger value="advances">Avances</TabsTrigger>
                 </TabsList>
                 <TabsContent value="monthly" className="space-y-5">
             <div>
@@ -736,6 +738,18 @@ export default function Reports() {
                     ))}
                 </div>
             )}
+                </TabsContent>
+                <TabsContent value="advances" className="space-y-5">
+
+            <div>
+                <h2 className="text-2xl font-semibold tracking-tight">Gestion des avances</h2>
+                <p className="mt-1.5 text-sm text-muted-foreground">
+                    Avances sur salaire par employé et par période, avec suppression protégée par mot de passe patron.
+                </p>
+            </div>
+
+            <AdvancesReportPanel />
+
                 </TabsContent>
             </Tabs>
         </motion.div>

@@ -55,7 +55,9 @@ export function AgendaCalendar({
     );
 
     const events = useMemo(() => buildAgendaEvents(appointments), [appointments]);
-    const showResources = view === Views.DAY || view === Views.WEEK;
+    // Resource-per-column only makes sense in Day view — tiling every employee across
+    // a full week/month would multiply the date range by the employee count and become unreadable.
+    const showResources = view === Views.DAY;
 
     return (
         <div className="agenda-calendar h-[calc(100vh-19rem)] min-h-[520px]">
