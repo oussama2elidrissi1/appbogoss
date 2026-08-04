@@ -133,7 +133,11 @@
       "Bash(python -X utf8 qa_retro_recalc2.py)",
       "Bash(sed -i \"s/page.wait_for_timeout\\(500\\)/page.wait_for_timeout\\(1200\\)/\" qa_retro_recalc2.py)",
       "Bash(grep -n 'protected $fillable' -A 20 app/Models/Sale.php)",
-      "Bash(python -X utf8 qa_omar_recalc.py)"
+      "Bash(python -X utf8 qa_omar_recalc.py)",
+      "Bash(php -l app/Services/CommissionRuleRecalculator.php)",
+      "Bash(php -l app/Console/Commands/RecalculateCommissions.php)",
+      "Bash(python -X utf8 qa_recalc_button.py)",
+      "Bash(php artisan *)"
     ],
     "additionalDirectories": [
       "C:\\xampp\\php"

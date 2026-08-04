@@ -352,4 +352,46 @@ class EmployeeServiceCommissionApiTest extends TestCase
         $this->assertSame(0, $response->json('meta.recalculated_count'));
         $this->assertNull(Sale::withTrashed()->find($sale->id)->commission_amount);
     }
+
+    public function test_manual_recalculate_endpoint_fixes_a_rule_that_predates_the_matching_sale(): void
+    {
+        $employee = Employee::factory()->create();
+        $service = Service::factory()->create(['name' => 'Barbe simple']);
+        $workDay = WorkDay::factory()->create(['status' => 'open']);
+
+        // The rule already exists (e.g. created before this feature shipped,
+        // or before the sale it should have caught was even recorded).
+        $rule = EmployeeServiceCommission::create([
+            'employee_id' => $employee->id,
+            'service_id' => $service->id,
+            'type' => 'percentage',
+            'value' => 50,
+            'starts_on' => now()->subDays(10)->toDateString(),
+            'is_active' => true,
+        ]);
+
+        $sale = Sale::create([
+            'work_day_id' => $workDay->id,
+            'employee_id' => $employee->id,
+            'category' => 'coiffure',
+            'total' => 40,
+            'commission_amount' => null,
+            'payment_method' => 'especes',
+            'print_count' => 1,
+        ]);
+        $sale->created_at = now()->subDays(3);
+        $sale->save();
+        SaleItem::create([
+            'sale_id' => $sale->id,
+            'label' => 'Barbe simple',
+            'quantity' => 1,
+            'unit_price' => 40,
+        ]);
+
+        $response = $this->postJson("/api/employee-service-commissions/{$rule->id}/recalculate");
+
+        $response->assertOk();
+        $this->assertSame(1, $response->json('meta.recalculated_count'));
+        $this->assertEquals(20, $sale->fresh()->commission_amount);
+    }
 }

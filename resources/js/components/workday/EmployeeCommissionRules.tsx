@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, CheckCircle2, ChevronDown, Loader2, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronDown, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { api, getErrorMessage, getServices } from '@/lib/api';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import type { Employee } from '@/types/workday';
@@ -88,6 +88,17 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
         onSuccess: invalidate,
     });
 
+    const recalculateMutation = useMutation({
+        mutationFn: (id: number) =>
+            api.post<{ meta?: { recalculated_count?: number } }>(
+                `/api/employee-service-commissions/${id}/recalculate`,
+            ),
+        onSuccess: (response) => {
+            invalidate();
+            setRecalculatedCount(response.data.meta?.recalculated_count ?? 0);
+        },
+    });
+
     function toggleService(serviceId: number) {
         setForm((current) => ({
             ...current,
@@ -131,14 +142,35 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
                                 {rule.type === 'percentage' ? `${rule.value}%` : formatCurrency(rule.value)}
                                 <span className="text-muted-foreground"> depuis {formatDate(rule.starts_on)}</span>
                             </span>
-                            <button
-                                type="button"
-                                aria-label="Supprimer la règle"
-                                disabled={deleteMutation.isPending}
-                                onClick={() => deleteMutation.mutate(rule.id)}
-                            >
-                                <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                            </button>
+                            <span className="flex shrink-0 items-center gap-2">
+                                <button
+                                    type="button"
+                                    aria-label="Recalculer l'historique avec cette règle"
+                                    title="Recalculer l'historique avec cette règle"
+                                    disabled={recalculateMutation.isPending}
+                                    onClick={() => {
+                                        setRecalculatedCount(null);
+                                        recalculateMutation.mutate(rule.id);
+                                    }}
+                                >
+                                    <RefreshCw
+                                        className={cn(
+                                            'h-3.5 w-3.5 text-muted-foreground hover:text-accent',
+                                            recalculateMutation.isPending &&
+                                                recalculateMutation.variables === rule.id &&
+                                                'animate-spin',
+                                        )}
+                                    />
+                                </button>
+                                <button
+                                    type="button"
+                                    aria-label="Supprimer la règle"
+                                    disabled={deleteMutation.isPending}
+                                    onClick={() => deleteMutation.mutate(rule.id)}
+                                >
+                                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                </button>
+                            </span>
                         </li>
                     ))}
                 </ul>
@@ -236,9 +268,9 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
                 <div className="flex items-start gap-2 rounded-md border border-success/25 bg-success/[0.10] px-3 py-2">
                     <CheckCircle2 className="mt-px h-3.5 w-3.5 shrink-0 text-success" />
                     <p className="text-xs text-success">
-                        Règle enregistrée — {recalculatedCount} prestation{recalculatedCount > 1 ? 's' : ''} déjà
-                        payée{recalculatedCount > 1 ? 's' : ''} {recalculatedCount > 1 ? 'ont' : 'a'} été
-                        recalculée{recalculatedCount > 1 ? 's' : ''} avec ce nouveau taux.
+                        {recalculatedCount} prestation{recalculatedCount > 1 ? 's' : ''} déjà payée
+                        {recalculatedCount > 1 ? 's' : ''} {recalculatedCount > 1 ? 'ont' : 'a'} été recalculée
+                        {recalculatedCount > 1 ? 's' : ''} avec ce taux.
                     </p>
                 </div>
             )}

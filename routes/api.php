@@ -97,6 +97,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('permission:commissions.manage')->group(function () {
         Route::get('/employee-service-commissions', [EmployeeServiceCommissionController::class, 'index']);
         Route::post('/employee-service-commissions', [EmployeeServiceCommissionController::class, 'store']);
+        Route::post('/employee-service-commissions/{employeeServiceCommission}/recalculate', [EmployeeServiceCommissionController::class, 'recalculate']);
         Route::patch('/employee-service-commissions/{employeeServiceCommission}', [EmployeeServiceCommissionController::class, 'update']);
         Route::delete('/employee-service-commissions/{employeeServiceCommission}', [EmployeeServiceCommissionController::class, 'destroy']);
     });
