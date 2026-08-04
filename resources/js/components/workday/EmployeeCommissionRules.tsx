@@ -7,6 +7,7 @@ import type { Employee } from '@/types/workday';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 
 interface CommissionRule {
@@ -82,7 +83,7 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
     const canSubmit = form.service_id !== '' && form.value !== '' && Number(form.value) >= 0;
 
     return (
-        <div className="mt-4 space-y-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] p-3.5">
+        <div className="space-y-3">
             <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
                 Commissions par service
             </p>
@@ -126,31 +127,38 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
             <div className="grid grid-cols-2 gap-2.5">
                 <div className="space-y-1.5">
                     <Label className="text-xs">Service</Label>
-                    <select
+                    <Select
                         value={form.service_id}
-                        onChange={(event) => setForm((current) => ({ ...current, service_id: event.target.value }))}
-                        className="block h-9 w-full rounded-md border border-tint/[0.08] bg-tint/[0.04] px-2.5 text-xs outline-none focus:border-accent/60"
+                        onValueChange={(value) => setForm((current) => ({ ...current, service_id: value }))}
                     >
-                        <option value="">Choisir…</option>
-                        {(services ?? []).map((service) => (
-                            <option key={service.id} value={service.id}>
-                                {service.name}
-                            </option>
-                        ))}
-                    </select>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Choisir…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {(services ?? []).map((service) => (
+                                <SelectItem key={service.id} value={String(service.id)}>
+                                    {service.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </div>
                 <div className="space-y-1.5">
                     <Label className="text-xs">Type</Label>
-                    <select
+                    <Select
                         value={form.type}
-                        onChange={(event) =>
-                            setForm((current) => ({ ...current, type: event.target.value as 'percentage' | 'fixed' }))
+                        onValueChange={(value) =>
+                            setForm((current) => ({ ...current, type: value as 'percentage' | 'fixed' }))
                         }
-                        className="block h-9 w-full rounded-md border border-tint/[0.08] bg-tint/[0.04] px-2.5 text-xs outline-none focus:border-accent/60"
                     >
-                        <option value="percentage">Pourcentage</option>
-                        <option value="fixed">Montant fixe</option>
-                    </select>
+                        <SelectTrigger>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="percentage">Pourcentage</SelectItem>
+                            <SelectItem value="fixed">Montant fixe</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
                 <div className="space-y-1.5">
                     <Label className="text-xs">Valeur</Label>

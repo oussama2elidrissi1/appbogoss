@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'framer-motion';
 import { AlertCircle, Check, HandCoins, Loader2, Pencil, Trash2, X } from 'lucide-react';
 import {
     createAdvance,
@@ -17,7 +16,6 @@ import type { Advance, Employee } from '@/types/workday';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PatronPasswordDialog } from '@/components/workday/PatronPasswordDialog';
 
@@ -154,15 +152,7 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
     const advances = data?.data ?? [];
 
     return (
-        <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-            className="overflow-hidden"
-        >
-            <Separator className="my-4" />
-
+        <div>
             <div className="flex items-center justify-between gap-3">
                 <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
                     <HandCoins className="h-4 w-4" />
@@ -413,6 +403,6 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
                 error={passwordError}
                 onConfirm={confirmPendingAction}
             />
-        </motion.div>
+        </div>
     );
 }

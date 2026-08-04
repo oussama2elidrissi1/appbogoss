@@ -9,6 +9,7 @@ import Caisse from '@/pages/Caisse';
 import Clients from '@/pages/Clients';
 import Dashboard from '@/pages/Dashboard';
 import Depenses from '@/pages/Depenses';
+import EmployeeDetail from '@/pages/EmployeeDetail';
 import Employees from '@/pages/Employees';
 import Login from '@/pages/Login';
 import MonEspace from '@/pages/MonEspace';
@@ -71,6 +72,7 @@ export default function App() {
 
                     <Route element={<ProtectedRoute permission="employees.manage" />}>
                         <Route path="/employees" element={<Employees />} />
+                        <Route path="/employees/:id" element={<EmployeeDetail />} />
                     </Route>
 
                     <Route element={<ProtectedRoute permission="services.manage" />}>

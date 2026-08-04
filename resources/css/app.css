@@ -4,6 +4,13 @@
 
 @layer base {
     :root {
+        /* Tells the browser to render native controls (select dropdowns, date
+           pickers, scrollbars) in its light chrome — without this they default
+           to the OS theme regardless of our own dark/light tokens, which is
+           what made the commission-rule "Type" dropdown render white-on-white
+           in dark mode. */
+        color-scheme: light;
+
         --background: 40 25% 97%;
         --foreground: 213 55% 12%;
 
@@ -43,6 +50,8 @@
     }
 
     .dark {
+        color-scheme: dark;
+
         --background: 213 63% 8%;
         --foreground: 0 0% 100%;
 

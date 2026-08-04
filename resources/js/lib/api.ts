@@ -277,6 +277,11 @@ export async function getEmployees(options?: {
     return data.data;
 }
 
+export async function getEmployee(id: number): Promise<Employee> {
+    const { data } = await api.get<{ data: Employee }>(`/api/employees/${id}`);
+    return data.data;
+}
+
 export async function createEmployee(payload: EmployeePayload): Promise<Employee> {
     const { data } = await api.post<{ data: Employee }>('/api/employees', payload);
     return data.data;
