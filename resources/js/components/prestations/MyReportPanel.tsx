@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
-type QuickRange = 'week' | 'month' | 'all';
+type QuickRange = 'day' | 'week' | 'month' | 'all';
 
 function pad(value: number): string {
     return String(value).padStart(2, '0');
@@ -20,6 +20,7 @@ function toISODate(date: Date): string {
 
 function rangeFor(quick: QuickRange): { from?: string; to?: string } {
     const now = new Date();
+    if (quick === 'day') return { from: toISODate(now), to: toISODate(now) };
     if (quick === 'week') {
         const start = new Date(now);
         const day = (start.getDay() + 6) % 7;
@@ -51,7 +52,7 @@ export function MyReportPanel() {
         <div className="space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap gap-2">
-                    {(['week', 'month', 'all'] as QuickRange[]).map((option) => (
+                    {(['day', 'week', 'month', 'all'] as QuickRange[]).map((option) => (
                         <button
                             key={option}
                             type="button"
@@ -63,7 +64,13 @@ export function MyReportPanel() {
                                     : 'border-tint/[0.08] text-muted-foreground hover:border-accent/30',
                             )}
                         >
-                            {option === 'week' ? 'Cette semaine' : option === 'month' ? 'Ce mois' : 'Tout'}
+                            {option === 'day'
+                                ? "Aujourd'hui"
+                                : option === 'week'
+                                  ? 'Cette semaine'
+                                  : option === 'month'
+                                    ? 'Ce mois'
+                                    : 'Tout'}
                         </button>
                     ))}
                 </div>
