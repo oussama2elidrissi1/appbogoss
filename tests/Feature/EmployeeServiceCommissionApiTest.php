@@ -6,6 +6,8 @@ use App\Models\Commission;
 use App\Models\Employee;
 use App\Models\EmployeeServiceCommission;
 use App\Models\Prestation;
+use App\Models\Sale;
+use App\Models\SaleItem;
 use App\Models\Service;
 use App\Models\User;
 use App\Models\WorkDay;
@@ -237,5 +239,117 @@ class EmployeeServiceCommissionApiTest extends TestCase
         $response->assertCreated();
         $this->assertSame(0, $response->json('meta.recalculated_count'));
         $this->assertSame(Commission::STATUS_CANCELLED, Commission::find($commissionId)->status);
+    }
+
+    public function test_store_retroactively_recalculates_legacy_caisse_sales_matching_the_service_label(): void
+    {
+        $employee = Employee::factory()->create();
+        $service = Service::factory()->create(['name' => 'Barbe simple']);
+        $workDay = WorkDay::factory()->create(['status' => 'open']);
+
+        $sale = Sale::create([
+            'work_day_id' => $workDay->id,
+            'employee_id' => $employee->id,
+            'category' => 'coiffure',
+            'total' => 40,
+            'commission_amount' => null,
+            'payment_method' => 'especes',
+            'print_count' => 1,
+        ]);
+        $sale->created_at = now()->subDays(3);
+        $sale->save();
+        SaleItem::create([
+            'sale_id' => $sale->id,
+            'label' => 'Barbe simple',
+            'quantity' => 1,
+            'unit_price' => 40,
+        ]);
+
+        $response = $this->postJson('/api/employee-service-commissions', [
+            'employee_id' => $employee->id,
+            'service_id' => $service->id,
+            'type' => 'percentage',
+            'value' => 50,
+            'starts_on' => now()->subDays(7)->toDateString(),
+        ]);
+
+        $response->assertCreated();
+        $this->assertSame(1, $response->json('meta.recalculated_count'));
+        $this->assertEquals(20, $sale->fresh()->commission_amount);
+    }
+
+    public function test_store_does_not_touch_a_legacy_sale_with_a_different_label(): void
+    {
+        $employee = Employee::factory()->create();
+        $service = Service::factory()->create(['name' => 'Barbe simple']);
+        $workDay = WorkDay::factory()->create(['status' => 'open']);
+
+        $sale = Sale::create([
+            'work_day_id' => $workDay->id,
+            'employee_id' => $employee->id,
+            'category' => 'coiffure',
+            'total' => 40,
+            'commission_amount' => null,
+            'payment_method' => 'especes',
+            'print_count' => 1,
+        ]);
+        $sale->created_at = now()->subDays(3);
+        $sale->save();
+        SaleItem::create([
+            'sale_id' => $sale->id,
+            'label' => 'POUR BOIRE',
+            'quantity' => 1,
+            'unit_price' => 40,
+        ]);
+
+        $response = $this->postJson('/api/employee-service-commissions', [
+            'employee_id' => $employee->id,
+            'service_id' => $service->id,
+            'type' => 'percentage',
+            'value' => 50,
+            'starts_on' => now()->subDays(7)->toDateString(),
+        ]);
+
+        $response->assertCreated();
+        $this->assertSame(0, $response->json('meta.recalculated_count'));
+        $this->assertNull($sale->fresh()->commission_amount);
+    }
+
+    public function test_store_does_not_touch_a_deleted_legacy_sale(): void
+    {
+        $employee = Employee::factory()->create();
+        $service = Service::factory()->create(['name' => 'Barbe simple']);
+        $workDay = WorkDay::factory()->create(['status' => 'open']);
+
+        $sale = Sale::create([
+            'work_day_id' => $workDay->id,
+            'employee_id' => $employee->id,
+            'category' => 'coiffure',
+            'total' => 40,
+            'commission_amount' => null,
+            'payment_method' => 'especes',
+            'print_count' => 1,
+        ]);
+        $sale->created_at = now()->subDays(3);
+        $sale->save();
+        SaleItem::create([
+            'sale_id' => $sale->id,
+            'label' => 'Barbe simple',
+            'quantity' => 1,
+            'unit_price' => 40,
+        ]);
+        $sale->delete();
+
+        $response = $this->postJson('/api/employee-service-commissions', [
+            'employee_id' => $employee->id,
+            'service_id' => $service->id,
+            'type' => 'percentage',
+            'value' => 50,
+            'starts_on' => now()->subDays(7)->toDateString(),
+        ]);
+
+        $response->assertCreated();
+        $this->assertSame(0, $response->json('meta.recalculated_count'));
+        $this->assertNull(Sale::withTrashed()->find($sale->id)->commission_amount);
     }
 }
