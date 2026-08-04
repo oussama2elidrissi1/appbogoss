@@ -1,0 +1,129 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Employee;
+use App\Models\Prestation;
+use App\Models\Sale;
+use App\Models\SaleItem;
+use App\Models\Service;
+use App\Models\User;
+use App\Models\WorkDay;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
+use Tests\TestCase;
+
+/**
+ * An employee's history at the caisse (Sale rows) often predates their login
+ * account — sales recorded by an admin picking them from the employee list,
+ * before "Créer un compte" was ever clicked. Once the account is created,
+ * that history must show up in the employee's own "Mon espace" immediately,
+ * since it was always tied to the same employee_id.
+ */
+class EmployeeAccountLegacyHistoryTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed(RolesAndPermissionsSeeder::class);
+    }
+
+    protected function admin(): User
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+        $user->assignRole('admin');
+
+        return $user;
+    }
+
+    public function test_quick_created_account_immediately_sees_pre_existing_sales(): void
+    {
+        $employee = Employee::factory()->create(['user_id' => null]);
+        $workDay = WorkDay::factory()->create(['status' => 'open']);
+        $service = Service::factory()->create(['price' => 120]);
+
+        // A sale recorded by an admin against this employee before they ever
+        // had a login account — the exact scenario the user described.
+        $sale = Sale::create([
+            'work_day_id' => $workDay->id,
+            'employee_id' => $employee->id,
+            'category' => 'service',
+            'total' => 120,
+            'commission_amount' => 30,
+            'payment_method' => 'especes',
+            'print_count' => 1,
+        ]);
+        SaleItem::create([
+            'sale_id' => $sale->id,
+            'label' => $service->name,
+            'quantity' => 1,
+            'unit_price' => 120,
+        ]);
+
+        Sanctum::actingAs($this->admin());
+        $created = $this->postJson("/api/employees/{$employee->id}/quick-create-account");
+        $created->assertOk();
+
+        $newUser = User::where('email', $created->json('data.login_email'))->firstOrFail();
+
+        Sanctum::actingAs($newUser);
+
+        $dashboard = $this->getJson('/api/me/dashboard');
+        $dashboard->assertOk();
+        $this->assertSame(1, $dashboard->json('data.prestations_today_count'));
+        $this->assertEquals(120, $dashboard->json('data.revenue_today'));
+
+        $report = $this->getJson('/api/me/report?from='.now()->startOfMonth()->toDateString().'&to='.now()->toDateString());
+        $report->assertOk();
+        $this->assertEquals(120, $report->json('data.revenue_total'));
+        $this->assertEquals(30, $report->json('data.commission_total'));
+        $this->assertSame(1, $report->json('data.prestations_count'));
+        $this->assertSame('Vente #'.$sale->id, $report->json('data.details.0.reference'));
+    }
+
+    public function test_legacy_sale_report_does_not_double_count_a_prestation_linked_sale(): void
+    {
+        $employee = Employee::factory()->create(['user_id' => null]);
+        $workDay = WorkDay::factory()->create(['status' => 'open']);
+
+        $sale = Sale::create([
+            'work_day_id' => $workDay->id,
+            'employee_id' => $employee->id,
+            'category' => 'service',
+            'total' => 50,
+            'commission_amount' => 10,
+            'payment_method' => 'especes',
+            'print_count' => 1,
+        ]);
+
+        $admin = $this->admin();
+
+        // A Prestation-workflow sale is already linked via prestations.sale_id —
+        // it must never be re-counted as a "legacy" standalone sale.
+        Prestation::create([
+            'reference' => 'PRE-TEST-000001',
+            'employee_id' => $employee->id,
+            'created_by_user_id' => $admin->id,
+            'sale_id' => $sale->id,
+            'status' => Prestation::STATUS_PAID,
+            'total' => 50,
+        ]);
+
+        Sanctum::actingAs($admin);
+        $created = $this->postJson("/api/employees/{$employee->id}/quick-create-account");
+        $created->assertOk();
+        $newUser = User::where('email', $created->json('data.login_email'))->firstOrFail();
+
+        Sanctum::actingAs($newUser);
+        $report = $this->getJson('/api/me/report?from='.now()->startOfMonth()->toDateString().'&to='.now()->toDateString());
+        $report->assertOk();
+
+        // Only the Prestation-side total counts — the linked Sale is excluded
+        // from the legacy merge, so revenue isn't doubled to 100.
+        $this->assertEquals(50, $report->json('data.revenue_total'));
+        $this->assertSame(1, $report->json('data.prestations_count'));
+    }
+}

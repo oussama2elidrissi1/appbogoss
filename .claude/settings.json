@@ -107,7 +107,22 @@
       "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_nav_stuck.py\")",
       "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_color_bug.py\")",
       "Bash(python qa_employees.py)",
-      "Bash(python qa_edit_dialog.py)"
+      "Bash(python qa_edit_dialog.py)",
+      "Bash(grep -n 'function items\\\\|function client\\\\|SoftDeletes\\\\|protected $fillable' app/Models/Sale.php)",
+      "Bash(php -l app/Http/Controllers/Api/MeController.php)",
+      "Bash(grep -n 'protected $fillable\\\\|protected $casts' -A 30 app/Models/Prestation.php)",
+      "Bash(php --ini)",
+      "Bash(php -i)",
+      "Bash(grep -n \"pdo_sqlite\\\\|;extension=sqlite\" \"C:\\\\xampp\\\\php\\\\php.ini\")",
+      "Read(//c/xampp/php/**)",
+      "Bash(ls \"C:\\\\xampp\\\\php\\\\ext\" | grep -i sqlite)",
+      "Read(//c/xampp/php/ext/**)",
+      "Bash(python qa_legacy_sales.py)",
+      "Bash(python -X utf8 qa_legacy_sales.py)",
+      "Bash(python -X utf8 qa_legacy_sales2.py)"
+    ],
+    "additionalDirectories": [
+      "C:\\xampp\\php"
     ]
   }
 }
