@@ -10,6 +10,7 @@ import {
     settleAdvance,
     updateAdvance,
 } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import { workDayKeys } from '@/hooks/useWorkDay';
 import { cn, formatCurrency } from '@/lib/utils';
 import type { Advance, Employee } from '@/types/workday';
@@ -33,6 +34,8 @@ function today(): string {
 /** Outstanding balance, history and the "donner une avance" inline form. */
 export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps) {
     const queryClient = useQueryClient();
+    const { hasRole } = useAuth();
+    const isSuperAdmin = hasRole('super-admin');
     const [amount, setAmount] = useState('');
     const [reason, setReason] = useState('');
     const [givenOn, setGivenOn] = useState(today());
@@ -120,15 +123,20 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
         const nextAmount = Number.parseFloat(editForm.amount.replace(',', '.'));
         if (!Number.isFinite(nextAmount) || nextAmount <= 0) return;
         setPasswordError(null);
-        setPendingAction({
-            type: 'edit',
-            advance: editingAdvance,
-            payload: {
-                amount: nextAmount,
-                reason: editForm.reason.trim() || null,
-                given_on: editForm.given_on,
-            },
-        });
+
+        const payload = {
+            amount: nextAmount,
+            reason: editForm.reason.trim() || null,
+            given_on: editForm.given_on,
+        };
+
+        // Super Admin already carries full authority — no second password prompt.
+        if (isSuperAdmin) {
+            updateMutation.mutate({ id: editingAdvance.id, payload: { ...payload, password: '' } });
+            return;
+        }
+
+        setPendingAction({ type: 'edit', advance: editingAdvance, payload });
     }
 
     function confirmPendingAction(password: string) {
@@ -297,6 +305,10 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
                                         aria-label="Supprimer l'avance"
                                         onClick={() => {
                                             setPasswordError(null);
+                                            if (isSuperAdmin) {
+                                                deleteMutation.mutate({ id: advance.id, password: '' });
+                                                return;
+                                            }
                                             setPendingAction({ type: 'delete', advance });
                                         }}
                                     >

@@ -20,7 +20,9 @@ class UpdateAdvanceRequest extends FormRequest
             'amount' => ['sometimes', 'required', 'numeric', 'min:0.01'],
             'reason' => ['sometimes', 'nullable', 'string'],
             'given_on' => ['sometimes', 'required', 'date'],
-            'password' => ['required', 'string'],
+            // Super Admin bypasses this entirely (see AdvanceController::assertPatronPassword);
+            // for everyone else it's enforced there too, since it must survive being stripped here.
+            'password' => ['nullable', 'string'],
         ];
     }
 }

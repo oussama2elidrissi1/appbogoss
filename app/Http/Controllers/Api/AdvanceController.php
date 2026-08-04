@@ -78,9 +78,17 @@ class AdvanceController extends Controller
         return response()->json(status: 204);
     }
 
-    /** Correcting or erasing an advance requires the patron-only password, verified server-side. */
+    /**
+     * Correcting or erasing an advance requires the patron-only password, verified
+     * server-side — except for Super Admin, who already carries full authority
+     * over the app and shouldn't need a second shared secret.
+     */
     private function assertPatronPassword(Request $request): void
     {
+        if ($request->user()?->hasRole('super-admin')) {
+            return;
+        }
+
         $validated = $request->validate([
             'password' => ['required', 'string'],
         ]);
