@@ -302,6 +302,15 @@ export async function resetEmployeePassword(
     return data.data;
 }
 
+export async function quickCreateEmployeeAccount(
+    id: number,
+): Promise<{ login_email: string; temporary_password: string; employee: Employee }> {
+    const { data } = await api.post<{
+        data: { login_email: string; temporary_password: string; employee: Employee };
+    }>(`/api/employees/${id}/quick-create-account`, {});
+    return data.data;
+}
+
 export async function getClients(search?: string): Promise<Client[]> {
     const { data } = await api.get<{ data: Client[] }>('/api/clients', {
         params: search ? { search } : undefined,

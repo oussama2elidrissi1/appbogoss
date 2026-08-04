@@ -129,6 +129,43 @@ class EmployeeController extends Controller
     }
 
     /**
+     * One-click account creation: auto-generates a unique login email from the
+     * employee's name and a random password, so an admin never has to type
+     * anything by hand for an employee who already exists (with their full
+     * history of prestations/ventes/avances already tied to their employee_id —
+     * linking a login account only adds a way in, it never touches that history).
+     */
+    public function quickCreateAccount(Employee $employee): JsonResponse
+    {
+        if ($employee->user_id !== null) {
+            return response()->json(['message' => 'Cet employé a déjà un compte de connexion.'], 422);
+        }
+
+        $slug = Str::slug($employee->name, '.') ?: 'employe';
+        $email = "{$slug}@bogosland.com";
+        $suffix = 1;
+        while (User::where('email', $email)->exists()) {
+            $suffix++;
+            $email = "{$slug}{$suffix}@bogosland.com";
+        }
+        $password = Str::password(10);
+
+        $this->createOrUpdateAccount($employee, [
+            'login_email' => $email,
+            'login_password' => $password,
+            'system_role' => 'employee',
+        ]);
+
+        $this->activityLogger->log('employee.account_created', $employee, [], ['login_email' => $email]);
+
+        return response()->json(['data' => [
+            'login_email' => $email,
+            'temporary_password' => $password,
+            'employee' => new EmployeeResource($employee->refresh()->load('user')),
+        ]]);
+    }
+
+    /**
      * Activate/deactivate an employee, cascading to their linked login account
      * so a disabled employee is also locked out of authentication.
      */

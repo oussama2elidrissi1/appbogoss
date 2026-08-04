@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
     AlertCircle,
     ChevronDown,
+    Copy,
     KeyRound,
     Loader2,
     Mail,
@@ -14,6 +15,7 @@ import {
     Search,
     ShieldCheck,
     Trash2,
+    UserPlus,
     UserSquare2,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -22,6 +24,7 @@ import {
     deleteEmployee,
     getEmployees,
     getErrorMessage,
+    quickCreateEmployeeAccount,
     resetEmployeePassword,
     updateEmployee,
 } from '@/lib/api';
@@ -126,6 +129,11 @@ export default function Employees() {
     const [formError, setFormError] = useState<string | null>(null);
     const [deletingEmployee, setDeletingEmployee] = useState<Employee | null>(null);
     const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
+    const [createdAccount, setCreatedAccount] = useState<{
+        employeeName: string;
+        loginEmail: string;
+        temporaryPassword: string;
+    } | null>(null);
 
     const { data: workDay } = useActiveWorkDay();
     const {
@@ -186,6 +194,18 @@ export default function Employees() {
         mutationFn: (employeeId: number) => resetEmployeePassword(employeeId),
         onSuccess: (result) => setTemporaryPassword(result.temporary_password),
         onError: (mutationError) => setFormError(getErrorMessage(mutationError)),
+    });
+
+    const quickCreateAccountMutation = useMutation({
+        mutationFn: (employee: Employee) => quickCreateEmployeeAccount(employee.id),
+        onSuccess: (result, employee) => {
+            refreshEmployees();
+            setCreatedAccount({
+                employeeName: employee.name,
+                loginEmail: result.login_email,
+                temporaryPassword: result.temporary_password,
+            });
+        },
     });
 
     const saving = createMutation.isPending || updateMutation.isPending;
@@ -412,7 +432,7 @@ export default function Employees() {
                                             )}
                                         </div>
 
-                                        <div className="mt-4 flex flex-wrap gap-2">
+                                        <div className="mt-4 flex flex-wrap items-center gap-2">
                                             {employee.account && (
                                                 <Badge variant={employee.account.system_role === 'admin' ? 'accent' : 'outline'}>
                                                     <ShieldCheck className="mr-1 h-3 w-3" />
@@ -427,6 +447,24 @@ export default function Employees() {
                                             <Badge variant={employee.is_active ? 'success' : 'outline'}>
                                                 {employee.is_active ? 'Actif' : 'Inactif'}
                                             </Badge>
+                                            {canManage && !employee.account && (
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="outline"
+                                                    className="ml-auto h-7 px-2.5 text-xs"
+                                                    disabled={quickCreateAccountMutation.isPending}
+                                                    onClick={() => quickCreateAccountMutation.mutate(employee)}
+                                                >
+                                                    {quickCreateAccountMutation.isPending &&
+                                                    quickCreateAccountMutation.variables?.id === employee.id ? (
+                                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                                    ) : (
+                                                        <UserPlus className="h-3 w-3" />
+                                                    )}
+                                                    Créer un compte
+                                                </Button>
+                                            )}
                                         </div>
 
                                         <div className="mt-4 space-y-2 text-xs text-muted-foreground">
@@ -769,6 +807,54 @@ export default function Employees() {
                 loading={deleteMutation.isPending}
                 onConfirm={confirmDelete}
             />
+
+            <Dialog open={createdAccount !== null} onOpenChange={(open) => { if (!open) setCreatedAccount(null); }}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Compte créé</DialogTitle>
+                        <DialogDescription>
+                            Communiquez ces identifiants à {createdAccount?.employeeName} — ils ne seront plus
+                            affichés ensuite.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-3">
+                        <CredentialRow label="Email de connexion" value={createdAccount?.loginEmail ?? ''} />
+                        <CredentialRow label="Mot de passe" value={createdAccount?.temporaryPassword ?? ''} />
+                    </div>
+
+                    <DialogFooter>
+                        <Button type="button" variant="accent" onClick={() => setCreatedAccount(null)}>
+                            Terminé
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
+    );
+}
+
+function CredentialRow({ label, value }: { label: string; value: string }) {
+    const [copied, setCopied] = useState(false);
+
+    return (
+        <div className="space-y-1.5">
+            <Label className="text-xs">{label}</Label>
+            <div className="flex items-center gap-2 rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 py-2.5">
+                <span className="flex-1 truncate font-mono text-sm text-foreground">{value}</span>
+                <button
+                    type="button"
+                    aria-label={`Copier ${label.toLowerCase()}`}
+                    onClick={() => {
+                        void navigator.clipboard.writeText(value);
+                        setCopied(true);
+                        window.setTimeout(() => setCopied(false), 1500);
+                    }}
+                    className="shrink-0 rounded-sm p-1.5 text-muted-foreground transition-colors hover:bg-tint/[0.06] hover:text-foreground"
+                >
+                    {copied ? <ShieldCheck className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+                </button>
+            </div>
+        </div>
     );
 }

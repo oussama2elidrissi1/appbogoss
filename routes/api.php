@@ -87,6 +87,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('permission:employees.manage')->group(function () {
         Route::apiResource('/employees', EmployeeController::class)->only(['store', 'update', 'destroy']);
         Route::post('/employees/{employee}/reset-password', [EmployeeController::class, 'resetPassword']);
+        Route::post('/employees/{employee}/quick-create-account', [EmployeeController::class, 'quickCreateAccount']);
         Route::patch('/employees/{employee}/status', [EmployeeController::class, 'status']);
     });
 
