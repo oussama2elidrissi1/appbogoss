@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { AlertCircle, BarChart3, Download, ReceiptText } from 'lucide-react';
+import { AlertCircle, BarChart3, Download, Printer, ReceiptText } from 'lucide-react';
 import {
     getErrorMessage,
     getMonthlyReport,
@@ -9,9 +9,11 @@ import {
     getTransactions,
     getWorkDayPdfUrl,
     getWorkDays,
+    recordTransactionPrint,
 } from '@/lib/api';
 import { cn, formatCurrency, formatDayLabel, formatTime } from '@/lib/utils';
 import { pageFade } from '@/lib/motion';
+import { printSaleReceipt } from '@/lib/receipt';
 import type { ClosingReport, RevenueByEmployee, Sale, WorkDay } from '@/types/workday';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -209,10 +211,23 @@ function EmployeeTicketsDialog({
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }) {
+    const queryClient = useQueryClient();
+    const ticketsQueryKey = ['work-day', day.id, 'tickets'] as const;
     const { data: sales, isPending } = useQuery({
-        queryKey: ['work-day', day.id, 'tickets'],
+        queryKey: ticketsQueryKey,
         queryFn: () => getTransactions(day.id),
         enabled: open,
+    });
+
+    const printMutation = useMutation({
+        mutationFn: recordTransactionPrint,
+        onSuccess: (printedSale) => {
+            queryClient.setQueryData<Sale[]>(
+                ticketsQueryKey,
+                (current) => current?.map((sale) => (sale.id === printedSale.id ? printedSale : sale)) ?? [printedSale],
+            );
+            printSaleReceipt(printedSale);
+        },
     });
 
     const employeeSales = (sales ?? []).filter(
@@ -286,17 +301,32 @@ function EmployeeTicketsDialog({
                                             </p>
                                         </div>
 
-                                        <p
-                                            className={cn(
-                                                'shrink-0 text-sm font-semibold tabular-nums text-foreground',
-                                                sale.is_deleted &&
-                                                    'text-muted-foreground line-through decoration-destructive/70',
+                                        <div className="flex shrink-0 items-center gap-2">
+                                            <p
+                                                className={cn(
+                                                    'text-sm font-semibold tabular-nums text-foreground',
+                                                    sale.is_deleted &&
+                                                        'text-muted-foreground line-through decoration-destructive/70',
+                                                )}
+                                            >
+                                                {formatCurrency(sale.total, {
+                                                    maximumFractionDigits: 2,
+                                                })}
+                                            </p>
+                                            {!sale.is_deleted && (
+                                                <Button
+                                                    type="button"
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    className="h-8 w-8"
+                                                    aria-label="Réimprimer le ticket"
+                                                    disabled={printMutation.isPending}
+                                                    onClick={() => printMutation.mutate(sale.id)}
+                                                >
+                                                    <Printer className="text-muted-foreground" />
+                                                </Button>
                                             )}
-                                        >
-                                            {formatCurrency(sale.total, {
-                                                maximumFractionDigits: 2,
-                                            })}
-                                        </p>
+                                        </div>
                                     </div>
                                 </div>
                             ))}
