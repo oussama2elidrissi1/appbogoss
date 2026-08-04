@@ -126,4 +126,89 @@ class EmployeeAccountLegacyHistoryTest extends TestCase
         $this->assertEquals(50, $report->json('data.revenue_total'));
         $this->assertSame(1, $report->json('data.prestations_count'));
     }
+
+    public function test_voiding_a_legacy_sale_at_the_caisse_removes_it_from_the_employees_totals_but_keeps_it_marked_deleted(): void
+    {
+        [$employee, $user] = $this->employeeWithLogin();
+        $workDay = WorkDay::factory()->create(['status' => 'open']);
+        $admin = $this->admin();
+
+        $sale = Sale::create([
+            'work_day_id' => $workDay->id,
+            'employee_id' => $employee->id,
+            'category' => 'service',
+            'total' => 90,
+            'commission_amount' => 20,
+            'payment_method' => 'especes',
+            'print_count' => 1,
+        ]);
+
+        Sanctum::actingAs($admin);
+        $this->deleteJson("/api/transactions/{$sale->id}")->assertOk();
+
+        Sanctum::actingAs($user);
+        $report = $this->getJson('/api/me/report?from='.now()->startOfMonth()->toDateString().'&to='.now()->toDateString());
+        $report->assertOk();
+
+        // Excluded from the employee's own stats...
+        $this->assertEquals(0, $report->json('data.revenue_total'));
+        $this->assertEquals(0, $report->json('data.commission_total'));
+        $this->assertSame(0, $report->json('data.prestations_count'));
+
+        // ...but still visible in the detail list, explicitly flagged.
+        $this->assertSame(1, count($report->json('data.details')));
+        $this->assertTrue($report->json('data.details.0.is_deleted'));
+        $this->assertSame('Vente #'.$sale->id, $report->json('data.details.0.reference'));
+
+        $dashboard = $this->getJson('/api/me/dashboard');
+        $dashboard->assertOk();
+        $this->assertSame(0, $dashboard->json('data.prestations_today_count'));
+        $this->assertEquals(0, $dashboard->json('data.revenue_today'));
+    }
+
+    public function test_voiding_a_prestation_paid_sale_at_the_caisse_removes_it_from_the_employees_totals_but_keeps_it_marked_deleted(): void
+    {
+        [$employee, $user] = $this->employeeWithLogin();
+        $admin = $this->admin();
+
+        $sale = Sale::create([
+            'employee_id' => $employee->id,
+            'category' => 'service',
+            'total' => 70,
+            'payment_method' => 'especes',
+            'print_count' => 1,
+        ]);
+        $prestation = Prestation::create([
+            'reference' => 'PRE-TEST-000002',
+            'employee_id' => $employee->id,
+            'created_by_user_id' => $admin->id,
+            'sale_id' => $sale->id,
+            'status' => Prestation::STATUS_PAID,
+            'total' => 70,
+        ]);
+
+        Sanctum::actingAs($admin);
+        $this->deleteJson("/api/transactions/{$sale->id}")->assertOk();
+
+        Sanctum::actingAs($user);
+        $report = $this->getJson('/api/me/report?from='.now()->startOfMonth()->toDateString().'&to='.now()->toDateString());
+        $report->assertOk();
+
+        $this->assertEquals(0, $report->json('data.revenue_total'));
+        $detail = collect($report->json('data.details'))->firstWhere('reference', $prestation->reference);
+        $this->assertNotNull($detail);
+        $this->assertTrue($detail['is_deleted']);
+        // The prestation's own workflow status is untouched — only flagged as deleted.
+        $this->assertSame('paid', $detail['status']);
+    }
+
+    /** @return array{0: Employee, 1: User} */
+    private function employeeWithLogin(): array
+    {
+        $user = User::factory()->create(['role' => 'employee']);
+        $user->assignRole('employee');
+        $employee = Employee::factory()->create(['user_id' => $user->id]);
+
+        return [$employee, $user];
+    }
 }

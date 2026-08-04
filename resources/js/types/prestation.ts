@@ -129,11 +129,12 @@ export interface MyDashboard {
     commission_week: number;
     commission_month: number;
     recent: Array<{
-        id: number;
+        id: string;
         reference: string;
         status: PrestationStatus;
         total: number;
         created_at: string;
+        is_deleted: boolean;
     }>;
 }
 
@@ -183,5 +184,6 @@ export interface MyReport {
         total: number;
         status: PrestationStatus;
         commission: number;
+        is_deleted: boolean;
     }>;
 }

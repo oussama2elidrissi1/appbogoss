@@ -32,8 +32,15 @@ class MeController extends Controller
             ->whereDate('created_at', $today)
             ->get();
         $legacySalesToday = $this->legacySales($employee)->whereDate('created_at', $today)->get();
+        $activeLegacySalesToday = $legacySalesToday->reject(fn (Sale $sale) => $sale->trashed());
 
         $paidToday = $todaysPrestations->where('status', Prestation::STATUS_PAID);
+        $deletedPaidTodaySaleIds = $this->deletedSaleIds($paidToday->pluck('sale_id')->filter()->values());
+        $activePaidToday = $paidToday->reject(
+            fn (Prestation $prestation) => $prestation->sale_id !== null
+                && $deletedPaidTodaySaleIds->has($prestation->sale_id),
+        );
+
         $inProgress = Prestation::where('employee_id', $employee->id)
             ->whereIn('status', [Prestation::STATUS_DRAFT, Prestation::STATUS_IN_PROGRESS, Prestation::STATUS_SERVICES_DONE])
             ->count();
@@ -63,6 +70,9 @@ class MeController extends Controller
             ->orderByDesc('created_at')
             ->limit(10)
             ->get();
+        $recentDeletedPrestationSaleIds = $this->deletedSaleIds(
+            $recent->where('status', Prestation::STATUS_PAID)->pluck('sale_id')->filter()->values(),
+        );
 
         $recentMerged = $recent
             ->map(fn (Prestation $prestation) => [
@@ -71,6 +81,8 @@ class MeController extends Controller
                 'status' => $prestation->status,
                 'total' => (float) $prestation->total,
                 'created_at' => $prestation->created_at?->toIso8601String(),
+                'is_deleted' => $prestation->sale_id !== null
+                    && $recentDeletedPrestationSaleIds->has($prestation->sale_id),
             ])
             ->concat($recentLegacySales->map(fn (Sale $sale) => [
                 'id' => 'vente-'.$sale->id,
@@ -78,18 +90,19 @@ class MeController extends Controller
                 'status' => 'paid',
                 'total' => (float) $sale->total,
                 'created_at' => $sale->created_at?->toIso8601String(),
+                'is_deleted' => $sale->trashed(),
             ]))
             ->sortByDesc('created_at')
             ->take(10)
             ->values();
 
         return response()->json(['data' => [
-            'prestations_today_count' => $todaysPrestations->count() + $legacySalesToday->count(),
-            'revenue_today' => round((float) $paidToday->sum('total') + (float) $legacySalesToday->sum('total'), 2),
+            'prestations_today_count' => $todaysPrestations->count() + $activeLegacySalesToday->count(),
+            'revenue_today' => round((float) $activePaidToday->sum('total') + (float) $activeLegacySalesToday->sum('total'), 2),
             'commission_today' => round((float) $commissionToday, 2),
             'in_progress_count' => $inProgress,
             'pending_payment_count' => $pendingPayment,
-            'paid_today_count' => $paidToday->count() + $legacySalesToday->count(),
+            'paid_today_count' => $activePaidToday->count() + $activeLegacySalesToday->count(),
             'commission_week' => round((float) $commissionWeek, 2),
             'commission_month' => round((float) $commissionMonth, 2),
             'recent' => $recentMerged,
@@ -154,7 +167,7 @@ class MeController extends Controller
                 $row['reference'],
                 str_replace(',', ' ', (string) $row['client']),
                 $row['total'],
-                $row['status'],
+                $row['is_deleted'] ? 'supprime' : $row['status'],
                 $row['commission'],
             ]);
         }
@@ -196,20 +209,31 @@ class MeController extends Controller
         $paid = $prestations->where('status', Prestation::STATUS_PAID);
         $cancelled = $prestations->whereIn('status', [Prestation::STATUS_CANCELLED, Prestation::STATUS_REFUNDED]);
 
+        // A prestation stays "paid" in its own workflow even if an admin later
+        // voids its linked sale straight from the caisse (outside the formal
+        // refund flow) — that void must still take the money out of this
+        // employee's stats and be flagged in the detail list.
+        $deletedPaidSaleIds = $this->deletedSaleIds($paid->pluck('sale_id')->filter()->values());
+        $activePaid = $paid->reject(
+            fn (Prestation $prestation) => $prestation->sale_id !== null
+                && $deletedPaidSaleIds->has($prestation->sale_id),
+        );
+        $activeLegacySales = $legacySales->reject(fn (Sale $sale) => $sale->trashed());
+
         $commissions = Commission::where('employee_id', $employee->id)
             ->where('status', Commission::STATUS_VALIDATED)
             ->whereBetween('created_at', [$from, $to])
             ->get();
 
-        $revenue = (float) $paid->sum('total') + (float) $legacySales->sum('total');
-        $paidCount = $paid->count() + $legacySales->count();
-        $clientsCount = $paid->pluck('client_id')->filter()
-            ->concat($legacySales->pluck('client_id')->filter())
+        $revenue = (float) $activePaid->sum('total') + (float) $activeLegacySales->sum('total');
+        $paidCount = $activePaid->count() + $activeLegacySales->count();
+        $clientsCount = $activePaid->pluck('client_id')->filter()
+            ->concat($activeLegacySales->pluck('client_id')->filter())
             ->unique()->count()
-            + $paid->whereNull('client_id')->count()
-            + $legacySales->whereNull('client_id')->count();
+            + $activePaid->whereNull('client_id')->count()
+            + $activeLegacySales->whereNull('client_id')->count();
         $averageTicket = $paidCount > 0 ? round($revenue / $paidCount, 2) : 0.0;
-        $legacyCommissionTotal = (float) $legacySales->sum('commission_amount');
+        $legacyCommissionTotal = (float) $activeLegacySales->sum('commission_amount');
 
         $topServices = $prestations
             ->flatMap(fn (Prestation $prestation) => $prestation->items)
@@ -219,7 +243,7 @@ class MeController extends Controller
                 'count' => (int) $group->sum('quantity'),
                 'total' => round((float) $group->sum(fn ($item) => $item->lineTotal()), 2),
             ]);
-        $legacyTopServices = $legacySales
+        $legacyTopServices = $activeLegacySales
             ->flatMap(fn (Sale $sale) => $sale->items)
             ->groupBy('label')
             ->map(fn (Collection $group, string $label) => [
@@ -246,6 +270,7 @@ class MeController extends Controller
             'total' => (float) $prestation->total,
             'status' => $prestation->status,
             'commission' => round((float) $prestation->items->sum('commission_amount'), 2),
+            'is_deleted' => $prestation->sale_id !== null && $deletedPaidSaleIds->has($prestation->sale_id),
             'created_at' => $prestation->created_at,
         ]);
         $legacyDetails = $legacySales->map(fn (Sale $sale) => [
@@ -255,6 +280,7 @@ class MeController extends Controller
             'total' => (float) $sale->total,
             'status' => 'paid',
             'commission' => round((float) $sale->commission_amount, 2),
+            'is_deleted' => $sale->trashed(),
             'created_at' => $sale->created_at,
         ]);
 
@@ -262,7 +288,7 @@ class MeController extends Controller
             'period' => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
             'revenue_total' => round($revenue, 2),
             'commission_total' => round((float) $commissions->sum('amount') + $legacyCommissionTotal, 2),
-            'prestations_count' => $prestations->count() + $legacySales->count(),
+            'prestations_count' => $prestations->count() + $activeLegacySales->count(),
             'paid_count' => $paidCount,
             'cancelled_count' => $cancelled->count(),
             'clients_count' => $clientsCount,
@@ -297,7 +323,29 @@ class MeController extends Controller
             ->whereNotNull('sale_id')
             ->pluck('sale_id');
 
-        return Sale::where('employee_id', $employee->id)
+        // withTrashed(): a sale voided at the caisse must still show up here,
+        // marked deleted, exactly like it does in the admin's day ledger — it
+        // must never silently vanish from the employee's own history.
+        return Sale::withTrashed()
+            ->where('employee_id', $employee->id)
             ->whereNotIn('id', $linkedSaleIds);
+    }
+
+    /**
+     * Sale ids among the given list that have been voided ("supprimé") at the
+     * caisse — used both for prestation-derived and legacy sales, so a
+     * deleted encaissement is excluded from revenue/commission totals
+     * wherever it's tied to this employee.
+     *
+     * @param  \Illuminate\Support\Collection<int, int>  $saleIds
+     * @return \Illuminate\Support\Collection<int, bool>
+     */
+    private function deletedSaleIds(Collection $saleIds): Collection
+    {
+        if ($saleIds->isEmpty()) {
+            return collect();
+        }
+
+        return Sale::onlyTrashed()->whereIn('id', $saleIds)->pluck('id')->flip();
     }
 }

@@ -126,20 +126,43 @@ export function MyReportPanel() {
                             {report.details.map((row) => (
                                 <div
                                     key={row.reference}
-                                    className="flex flex-wrap items-center justify-between gap-2 border-b border-tint/[0.05] py-2 text-sm last:border-0"
+                                    className={cn(
+                                        'flex flex-wrap items-center justify-between gap-2 border-b border-tint/[0.05] py-2 text-sm last:border-0',
+                                        row.is_deleted && 'opacity-70',
+                                    )}
                                 >
                                     <div className="min-w-0">
-                                        <span className="font-medium text-foreground">{row.reference}</span>{' '}
+                                        <span
+                                            className={cn(
+                                                'font-medium text-foreground',
+                                                row.is_deleted && 'text-muted-foreground',
+                                            )}
+                                        >
+                                            {row.reference}
+                                        </span>{' '}
                                         <span className="text-xs text-muted-foreground">
                                             {formatDate(row.date)} · {row.client}
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-2.5">
-                                        <span className="tabular-nums">{formatCurrency(row.total)}</span>
-                                        <span className="text-xs tabular-nums text-accent">
-                                            +{formatCurrency(row.commission)}
+                                        <span
+                                            className={cn(
+                                                'tabular-nums',
+                                                row.is_deleted && 'text-muted-foreground line-through decoration-destructive/70',
+                                            )}
+                                        >
+                                            {formatCurrency(row.total)}
                                         </span>
-                                        <Badge variant={STATUS_VARIANT[row.status] ?? 'default'}>{row.status}</Badge>
+                                        {!row.is_deleted && (
+                                            <span className="text-xs tabular-nums text-accent">
+                                                +{formatCurrency(row.commission)}
+                                            </span>
+                                        )}
+                                        {row.is_deleted ? (
+                                            <Badge variant="destructive">Supprimé</Badge>
+                                        ) : (
+                                            <Badge variant={STATUS_VARIANT[row.status] ?? 'default'}>{row.status}</Badge>
+                                        )}
                                     </div>
                                 </div>
                             ))}
