@@ -125,7 +125,9 @@
       "Bash(python -X utf8 qa_delete_sync2.py)",
       "Bash(grep -n 'protected $fillable' -A 15 app/Models/Commission.php)",
       "Bash(grep -n 'protected $fillable' -A 15 app/Models/PrestationItem.php)",
-      "Bash(python -X utf8 qa_commission_delete.py)"
+      "Bash(python -X utf8 qa_commission_delete.py)",
+      "Bash(php -l app/Http/Controllers/Api/EmployeeServiceCommissionController.php)",
+      "Bash(python -X utf8 qa_multiselect.py)"
     ],
     "additionalDirectories": [
       "C:\\xampp\\php"

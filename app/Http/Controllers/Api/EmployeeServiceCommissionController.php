@@ -8,6 +8,7 @@ use App\Models\EmployeeServiceCommission;
 use App\Services\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class EmployeeServiceCommissionController extends Controller
@@ -31,11 +32,18 @@ class EmployeeServiceCommissionController extends Controller
         return response()->json(['data' => EmployeeServiceCommissionResource::collection($query->get())]);
     }
 
+    /**
+     * Accepts either a single `service_id` or a `service_ids` array — the
+     * latter creates one identically-configured rule per selected service in
+     * a single request, for "same commission, several services at once".
+     */
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'employee_id' => ['required', 'integer', 'exists:employees,id'],
-            'service_id' => ['required', 'integer', 'exists:services,id'],
+            'service_id' => ['required_without:service_ids', 'nullable', 'integer', 'exists:services,id'],
+            'service_ids' => ['required_without:service_id', 'nullable', 'array', 'min:1'],
+            'service_ids.*' => ['integer', 'distinct', 'exists:services,id'],
             'type' => ['required', Rule::in(['percentage', 'fixed'])],
             'value' => ['required', 'numeric', 'min:0'],
             'starts_on' => ['required', 'date'],
@@ -43,11 +51,19 @@ class EmployeeServiceCommissionController extends Controller
             'notes' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $rule = EmployeeServiceCommission::create([...$validated, 'is_active' => true]);
+        $serviceIds = $validated['service_ids'] ?? [$validated['service_id']];
+        $common = collect($validated)->except(['service_id', 'service_ids'])->all();
 
-        $this->activityLogger->log('commission_rule.created', $rule, [], $validated);
+        $rules = DB::transaction(function () use ($serviceIds, $common) {
+            return collect($serviceIds)->map(function (int $serviceId) use ($common) {
+                $rule = EmployeeServiceCommission::create([...$common, 'service_id' => $serviceId, 'is_active' => true]);
+                $this->activityLogger->log('commission_rule.created', $rule, [], [...$common, 'service_id' => $serviceId]);
 
-        return response()->json(['data' => new EmployeeServiceCommissionResource($rule->load(['employee', 'service']))], 201);
+                return $rule->load(['employee', 'service']);
+            });
+        });
+
+        return response()->json(['data' => EmployeeServiceCommissionResource::collection($rules)], 201);
     }
 
     public function update(Request $request, EmployeeServiceCommission $employeeServiceCommission): JsonResponse

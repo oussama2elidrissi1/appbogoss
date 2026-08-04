@@ -1,10 +1,16 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, Loader2, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, ChevronDown, Loader2, Plus, Trash2 } from 'lucide-react';
 import { api, getErrorMessage, getServices } from '@/lib/api';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import type { Employee } from '@/types/workday';
 import { Button } from '@/components/ui/button';
+import {
+    DropdownMenu,
+    DropdownMenuCheckboxItem,
+    DropdownMenuContent,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -34,7 +40,7 @@ function today(): string {
 }
 
 const emptyForm = {
-    service_id: '',
+    service_ids: [] as number[],
     type: 'percentage' as 'percentage' | 'fixed',
     value: '',
     starts_on: today(),
@@ -64,7 +70,7 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
         mutationFn: () =>
             api.post('/api/employee-service-commissions', {
                 employee_id: employee.id,
-                service_id: Number(form.service_id),
+                service_ids: form.service_ids,
                 type: form.type,
                 value: Number(form.value),
                 starts_on: form.starts_on,
@@ -80,7 +86,23 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
         onSuccess: invalidate,
     });
 
-    const canSubmit = form.service_id !== '' && form.value !== '' && Number(form.value) >= 0;
+    function toggleService(serviceId: number) {
+        setForm((current) => ({
+            ...current,
+            service_ids: current.service_ids.includes(serviceId)
+                ? current.service_ids.filter((id) => id !== serviceId)
+                : [...current.service_ids, serviceId],
+        }));
+    }
+
+    const canSubmit = form.service_ids.length > 0 && form.value !== '' && Number(form.value) >= 0;
+    const servicesById = new Map((services ?? []).map((service) => [service.id, service.name]));
+    const serviceTriggerLabel =
+        form.service_ids.length === 0
+            ? 'Choisir…'
+            : form.service_ids.length === 1
+              ? (servicesById.get(form.service_ids[0]) ?? '1 service')
+              : `${form.service_ids.length} services sélectionnés`;
 
     return (
         <div className="space-y-3">
@@ -126,22 +148,40 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
 
             <div className="grid grid-cols-2 gap-2.5">
                 <div className="space-y-1.5">
-                    <Label className="text-xs">Service</Label>
-                    <Select
-                        value={form.service_id}
-                        onValueChange={(value) => setForm((current) => ({ ...current, service_id: value }))}
-                    >
-                        <SelectTrigger>
-                            <SelectValue placeholder="Choisir…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {(services ?? []).map((service) => (
-                                <SelectItem key={service.id} value={String(service.id)}>
-                                    {service.name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <Label className="text-xs">
+                        Service{form.service_ids.length > 1 ? 's' : ''}
+                    </Label>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button
+                                type="button"
+                                className={cn(
+                                    'flex h-9 w-full items-center justify-between gap-2 rounded-md border border-tint/[0.08] bg-tint/[0.04] px-2.5 text-xs text-foreground outline-none transition-colors',
+                                    'focus:border-accent/60',
+                                    form.service_ids.length === 0 && 'text-muted-foreground',
+                                )}
+                            >
+                                <span className="truncate">{serviceTriggerLabel}</span>
+                                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="max-h-64 w-[--radix-dropdown-menu-trigger-width] overflow-y-auto">
+                            {(services ?? []).length === 0 ? (
+                                <p className="px-2 py-1.5 text-xs text-muted-foreground">Aucun service</p>
+                            ) : (
+                                (services ?? []).map((service) => (
+                                    <DropdownMenuCheckboxItem
+                                        key={service.id}
+                                        checked={form.service_ids.includes(service.id)}
+                                        onSelect={(event) => event.preventDefault()}
+                                        onCheckedChange={() => toggleService(service.id)}
+                                    >
+                                        {service.name}
+                                    </DropdownMenuCheckboxItem>
+                                ))
+                            )}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
                 <div className="space-y-1.5">
                     <Label className="text-xs">Type</Label>
