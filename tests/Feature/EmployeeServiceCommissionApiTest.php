@@ -2,10 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Models\Commission;
 use App\Models\Employee;
 use App\Models\EmployeeServiceCommission;
+use App\Models\Prestation;
 use App\Models\Service;
 use App\Models\User;
+use App\Models\WorkDay;
+use App\Services\PrestationService;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -101,5 +105,137 @@ class EmployeeServiceCommissionApiTest extends TestCase
         ]);
 
         $response->assertStatus(422);
+    }
+
+    public function test_store_retroactively_recalculates_already_paid_prestations_within_the_rules_window(): void
+    {
+        WorkDay::factory()->create(['status' => 'open']);
+        $employeeUser = User::factory()->create(['role' => 'employee']);
+        $employeeUser->assignRole('employee');
+        $employee = Employee::factory()->create(['user_id' => $employeeUser->id, 'default_commission_rate' => null]);
+        $service = Service::factory()->create(['price' => 100]);
+        $admin = User::factory()->create(['role' => 'admin']);
+        $admin->assignRole('admin');
+
+        $prestation = app(PrestationService::class)->create(
+            ['items' => [['service_id' => $service->id, 'quantity' => 1]]],
+            $employee,
+            $employeeUser,
+        );
+        app(PrestationService::class)->markServicesDone($prestation, $employeeUser);
+        app(PrestationService::class)->sendToCaisse($prestation, $employeeUser);
+        $paid = app(PrestationService::class)->confirmPayment($prestation, ['payment_method' => 'especes'], $admin);
+
+        // No rule existed at payment time and the employee has no default
+        // rate — the commission was frozen at 0.
+        $item = $paid->items->first();
+        $this->assertEquals(0, $item->commission_amount);
+        $commissionId = Commission::where('prestation_item_id', $item->id)->value('id');
+        $this->assertEquals(0, Commission::find($commissionId)->amount);
+
+        // Backdate the payment so it falls inside a rule created afterward
+        // with a starts_on in the past.
+        $paid->update(['confirmed_at' => now()->subDays(3)]);
+
+        Sanctum::actingAs($admin);
+        $response = $this->postJson('/api/employee-service-commissions', [
+            'employee_id' => $employee->id,
+            'service_id' => $service->id,
+            'type' => 'percentage',
+            'value' => 60,
+            'starts_on' => now()->subDays(7)->toDateString(),
+        ]);
+
+        $response->assertCreated();
+        $this->assertSame(1, $response->json('meta.recalculated_count'));
+
+        $item->refresh();
+        $this->assertEquals(60, $item->commission_amount);
+        $this->assertEquals('percentage', $item->commission_type);
+
+        $commission = Commission::find($commissionId);
+        $this->assertEquals(60, $commission->amount);
+        // The audit trail is preserved — still "validated", never touched.
+        $this->assertSame(Commission::STATUS_VALIDATED, $commission->status);
+    }
+
+    public function test_store_does_not_recalculate_a_payment_outside_the_rules_window(): void
+    {
+        WorkDay::factory()->create(['status' => 'open']);
+        $employeeUser = User::factory()->create(['role' => 'employee']);
+        $employeeUser->assignRole('employee');
+        $employee = Employee::factory()->create(['user_id' => $employeeUser->id, 'default_commission_rate' => null]);
+        $service = Service::factory()->create(['price' => 100]);
+        $admin = User::factory()->create(['role' => 'admin']);
+        $admin->assignRole('admin');
+
+        $prestation = app(PrestationService::class)->create(
+            ['items' => [['service_id' => $service->id, 'quantity' => 1]]],
+            $employee,
+            $employeeUser,
+        );
+        app(PrestationService::class)->markServicesDone($prestation, $employeeUser);
+        app(PrestationService::class)->sendToCaisse($prestation, $employeeUser);
+        $paid = app(PrestationService::class)->confirmPayment($prestation, ['payment_method' => 'especes'], $admin);
+
+        // Paid well before the new rule's window starts.
+        $paid->update(['confirmed_at' => now()->subDays(30)]);
+        $item = $paid->items->first();
+
+        Sanctum::actingAs($admin);
+        $response = $this->postJson('/api/employee-service-commissions', [
+            'employee_id' => $employee->id,
+            'service_id' => $service->id,
+            'type' => 'percentage',
+            'value' => 60,
+            'starts_on' => now()->subDays(7)->toDateString(),
+        ]);
+
+        $response->assertCreated();
+        $this->assertSame(0, $response->json('meta.recalculated_count'));
+
+        $item->refresh();
+        $this->assertEquals(0, $item->commission_amount);
+    }
+
+    public function test_store_does_not_resurrect_a_cancelled_commission(): void
+    {
+        WorkDay::factory()->create(['status' => 'open']);
+        $employeeUser = User::factory()->create(['role' => 'employee']);
+        $employeeUser->assignRole('employee');
+        $employee = Employee::factory()->create(['user_id' => $employeeUser->id, 'default_commission_rate' => 40]);
+        $service = Service::factory()->create(['price' => 100]);
+        $admin = User::factory()->create(['role' => 'admin']);
+        $admin->assignRole('admin');
+        $superAdmin = User::factory()->create(['role' => 'super-admin']);
+        $superAdmin->assignRole('super-admin');
+
+        $prestation = app(PrestationService::class)->create(
+            ['items' => [['service_id' => $service->id, 'quantity' => 1]]],
+            $employee,
+            $employeeUser,
+        );
+        app(PrestationService::class)->markServicesDone($prestation, $employeeUser);
+        app(PrestationService::class)->sendToCaisse($prestation, $employeeUser);
+        $paid = app(PrestationService::class)->confirmPayment($prestation, ['payment_method' => 'especes'], $admin);
+        $paid->update(['confirmed_at' => now()->subDays(3)]);
+
+        $refunded = app(PrestationService::class)->refund($paid, 'Client insatisfait', $superAdmin);
+        $item = $refunded->items->first();
+        $commissionId = Commission::where('prestation_item_id', $item->id)->value('id');
+        $this->assertSame(Commission::STATUS_CANCELLED, Commission::find($commissionId)->status);
+
+        Sanctum::actingAs($admin);
+        $response = $this->postJson('/api/employee-service-commissions', [
+            'employee_id' => $employee->id,
+            'service_id' => $service->id,
+            'type' => 'percentage',
+            'value' => 60,
+            'starts_on' => now()->subDays(7)->toDateString(),
+        ]);
+
+        $response->assertCreated();
+        $this->assertSame(0, $response->json('meta.recalculated_count'));
+        $this->assertSame(Commission::STATUS_CANCELLED, Commission::find($commissionId)->status);
     }
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, ChevronDown, Loader2, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronDown, Loader2, Plus, Trash2 } from 'lucide-react';
 import { api, getErrorMessage, getServices } from '@/lib/api';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import type { Employee } from '@/types/workday';
@@ -50,6 +50,7 @@ const emptyForm = {
 export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
     const queryClient = useQueryClient();
     const [form, setForm] = useState(emptyForm);
+    const [recalculatedCount, setRecalculatedCount] = useState<number | null>(null);
 
     const { data: rules, isPending } = useQuery({
         queryKey: ['commission-rules', employee.id],
@@ -68,16 +69,17 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
 
     const createMutation = useMutation({
         mutationFn: () =>
-            api.post('/api/employee-service-commissions', {
+            api.post<{ meta?: { recalculated_count?: number } }>('/api/employee-service-commissions', {
                 employee_id: employee.id,
                 service_ids: form.service_ids,
                 type: form.type,
                 value: Number(form.value),
                 starts_on: form.starts_on,
             }),
-        onSuccess: () => {
+        onSuccess: (response) => {
             invalidate();
             setForm(emptyForm);
+            setRecalculatedCount(response.data.meta?.recalculated_count ?? 0);
         },
     });
 
@@ -230,12 +232,26 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
                 </div>
             )}
 
+            {recalculatedCount !== null && recalculatedCount > 0 && (
+                <div className="flex items-start gap-2 rounded-md border border-success/25 bg-success/[0.10] px-3 py-2">
+                    <CheckCircle2 className="mt-px h-3.5 w-3.5 shrink-0 text-success" />
+                    <p className="text-xs text-success">
+                        Règle enregistrée — {recalculatedCount} prestation{recalculatedCount > 1 ? 's' : ''} déjà
+                        payée{recalculatedCount > 1 ? 's' : ''} {recalculatedCount > 1 ? 'ont' : 'a'} été
+                        recalculée{recalculatedCount > 1 ? 's' : ''} avec ce nouveau taux.
+                    </p>
+                </div>
+            )}
+
             <Button
                 variant="outline"
                 size="sm"
                 className="w-full"
                 disabled={!canSubmit || createMutation.isPending}
-                onClick={() => createMutation.mutate()}
+                onClick={() => {
+                    setRecalculatedCount(null);
+                    createMutation.mutate();
+                }}
             >
                 {createMutation.isPending ? <Loader2 className="animate-spin" /> : <Plus />}
                 Ajouter la règle

@@ -4,8 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\EmployeeServiceCommissionResource;
+use App\Models\Commission;
 use App\Models\EmployeeServiceCommission;
+use App\Models\Prestation;
+use App\Models\PrestationItem;
+use App\Models\Service;
 use App\Services\ActivityLogger;
+use App\Services\CommissionResolver;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,8 +18,10 @@ use Illuminate\Validation\Rule;
 
 class EmployeeServiceCommissionController extends Controller
 {
-    public function __construct(private readonly ActivityLogger $activityLogger)
-    {
+    public function __construct(
+        private readonly ActivityLogger $activityLogger,
+        private readonly CommissionResolver $commissionResolver,
+    ) {
     }
 
     public function index(Request $request): JsonResponse
@@ -53,17 +60,103 @@ class EmployeeServiceCommissionController extends Controller
 
         $serviceIds = $validated['service_ids'] ?? [$validated['service_id']];
         $common = collect($validated)->except(['service_id', 'service_ids'])->all();
+        $recalculated = 0;
 
-        $rules = DB::transaction(function () use ($serviceIds, $common) {
-            return collect($serviceIds)->map(function (int $serviceId) use ($common) {
+        $rules = DB::transaction(function () use ($serviceIds, $common, &$recalculated) {
+            return collect($serviceIds)->map(function (int $serviceId) use ($common, &$recalculated) {
                 $rule = EmployeeServiceCommission::create([...$common, 'service_id' => $serviceId, 'is_active' => true]);
                 $this->activityLogger->log('commission_rule.created', $rule, [], [...$common, 'service_id' => $serviceId]);
+
+                $recalculated += $this->recalculatePastCommissions($rule);
 
                 return $rule->load(['employee', 'service']);
             });
         });
 
-        return response()->json(['data' => EmployeeServiceCommissionResource::collection($rules)], 201);
+        return response()->json([
+            'data' => EmployeeServiceCommissionResource::collection($rules),
+            'meta' => ['recalculated_count' => $recalculated],
+        ], 201);
+    }
+
+    /**
+     * A rule can be backdated (starts_on in the past) — when that happens,
+     * every already-paid prestation for this employee+service inside the
+     * rule's window gets its commission recalculated through the very same
+     * resolver used at payment time, so history matches the new
+     * configuration instead of staying frozen on whatever applied before.
+     * Cancelled/refunded commissions are left untouched — recalculating a
+     * voided commission would resurrect money that was deliberately taken
+     * back out.
+     */
+    private function recalculatePastCommissions(EmployeeServiceCommission $rule): int
+    {
+        $items = PrestationItem::query()
+            ->where('service_id', $rule->service_id)
+            ->whereHas('prestation', function ($query) use ($rule) {
+                $query->where('employee_id', $rule->employee_id)
+                    ->where('status', Prestation::STATUS_PAID)
+                    ->whereDate('confirmed_at', '>=', $rule->starts_on);
+
+                if ($rule->ends_on !== null) {
+                    $query->whereDate('confirmed_at', '<=', $rule->ends_on);
+                }
+            })
+            ->with('prestation.employee')
+            ->get();
+
+        if ($items->isEmpty()) {
+            return 0;
+        }
+
+        $service = Service::find($rule->service_id);
+        $updated = 0;
+
+        foreach ($items as $item) {
+            $commission = Commission::where('prestation_item_id', $item->id)
+                ->where('status', Commission::STATUS_VALIDATED)
+                ->first();
+
+            if ($commission === null) {
+                continue;
+            }
+
+            $prestation = $item->prestation;
+            $resolved = $this->commissionResolver->resolve(
+                $prestation->employee,
+                $service,
+                (float) $item->lineTotal(),
+                $prestation->confirmed_at,
+            );
+
+            if ($resolved['amount'] === (float) $item->commission_amount && $resolved['rule_id'] === $item->commission_rule_id) {
+                continue;
+            }
+
+            $item->update([
+                'commission_type' => $resolved['type'],
+                'commission_value' => $resolved['value'],
+                'commission_amount' => $resolved['amount'],
+                'commission_rule_id' => $resolved['rule_id'],
+            ]);
+
+            $commission->update([
+                'rule_id' => $resolved['rule_id'],
+                'type' => $resolved['type'],
+                'rate_or_amount' => $resolved['value'],
+                'amount' => $resolved['amount'],
+            ]);
+
+            $updated++;
+        }
+
+        if ($updated > 0) {
+            $this->activityLogger->log('commission_rule.recalculated_history', $rule, [], [
+                'prestation_items_updated' => $updated,
+            ]);
+        }
+
+        return $updated;
     }
 
     public function update(Request $request, EmployeeServiceCommission $employeeServiceCommission): JsonResponse
