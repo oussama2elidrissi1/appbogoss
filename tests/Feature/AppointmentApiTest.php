@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\Service;
 use App\Models\User;
 use Carbon\Carbon;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -16,9 +17,22 @@ class AppointmentApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed(RolesAndPermissionsSeeder::class);
+    }
+
+    private function actingAsAdmin(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        Sanctum::actingAs($admin);
+    }
+
     public function test_appointment_crud_endpoints_work(): void
     {
-        Sanctum::actingAs(User::factory()->create());
+        $this->actingAsAdmin();
 
         $client = Client::factory()->create(['name' => 'Client Reservation']);
         $employee = Employee::factory()->create(['name' => 'Ahmed']);
@@ -69,7 +83,7 @@ class AppointmentApiTest extends TestCase
 
     public function test_appointment_index_can_filter_by_employee_and_status(): void
     {
-        Sanctum::actingAs(User::factory()->create());
+        $this->actingAsAdmin();
 
         $employee = Employee::factory()->create();
         $otherEmployee = Employee::factory()->create();
@@ -97,7 +111,7 @@ class AppointmentApiTest extends TestCase
 
     public function test_client_can_be_created_for_a_reservation(): void
     {
-        Sanctum::actingAs(User::factory()->create());
+        $this->actingAsAdmin();
 
         $created = $this->postJson('/api/clients', [
             'name' => 'Nouveau Client',

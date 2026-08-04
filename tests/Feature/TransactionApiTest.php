@@ -7,6 +7,7 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\User;
 use App\Models\WorkDay;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -15,9 +16,22 @@ class TransactionApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed(RolesAndPermissionsSeeder::class);
+    }
+
+    private function actingAsAdmin(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        Sanctum::actingAs($admin);
+    }
+
     public function test_deleted_ticket_stays_visible_in_day_history(): void
     {
-        Sanctum::actingAs(User::factory()->create());
+        $this->actingAsAdmin();
 
         $employee = Employee::factory()->create();
         $workDay = WorkDay::factory()->create(['status' => 'open']);
@@ -53,7 +67,7 @@ class TransactionApiTest extends TestCase
 
     public function test_print_count_is_recorded_and_incremented(): void
     {
-        Sanctum::actingAs(User::factory()->create());
+        $this->actingAsAdmin();
 
         $employee = Employee::factory()->create();
         $workDay = WorkDay::factory()->create(['status' => 'open']);

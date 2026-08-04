@@ -95,4 +95,27 @@ class RoleAccessTest extends TestCase
         Sanctum::actingAs($superAdmin);
         $this->postJson("/api/prestations/{$paid->id}/refund", ['reason' => 'test'])->assertOk();
     }
+
+    public function test_employee_role_cannot_access_admin_only_modules(): void
+    {
+        $user = User::factory()->create(['role' => 'employee']);
+        $user->assignRole('employee');
+        Sanctum::actingAs($user);
+
+        // Company-wide data an employee has no business seeing or touching —
+        // the sidebar hides these, but the API must refuse them regardless.
+        $this->getJson('/api/dashboard')->assertForbidden();
+        $this->getJson('/api/appointments')->assertForbidden();
+        $this->getJson('/api/work-days/active')->assertForbidden();
+        $this->getJson('/api/transactions?work_day_id=1')->assertForbidden();
+        $this->getJson('/api/expenses')->assertForbidden();
+        $this->getJson('/api/products')->assertForbidden();
+        $this->getJson('/api/advances')->assertForbidden();
+        $this->getJson('/api/employees')->assertForbidden();
+        $this->postJson('/api/clients', ['name' => 'Intrus'])->assertForbidden();
+
+        // Still allowed: reading the catalog and client list to build a prestation.
+        $this->getJson('/api/services')->assertOk();
+        $this->getJson('/api/clients')->assertOk();
+    }
 }

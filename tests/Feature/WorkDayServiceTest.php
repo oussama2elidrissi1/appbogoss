@@ -144,7 +144,10 @@ class WorkDayServiceTest extends TestCase
 
     public function test_closed_day_pdf_route_returns_a_report_response(): void
     {
-        Sanctum::actingAs(\App\Models\User::factory()->create());
+        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        $admin = \App\Models\User::factory()->create();
+        $admin->assignRole('admin');
+        Sanctum::actingAs($admin);
 
         $day = WorkDay::factory()->create([
             'status' => 'closed',
@@ -157,7 +160,10 @@ class WorkDayServiceTest extends TestCase
 
     public function test_closed_day_web_pdf_route_returns_a_report_response(): void
     {
-        $this->actingAs(\App\Models\User::factory()->create());
+        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        $admin = \App\Models\User::factory()->create();
+        $admin->assignRole('admin');
+        $this->actingAs($admin);
 
         $day = WorkDay::factory()->create([
             'status' => 'closed',

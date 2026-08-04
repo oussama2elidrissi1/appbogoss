@@ -38,8 +38,8 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
-    Route::get('/dashboard', [DashboardController::class, 'index']);
     Route::middleware('permission:reports.view_all')->group(function () {
+        Route::get('/dashboard', [DashboardController::class, 'index']);
         Route::get('/reports/monthly', [ReportController::class, 'monthly']);
         Route::get('/reports/advances', [ReportController::class, 'advances']);
         Route::get('/reports/commissions', [ReportController::class, 'commissions']);
@@ -56,36 +56,39 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/profile', [SettingsController::class, 'updateProfile']);
     Route::post('/profile/password', [SettingsController::class, 'updatePassword']);
 
-    Route::apiResource('/appointments', AppointmentController::class);
+    Route::middleware('permission:agenda.manage')->group(function () {
+        Route::apiResource('/appointments', AppointmentController::class);
+    });
 
-    Route::get('/work-days/active', [WorkDayController::class, 'activeDay']);
-    Route::get('/work-days/{workDay}/pdf', [WorkDayController::class, 'pdf']);
-    Route::get('/work-days/{workDay}', [WorkDayController::class, 'show']);
-    Route::get('/work-days', [WorkDayController::class, 'index']);
     Route::middleware('permission:caisse.manage')->group(function () {
+        Route::get('/work-days/active', [WorkDayController::class, 'activeDay']);
+        Route::get('/work-days/{workDay}/pdf', [WorkDayController::class, 'pdf']);
+        Route::get('/work-days/{workDay}', [WorkDayController::class, 'show']);
+        Route::get('/work-days', [WorkDayController::class, 'index']);
         Route::post('/work-days/{workDay}/close', [WorkDayController::class, 'close']);
         Route::post('/work-days', [WorkDayController::class, 'store']);
         Route::get('/cash-movements', [CashMovementController::class, 'index']);
         Route::post('/cash-movements', [CashMovementController::class, 'store']);
+
+        Route::get('/transactions', [TransactionController::class, 'index']);
+        Route::post('/transactions', [TransactionController::class, 'store']);
+        Route::post('/transactions/{sale}/print', [TransactionController::class, 'recordPrint']);
+        Route::delete('/transactions/{sale}', [TransactionController::class, 'destroy']);
+
+        Route::get('/expenses', [ExpenseController::class, 'index']);
+        Route::post('/expenses', [ExpenseController::class, 'store']);
+
+        Route::apiResource('/products', ProductController::class);
     });
 
-    Route::get('/transactions', [TransactionController::class, 'index']);
-    Route::post('/transactions', [TransactionController::class, 'store']);
-    Route::post('/transactions/{sale}/print', [TransactionController::class, 'recordPrint']);
-    Route::delete('/transactions/{sale}', [TransactionController::class, 'destroy']);
-
-    Route::post('/advances/{advance}/settle', [AdvanceController::class, 'settle']);
-    Route::get('/advances', [AdvanceController::class, 'index']);
-    Route::post('/advances', [AdvanceController::class, 'store']);
-    Route::put('/advances/{advance}', [AdvanceController::class, 'update']);
-    Route::delete('/advances/{advance}', [AdvanceController::class, 'destroy']);
-
-    Route::get('/expenses', [ExpenseController::class, 'index']);
-    Route::post('/expenses', [ExpenseController::class, 'store']);
-
-    Route::apiResource('/employees', EmployeeController::class)->only(['index', 'show']);
     Route::middleware('permission:employees.manage')->group(function () {
-        Route::apiResource('/employees', EmployeeController::class)->only(['store', 'update', 'destroy']);
+        Route::post('/advances/{advance}/settle', [AdvanceController::class, 'settle']);
+        Route::get('/advances', [AdvanceController::class, 'index']);
+        Route::post('/advances', [AdvanceController::class, 'store']);
+        Route::put('/advances/{advance}', [AdvanceController::class, 'update']);
+        Route::delete('/advances/{advance}', [AdvanceController::class, 'destroy']);
+
+        Route::apiResource('/employees', EmployeeController::class);
         Route::post('/employees/{employee}/reset-password', [EmployeeController::class, 'resetPassword']);
         Route::post('/employees/{employee}/quick-create-account', [EmployeeController::class, 'quickCreateAccount']);
         Route::patch('/employees/{employee}/status', [EmployeeController::class, 'status']);
@@ -120,8 +123,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/prestations/{prestation}/refund', [PrestationController::class, 'refund']);
     Route::post('/prestations/{prestation}/print', [PrestationController::class, 'print']);
 
-    Route::apiResource('/clients', ClientController::class);
-    Route::apiResource('/products', ProductController::class);
+    Route::apiResource('/clients', ClientController::class)->only(['index', 'show']);
+    Route::middleware('permission:caisse.manage')->group(function () {
+        Route::apiResource('/clients', ClientController::class)->only(['store', 'update', 'destroy']);
+    });
+
     Route::apiResource('/services', ServiceController::class)->only(['index', 'show']);
     Route::middleware('permission:services.manage')->group(function () {
         Route::apiResource('/services', ServiceController::class)->only(['store', 'update', 'destroy']);
