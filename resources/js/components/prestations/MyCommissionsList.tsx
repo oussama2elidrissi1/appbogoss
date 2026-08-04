@@ -50,7 +50,8 @@ export function MyCommissionsList() {
         queryFn: () => getMyCommissions(range),
     });
 
-    const total = rows?.reduce((sum, row) => sum + (row.status === 'validated' ? row.amount : 0), 0) ?? 0;
+    const total =
+        rows?.reduce((sum, row) => sum + (row.status === 'validated' && !row.is_deleted ? row.amount : 0), 0) ?? 0;
 
     return (
         <div className="space-y-4">
@@ -97,9 +98,20 @@ export function MyCommissionsList() {
             ) : (
                 <div className="space-y-2">
                     {rows.map((row) => (
-                        <Card key={row.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                        <Card
+                            key={row.id}
+                            className={cn(
+                                'flex flex-wrap items-center justify-between gap-3 p-4',
+                                row.is_deleted && 'opacity-70',
+                            )}
+                        >
                             <div className="min-w-0">
-                                <p className="truncate text-sm font-medium text-foreground">
+                                <p
+                                    className={cn(
+                                        'truncate text-sm font-medium text-foreground',
+                                        row.is_deleted && 'text-muted-foreground',
+                                    )}
+                                >
                                     {row.service_name ?? 'Service'} · {row.prestation_reference}
                                 </p>
                                 <p className="mt-0.5 text-xs text-muted-foreground">
@@ -108,12 +120,21 @@ export function MyCommissionsList() {
                                 </p>
                             </div>
                             <div className="flex items-center gap-3">
-                                <span className="text-sm font-semibold tabular-nums text-accent">
+                                <span
+                                    className={cn(
+                                        'text-sm font-semibold tabular-nums text-accent',
+                                        row.is_deleted && 'text-muted-foreground line-through decoration-destructive/70',
+                                    )}
+                                >
                                     {formatCurrency(row.amount)}
                                 </span>
-                                <Badge variant={row.status === 'validated' ? 'success' : 'outline'}>
-                                    {row.status === 'validated' ? 'Validée' : 'Annulée'}
-                                </Badge>
+                                {row.is_deleted ? (
+                                    <Badge variant="destructive">Supprimé</Badge>
+                                ) : (
+                                    <Badge variant={row.status === 'validated' ? 'success' : 'outline'}>
+                                        {row.status === 'validated' ? 'Validée' : 'Annulée'}
+                                    </Badge>
+                                )}
                             </div>
                         </Card>
                     ))}

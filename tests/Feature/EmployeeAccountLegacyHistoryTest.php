@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Models\Commission;
 use App\Models\Employee;
 use App\Models\Prestation;
+use App\Models\PrestationItem;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Service;
@@ -200,6 +202,71 @@ class EmployeeAccountLegacyHistoryTest extends TestCase
         $this->assertTrue($detail['is_deleted']);
         // The prestation's own workflow status is untouched — only flagged as deleted.
         $this->assertSame('paid', $detail['status']);
+    }
+
+    public function test_voiding_a_prestation_paid_sale_at_the_caisse_excludes_its_commission_from_totals_but_keeps_it_listed(): void
+    {
+        [$employee, $user] = $this->employeeWithLogin();
+        $admin = $this->admin();
+        $service = Service::factory()->create();
+
+        $sale = Sale::create([
+            'employee_id' => $employee->id,
+            'category' => 'service',
+            'total' => 50,
+            'payment_method' => 'especes',
+            'print_count' => 1,
+        ]);
+        $prestation = Prestation::create([
+            'reference' => 'PRE-TEST-000003',
+            'employee_id' => $employee->id,
+            'created_by_user_id' => $admin->id,
+            'sale_id' => $sale->id,
+            'status' => Prestation::STATUS_PAID,
+            'total' => 50,
+        ]);
+        $item = PrestationItem::create([
+            'prestation_id' => $prestation->id,
+            'service_id' => $service->id,
+            'label' => $service->name,
+            'quantity' => 1,
+            'unit_price' => 50,
+            'commission_amount' => 25,
+        ]);
+        $commission = Commission::create([
+            'prestation_id' => $prestation->id,
+            'prestation_item_id' => $item->id,
+            'employee_id' => $employee->id,
+            'service_id' => $service->id,
+            'type' => 'percentage',
+            'rate_or_amount' => 50,
+            'base_amount' => 50,
+            'amount' => 25,
+            'status' => Commission::STATUS_VALIDATED,
+        ]);
+
+        Sanctum::actingAs($admin);
+        $this->deleteJson("/api/transactions/{$sale->id}")->assertOk();
+
+        Sanctum::actingAs($user);
+
+        $dashboard = $this->getJson('/api/me/dashboard');
+        $dashboard->assertOk();
+        $this->assertEquals(0, $dashboard->json('data.commission_today'));
+        $this->assertEquals(0, $dashboard->json('data.commission_month'));
+
+        $report = $this->getJson('/api/me/report?from='.now()->startOfMonth()->toDateString().'&to='.now()->toDateString());
+        $report->assertOk();
+        $this->assertEquals(0, $report->json('data.commission_total'));
+
+        $commissions = $this->getJson('/api/me/commissions');
+        $commissions->assertOk();
+        $row = collect($commissions->json('data'))->firstWhere('id', $commission->id);
+        $this->assertNotNull($row);
+        $this->assertTrue($row['is_deleted']);
+        // The Commission row itself is untouched (still "validated") — the
+        // audit trail is preserved, only the totals exclude it.
+        $this->assertSame('validated', $row['status']);
     }
 
     /** @return array{0: Employee, 1: User} */

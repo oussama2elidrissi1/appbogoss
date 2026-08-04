@@ -48,18 +48,9 @@ class MeController extends Controller
             ->where('status', Prestation::STATUS_PENDING_PAYMENT)
             ->count();
 
-        $commissionWeek = Commission::where('employee_id', $employee->id)
-            ->where('status', Commission::STATUS_VALIDATED)
-            ->where('created_at', '>=', $weekStart)
-            ->sum('amount');
-        $commissionMonth = Commission::where('employee_id', $employee->id)
-            ->where('status', Commission::STATUS_VALIDATED)
-            ->where('created_at', '>=', $monthStart)
-            ->sum('amount');
-        $commissionToday = Commission::where('employee_id', $employee->id)
-            ->where('status', Commission::STATUS_VALIDATED)
-            ->whereDate('created_at', $today)
-            ->sum('amount');
+        $commissionWeek = $this->activeValidatedCommissions($employee->id, from: $weekStart)->sum('amount');
+        $commissionMonth = $this->activeValidatedCommissions($employee->id, from: $monthStart)->sum('amount');
+        $commissionToday = $this->activeValidatedCommissions($employee->id, onDate: $today)->sum('amount');
 
         $recent = Prestation::where('employee_id', $employee->id)
             ->with('items')
@@ -136,7 +127,12 @@ class MeController extends Controller
             $query->where('status', $validated['status']);
         }
 
-        $rows = $query->get()->map(fn (Commission $commission) => [
+        $commissions = $query->get();
+        $deletedSaleIds = $this->deletedSaleIds(
+            $commissions->pluck('prestation.sale_id')->filter()->values(),
+        );
+
+        $rows = $commissions->map(fn (Commission $commission) => [
             'id' => $commission->id,
             'date' => $commission->created_at?->toIso8601String(),
             'prestation_reference' => $commission->prestation?->reference,
@@ -146,6 +142,11 @@ class MeController extends Controller
             'rate_or_amount' => (float) $commission->rate_or_amount,
             'amount' => (float) $commission->amount,
             'status' => $commission->status,
+            // The prestation itself can stay "paid" while its encaissement
+            // was voided directly at the caisse (outside the formal refund
+            // flow) — this flags that case without touching the audit trail.
+            'is_deleted' => $commission->prestation?->sale_id !== null
+                && $deletedSaleIds->has($commission->prestation->sale_id),
         ]);
 
         return response()->json(['data' => $rows]);
@@ -220,10 +221,7 @@ class MeController extends Controller
         );
         $activeLegacySales = $legacySales->reject(fn (Sale $sale) => $sale->trashed());
 
-        $commissions = Commission::where('employee_id', $employee->id)
-            ->where('status', Commission::STATUS_VALIDATED)
-            ->whereBetween('created_at', [$from, $to])
-            ->get();
+        $commissions = $this->activeValidatedCommissions($employee->id, from: $from, to: $to);
 
         $revenue = (float) $activePaid->sum('total') + (float) $activeLegacySales->sum('total');
         $paidCount = $activePaid->count() + $activeLegacySales->count();
@@ -347,5 +345,38 @@ class MeController extends Controller
         }
 
         return Sale::onlyTrashed()->whereIn('id', $saleIds)->pluck('id')->flip();
+    }
+
+    /**
+     * Validated commissions for this employee, excluding any whose prestation
+     * had its encaissement voided directly at the caisse. The Commission row
+     * itself is never mutated (it stays "validated" for the audit trail) —
+     * this only decides what counts toward the employee's own totals.
+     */
+    private function activeValidatedCommissions(int $employeeId, ?Carbon $from = null, ?Carbon $to = null, ?Carbon $onDate = null): Collection
+    {
+        $query = Commission::where('employee_id', $employeeId)
+            ->where('status', Commission::STATUS_VALIDATED)
+            ->with('prestation:id,sale_id');
+
+        if ($onDate !== null) {
+            $query->whereDate('created_at', $onDate);
+        }
+        if ($from !== null) {
+            $query->where('created_at', '>=', $from);
+        }
+        if ($to !== null) {
+            $query->where('created_at', '<=', $to);
+        }
+
+        $commissions = $query->get();
+        $deletedSaleIds = $this->deletedSaleIds(
+            $commissions->pluck('prestation.sale_id')->filter()->values(),
+        );
+
+        return $commissions->reject(
+            fn (Commission $commission) => $commission->prestation?->sale_id !== null
+                && $deletedSaleIds->has($commission->prestation->sale_id),
+        );
     }
 }

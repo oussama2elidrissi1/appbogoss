@@ -148,6 +148,7 @@ export interface MyCommissionRow {
     rate_or_amount: number;
     amount: number;
     status: string;
+    is_deleted: boolean;
 }
 
 export interface CommissionsReport {
