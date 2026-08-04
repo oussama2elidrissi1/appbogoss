@@ -138,7 +138,7 @@ export default function Caisse() {
                     </motion.div>
 
                     <motion.div variants={item} className="xl:col-span-2">
-                        <DayLedger workDayId={workDay.id} />
+                        <DayLedger workDayId={workDay.id} date={workDay.date} />
                     </motion.div>
                 </div>
             </motion.div>

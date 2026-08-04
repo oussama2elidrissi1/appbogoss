@@ -100,9 +100,10 @@ body { font-family: "Courier New", monospace; font-size: 10px; line-height: 1.35
 </html>`;
 }
 
-function printSingleReceipt(sale: Sale, copyLabel: string): void {
+/** Prints arbitrary 58mm-ticket HTML through a hidden iframe (thermal-printer friendly). */
+function printHtmlDocument(html: string, title: string): void {
     const frame = document.createElement('iframe');
-    frame.title = `Ticket ${sale.id} - ${copyLabel}`;
+    frame.title = title;
     frame.style.position = 'fixed';
     frame.style.right = '0';
     frame.style.bottom = '0';
@@ -118,7 +119,7 @@ function printSingleReceipt(sale: Sale, copyLabel: string): void {
     }
 
     doc.open();
-    doc.write(receiptHtml(sale, copyLabel));
+    doc.write(html);
     doc.close();
 
     const removeFrame = () => window.setTimeout(() => frame.remove(), 500);
@@ -132,6 +133,88 @@ function printSingleReceipt(sale: Sale, copyLabel: string): void {
 
 /** Prints the client copy first, then the employee copy two seconds later. */
 export function printSaleReceipt(sale: Sale): void {
-    printSingleReceipt(sale, 'Client');
-    window.setTimeout(() => printSingleReceipt(sale, 'Employe'), 2_000);
+    printHtmlDocument(receiptHtml(sale, 'Client'), `Ticket ${sale.id} - Client`);
+    window.setTimeout(
+        () => printHtmlDocument(receiptHtml(sale, 'Employe'), `Ticket ${sale.id} - Employe`),
+        2_000,
+    );
+}
+
+export interface EmployeeDailySummary {
+    employeeName: string;
+    /** 'YYYY-MM-DD' */
+    date: string;
+    salesCount: number;
+    total: number;
+    commissionTotal: number;
+}
+
+function formatSummaryDate(date: string): string {
+    const parsed = new Date(`${date}T00:00:00`);
+    if (Number.isNaN(parsed.getTime())) return date;
+    return new Intl.DateTimeFormat('fr-FR', {
+        weekday: 'long',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+    }).format(parsed);
+}
+
+function employeeSummaryHtml(summary: EmployeeDailySummary): string {
+    return `<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Total du jour - ${escapeHtml(summary.employeeName)}</title>
+<style>
+@page { size: 58mm auto; margin: 0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; width: 58mm; background: #fff; color: #000; }
+body { font-family: "Courier New", monospace; font-size: 10px; line-height: 1.35; }
+.ticket { width: 58mm; padding: 3mm; }
+.center { text-align: center; }
+.brand { font-size: 15px; font-weight: 700; letter-spacing: 0.5px; }
+.muted { font-size: 9px; }
+.line { border-top: 1px dashed #000; margin: 7px 0; }
+.row { display: flex; justify-content: space-between; gap: 6px; }
+.amount { flex: 0 0 auto; text-align: right; white-space: nowrap; }
+.total { font-size: 13px; font-weight: 700; }
+.name { font-size: 12px; font-weight: 700; margin-top: 2px; }
+</style>
+</head>
+<body>
+<main class="ticket">
+    <section class="center">
+        <div class="brand">BOGOSLAND</div>
+        <div class="muted">Total du jour</div>
+        <div class="muted">${escapeHtml(formatSummaryDate(summary.date))}</div>
+    </section>
+    <div class="line"></div>
+    <section class="center">
+        <div class="name">${escapeHtml(summary.employeeName)}</div>
+    </section>
+    <div class="line"></div>
+    <section class="row">
+        <span>Tickets</span>
+        <span class="amount">${summary.salesCount}</span>
+    </section>
+    <section class="row total">
+        <span>Chiffre d'affaires</span>
+        <span class="amount">${escapeHtml(formatCurrency(summary.total, { maximumFractionDigits: 2 }))}</span>
+    </section>
+    ${summary.commissionTotal > 0
+        ? `<section class="row muted"><span>Commission</span><span class="amount">${escapeHtml(formatCurrency(summary.commissionTotal, { maximumFractionDigits: 2 }))}</span></section>`
+        : ''}
+    <div class="line"></div>
+    <section class="center muted">Genere le ${escapeHtml(
+        new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date()),
+    )}</section>
+</main>
+</body>
+</html>`;
+}
+
+/** Prints a single 58mm ticket summarizing one employee's day — for the employee to sign or keep. */
+export function printEmployeeDailySummary(summary: EmployeeDailySummary): void {
+    printHtmlDocument(employeeSummaryHtml(summary), `Total du jour - ${summary.employeeName}`);
 }

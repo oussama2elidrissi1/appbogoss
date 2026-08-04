@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Printer, ReceiptText, Trash2 } from 'lucide-react';
 import { deleteTransaction, getTransactions, recordTransactionPrint } from '@/lib/api';
-import { printSaleReceipt } from '@/lib/receipt';
+import { printEmployeeDailySummary, printSaleReceipt } from '@/lib/receipt';
 import { workDayKeys } from '@/hooks/useWorkDay';
 import { cn, formatCurrency, formatTime } from '@/lib/utils';
 import type { Sale } from '@/types/workday';
@@ -18,6 +18,8 @@ import { EmployeeAvatar } from './EmployeeAvatar';
 
 interface DayLedgerProps {
     workDayId: number;
+    /** 'YYYY-MM-DD' — printed on the employee's daily total ticket. */
+    date: string;
 }
 
 interface EmployeeSalesSummary {
@@ -26,6 +28,7 @@ interface EmployeeSalesSummary {
     avatarColor: string;
     salesCount: number;
     total: number;
+    commissionTotal: number;
 }
 
 function clientName(sale: Sale): string {
@@ -35,7 +38,7 @@ function clientName(sale: Sale): string {
 }
 
 /** The running list of the day's encaissements, newest first. */
-export function DayLedger({ workDayId }: DayLedgerProps) {
+export function DayLedger({ workDayId, date }: DayLedgerProps) {
     const queryClient = useQueryClient();
     const [deletingSale, setDeletingSale] = useState<Sale | null>(null);
     const { data: sales, isPending } = useQuery({
@@ -87,10 +90,12 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
                     avatarColor: sale.employee.avatar_color,
                     salesCount: 0,
                     total: 0,
+                    commissionTotal: 0,
                 };
 
                 current.salesCount += 1;
                 current.total += sale.total;
+                current.commissionTotal += sale.commission_amount ?? 0;
                 summaries.set(sale.employee.id, current);
 
                 return summaries;
@@ -110,6 +115,16 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
     function handleReprint(sale: Sale) {
         if (printMutation.isPending) return;
         printMutation.mutate(sale.id);
+    }
+
+    function handlePrintEmployeeTotal(employee: EmployeeSalesSummary) {
+        printEmployeeDailySummary({
+            employeeName: employee.name,
+            date,
+            salesCount: employee.salesCount,
+            total: employee.total,
+            commissionTotal: employee.commissionTotal,
+        });
     }
 
     return (
@@ -193,6 +208,17 @@ export function DayLedger({ workDayId }: DayLedgerProps) {
                                                     maximumFractionDigits: 2,
                                                 })}
                                             </p>
+
+                                            <Button
+                                                type="button"
+                                                size="icon"
+                                                variant="ghost"
+                                                aria-label={`Imprimer le total du jour de ${employee.name}`}
+                                                className="h-8 w-8 shrink-0"
+                                                onClick={() => handlePrintEmployeeTotal(employee)}
+                                            >
+                                                <Printer className="text-muted-foreground" />
+                                            </Button>
                                         </div>
                                     ))}
                                 </div>
