@@ -11,6 +11,7 @@ import { CloseDayDialog } from '@/components/workday/CloseDayDialog';
 import { DayHeader } from '@/components/workday/DayHeader';
 import { DayLedger } from '@/components/workday/DayLedger';
 import { OpenDayCard } from '@/components/workday/OpenDayCard';
+import { PendingPrestations } from '@/components/workday/PendingPrestations';
 import { QuickCheckout } from '@/components/workday/QuickCheckout';
 
 const container = {
@@ -122,6 +123,10 @@ export default function Caisse() {
                         salesCount={activeSales.length}
                         onClose={() => setCloseOpen(true)}
                     />
+                </motion.div>
+
+                <motion.div variants={item}>
+                    <PendingPrestations />
                 </motion.div>
 
                 <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">

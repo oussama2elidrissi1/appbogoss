@@ -51,4 +51,19 @@ class Employee extends Model
     {
         return $this->hasMany(Advance::class);
     }
+
+    public function prestations(): HasMany
+    {
+        return $this->hasMany(Prestation::class);
+    }
+
+    public function commissionRules(): HasMany
+    {
+        return $this->hasMany(EmployeeServiceCommission::class);
+    }
+
+    public function commissions(): HasMany
+    {
+        return $this->hasMany(Commission::class);
+    }
 }

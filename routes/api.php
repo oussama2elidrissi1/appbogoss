@@ -1,13 +1,19 @@
 <?php
 
+use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\AdvanceController;
 use App\Http\Controllers\Api\AppointmentController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CashMovementController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\EmployeeController;
+use App\Http\Controllers\Api\EmployeeServiceCommissionController;
 use App\Http\Controllers\Api\ExpenseController;
+use App\Http\Controllers\Api\MeController;
+use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\PrestationController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\ServiceController;
@@ -33,11 +39,20 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
     Route::get('/dashboard', [DashboardController::class, 'index']);
-    Route::get('/reports/monthly', [ReportController::class, 'monthly']);
-    Route::get('/reports/advances', [ReportController::class, 'advances']);
+    Route::middleware('permission:reports.view_all')->group(function () {
+        Route::get('/reports/monthly', [ReportController::class, 'monthly']);
+        Route::get('/reports/advances', [ReportController::class, 'advances']);
+        Route::get('/reports/commissions', [ReportController::class, 'commissions']);
+        Route::get('/reports/prestations', [ReportController::class, 'prestations']);
+    });
+    Route::middleware('permission:activity_log.view')->group(function () {
+        Route::get('/activity-logs', [ActivityLogController::class, 'index']);
+    });
     Route::get('/settings', [SettingsController::class, 'show']);
-    Route::match(['post', 'put'], '/settings', [SettingsController::class, 'update']);
-    Route::delete('/settings/logo', [SettingsController::class, 'removeLogo']);
+    Route::middleware('permission:settings.manage')->group(function () {
+        Route::match(['post', 'put'], '/settings', [SettingsController::class, 'update']);
+        Route::delete('/settings/logo', [SettingsController::class, 'removeLogo']);
+    });
     Route::put('/profile', [SettingsController::class, 'updateProfile']);
     Route::post('/profile/password', [SettingsController::class, 'updatePassword']);
 
@@ -45,10 +60,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/work-days/active', [WorkDayController::class, 'activeDay']);
     Route::get('/work-days/{workDay}/pdf', [WorkDayController::class, 'pdf']);
-    Route::post('/work-days/{workDay}/close', [WorkDayController::class, 'close']);
     Route::get('/work-days/{workDay}', [WorkDayController::class, 'show']);
     Route::get('/work-days', [WorkDayController::class, 'index']);
-    Route::post('/work-days', [WorkDayController::class, 'store']);
+    Route::middleware('permission:caisse.manage')->group(function () {
+        Route::post('/work-days/{workDay}/close', [WorkDayController::class, 'close']);
+        Route::post('/work-days', [WorkDayController::class, 'store']);
+        Route::get('/cash-movements', [CashMovementController::class, 'index']);
+        Route::post('/cash-movements', [CashMovementController::class, 'store']);
+    });
 
     Route::get('/transactions', [TransactionController::class, 'index']);
     Route::post('/transactions', [TransactionController::class, 'store']);
@@ -64,8 +83,46 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/expenses', [ExpenseController::class, 'index']);
     Route::post('/expenses', [ExpenseController::class, 'store']);
 
-    Route::apiResource('/employees', EmployeeController::class);
+    Route::apiResource('/employees', EmployeeController::class)->only(['index', 'show']);
+    Route::middleware('permission:employees.manage')->group(function () {
+        Route::apiResource('/employees', EmployeeController::class)->only(['store', 'update', 'destroy']);
+        Route::post('/employees/{employee}/reset-password', [EmployeeController::class, 'resetPassword']);
+        Route::patch('/employees/{employee}/status', [EmployeeController::class, 'status']);
+    });
+
+    Route::middleware('permission:commissions.manage')->group(function () {
+        Route::get('/employee-service-commissions', [EmployeeServiceCommissionController::class, 'index']);
+        Route::post('/employee-service-commissions', [EmployeeServiceCommissionController::class, 'store']);
+        Route::patch('/employee-service-commissions/{employeeServiceCommission}', [EmployeeServiceCommissionController::class, 'update']);
+        Route::delete('/employee-service-commissions/{employeeServiceCommission}', [EmployeeServiceCommissionController::class, 'destroy']);
+    });
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+
+    Route::get('/me/dashboard', [MeController::class, 'dashboard']);
+    Route::get('/me/commissions', [MeController::class, 'commissions']);
+    Route::get('/me/report', [MeController::class, 'report']);
+    Route::get('/me/report/export', [MeController::class, 'reportExport']);
+
+    Route::get('/prestations/pending', [PrestationController::class, 'pending']);
+    Route::get('/prestations', [PrestationController::class, 'index']);
+    Route::post('/prestations', [PrestationController::class, 'store']);
+    Route::get('/prestations/{prestation}', [PrestationController::class, 'show']);
+    Route::post('/prestations/{prestation}/items', [PrestationController::class, 'storeItem']);
+    Route::patch('/prestations/{prestation}/items/{item}', [PrestationController::class, 'updateItem']);
+    Route::delete('/prestations/{prestation}/items/{item}', [PrestationController::class, 'destroyItem']);
+    Route::post('/prestations/{prestation}/complete-services', [PrestationController::class, 'completeServices']);
+    Route::post('/prestations/{prestation}/send-to-caisse', [PrestationController::class, 'sendToCaisse']);
+    Route::post('/prestations/{prestation}/confirm-payment', [PrestationController::class, 'confirmPayment']);
+    Route::post('/prestations/{prestation}/cancel', [PrestationController::class, 'cancel']);
+    Route::post('/prestations/{prestation}/refund', [PrestationController::class, 'refund']);
+    Route::post('/prestations/{prestation}/print', [PrestationController::class, 'print']);
+
     Route::apiResource('/clients', ClientController::class);
     Route::apiResource('/products', ProductController::class);
-    Route::apiResource('/services', ServiceController::class);
+    Route::apiResource('/services', ServiceController::class)->only(['index', 'show']);
+    Route::middleware('permission:services.manage')->group(function () {
+        Route::apiResource('/services', ServiceController::class)->only(['store', 'update', 'destroy']);
+    });
 });

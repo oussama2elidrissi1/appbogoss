@@ -5,14 +5,19 @@ import { Scissors } from 'lucide-react';
 /**
  * Gates the authenticated shell. While the `me` query is in flight we render a
  * neutral splash rather than redirecting, so a cold load never flashes /login.
+ *
+ * When `permission` is set, an authenticated user lacking it is redirected to
+ * the dashboard instead of the page rendering and failing on every request.
  */
-export function ProtectedRoute() {
-    const { user, isLoading } = useAuth();
+export function ProtectedRoute({ permission }: { permission?: string } = {}) {
+    const { user, isLoading, hasPermission } = useAuth();
     const location = useLocation();
 
     if (isLoading) return <AuthSplash />;
 
     if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+
+    if (permission && !hasPermission(permission)) return <Navigate to="/dashboard" replace />;
 
     return <Outlet />;
 }

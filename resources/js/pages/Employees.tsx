@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
     AlertCircle,
     ChevronDown,
+    KeyRound,
     Loader2,
     Mail,
     Pencil,
@@ -11,14 +12,17 @@ import {
     Plus,
     Power,
     Search,
+    ShieldCheck,
     Trash2,
     UserSquare2,
 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 import {
     createEmployee,
     deleteEmployee,
     getEmployees,
     getErrorMessage,
+    resetEmployeePassword,
     updateEmployee,
 } from '@/lib/api';
 import { useActiveWorkDay, workDayKeys } from '@/hooks/useWorkDay';
@@ -41,6 +45,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { EmployeeAdvances } from '@/components/workday/EmployeeAdvances';
+import { EmployeeCommissionRules } from '@/components/workday/EmployeeCommissionRules';
 import { EmployeeAvatar } from '@/components/workday/EmployeeAvatar';
 
 const container = {
@@ -64,6 +69,9 @@ const emptyForm = {
     specialties: '',
     default_commission_rate: '',
     is_active: true,
+    login_email: '',
+    login_password: '',
+    system_role: 'employee' as 'admin' | 'employee',
 };
 
 type EmployeeFormState = typeof emptyForm;
@@ -79,6 +87,9 @@ function employeeToForm(employee: Employee): EmployeeFormState {
         default_commission_rate:
             employee.default_commission_rate !== null ? String(employee.default_commission_rate) : '',
         is_active: employee.is_active,
+        login_email: employee.account?.login_email ?? '',
+        login_password: '',
+        system_role: employee.account?.system_role === 'admin' ? 'admin' : 'employee',
     };
 }
 
@@ -97,11 +108,16 @@ function formToPayload(form: EmployeeFormState): EmployeePayload {
             .filter(Boolean),
         default_commission_rate: commission === '' ? null : Number(commission),
         is_active: form.is_active,
+        login_email: form.login_email.trim() || null,
+        login_password: form.login_password.trim() || null,
+        system_role: form.login_email.trim() ? form.system_role : null,
     };
 }
 
 export default function Employees() {
     const queryClient = useQueryClient();
+    const { hasPermission } = useAuth();
+    const canManage = hasPermission('employees.manage');
     const [expandedId, setExpandedId] = useState<number | null>(null);
     const [search, setSearch] = useState('');
     const [editing, setEditing] = useState<Employee | null>(null);
@@ -109,6 +125,7 @@ export default function Employees() {
     const [form, setForm] = useState<EmployeeFormState>(emptyForm);
     const [formError, setFormError] = useState<string | null>(null);
     const [deletingEmployee, setDeletingEmployee] = useState<Employee | null>(null);
+    const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
 
     const { data: workDay } = useActiveWorkDay();
     const {
@@ -165,6 +182,12 @@ export default function Employees() {
         onSuccess: refreshEmployees,
     });
 
+    const resetPasswordMutation = useMutation({
+        mutationFn: (employeeId: number) => resetEmployeePassword(employeeId),
+        onSuccess: (result) => setTemporaryPassword(result.temporary_password),
+        onError: (mutationError) => setFormError(getErrorMessage(mutationError)),
+    });
+
     const saving = createMutation.isPending || updateMutation.isPending;
 
     function openCreateDialog() {
@@ -178,6 +201,7 @@ export default function Employees() {
         setEditing(employee);
         setForm(employeeToForm(employee));
         setFormError(null);
+        setTemporaryPassword(null);
         setDialogOpen(true);
     }
 
@@ -186,6 +210,7 @@ export default function Employees() {
         setEditing(null);
         setForm(emptyForm);
         setFormError(null);
+        setTemporaryPassword(null);
     }
 
     function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -255,10 +280,12 @@ export default function Employees() {
                                 className="pl-10"
                             />
                         </div>
-                        <Button variant="accent" onClick={openCreateDialog}>
-                            <Plus />
-                            Ajouter
-                        </Button>
+                        {canManage && (
+                            <Button variant="accent" onClick={openCreateDialog}>
+                                <Plus />
+                                Ajouter
+                            </Button>
+                        )}
                     </div>
                 </motion.div>
 
@@ -348,42 +375,50 @@ export default function Employees() {
                                                 />
                                             </button>
 
-                                            <div className="flex shrink-0 items-center gap-1">
-                                                <Button
-                                                    type="button"
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    aria-label="Modifier"
-                                                    onClick={() => openEditDialog(employee)}
-                                                >
-                                                    <Pencil />
-                                                </Button>
-                                                <Button
-                                                    type="button"
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    aria-label={
-                                                        employee.is_active ? 'Désactiver' : 'Activer'
-                                                    }
-                                                    disabled={statusMutation.isPending}
-                                                    onClick={() => statusMutation.mutate(employee)}
-                                                >
-                                                    <Power />
-                                                </Button>
-                                                <Button
-                                                    type="button"
-                                                    size="icon"
-                                                    variant="ghost"
-                                                    aria-label="Supprimer"
-                                                    disabled={deleteMutation.isPending}
-                                                    onClick={() => handleDelete(employee)}
-                                                >
-                                                    <Trash2 className="text-destructive" />
-                                                </Button>
-                                            </div>
+                                            {canManage && (
+                                                <div className="flex shrink-0 items-center gap-1">
+                                                    <Button
+                                                        type="button"
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        aria-label="Modifier"
+                                                        onClick={() => openEditDialog(employee)}
+                                                    >
+                                                        <Pencil />
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        aria-label={
+                                                            employee.is_active ? 'Désactiver' : 'Activer'
+                                                        }
+                                                        disabled={statusMutation.isPending}
+                                                        onClick={() => statusMutation.mutate(employee)}
+                                                    >
+                                                        <Power />
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        aria-label="Supprimer"
+                                                        disabled={deleteMutation.isPending}
+                                                        onClick={() => handleDelete(employee)}
+                                                    >
+                                                        <Trash2 className="text-destructive" />
+                                                    </Button>
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div className="mt-4 flex flex-wrap gap-2">
+                                            {employee.account && (
+                                                <Badge variant={employee.account.system_role === 'admin' ? 'accent' : 'outline'}>
+                                                    <ShieldCheck className="mr-1 h-3 w-3" />
+                                                    {employee.account.system_role === 'admin' ? 'Administrateur/Caissier' : 'Compte employé'}
+                                                </Badge>
+                                            )}
                                             {employee.default_commission_rate !== null && (
                                                 <Badge variant="accent">
                                                     {employee.default_commission_rate}% commission
@@ -427,6 +462,10 @@ export default function Employees() {
                                                 />
                                             )}
                                         </AnimatePresence>
+
+                                        {expanded && hasPermission('commissions.manage') && (
+                                            <EmployeeCommissionRules employee={employee} />
+                                        )}
                                     </Card>
                                 </motion.div>
                             );
@@ -554,6 +593,84 @@ export default function Employees() {
                             </div>
                         </div>
 
+                        <div className="space-y-4 rounded-md border border-tint/[0.06] bg-tint/[0.02] p-4">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <p className="text-sm font-semibold text-foreground">Compte de connexion</p>
+                                    <p className="mt-0.5 text-xs text-muted-foreground">
+                                        Permet à l’employé de se connecter avec son propre compte.
+                                    </p>
+                                </div>
+                                {editing?.account && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        disabled={resetPasswordMutation.isPending}
+                                        onClick={() => resetPasswordMutation.mutate(editing.id)}
+                                    >
+                                        <KeyRound className="h-3.5 w-3.5" />
+                                        Réinitialiser le mot de passe
+                                    </Button>
+                                )}
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div className="space-y-2">
+                                    <Label htmlFor="employee-login-email">Email de connexion</Label>
+                                    <Input
+                                        id="employee-login-email"
+                                        type="email"
+                                        value={form.login_email}
+                                        onChange={(event) =>
+                                            setForm((current) => ({
+                                                ...current,
+                                                login_email: event.target.value,
+                                            }))
+                                        }
+                                        placeholder="employe@bogosland.com"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label htmlFor="employee-login-password">
+                                        Mot de passe {editing?.account ? '(laisser vide pour ne pas changer)' : ''}
+                                    </Label>
+                                    <Input
+                                        id="employee-login-password"
+                                        type="password"
+                                        value={form.login_password}
+                                        onChange={(event) =>
+                                            setForm((current) => ({
+                                                ...current,
+                                                login_password: event.target.value,
+                                            }))
+                                        }
+                                        placeholder="8 caractères minimum"
+                                        autoComplete="new-password"
+                                    />
+                                </div>
+
+                                <div className="space-y-2 sm:col-span-2">
+                                    <Label htmlFor="employee-system-role">Rôle système</Label>
+                                    <select
+                                        id="employee-system-role"
+                                        value={form.system_role}
+                                        onChange={(event) =>
+                                            setForm((current) => ({
+                                                ...current,
+                                                system_role: event.target.value as 'admin' | 'employee',
+                                            }))
+                                        }
+                                        className="block h-10 w-full rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 text-sm outline-none transition-colors focus:border-accent/60"
+                                    >
+                                        <option value="employee">Employé — accède uniquement à son propre espace</option>
+                                        <option value="admin">Administrateur/Caissier — accès de gestion complet</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="space-y-2">
                             <Label>Couleur</Label>
                             <div className="flex flex-wrap items-center gap-2">
@@ -605,6 +722,17 @@ export default function Employees() {
                             />
                             <span className="text-sm font-medium text-foreground">Employé actif</span>
                         </label>
+
+                        {temporaryPassword && (
+                            <div className="rounded-md border border-success/25 bg-success/[0.10] px-3.5 py-3">
+                                <p className="text-sm font-medium text-success">
+                                    Nouveau mot de passe : <span className="font-mono">{temporaryPassword}</span>
+                                </p>
+                                <p className="mt-1 text-xs text-success/80">
+                                    Communiquez-le à l’employé — il ne sera plus affiché ensuite.
+                                </p>
+                            </div>
+                        )}
 
                         {formError && (
                             <div className="flex items-start gap-2.5 rounded-md border border-destructive/25 bg-destructive/[0.10] px-3.5 py-3">

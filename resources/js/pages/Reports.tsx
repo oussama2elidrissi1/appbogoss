@@ -13,7 +13,7 @@ import {
 } from '@/lib/api';
 import { cn, formatCurrency, formatDayLabel, formatTime } from '@/lib/utils';
 import { pageFade } from '@/lib/motion';
-import { printSaleReceipt } from '@/lib/receipt';
+import { printSaleReceipt, type TicketFormat } from '@/lib/receipt';
 import type { ClosingReport, RevenueByEmployee, Sale, WorkDay } from '@/types/workday';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { getCategoryLabel } from '@/components/workday/categories';
 import { AdvancesReportPanel } from '@/components/reports/AdvancesReportPanel';
+import { CommissionsReportPanel } from '@/components/reports/CommissionsReportPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 function reportFor(day: WorkDay): ClosingReport | null {
@@ -212,6 +213,7 @@ function EmployeeTicketsDialog({
     onOpenChange: (open: boolean) => void;
 }) {
     const queryClient = useQueryClient();
+    const [printFormat, setPrintFormat] = useState<TicketFormat>('58mm');
     const ticketsQueryKey = ['work-day', day.id, 'tickets'] as const;
     const { data: sales, isPending } = useQuery({
         queryKey: ticketsQueryKey,
@@ -226,7 +228,10 @@ function EmployeeTicketsDialog({
                 ticketsQueryKey,
                 (current) => current?.map((sale) => (sale.id === printedSale.id ? printedSale : sale)) ?? [printedSale],
             );
-            printSaleReceipt(printedSale);
+            void printSaleReceipt(printedSale, {
+                format: printFormat,
+                duplicata: printedSale.print_count > 1,
+            });
         },
     });
 
@@ -247,6 +252,27 @@ function EmployeeTicketsDialog({
                         {formatCurrency(activeTotal, { maximumFractionDigits: 2 })} encaissés
                     </DialogDescription>
                 </DialogHeader>
+
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                        Format
+                    </span>
+                    {(['58mm', '80mm', 'a4'] as TicketFormat[]).map((format) => (
+                        <button
+                            key={format}
+                            type="button"
+                            onClick={() => setPrintFormat(format)}
+                            className={cn(
+                                'rounded-full border px-3 py-1 text-xs font-medium transition-colors duration-200',
+                                printFormat === format
+                                    ? 'border-accent/60 bg-accent/[0.12] text-foreground'
+                                    : 'border-tint/[0.08] text-muted-foreground hover:border-accent/30',
+                            )}
+                        >
+                            {format === 'a4' ? 'A4' : format}
+                        </button>
+                    ))}
+                </div>
 
                 {isPending ? (
                     <div className="space-y-2">
@@ -699,6 +725,7 @@ export default function Reports() {
                     <TabsTrigger value="monthly">Rapport mensuel</TabsTrigger>
                     <TabsTrigger value="daily">Rapports par jour</TabsTrigger>
                     <TabsTrigger value="advances">Avances</TabsTrigger>
+                    <TabsTrigger value="commissions">Commissions</TabsTrigger>
                 </TabsList>
                 <TabsContent value="monthly" className="space-y-5">
             <div>
@@ -779,6 +806,18 @@ export default function Reports() {
             </div>
 
             <AdvancesReportPanel />
+
+                </TabsContent>
+                <TabsContent value="commissions" className="space-y-5">
+
+            <div>
+                <h2 className="text-2xl font-semibold tracking-tight">Commissions</h2>
+                <p className="mt-1.5 text-sm text-muted-foreground">
+                    Commissions calculées à la confirmation des paiements, par employé et par période.
+                </p>
+            </div>
+
+            <CommissionsReportPanel />
 
                 </TabsContent>
             </Tabs>

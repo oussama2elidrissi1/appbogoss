@@ -1,0 +1,44 @@
+import { motion } from 'framer-motion';
+import { NewPrestationPanel } from '@/components/prestations/NewPrestationPanel';
+import { MyPrestationsList } from '@/components/prestations/MyPrestationsList';
+import { MyCommissionsList } from '@/components/prestations/MyCommissionsList';
+import { MyReportPanel } from '@/components/prestations/MyReportPanel';
+import { MyDashboardSummary } from '@/components/prestations/MyDashboardSummary';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { pageFade } from '@/lib/motion';
+
+export default function MonEspace() {
+    return (
+        <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-6">
+            <div>
+                <h2 className="text-2xl font-semibold tracking-tight">Mon espace</h2>
+                <p className="mt-1.5 text-sm text-muted-foreground">
+                    Créez vos prestations et suivez vos commissions.
+                </p>
+            </div>
+
+            <MyDashboardSummary />
+
+            <Tabs defaultValue="new" className="space-y-5">
+                <TabsList>
+                    <TabsTrigger value="new">Nouvelle prestation</TabsTrigger>
+                    <TabsTrigger value="mine">Mes prestations</TabsTrigger>
+                    <TabsTrigger value="commissions">Mes commissions</TabsTrigger>
+                    <TabsTrigger value="report">Mon rapport</TabsTrigger>
+                </TabsList>
+                <TabsContent value="new" className="space-y-5">
+                    <NewPrestationPanel />
+                </TabsContent>
+                <TabsContent value="mine" className="space-y-5">
+                    <MyPrestationsList />
+                </TabsContent>
+                <TabsContent value="commissions" className="space-y-5">
+                    <MyCommissionsList />
+                </TabsContent>
+                <TabsContent value="report" className="space-y-5">
+                    <MyReportPanel />
+                </TabsContent>
+            </Tabs>
+        </motion.div>
+    );
+}

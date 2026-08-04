@@ -9,6 +9,7 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\User;
 use App\Models\WorkDay;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -19,7 +20,10 @@ class ReportApiTest extends TestCase
 
     public function test_monthly_report_returns_cash_day_totals_and_breakdowns(): void
     {
-        Sanctum::actingAs(User::factory()->create());
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        Sanctum::actingAs($admin);
 
         $employee = Employee::factory()->create(['name' => 'Sofia']);
         $day = WorkDay::factory()->create([

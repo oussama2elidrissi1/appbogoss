@@ -24,6 +24,18 @@ import type {
     UpdateAdvancePayload,
     WorkDay,
 } from '@/types/workday';
+import type {
+    ActivityLogEntry,
+    AddPrestationItemPayload,
+    AppNotification,
+    CommissionsReport,
+    ConfirmPrestationPaymentPayload,
+    CreatePrestationPayload,
+    MyCommissionRow,
+    MyDashboard,
+    MyReport,
+    Prestation,
+} from '@/types/prestation';
 
 /**
  * Sanctum SPA (cookie) authentication:
@@ -147,8 +159,11 @@ export async function openWorkDay(payload: OpenWorkDayPayload): Promise<WorkDay>
 }
 
 /** Resolves with the day now carrying a populated `closing_report`. */
-export async function closeWorkDay(id: number): Promise<WorkDay> {
-    const { data } = await api.post<{ data: WorkDay }>(`/api/work-days/${id}/close`);
+export async function closeWorkDay(
+    id: number,
+    payload?: { closing_balance_actual?: number | null; closing_comment?: string | null },
+): Promise<WorkDay> {
+    const { data } = await api.post<{ data: WorkDay }>(`/api/work-days/${id}/close`, payload ?? {});
     return data.data;
 }
 
@@ -276,6 +291,17 @@ export async function deleteEmployee(id: number): Promise<void> {
     await api.delete(`/api/employees/${id}`);
 }
 
+export async function resetEmployeePassword(
+    id: number,
+    password?: string,
+): Promise<{ temporary_password: string }> {
+    const { data } = await api.post<{ data: { temporary_password: string } }>(
+        `/api/employees/${id}/reset-password`,
+        password ? { password } : {},
+    );
+    return data.data;
+}
+
 export async function getClients(search?: string): Promise<Client[]> {
     const { data } = await api.get<{ data: Client[] }>('/api/clients', {
         params: search ? { search } : undefined,
@@ -396,4 +422,176 @@ export async function updateAppointment(
 
 export async function deleteAppointment(id: number): Promise<void> {
     await api.delete(`/api/appointments/${id}`);
+}
+
+export async function getPrestations(options?: {
+    status?: string;
+    employeeId?: number;
+    from?: string;
+    to?: string;
+}): Promise<Prestation[]> {
+    const { data } = await api.get<{ data: Prestation[] }>('/api/prestations', {
+        params: {
+            ...(options?.status ? { status: options.status } : {}),
+            ...(options?.employeeId ? { employee_id: options.employeeId } : {}),
+            ...(options?.from ? { from: options.from } : {}),
+            ...(options?.to ? { to: options.to } : {}),
+        },
+    });
+    return data.data;
+}
+
+export async function getPendingPrestations(): Promise<Prestation[]> {
+    const { data } = await api.get<{ data: Prestation[] }>('/api/prestations/pending');
+    return data.data;
+}
+
+export async function getPrestation(id: number): Promise<Prestation> {
+    const { data } = await api.get<{ data: Prestation }>(`/api/prestations/${id}`);
+    return data.data;
+}
+
+export async function createPrestation(payload: CreatePrestationPayload): Promise<Prestation> {
+    const { data } = await api.post<{ data: Prestation }>('/api/prestations', payload);
+    return data.data;
+}
+
+export async function addPrestationItem(
+    prestationId: number,
+    payload: AddPrestationItemPayload,
+): Promise<Prestation> {
+    const { data } = await api.post<{ data: Prestation }>(
+        `/api/prestations/${prestationId}/items`,
+        payload,
+    );
+    return data.data;
+}
+
+export async function removePrestationItem(prestationId: number, itemId: number): Promise<Prestation> {
+    const { data } = await api.delete<{ data: Prestation }>(
+        `/api/prestations/${prestationId}/items/${itemId}`,
+    );
+    return data.data;
+}
+
+export async function completePrestationServices(prestationId: number): Promise<Prestation> {
+    const { data } = await api.post<{ data: Prestation }>(
+        `/api/prestations/${prestationId}/complete-services`,
+    );
+    return data.data;
+}
+
+export async function sendPrestationToCaisse(prestationId: number): Promise<Prestation> {
+    const { data } = await api.post<{ data: Prestation }>(
+        `/api/prestations/${prestationId}/send-to-caisse`,
+    );
+    return data.data;
+}
+
+export async function confirmPrestationPayment(
+    prestationId: number,
+    payload: ConfirmPrestationPaymentPayload,
+): Promise<Prestation> {
+    const { data } = await api.post<{ data: Prestation }>(
+        `/api/prestations/${prestationId}/confirm-payment`,
+        payload,
+    );
+    return data.data;
+}
+
+export async function cancelPrestation(prestationId: number, reason?: string): Promise<Prestation> {
+    const { data } = await api.post<{ data: Prestation }>(`/api/prestations/${prestationId}/cancel`, {
+        reason,
+    });
+    return data.data;
+}
+
+export async function refundPrestation(prestationId: number, reason: string): Promise<Prestation> {
+    const { data } = await api.post<{ data: Prestation }>(`/api/prestations/${prestationId}/refund`, {
+        reason,
+    });
+    return data.data;
+}
+
+export async function getMyDashboard(): Promise<MyDashboard> {
+    const { data } = await api.get<{ data: MyDashboard }>('/api/me/dashboard');
+    return data.data;
+}
+
+export async function getMyCommissions(options?: {
+    from?: string;
+    to?: string;
+    serviceId?: number;
+    status?: string;
+}): Promise<MyCommissionRow[]> {
+    const { data } = await api.get<{ data: MyCommissionRow[] }>('/api/me/commissions', {
+        params: {
+            ...(options?.from ? { from: options.from } : {}),
+            ...(options?.to ? { to: options.to } : {}),
+            ...(options?.serviceId ? { service_id: options.serviceId } : {}),
+            ...(options?.status ? { status: options.status } : {}),
+        },
+    });
+    return data.data;
+}
+
+export async function getMyReport(options?: { from?: string; to?: string }): Promise<MyReport> {
+    const { data } = await api.get<{ data: MyReport }>('/api/me/report', {
+        params: {
+            ...(options?.from ? { from: options.from } : {}),
+            ...(options?.to ? { to: options.to } : {}),
+        },
+    });
+    return data.data;
+}
+
+export async function getActivityLogs(options?: {
+    from?: string;
+    to?: string;
+    action?: string;
+}): Promise<ActivityLogEntry[]> {
+    const { data } = await api.get<{ data: ActivityLogEntry[] }>('/api/activity-logs', {
+        params: {
+            ...(options?.from ? { from: options.from } : {}),
+            ...(options?.to ? { to: options.to } : {}),
+            ...(options?.action ? { action: options.action } : {}),
+        },
+    });
+    return data.data;
+}
+
+export async function getNotifications(): Promise<{ data: AppNotification[]; unread_count: number }> {
+    const { data } = await api.get<{ data: AppNotification[]; unread_count: number }>('/api/notifications');
+    return data;
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+    await api.post(`/api/notifications/${id}/read`);
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+    await api.post('/api/notifications/read-all');
+}
+
+export async function getCommissionsReport(options?: {
+    from?: string;
+    to?: string;
+    employeeId?: number;
+}): Promise<CommissionsReport> {
+    const { data } = await api.get<{ data: CommissionsReport }>('/api/reports/commissions', {
+        params: {
+            ...(options?.from ? { from: options.from } : {}),
+            ...(options?.to ? { to: options.to } : {}),
+            ...(options?.employeeId ? { employee_id: options.employeeId } : {}),
+        },
+    });
+    return data.data;
+}
+
+export function myReportExportUrl(options?: { from?: string; to?: string }): string {
+    const params = new URLSearchParams();
+    if (options?.from) params.set('from', options.from);
+    if (options?.to) params.set('to', options.to);
+    const query = params.toString();
+    return `/api/me/report/export${query ? `?${query}` : ''}`;
 }

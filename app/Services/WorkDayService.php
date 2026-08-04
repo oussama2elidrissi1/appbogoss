@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\DayAlreadyClosedException;
 use App\Exceptions\DayAlreadyOpenException;
 use App\Models\Advance;
+use App\Models\CashMovement;
 use App\Models\Expense;
 use App\Models\Sale;
 use App\Models\SaleItem;
@@ -16,6 +17,10 @@ use Illuminate\Support\Facades\DB;
 
 class WorkDayService
 {
+    public function __construct(private readonly ActivityLogger $activityLogger)
+    {
+    }
+
     public function openDay(array $data): WorkDay
     {
         if ($this->getActiveDay() !== null) {
@@ -39,6 +44,8 @@ class WorkDayService
                 );
             }
 
+            $this->activityLogger->log('caisse.opened', $workDay, [], ['opening_balance' => $workDay->opening_balance]);
+
             return $workDay;
         });
     }
@@ -50,18 +57,27 @@ class WorkDayService
             ->first();
     }
 
-    public function closeDay(WorkDay $day): WorkDay
+    public function closeDay(WorkDay $day, ?float $actualBalance = null, ?string $comment = null): WorkDay
     {
         if ($day->status === 'closed') {
             throw new DayAlreadyClosedException('Cette journee est deja cloturee.');
         }
 
         $closingReport = $this->buildClosingReport($day);
+        $variance = $actualBalance !== null ? round($actualBalance - $closingReport['cash_expected'], 2) : null;
 
         $day->update([
             'status' => 'closed',
             'closed_at' => now(),
             'closing_report' => $closingReport,
+            'closing_balance_actual' => $actualBalance,
+            'closing_variance' => $variance,
+            'closing_comment' => $comment,
+        ]);
+
+        $this->activityLogger->log('caisse.closed', $day, [], [
+            'closing_balance_actual' => $actualBalance,
+            'closing_variance' => $variance,
         ]);
 
         return $day->fresh();
@@ -78,8 +94,9 @@ class WorkDayService
             ->where('work_day_id', $day->id)
             ->orderBy('given_on')
             ->get();
+        $cashMovements = CashMovement::where('work_day_id', $day->id)->orderBy('created_at')->get();
 
-        return $this->buildDetailedReport($sales, $expenses, $advances, (float) $day->opening_balance);
+        return $this->buildDetailedReport($sales, $expenses, $advances, (float) $day->opening_balance, $cashMovements);
     }
 
     /** Build the complete report for a calendar month, using cash-day dates. */
@@ -105,20 +122,23 @@ class WorkDayService
             ->whereBetween('given_on', [$start->toDateString(), $end->toDateString()])
             ->orderBy('given_on')
             ->get();
+        $cashMovements = CashMovement::whereIn('work_day_id', $dayIds)->get();
 
         $totals = $this->buildDetailedReport(
             $sales,
             $expenses,
             $advances,
             (float) $days->sum('opening_balance'),
+            $cashMovements,
         );
 
-        $daily = $days->map(function (WorkDay $day) use ($sales, $expenses, $advances) {
+        $daily = $days->map(function (WorkDay $day) use ($sales, $expenses, $advances, $cashMovements) {
             $dayReport = $this->buildDetailedReport(
                 $sales->where('work_day_id', $day->id)->values(),
                 $expenses->where('work_day_id', $day->id)->values(),
                 $advances->where('work_day_id', $day->id)->values(),
                 (float) $day->opening_balance,
+                $cashMovements->where('work_day_id', $day->id)->values(),
             );
 
             return [
@@ -152,17 +172,22 @@ class WorkDayService
     /** @param Collection<int, Sale> $sales */
     /** @param Collection<int, Expense> $expenses */
     /** @param Collection<int, Advance> $advances */
+    /** @param Collection<int, CashMovement> $cashMovements */
     protected function buildDetailedReport(
         Collection $sales,
         Collection $expenses,
         Collection $advances,
         float $openingBalance = 0.0,
+        ?Collection $cashMovements = null,
     ): array {
+        $cashMovements ??= collect();
         $activeSales = $sales->filter(fn (Sale $sale) => ! $sale->trashed())->values();
         $deletedSales = $sales->filter(fn (Sale $sale) => $sale->trashed())->values();
         $revenueTotal = (float) $activeSales->sum('total');
         $expensesTotal = (float) $expenses->sum('amount');
         $advancesTotal = (float) $advances->sum('amount');
+        $cashInTotal = (float) $cashMovements->where('type', 'in')->sum('amount');
+        $cashOutTotal = (float) $cashMovements->where('type', 'out')->sum('amount');
         $commissionsTotal = (float) $activeSales->sum(
             fn (Sale $sale) => (float) ($sale->commission_amount ?? 0),
         );
@@ -281,7 +306,17 @@ class WorkDayService
             'advances_total' => round($advancesTotal, 2),
             'commissions_total' => round($commissionsTotal, 2),
             'net_result' => $netResult,
-            'cash_expected' => round($openingBalance + $revenueTotal - $expensesTotal - $advancesTotal, 2),
+            'cash_in_total' => round($cashInTotal, 2),
+            'cash_out_total' => round($cashOutTotal, 2),
+            'cash_expected' => round($openingBalance + $revenueTotal - $expensesTotal - $advancesTotal + $cashInTotal - $cashOutTotal, 2),
+            'cash_movements' => $cashMovements->map(fn (CashMovement $movement) => [
+                'id' => $movement->id,
+                'type' => $movement->type,
+                'amount' => (float) $movement->amount,
+                'label' => $movement->label,
+                'user_name' => $movement->user->name ?? null,
+                'created_at' => $movement->created_at?->toIso8601String(),
+            ])->values()->all(),
             'clients_count' => $clientsCount,
             'average_ticket' => $averageTicket,
             'ticket_count' => $activeSales->count(),

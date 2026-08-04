@@ -19,6 +19,10 @@ class UserResource extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'role' => $this->role,
+            'is_active' => (bool) $this->is_active,
+            'roles' => $this->getRoleNames()->all(),
+            'permissions' => $this->getAllPermissions()->pluck('name')->all(),
+            'employee_id' => $this->employee?->id,
         ];
     }
 }

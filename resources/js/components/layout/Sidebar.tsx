@@ -23,7 +23,7 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onToggle, variant = 'desktop', onNavigate }: SidebarProps) {
     const isMobile = variant === 'mobile';
     const isCollapsed = isMobile ? false : collapsed;
-    const { user, logout } = useAuth();
+    const { user, logout, hasPermission } = useAuth();
     const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings, staleTime: 5 * 60_000 });
     const location = useLocation();
 
@@ -67,36 +67,46 @@ export function Sidebar({ collapsed, onToggle, variant = 'desktop', onNavigate }
 
             {/* Navigation */}
             <nav className="flex-1 space-y-6 overflow-y-auto overflow-x-hidden px-3 py-4">
-                {navSections.map((section) => (
-                    <div key={section.heading} className="space-y-1">
-                        <AnimatePresence initial={false}>
-                            {!isCollapsed && (
-                                <motion.p
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    transition={{ duration: 0.16 }}
-                                    className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60"
-                                >
-                                    {section.heading}
-                                </motion.p>
-                            )}
-                        </AnimatePresence>
+                {navSections.map((section) => {
+                    const visibleItems = section.items.filter(
+                        (item) =>
+                            (!item.permission || hasPermission(item.permission)) &&
+                            (!item.requiresEmployee || user?.employee_id !== null),
+                    );
 
-                        {section.items.map((item) => (
-                            <SidebarLink
-                                key={item.to}
-                                item={item}
-                                collapsed={isCollapsed}
-                                active={
-                                    location.pathname === item.to ||
-                                    location.pathname.startsWith(`${item.to}/`)
-                                }
-                                onNavigate={onNavigate}
-                            />
-                        ))}
-                    </div>
-                ))}
+                    if (visibleItems.length === 0) return null;
+
+                    return (
+                        <div key={section.heading} className="space-y-1">
+                            <AnimatePresence initial={false}>
+                                {!isCollapsed && (
+                                    <motion.p
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 0.16 }}
+                                        className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60"
+                                    >
+                                        {section.heading}
+                                    </motion.p>
+                                )}
+                            </AnimatePresence>
+
+                            {visibleItems.map((item) => (
+                                <SidebarLink
+                                    key={item.to}
+                                    item={item}
+                                    collapsed={isCollapsed}
+                                    active={
+                                        location.pathname === item.to ||
+                                        location.pathname.startsWith(`${item.to}/`)
+                                    }
+                                    onNavigate={onNavigate}
+                                />
+                            ))}
+                        </div>
+                    );
+                })}
             </nav>
 
             {/* User + logout */}

@@ -1,6 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, LogOut, Menu, Moon, Search, Settings, Sun, User } from 'lucide-react';
+import { LogOut, Menu, Moon, Search, Settings, Sun, User } from 'lucide-react';
 import { getNavItemByPath } from '@/lib/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
@@ -14,6 +14,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { NotificationsBell } from '@/components/layout/NotificationsBell';
 
 export function Topbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
     const location = useLocation();
@@ -89,15 +90,7 @@ export function Topbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
                 </AnimatePresence>
             </button>
 
-            {/* Notifications — visual only for now */}
-            <button
-                type="button"
-                aria-label="Notifications"
-                className="relative rounded-md p-2.5 text-muted-foreground transition-colors duration-200 hover:bg-tint/[0.05] hover:text-foreground"
-            >
-                <Bell className="h-[18px] w-[18px]" />
-                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-accent ring-2 ring-background" />
-            </button>
+            <NotificationsBell />
 
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>

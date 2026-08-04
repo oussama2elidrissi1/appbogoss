@@ -173,7 +173,7 @@ export function QuickCheckout({
     const mutation = useMutation({
         mutationFn: createTransaction,
         onSuccess: (sale: Sale) => {
-            printSaleReceipt(sale);
+            void printSaleReceipt(sale);
 
             // Optimistically prepend so the ledger reacts instantly, then reconcile.
             queryClient.setQueryData<Sale[]>(workDayKeys.transactions(workDayId), (current) =>

@@ -8,6 +8,8 @@ interface AuthContextValue {
     isLoading: boolean;
     login: (email: string, password: string) => Promise<User>;
     logout: () => Promise<void>;
+    hasRole: (role: string) => boolean;
+    hasPermission: (permission: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -50,14 +52,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }, [queryClient]);
 
+    const hasRole = useCallback(
+        (role: string) => data?.roles.includes(role) ?? false,
+        [data],
+    );
+
+    // Super Admin implicitly has every permission (mirrors the server-side Gate::before bypass).
+    const hasPermission = useCallback(
+        (permission: string) =>
+            data?.roles.includes('super-admin') || (data?.permissions.includes(permission) ?? false),
+        [data],
+    );
+
     const value = useMemo<AuthContextValue>(
         () => ({
             user: data ?? null,
             isLoading: isPending,
             login,
             logout,
+            hasRole,
+            hasPermission,
         }),
-        [data, isPending, login, logout],
+        [data, isPending, login, logout, hasRole, hasPermission],
     );
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

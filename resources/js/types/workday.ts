@@ -84,6 +84,8 @@ export interface ClosingReport {
     clients_count: number;
     average_ticket: number;
     cash_expected?: number;
+    cash_in_total?: number;
+    cash_out_total?: number;
     ticket_count?: number;
     deleted_ticket_count?: number;
     deleted_ticket_total?: number;
@@ -148,6 +150,9 @@ export interface WorkDay {
     advances: Advance[];
     closing_report: ClosingReport | null;
     report_snapshot: ClosingReport | null;
+    closing_balance_actual: number | null;
+    closing_variance: number | null;
+    closing_comment: string | null;
 }
 
 export interface OpenWorkDayPayload {
@@ -283,6 +288,13 @@ export interface CreateExpensePayload {
     work_day_id?: number;
 }
 
+export interface EmployeeAccount {
+    user_id: number;
+    login_email: string;
+    system_role: 'admin' | 'employee' | 'super-admin' | null;
+    is_account_active: boolean;
+}
+
 export interface Employee {
     id: number;
     name: string;
@@ -293,6 +305,7 @@ export interface Employee {
     specialties: string[];
     is_active: boolean;
     default_commission_rate: number | null;
+    account?: EmployeeAccount | null;
 }
 
 export interface EmployeePayload {
@@ -304,6 +317,9 @@ export interface EmployeePayload {
     specialties?: string[];
     is_active?: boolean;
     default_commission_rate?: number | null;
+    login_email?: string | null;
+    login_password?: string | null;
+    system_role?: 'admin' | 'employee' | null;
 }
 
 export interface Client {

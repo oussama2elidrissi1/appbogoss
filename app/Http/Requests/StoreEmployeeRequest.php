@@ -27,6 +27,9 @@ class StoreEmployeeRequest extends FormRequest
             'specialties.*' => ['string', 'max:80'],
             'is_active' => ['sometimes', 'boolean'],
             'default_commission_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'login_email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'email')],
+            'login_password' => ['nullable', 'string', 'min:8', 'required_with:login_email'],
+            'system_role' => ['nullable', Rule::in(['admin', 'employee'])],
         ];
     }
 }

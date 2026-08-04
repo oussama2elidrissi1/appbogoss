@@ -19,6 +19,9 @@ class WorkDay extends Model
         'status',
         'closed_at',
         'closing_report',
+        'closing_balance_actual',
+        'closing_variance',
+        'closing_comment',
         'notes',
     ];
 
@@ -27,6 +30,8 @@ class WorkDay extends Model
         'opening_balance' => 'decimal:2',
         'closed_at' => 'datetime',
         'closing_report' => 'array',
+        'closing_balance_actual' => 'decimal:2',
+        'closing_variance' => 'decimal:2',
     ];
 
     public function sales(): HasMany

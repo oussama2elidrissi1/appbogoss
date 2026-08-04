@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Advance;
+use App\Models\Commission;
+use App\Models\Prestation;
 use App\Services\WorkDayService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -70,6 +72,91 @@ class ReportController extends Controller
                 'given_on' => $advance->given_on?->toDateString(),
                 'settled_at' => $advance->settled_at,
             ])->values()->all(),
+        ]]);
+    }
+
+    /** Commissions calculées, groupées par employé, sur une période libre. */
+    public function commissions(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date', 'after_or_equal:from'],
+            'employee_id' => ['nullable', 'integer', Rule::exists('employees', 'id')],
+        ]);
+
+        $to = isset($validated['to']) ? Carbon::parse($validated['to'])->endOfDay() : now();
+        $from = isset($validated['from']) ? Carbon::parse($validated['from'])->startOfDay() : $to->copy()->startOfMonth();
+
+        $commissions = Commission::with(['employee', 'service', 'prestation'])
+            ->whereBetween('created_at', [$from, $to])
+            ->when(
+                ! empty($validated['employee_id']),
+                fn ($query) => $query->where('employee_id', $validated['employee_id']),
+            )
+            ->orderByDesc('created_at')
+            ->get();
+
+        $validatedRows = $commissions->where('status', Commission::STATUS_VALIDATED);
+
+        $byEmployee = $commissions->groupBy('employee_id')
+            ->map(function ($group, $employeeId) {
+                $validated = $group->where('status', Commission::STATUS_VALIDATED);
+
+                return [
+                    'employee_id' => (int) $employeeId,
+                    'employee_name' => $group->first()->employee->name ?? 'Employé',
+                    'count' => $validated->count(),
+                    'total' => round((float) $validated->sum('amount'), 2),
+                ];
+            })
+            ->sortByDesc('total')
+            ->values()
+            ->all();
+
+        return response()->json(['data' => [
+            'period' => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
+            'total' => round((float) $validatedRows->sum('amount'), 2),
+            'cancelled_total' => round((float) $commissions->where('status', Commission::STATUS_CANCELLED)->sum('amount'), 2),
+            'by_employee' => $byEmployee,
+            'details' => $commissions->map(fn (Commission $commission) => [
+                'id' => $commission->id,
+                'date' => $commission->created_at?->toIso8601String(),
+                'employee_name' => $commission->employee->name ?? 'Employé',
+                'service_name' => $commission->service?->name,
+                'prestation_reference' => $commission->prestation?->reference,
+                'base_amount' => (float) $commission->base_amount,
+                'amount' => (float) $commission->amount,
+                'status' => $commission->status,
+            ])->values()->all(),
+        ]]);
+    }
+
+    /** Prestations par statut sur une période — couvre les annulées/remboursées, absentes des ventes. */
+    public function prestations(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date', 'after_or_equal:from'],
+        ]);
+
+        $to = isset($validated['to']) ? Carbon::parse($validated['to'])->endOfDay() : now();
+        $from = isset($validated['from']) ? Carbon::parse($validated['from'])->startOfDay() : $to->copy()->startOfMonth();
+
+        $prestations = Prestation::whereBetween('created_at', [$from, $to])->get();
+
+        $byStatus = $prestations->groupBy('status')
+            ->map(fn ($group, $status) => [
+                'status' => $status,
+                'count' => $group->count(),
+                'total' => round((float) $group->sum('total'), 2),
+            ])
+            ->values()
+            ->all();
+
+        return response()->json(['data' => [
+            'period' => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
+            'total_count' => $prestations->count(),
+            'by_status' => $byStatus,
         ]]);
     }
 

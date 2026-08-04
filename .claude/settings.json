@@ -78,7 +78,24 @@
       "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_pass9.py\")",
       "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_pass10.py\")",
       "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_print.py\")",
-      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_reprint.py\")"
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_reprint.py\")",
+      "Bash(composer audit *)",
+      "Bash(mv 2026_08_04_170946_create_prestation_items_table.php 2026_08_04_170948_create_prestation_items_table.php)",
+      "Bash(mv 2026_08_04_170947_create_prestation_status_logs_table.php 2026_08_04_170949_create_prestation_status_logs_table.php)",
+      "Bash(mv 2026_08_04_170947_create_employee_service_commissions_table.php 2026_08_04_170950_create_employee_service_commissions_table.php)",
+      "Bash(mv 2026_08_04_170947_create_commissions_table.php 2026_08_04_170951_create_commissions_table.php)",
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_phase2.py\")",
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_phase2b.py\")",
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_phase2c.py\")",
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_phase3.py\")",
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_phase4.py\")",
+      "Bash(php -l app/Services/WorkDayService.php)",
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_phase5.py\")",
+      "Bash(npm audit *)",
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_phase6.py\")",
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_phase6b.py\")",
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_phase6c.py\")",
+      "Bash(python \"C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--bogoss-appbogoss\\\\63fbe6a5-70fc-4925-82fe-7ff30b653e05\\\\scratchpad\\\\qa_final.py\")"
     ]
   }
 }

@@ -55,6 +55,9 @@ class WorkDayResource extends JsonResource
             ])->all(),
             'closing_report' => $this->closing_report,
             'report_snapshot' => $reportSnapshot,
+            'closing_balance_actual' => $this->closing_balance_actual !== null ? (float) $this->closing_balance_actual : null,
+            'closing_variance' => $this->closing_variance !== null ? (float) $this->closing_variance : null,
+            'closing_comment' => $this->closing_comment,
         ];
     }
 }

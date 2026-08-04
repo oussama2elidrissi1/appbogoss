@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Employee;
 use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -14,7 +15,10 @@ class EmployeeApiTest extends TestCase
 
     public function test_employee_crud_endpoints_work(): void
     {
-        Sanctum::actingAs(User::factory()->create());
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        Sanctum::actingAs($admin);
 
         Employee::factory()->create(['name' => 'Inactive Employee', 'is_active' => false]);
 

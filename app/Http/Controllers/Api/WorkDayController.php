@@ -59,10 +59,19 @@ class WorkDayController extends Controller
         ]);
     }
 
-    public function close(WorkDay $workDay, WorkDayService $service): JsonResponse
+    public function close(Request $request, WorkDay $workDay, WorkDayService $service): JsonResponse
     {
+        $validated = $request->validate([
+            'closing_balance_actual' => ['nullable', 'numeric', 'min:0'],
+            'closing_comment' => ['nullable', 'string', 'max:1000'],
+        ]);
+
         try {
-            $workDay = $service->closeDay($workDay);
+            $workDay = $service->closeDay(
+                $workDay,
+                $validated['closing_balance_actual'] ?? null,
+                $validated['closing_comment'] ?? null,
+            );
         } catch (DayAlreadyClosedException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }

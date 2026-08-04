@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Service;
 use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -14,7 +15,10 @@ class ServiceApiTest extends TestCase
 
     public function test_service_crud_endpoints_work(): void
     {
-        Sanctum::actingAs(User::factory()->create());
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        Sanctum::actingAs($admin);
 
         Service::factory()->create([
             'name' => 'Inactive service',

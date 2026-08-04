@@ -74,7 +74,7 @@ export function DayLedger({ workDayId, date }: DayLedgerProps) {
         mutationFn: recordTransactionPrint,
         onSuccess: (printedSale) => {
             updateSaleInCache(printedSale);
-            printSaleReceipt(printedSale);
+            void printSaleReceipt(printedSale, { duplicata: printedSale.print_count > 1 });
         },
     });
 

@@ -1,6 +1,7 @@
 import {
     BarChart3,
     Calendar,
+    History,
     LayoutDashboard,
     Megaphone,
     Package,
@@ -8,6 +9,7 @@ import {
     Settings,
     ShoppingCart,
     Sparkles,
+    UserCircle,
     Users,
     UserSquare2,
     type LucideIcon,
@@ -19,6 +21,10 @@ export interface NavItem {
     icon: LucideIcon;
     /** One-line copy reused by the placeholder screens. */
     description: string;
+    /** When set, the link is hidden for users lacking this permission. */
+    permission?: string;
+    /** When true, the link is shown only for accounts linked to an employee record. */
+    requiresEmployee?: boolean;
 }
 
 export interface NavSection {
@@ -35,6 +41,13 @@ export const navSections: NavSection[] = [
                 to: '/dashboard',
                 icon: LayoutDashboard,
                 description: "Vue d'ensemble de l'activité du salon en temps réel.",
+            },
+            {
+                label: 'Mon espace',
+                to: '/mon-espace',
+                icon: UserCircle,
+                description: 'Créez vos prestations et suivez vos commissions.',
+                requiresEmployee: true,
             },
             {
                 label: 'Agenda',
@@ -98,6 +111,7 @@ export const navSections: NavSection[] = [
                 to: '/reports',
                 icon: BarChart3,
                 description: 'Analyses détaillées du chiffre d’affaires et de la rentabilité.',
+                permission: 'reports.view_all',
             },
             {
                 label: 'Marketing',
@@ -110,6 +124,13 @@ export const navSections: NavSection[] = [
                 to: '/settings',
                 icon: Settings,
                 description: 'Configuration du salon, utilisateurs et préférences.',
+            },
+            {
+                label: "Journal d'activité",
+                to: '/activity-log',
+                icon: History,
+                description: 'Historique des actions sensibles effectuées dans l’application.',
+                permission: 'activity_log.view',
             },
         ],
     },

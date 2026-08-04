@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { AlertCircle, Download, Loader2, Lock } from 'lucide-react';
@@ -13,6 +14,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { getCategoryLabel } from './categories';
 
@@ -53,7 +56,17 @@ function Metric({
     );
 }
 
-function Report({ report }: { report: ClosingReport }) {
+function Report({
+    report,
+    actualBalance,
+    variance,
+    comment,
+}: {
+    report: ClosingReport;
+    actualBalance?: number | null;
+    variance?: number | null;
+    comment?: string | null;
+}) {
     const categoryMax = Math.max(1, ...report.revenue_by_category.map((row) => row.total));
 
     return (
@@ -86,7 +99,32 @@ function Report({ report }: { report: ClosingReport }) {
                     label="Panier moyen"
                     value={formatCurrency(report.average_ticket, { maximumFractionDigits: 2 })}
                 />
+                {report.cash_expected !== undefined && (
+                    <Metric
+                        label="Solde attendu"
+                        value={formatCurrency(report.cash_expected, { maximumFractionDigits: 2 })}
+                    />
+                )}
+                {actualBalance !== undefined && actualBalance !== null && (
+                    <Metric
+                        label="Solde compté"
+                        value={formatCurrency(actualBalance, { maximumFractionDigits: 2 })}
+                    />
+                )}
+                {variance !== undefined && variance !== null && (
+                    <Metric
+                        label="Écart de caisse"
+                        value={formatCurrency(variance, { maximumFractionDigits: 2 })}
+                        tone={variance === 0 ? 'success' : Math.abs(variance) < 5 ? 'default' : 'destructive'}
+                    />
+                )}
             </div>
+
+            {comment && (
+                <p className="rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3.5 py-3 text-sm text-muted-foreground">
+                    {comment}
+                </p>
+            )}
 
             <p className="text-sm text-muted-foreground">
                 {report.clients_count} client{report.clients_count > 1 ? 's' : ''} servi
@@ -206,15 +244,29 @@ function Report({ report }: { report: ClosingReport }) {
  * handing the page back to the "Ouvrir la journée" state at that point.
  */
 export function CloseDayDialog({ open, onOpenChange, workDay, onClosed }: CloseDayDialogProps) {
+    const [actualBalance, setActualBalance] = useState('');
+    const [comment, setComment] = useState('');
+
     const mutation = useMutation({
-        mutationFn: () => closeWorkDay(workDay.id),
+        mutationFn: () =>
+            closeWorkDay(workDay.id, {
+                closing_balance_actual: actualBalance.trim() === '' ? null : Number(actualBalance),
+                closing_comment: comment.trim() || null,
+            }),
     });
 
     const closed = mutation.data;
+    const expectedCash = workDay.report_snapshot?.cash_expected;
+    const previewVariance =
+        expectedCash !== undefined && actualBalance.trim() !== ''
+            ? Number(actualBalance) - expectedCash
+            : null;
 
     function handleOpenChange(next: boolean) {
         if (!next && closed) {
             mutation.reset();
+            setActualBalance('');
+            setComment('');
             onOpenChange(false);
             onClosed();
             return;
@@ -240,7 +292,12 @@ export function CloseDayDialog({ open, onOpenChange, workDay, onClosed }: CloseD
                 </DialogHeader>
 
                 {closed?.closing_report ? (
-                    <Report report={closed.closing_report} />
+                    <Report
+                        report={closed.closing_report}
+                        actualBalance={closed.closing_balance_actual}
+                        variance={closed.closing_variance}
+                        comment={closed.closing_comment}
+                    />
                 ) : closed ? (
                     <p className="text-sm text-muted-foreground">
                         La journée est clôturée. Le rapport détaillé est disponible dans le PDF.
@@ -251,8 +308,51 @@ export function CloseDayDialog({ open, onOpenChange, workDay, onClosed }: CloseD
                         <p className="text-sm text-muted-foreground">
                             {workDay.employees.filter((employee) => employee.present).length}{' '}
                             employé(s) en service · solde initial{' '}
-                            {formatCurrency(workDay.opening_balance, { maximumFractionDigits: 2 })}.
+                            {formatCurrency(workDay.opening_balance, { maximumFractionDigits: 2 })}
+                            {expectedCash !== undefined && (
+                                <> · solde attendu {formatCurrency(expectedCash, { maximumFractionDigits: 2 })}</>
+                            )}
+                            .
                         </p>
+
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div className="space-y-1.5">
+                                <Label htmlFor="closing-actual-balance">Solde compté (optionnel)</Label>
+                                <Input
+                                    id="closing-actual-balance"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    inputMode="decimal"
+                                    value={actualBalance}
+                                    onChange={(event) => setActualBalance(event.target.value)}
+                                    placeholder={expectedCash !== undefined ? String(expectedCash) : '0,00'}
+                                />
+                                {previewVariance !== null && (
+                                    <p
+                                        className={cn(
+                                            'text-xs',
+                                            previewVariance === 0
+                                                ? 'text-success'
+                                                : Math.abs(previewVariance) < 5
+                                                  ? 'text-muted-foreground'
+                                                  : 'text-destructive',
+                                        )}
+                                    >
+                                        Écart : {formatCurrency(previewVariance, { maximumFractionDigits: 2 })}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="closing-comment">Commentaire de clôture (optionnel)</Label>
+                                <Input
+                                    id="closing-comment"
+                                    value={comment}
+                                    onChange={(event) => setComment(event.target.value)}
+                                    placeholder="Ex. écart justifié par..."
+                                />
+                            </div>
+                        </div>
                     </>
                 )}
 

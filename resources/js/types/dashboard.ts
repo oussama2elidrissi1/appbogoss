@@ -3,6 +3,10 @@ export interface User {
     name: string;
     email: string;
     role: string;
+    is_active: boolean;
+    roles: string[];
+    permissions: string[];
+    employee_id: number | null;
 }
 
 export interface ApplicationSettings {

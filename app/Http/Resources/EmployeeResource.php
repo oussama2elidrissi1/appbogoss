@@ -24,6 +24,12 @@ class EmployeeResource extends JsonResource
             'default_commission_rate' => $this->default_commission_rate !== null
                 ? (float) $this->default_commission_rate
                 : null,
+            'account' => $this->whenLoaded('user', fn () => $this->user === null ? null : [
+                'user_id' => $this->user->id,
+                'login_email' => $this->user->email,
+                'system_role' => $this->user->getRoleNames()->first(),
+                'is_account_active' => (bool) $this->user->is_active,
+            ]),
         ];
     }
 }

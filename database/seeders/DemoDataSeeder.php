@@ -30,6 +30,7 @@ class DemoDataSeeder extends Seeder
             'password' => Hash::make('password'),
             'role' => 'admin',
         ]);
+        $admin->assignRole('admin');
 
         $employeeColors = ['#C8A24C', '#4C7CC8', '#2E7D5B', '#B8860B', '#1B2A4A', '#8C6BC8'];
         $employeeNames = [
