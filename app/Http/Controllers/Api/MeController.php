@@ -7,8 +7,8 @@ use App\Models\Commission;
 use App\Models\Employee;
 use App\Models\Prestation;
 use App\Models\Sale;
+use App\Services\EmployeeEarningsService;
 use Carbon\Carbon;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -21,6 +21,10 @@ use Illuminate\Support\Collection;
  */
 class MeController extends Controller
 {
+    public function __construct(private readonly EmployeeEarningsService $earnings)
+    {
+    }
+
     public function dashboard(Request $request): JsonResponse
     {
         $employee = $this->employeeOrFail($request);
@@ -36,14 +40,14 @@ class MeController extends Controller
         // before month start, e.g. a week that spans two months) and sliced
         // in memory per bucket below — avoids three near-identical queries.
         $legacyRangeStart = $weekStart->lt($monthStart) ? $weekStart : $monthStart;
-        $legacySalesInRange = $this->legacySales($employee)->where('created_at', '>=', $legacyRangeStart)->get();
+        $legacySalesInRange = $this->earnings->legacySales($employee)->where('created_at', '>=', $legacyRangeStart)->get();
         $activeLegacySalesInRange = $legacySalesInRange->reject(fn (Sale $sale) => $sale->trashed());
         $activeLegacySalesToday = $activeLegacySalesInRange->filter(fn (Sale $sale) => $sale->created_at->isSameDay($today));
         $activeLegacySalesWeek = $activeLegacySalesInRange->filter(fn (Sale $sale) => $sale->created_at->gte($weekStart));
         $activeLegacySalesMonth = $activeLegacySalesInRange->filter(fn (Sale $sale) => $sale->created_at->gte($monthStart));
 
         $paidToday = $todaysPrestations->where('status', Prestation::STATUS_PAID);
-        $deletedPaidTodaySaleIds = $this->deletedSaleIds($paidToday->pluck('sale_id')->filter()->values());
+        $deletedPaidTodaySaleIds = $this->earnings->deletedSaleIds($paidToday->pluck('sale_id')->filter()->values());
         $activePaidToday = $paidToday->reject(
             fn (Prestation $prestation) => $prestation->sale_id !== null
                 && $deletedPaidTodaySaleIds->has($prestation->sale_id),
@@ -60,11 +64,11 @@ class MeController extends Controller
         // Prestation-workflow commissions with legacy caisse commissions —
         // showing only the former here made the dashboard silently disagree
         // with the report right below it.
-        $commissionWeek = $this->activeValidatedCommissions($employee->id, from: $weekStart)->sum('amount')
+        $commissionWeek = $this->earnings->activeValidatedCommissions($employee->id, from: $weekStart)->sum('amount')
             + (float) $activeLegacySalesWeek->sum('commission_amount');
-        $commissionMonth = $this->activeValidatedCommissions($employee->id, from: $monthStart)->sum('amount')
+        $commissionMonth = $this->earnings->activeValidatedCommissions($employee->id, from: $monthStart)->sum('amount')
             + (float) $activeLegacySalesMonth->sum('commission_amount');
-        $commissionToday = $this->activeValidatedCommissions($employee->id, onDate: $today)->sum('amount')
+        $commissionToday = $this->earnings->activeValidatedCommissions($employee->id, onDate: $today)->sum('amount')
             + (float) $activeLegacySalesToday->sum('commission_amount');
 
         $recent = Prestation::where('employee_id', $employee->id)
@@ -72,11 +76,11 @@ class MeController extends Controller
             ->orderByDesc('created_at')
             ->limit(10)
             ->get();
-        $recentLegacySales = $this->legacySales($employee)
+        $recentLegacySales = $this->earnings->legacySales($employee)
             ->orderByDesc('created_at')
             ->limit(10)
             ->get();
-        $recentDeletedPrestationSaleIds = $this->deletedSaleIds(
+        $recentDeletedPrestationSaleIds = $this->earnings->deletedSaleIds(
             $recent->where('status', Prestation::STATUS_PAID)->pluck('sale_id')->filter()->values(),
         );
 
@@ -143,7 +147,7 @@ class MeController extends Controller
         }
 
         $commissions = $query->get();
-        $deletedSaleIds = $this->deletedSaleIds(
+        $deletedSaleIds = $this->earnings->deletedSaleIds(
             $commissions->pluck('prestation.sale_id')->filter()->values(),
         );
 
@@ -217,7 +221,7 @@ class MeController extends Controller
         // account (or by an admin picking them from the employee list) never
         // went through the Prestation workflow, but they carry the same
         // employee_id — so they belong in this employee's own history too.
-        $legacySales = $this->legacySales($employee)
+        $legacySales = $this->earnings->legacySales($employee)
             ->whereBetween('created_at', [$from, $to])
             ->with(['items', 'client'])
             ->get();
@@ -229,14 +233,14 @@ class MeController extends Controller
         // voids its linked sale straight from the caisse (outside the formal
         // refund flow) — that void must still take the money out of this
         // employee's stats and be flagged in the detail list.
-        $deletedPaidSaleIds = $this->deletedSaleIds($paid->pluck('sale_id')->filter()->values());
+        $deletedPaidSaleIds = $this->earnings->deletedSaleIds($paid->pluck('sale_id')->filter()->values());
         $activePaid = $paid->reject(
             fn (Prestation $prestation) => $prestation->sale_id !== null
                 && $deletedPaidSaleIds->has($prestation->sale_id),
         );
         $activeLegacySales = $legacySales->reject(fn (Sale $sale) => $sale->trashed());
 
-        $commissions = $this->activeValidatedCommissions($employee->id, from: $from, to: $to);
+        $commissions = $this->earnings->activeValidatedCommissions($employee->id, from: $from, to: $to);
 
         $revenue = (float) $activePaid->sum('total') + (float) $activeLegacySales->sum('total');
         $paidCount = $activePaid->count() + $activeLegacySales->count();
@@ -321,77 +325,5 @@ class MeController extends Controller
         abort_if($employee === null, 403, 'Votre compte n’est lié à aucune fiche employé.');
 
         return $employee;
-    }
-
-    /**
-     * Sales tied to this employee that were recorded straight from the caisse
-     * (legacy quick-checkout, or an admin picking them from the employee list)
-     * rather than through the Prestation workflow. Excludes sales the
-     * Prestation workflow already created at payment confirmation, so a paid
-     * prestation is never counted twice.
-     */
-    private function legacySales(Employee $employee): Builder
-    {
-        $linkedSaleIds = Prestation::where('employee_id', $employee->id)
-            ->whereNotNull('sale_id')
-            ->pluck('sale_id');
-
-        // withTrashed(): a sale voided at the caisse must still show up here,
-        // marked deleted, exactly like it does in the admin's day ledger — it
-        // must never silently vanish from the employee's own history.
-        return Sale::withTrashed()
-            ->where('employee_id', $employee->id)
-            ->whereNotIn('id', $linkedSaleIds);
-    }
-
-    /**
-     * Sale ids among the given list that have been voided ("supprimé") at the
-     * caisse — used both for prestation-derived and legacy sales, so a
-     * deleted encaissement is excluded from revenue/commission totals
-     * wherever it's tied to this employee.
-     *
-     * @param  \Illuminate\Support\Collection<int, int>  $saleIds
-     * @return \Illuminate\Support\Collection<int, bool>
-     */
-    private function deletedSaleIds(Collection $saleIds): Collection
-    {
-        if ($saleIds->isEmpty()) {
-            return collect();
-        }
-
-        return Sale::onlyTrashed()->whereIn('id', $saleIds)->pluck('id')->flip();
-    }
-
-    /**
-     * Validated commissions for this employee, excluding any whose prestation
-     * had its encaissement voided directly at the caisse. The Commission row
-     * itself is never mutated (it stays "validated" for the audit trail) —
-     * this only decides what counts toward the employee's own totals.
-     */
-    private function activeValidatedCommissions(int $employeeId, ?Carbon $from = null, ?Carbon $to = null, ?Carbon $onDate = null): Collection
-    {
-        $query = Commission::where('employee_id', $employeeId)
-            ->where('status', Commission::STATUS_VALIDATED)
-            ->with('prestation:id,sale_id');
-
-        if ($onDate !== null) {
-            $query->whereDate('created_at', $onDate);
-        }
-        if ($from !== null) {
-            $query->where('created_at', '>=', $from);
-        }
-        if ($to !== null) {
-            $query->where('created_at', '<=', $to);
-        }
-
-        $commissions = $query->get();
-        $deletedSaleIds = $this->deletedSaleIds(
-            $commissions->pluck('prestation.sale_id')->filter()->values(),
-        );
-
-        return $commissions->reject(
-            fn (Commission $commission) => $commission->prestation?->sale_id !== null
-                && $deletedSaleIds->has($commission->prestation->sale_id),
-        );
     }
 }

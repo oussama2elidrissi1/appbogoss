@@ -12,6 +12,7 @@ import {
     UserCircle,
     Users,
     UserSquare2,
+    Wallet,
     type LucideIcon,
 } from 'lucide-react';
 
@@ -82,6 +83,13 @@ export const navSections: NavSection[] = [
                 icon: Sparkles,
                 description: 'Catalogue des prestations, durées et tarifs.',
                 permission: 'services.manage',
+            },
+            {
+                label: 'Paie',
+                to: '/paie',
+                icon: Wallet,
+                description: 'Commissions à payer chaque mois, nettes des avances sur salaire.',
+                permission: 'commissions.manage',
             },
         ],
     },

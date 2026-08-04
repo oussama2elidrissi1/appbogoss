@@ -188,3 +188,30 @@ export interface MyReport {
         is_deleted: boolean;
     }>;
 }
+
+export interface CommissionPayoutRow {
+    employee_id: number;
+    employee_name: string;
+    avatar_color: string;
+    commission_total: number;
+    advances_outstanding: number;
+    net_amount: number;
+    already_paid: boolean;
+    payout: {
+        id: number;
+        net_amount: number;
+        paid_at: string;
+        paid_by: string | null;
+    } | null;
+}
+
+export interface CommissionPayout {
+    id: number;
+    employee_id: number;
+    period: string;
+    commission_total: number;
+    advances_deducted: number;
+    net_amount: number;
+    paid_at: string;
+    paid_by: string | null;
+}

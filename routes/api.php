@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CashMovementController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\ClientController;
+use App\Http\Controllers\Api\CommissionPayoutController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\EmployeeServiceCommissionController;
@@ -100,6 +101,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/employee-service-commissions/{employeeServiceCommission}/recalculate', [EmployeeServiceCommissionController::class, 'recalculate']);
         Route::patch('/employee-service-commissions/{employeeServiceCommission}', [EmployeeServiceCommissionController::class, 'update']);
         Route::delete('/employee-service-commissions/{employeeServiceCommission}', [EmployeeServiceCommissionController::class, 'destroy']);
+        Route::get('/commission-payouts', [CommissionPayoutController::class, 'index']);
+        Route::post('/commission-payouts', [CommissionPayoutController::class, 'store']);
     });
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead']);

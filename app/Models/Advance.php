@@ -20,6 +20,7 @@ class Advance extends Model
         'reason',
         'given_on',
         'settled_at',
+        'commission_payout_id',
     ];
 
     protected $casts = [
@@ -36,6 +37,11 @@ class Advance extends Model
     public function workDay(): BelongsTo
     {
         return $this->belongsTo(WorkDay::class);
+    }
+
+    public function commissionPayout(): BelongsTo
+    {
+        return $this->belongsTo(CommissionPayout::class);
     }
 
     public function scopeOutstanding(Builder $query): Builder

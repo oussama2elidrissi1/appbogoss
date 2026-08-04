@@ -28,6 +28,8 @@ import type {
     ActivityLogEntry,
     AddPrestationItemPayload,
     AppNotification,
+    CommissionPayout,
+    CommissionPayoutRow,
     CommissionsReport,
     ConfirmPrestationPaymentPayload,
     CreatePrestationPayload,
@@ -608,4 +610,20 @@ export function myReportExportUrl(options?: { from?: string; to?: string }): str
     if (options?.to) params.set('to', options.to);
     const query = params.toString();
     return `/api/me/report/export${query ? `?${query}` : ''}`;
+}
+
+export async function getCommissionPayouts(period: string): Promise<CommissionPayoutRow[]> {
+    const { data } = await api.get<{ data: CommissionPayoutRow[] }>('/api/commission-payouts', {
+        params: { period },
+    });
+    return data.data;
+}
+
+export async function payCommission(payload: {
+    employee_id: number;
+    period: string;
+    notes?: string;
+}): Promise<CommissionPayout> {
+    const { data } = await api.post<{ data: CommissionPayout }>('/api/commission-payouts', payload);
+    return data.data;
 }

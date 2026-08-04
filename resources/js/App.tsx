@@ -13,6 +13,7 @@ import EmployeeDetail from '@/pages/EmployeeDetail';
 import Employees from '@/pages/Employees';
 import Login from '@/pages/Login';
 import MonEspace from '@/pages/MonEspace';
+import Payroll from '@/pages/Payroll';
 import PlaceholderPage from '@/pages/PlaceholderPage';
 import Reports from '@/pages/Reports';
 import Services from '@/pages/Services';
@@ -29,6 +30,7 @@ const realRoutes = new Set([
     '/employees',
     '/clients',
     '/services',
+    '/paie',
     '/stock',
     '/reports',
     '/settings',
@@ -77,6 +79,10 @@ export default function App() {
 
                     <Route element={<ProtectedRoute permission="services.manage" />}>
                         <Route path="/services" element={<Services />} />
+                    </Route>
+
+                    <Route element={<ProtectedRoute permission="commissions.manage" />}>
+                        <Route path="/paie" element={<Payroll />} />
                     </Route>
 
                     <Route element={<ProtectedRoute permission="activity_log.view" />}>
