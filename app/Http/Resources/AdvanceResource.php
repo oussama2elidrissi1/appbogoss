@@ -23,6 +23,8 @@ class AdvanceResource extends JsonResource
             'reason' => $this->reason,
             'given_on' => $this->given_on?->toDateString(),
             'settled_at' => $this->settled_at,
+            'commission_payout_id' => $this->commission_payout_id,
+            'commission_payout_period' => $this->whenLoaded('commissionPayout', fn () => $this->commissionPayout?->period),
         ];
     }
 }

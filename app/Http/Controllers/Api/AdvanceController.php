@@ -36,7 +36,7 @@ class AdvanceController extends Controller
             'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')],
         ]);
 
-        $advances = Advance::with('employee')
+        $advances = Advance::with(['employee', 'commissionPayout'])
             ->where('employee_id', $validated['employee_id'])
             ->orderByDesc('given_on')
             ->get();

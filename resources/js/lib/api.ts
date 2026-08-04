@@ -612,9 +612,9 @@ export function myReportExportUrl(options?: { from?: string; to?: string }): str
     return `/api/me/report/export${query ? `?${query}` : ''}`;
 }
 
-export async function getCommissionPayouts(period: string): Promise<CommissionPayoutRow[]> {
+export async function getCommissionPayouts(period: string, employeeId?: number): Promise<CommissionPayoutRow[]> {
     const { data } = await api.get<{ data: CommissionPayoutRow[] }>('/api/commission-payouts', {
-        params: { period },
+        params: { period, ...(employeeId ? { employee_id: employeeId } : {}) },
     });
     return data.data;
 }
@@ -625,5 +625,12 @@ export async function payCommission(payload: {
     notes?: string;
 }): Promise<CommissionPayout> {
     const { data } = await api.post<{ data: CommissionPayout }>('/api/commission-payouts', payload);
+    return data.data;
+}
+
+export async function getCommissionPayoutHistory(employeeId: number): Promise<CommissionPayout[]> {
+    const { data } = await api.get<{ data: CommissionPayout[] }>(
+        `/api/employees/${employeeId}/commission-payouts`,
+    );
     return data.data;
 }

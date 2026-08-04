@@ -263,9 +263,18 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
 
                                 <div className="flex shrink-0 items-center gap-1">
                                     {advance.settled_at ? (
-                                        <span className="inline-flex items-center gap-1 text-xs text-success">
+                                        <span
+                                            className="inline-flex items-center gap-1 text-xs text-success"
+                                            title={
+                                                advance.commission_payout_period
+                                                    ? `Soldée automatiquement via la paie de ${advance.commission_payout_period}`
+                                                    : undefined
+                                            }
+                                        >
                                             <Check className="h-3.5 w-3.5" />
-                                            Réglée
+                                            {advance.commission_payout_period
+                                                ? `Réglée (paie ${advance.commission_payout_period})`
+                                                : 'Réglée'}
                                         </span>
                                     ) : (
                                         <Button

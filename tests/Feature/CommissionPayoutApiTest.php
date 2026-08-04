@@ -211,4 +211,60 @@ class CommissionPayoutApiTest extends TestCase
         $this->getJson('/api/commission-payouts')->assertForbidden();
         $this->postJson('/api/commission-payouts', ['employee_id' => 1, 'period' => '2026-08'])->assertForbidden();
     }
+
+    public function test_index_can_be_filtered_to_a_single_employee(): void
+    {
+        $employeeA = Employee::factory()->create();
+        $employeeB = Employee::factory()->create();
+        $admin = $this->admin();
+        $this->makePrestationCommission($employeeA, $admin, 50, '2026-08-10');
+        $this->makePrestationCommission($employeeB, $admin, 90, '2026-08-10');
+
+        Sanctum::actingAs($admin);
+        $response = $this->getJson("/api/commission-payouts?period=2026-08&employee_id={$employeeA->id}");
+
+        $response->assertOk();
+        $this->assertCount(1, $response->json('data'));
+        $this->assertSame($employeeA->id, $response->json('data.0.employee_id'));
+    }
+
+    public function test_history_lists_past_payouts_for_one_employee_most_recent_first(): void
+    {
+        $employee = Employee::factory()->create();
+        $admin = $this->admin();
+        $this->makePrestationCommission($employee, $admin, 100, '2026-06-10');
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/commission-payouts', ['employee_id' => $employee->id, 'period' => '2026-06'])
+            ->assertCreated();
+
+        $this->makePrestationCommission($employee, $admin, 50, '2026-07-10');
+        $this->postJson('/api/commission-payouts', ['employee_id' => $employee->id, 'period' => '2026-07'])
+            ->assertCreated();
+
+        $response = $this->getJson("/api/employees/{$employee->id}/commission-payouts");
+
+        $response->assertOk();
+        $this->assertCount(2, $response->json('data'));
+        $this->assertSame('2026-07', $response->json('data.0.period'));
+        $this->assertSame('2026-06', $response->json('data.1.period'));
+    }
+
+    public function test_settled_advance_exposes_which_payout_settled_it(): void
+    {
+        $employee = Employee::factory()->create();
+        $admin = $this->admin();
+        $this->makePrestationCommission($employee, $admin, 100, '2026-08-10');
+        Advance::create(['employee_id' => $employee->id, 'amount' => 30, 'given_on' => '2026-08-03']);
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/commission-payouts', ['employee_id' => $employee->id, 'period' => '2026-08'])
+            ->assertCreated();
+
+        $response = $this->getJson("/api/advances?employee_id={$employee->id}");
+        $response->assertOk();
+        $row = collect($response->json('data'))->firstWhere('amount', 30);
+        $this->assertNotNull($row['commission_payout_id']);
+        $this->assertSame('2026-08', $row['commission_payout_period']);
+    }
 }

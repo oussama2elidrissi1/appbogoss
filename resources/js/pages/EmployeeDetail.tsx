@@ -28,6 +28,7 @@ import { EmployeeAdvances } from '@/components/workday/EmployeeAdvances';
 import { EmployeeAvatar } from '@/components/workday/EmployeeAvatar';
 import { EmployeeCommissionRules } from '@/components/workday/EmployeeCommissionRules';
 import { EmployeeFormDialog } from '@/components/workday/EmployeeFormDialog';
+import { EmployeePayroll } from '@/components/workday/EmployeePayroll';
 import { CreatedAccountDialog, type CreatedAccount } from '@/components/workday/CreatedAccountDialog';
 
 export default function EmployeeDetail() {
@@ -241,7 +242,10 @@ export default function EmployeeDetail() {
                         <TabsList>
                             <TabsTrigger value="advances">Avances</TabsTrigger>
                             {hasPermission('commissions.manage') && (
-                                <TabsTrigger value="commissions">Commissions</TabsTrigger>
+                                <>
+                                    <TabsTrigger value="commissions">Commissions</TabsTrigger>
+                                    <TabsTrigger value="payroll">Paie</TabsTrigger>
+                                </>
                             )}
                         </TabsList>
 
@@ -252,11 +256,18 @@ export default function EmployeeDetail() {
                         </TabsContent>
 
                         {hasPermission('commissions.manage') && (
-                            <TabsContent value="commissions">
-                                <Card className="p-5 sm:p-6">
-                                    <EmployeeCommissionRules employee={employee} />
-                                </Card>
-                            </TabsContent>
+                            <>
+                                <TabsContent value="commissions">
+                                    <Card className="p-5 sm:p-6">
+                                        <EmployeeCommissionRules employee={employee} />
+                                    </Card>
+                                </TabsContent>
+                                <TabsContent value="payroll">
+                                    <Card className="p-5 sm:p-6">
+                                        <EmployeePayroll employee={employee} />
+                                    </Card>
+                                </TabsContent>
+                            </>
                         )}
                     </Tabs>
                 )}

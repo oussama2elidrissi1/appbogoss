@@ -211,6 +211,10 @@ export interface Advance {
     given_on: string;
     /** ISO timestamp */
     settled_at: string | null;
+    /** Set when this advance was auto-settled by a monthly commission payout rather than manually. */
+    commission_payout_id: number | null;
+    /** 'YYYY-MM', present alongside commission_payout_id. */
+    commission_payout_period: string | null;
 }
 
 export interface CreateAdvancePayload {

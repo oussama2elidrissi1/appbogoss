@@ -66,4 +66,9 @@ class Employee extends Model
     {
         return $this->hasMany(Commission::class);
     }
+
+    public function commissionPayouts(): HasMany
+    {
+        return $this->hasMany(CommissionPayout::class);
+    }
 }

@@ -103,6 +103,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/employee-service-commissions/{employeeServiceCommission}', [EmployeeServiceCommissionController::class, 'destroy']);
         Route::get('/commission-payouts', [CommissionPayoutController::class, 'index']);
         Route::post('/commission-payouts', [CommissionPayoutController::class, 'store']);
+        Route::get('/employees/{employee}/commission-payouts', [CommissionPayoutController::class, 'history']);
     });
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead']);
