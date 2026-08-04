@@ -40,11 +40,46 @@ export default function App() {
         <Routes>
             <Route path="/login" element={<Login />} />
 
+            {/* Single persistent AppLayout for the whole authenticated app — the
+                permission gates below are nested INSIDE it (not separate top-level
+                route trees), so Sidebar/Topbar never remount when navigating across
+                permission boundaries. A prior version used one <AppLayout> per
+                permission group, which tore down and rebuilt the whole shell on
+                every such navigation and could leave the page-transition animation
+                stuck mid-flight. */}
             <Route element={<ProtectedRoute />}>
                 <Route element={<AppLayout />}>
                     <Route index element={<RoleAwareRedirect />} />
                     <Route path="/mon-espace" element={<MonEspace />} />
                     <Route path="/settings" element={<Settings />} />
+
+                    <Route element={<ProtectedRoute permission="reports.view_all" />}>
+                        <Route path="/dashboard" element={<Dashboard />} />
+                        <Route path="/reports" element={<Reports />} />
+                    </Route>
+
+                    <Route element={<ProtectedRoute permission="agenda.manage" />}>
+                        <Route path="/agenda" element={<Agenda />} />
+                    </Route>
+
+                    <Route element={<ProtectedRoute permission="caisse.manage" />}>
+                        <Route path="/pos" element={<Caisse />} />
+                        <Route path="/expenses" element={<Depenses />} />
+                        <Route path="/stock" element={<Stock />} />
+                        <Route path="/clients" element={<Clients />} />
+                    </Route>
+
+                    <Route element={<ProtectedRoute permission="employees.manage" />}>
+                        <Route path="/employees" element={<Employees />} />
+                    </Route>
+
+                    <Route element={<ProtectedRoute permission="services.manage" />}>
+                        <Route path="/services" element={<Services />} />
+                    </Route>
+
+                    <Route element={<ProtectedRoute permission="activity_log.view" />}>
+                        <Route path="/activity-log" element={<ActivityLog />} />
+                    </Route>
 
                     {placeholderItems.map((item) => (
                         <Route
@@ -59,49 +94,6 @@ export default function App() {
                             }
                         />
                     ))}
-                </Route>
-            </Route>
-
-            {/* Company-wide / management screens — every employee's account lacks
-                these permissions, so they never render for a plain employee, in the
-                UI or via a direct URL. */}
-            <Route element={<ProtectedRoute permission="reports.view_all" />}>
-                <Route element={<AppLayout />}>
-                    <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/reports" element={<Reports />} />
-                </Route>
-            </Route>
-
-            <Route element={<ProtectedRoute permission="agenda.manage" />}>
-                <Route element={<AppLayout />}>
-                    <Route path="/agenda" element={<Agenda />} />
-                </Route>
-            </Route>
-
-            <Route element={<ProtectedRoute permission="caisse.manage" />}>
-                <Route element={<AppLayout />}>
-                    <Route path="/pos" element={<Caisse />} />
-                    <Route path="/expenses" element={<Depenses />} />
-                    <Route path="/stock" element={<Stock />} />
-                    <Route path="/clients" element={<Clients />} />
-                </Route>
-            </Route>
-
-            <Route element={<ProtectedRoute permission="employees.manage" />}>
-                <Route element={<AppLayout />}>
-                    <Route path="/employees" element={<Employees />} />
-                </Route>
-            </Route>
-
-            <Route element={<ProtectedRoute permission="services.manage" />}>
-                <Route element={<AppLayout />}>
-                    <Route path="/services" element={<Services />} />
-                </Route>
-            </Route>
-
-            <Route element={<ProtectedRoute permission="activity_log.view" />}>
-                <Route element={<AppLayout />}>
-                    <Route path="/activity-log" element={<ActivityLog />} />
                 </Route>
             </Route>
 
