@@ -31,8 +31,16 @@ class MeController extends Controller
         $todaysPrestations = Prestation::where('employee_id', $employee->id)
             ->whereDate('created_at', $today)
             ->get();
-        $legacySalesToday = $this->legacySales($employee)->whereDate('created_at', $today)->get();
-        $activeLegacySalesToday = $legacySalesToday->reject(fn (Sale $sale) => $sale->trashed());
+
+        // Fetched once from the earliest bound needed (week start can fall
+        // before month start, e.g. a week that spans two months) and sliced
+        // in memory per bucket below — avoids three near-identical queries.
+        $legacyRangeStart = $weekStart->lt($monthStart) ? $weekStart : $monthStart;
+        $legacySalesInRange = $this->legacySales($employee)->where('created_at', '>=', $legacyRangeStart)->get();
+        $activeLegacySalesInRange = $legacySalesInRange->reject(fn (Sale $sale) => $sale->trashed());
+        $activeLegacySalesToday = $activeLegacySalesInRange->filter(fn (Sale $sale) => $sale->created_at->isSameDay($today));
+        $activeLegacySalesWeek = $activeLegacySalesInRange->filter(fn (Sale $sale) => $sale->created_at->gte($weekStart));
+        $activeLegacySalesMonth = $activeLegacySalesInRange->filter(fn (Sale $sale) => $sale->created_at->gte($monthStart));
 
         $paidToday = $todaysPrestations->where('status', Prestation::STATUS_PAID);
         $deletedPaidTodaySaleIds = $this->deletedSaleIds($paidToday->pluck('sale_id')->filter()->values());
@@ -48,9 +56,16 @@ class MeController extends Controller
             ->where('status', Prestation::STATUS_PENDING_PAYMENT)
             ->count();
 
-        $commissionWeek = $this->activeValidatedCommissions($employee->id, from: $weekStart)->sum('amount');
-        $commissionMonth = $this->activeValidatedCommissions($employee->id, from: $monthStart)->sum('amount');
-        $commissionToday = $this->activeValidatedCommissions($employee->id, onDate: $today)->sum('amount');
+        // Commission cards must match "Mon rapport", which already blends
+        // Prestation-workflow commissions with legacy caisse commissions —
+        // showing only the former here made the dashboard silently disagree
+        // with the report right below it.
+        $commissionWeek = $this->activeValidatedCommissions($employee->id, from: $weekStart)->sum('amount')
+            + (float) $activeLegacySalesWeek->sum('commission_amount');
+        $commissionMonth = $this->activeValidatedCommissions($employee->id, from: $monthStart)->sum('amount')
+            + (float) $activeLegacySalesMonth->sum('commission_amount');
+        $commissionToday = $this->activeValidatedCommissions($employee->id, onDate: $today)->sum('amount')
+            + (float) $activeLegacySalesToday->sum('commission_amount');
 
         $recent = Prestation::where('employee_id', $employee->id)
             ->with('items')

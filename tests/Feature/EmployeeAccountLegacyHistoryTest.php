@@ -269,6 +269,42 @@ class EmployeeAccountLegacyHistoryTest extends TestCase
         $this->assertSame('validated', $row['status']);
     }
 
+    public function test_dashboard_commission_cards_match_the_report_when_a_legacy_sale_has_a_commission(): void
+    {
+        [$employee, $user] = $this->employeeWithLogin();
+        $workDay = WorkDay::factory()->create(['status' => 'open']);
+
+        $sale = Sale::create([
+            'work_day_id' => $workDay->id,
+            'employee_id' => $employee->id,
+            'category' => 'coiffure',
+            'total' => 70,
+            'commission_amount' => 35,
+            'payment_method' => 'especes',
+            'print_count' => 1,
+        ]);
+        SaleItem::create([
+            'sale_id' => $sale->id,
+            'label' => 'Coupe cheveux + barbe',
+            'quantity' => 1,
+            'unit_price' => 70,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $dashboard = $this->getJson('/api/me/dashboard');
+        $dashboard->assertOk();
+
+        $report = $this->getJson('/api/me/report?from='.now()->startOfMonth()->toDateString().'&to='.now()->toDateString());
+        $report->assertOk();
+
+        // The dashboard cards must never silently disagree with "Mon rapport"
+        // for the same period — both are driven by the same legacy sale.
+        $this->assertEquals(35, $dashboard->json('data.commission_today'));
+        $this->assertEquals(35, $dashboard->json('data.commission_month'));
+        $this->assertEquals(35, $report->json('data.commission_total'));
+    }
+
     /** @return array{0: Employee, 1: User} */
     private function employeeWithLogin(): array
     {
