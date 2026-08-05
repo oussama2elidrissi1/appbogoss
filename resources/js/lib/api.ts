@@ -255,6 +255,19 @@ export async function deleteAdvance(id: number, password: string): Promise<void>
     await api.delete(`/api/advances/${id}`, { data: { password } });
 }
 
+/** Marks every outstanding advance given before `before` as settled, without a payout — for money reimbursed off-app before it was ever recorded as settled. */
+export async function settleAdvancesBefore(
+    employeeId: number,
+    before: string,
+    password: string,
+): Promise<{ settled_count: number; settled_total: number }> {
+    const { data } = await api.post<{ settled_count: number; settled_total: number }>(
+        '/api/advances/settle-before',
+        { employee_id: employeeId, before, password },
+    );
+    return data;
+}
+
 export async function createExpense(payload: CreateExpensePayload): Promise<Expense> {
     const { data } = await api.post<{ data: Expense }>('/api/expenses', payload);
     return data.data;

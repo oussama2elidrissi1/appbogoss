@@ -114,4 +114,55 @@ class AdvanceApiTest extends TestCase
         $response->assertOk();
         $this->assertSame('2026-08-04', $response->json('data.0.work_day_date'));
     }
+
+    public function test_super_admin_can_bulk_settle_advances_given_before_a_cutoff(): void
+    {
+        $employee = Employee::factory()->create();
+        $old1 = Advance::create(['employee_id' => $employee->id, 'amount' => 20, 'given_on' => '2026-07-28']);
+        $old2 = Advance::create(['employee_id' => $employee->id, 'amount' => 30, 'given_on' => '2026-07-30']);
+        $current = Advance::create(['employee_id' => $employee->id, 'amount' => 40, 'given_on' => '2026-08-02']);
+        $alreadySettled = Advance::create([
+            'employee_id' => $employee->id,
+            'amount' => 15,
+            'given_on' => '2026-07-15',
+            'settled_at' => now(),
+        ]);
+
+        Sanctum::actingAs($this->superAdmin());
+        $response = $this->postJson('/api/advances/settle-before', [
+            'employee_id' => $employee->id,
+            'before' => '2026-08-01',
+        ]);
+
+        $response->assertOk();
+        $this->assertSame(2, $response->json('settled_count'));
+        $this->assertEquals(50.0, $response->json('settled_total'));
+
+        $this->assertNotNull($old1->fresh()->settled_at);
+        $this->assertNotNull($old2->fresh()->settled_at);
+        $this->assertNull($current->fresh()->settled_at);
+        // Untouched — it was already settled before this call.
+        $this->assertEqualsWithDelta(
+            $alreadySettled->fresh()->settled_at->timestamp,
+            $alreadySettled->settled_at->timestamp,
+            2,
+        );
+        // No payout was fabricated for money that was reimbursed off-app.
+        $this->assertDatabaseCount('commission_payouts', 0);
+    }
+
+    public function test_admin_needs_the_patron_password_to_bulk_settle_advances(): void
+    {
+        $employee = Employee::factory()->create();
+        $old = Advance::create(['employee_id' => $employee->id, 'amount' => 20, 'given_on' => '2026-07-28']);
+
+        Sanctum::actingAs($this->admin());
+        $response = $this->postJson('/api/advances/settle-before', [
+            'employee_id' => $employee->id,
+            'before' => '2026-08-01',
+        ]);
+
+        $response->assertUnprocessable();
+        $this->assertNull($old->fresh()->settled_at);
+    }
 }

@@ -8,6 +8,7 @@ import {
     getErrorMessage,
     getWorkDays,
     settleAdvance,
+    settleAdvancesBefore,
     updateAdvance,
 } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -47,6 +48,7 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
     const [pendingAction, setPendingAction] = useState<
         | { type: 'edit'; advance: Advance; payload: Omit<Parameters<typeof updateAdvance>[1], 'password'> }
         | { type: 'delete'; advance: Advance }
+        | { type: 'settle-before'; before: string; total: number }
         | null
     >(null);
     const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -69,6 +71,7 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
     function invalidate() {
         void queryClient.invalidateQueries({ queryKey: workDayKeys.advances(employee.id) });
         void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+        void queryClient.invalidateQueries({ queryKey: ['commission-payouts'] });
     }
 
     const createMutation = useMutation({
@@ -101,6 +104,17 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
 
     const deleteMutation = useMutation({
         mutationFn: ({ id, password }: { id: number; password: string }) => deleteAdvance(id, password),
+        onSuccess: () => {
+            invalidate();
+            setPendingAction(null);
+            setPasswordError(null);
+        },
+        onError: (mutationError) => setPasswordError(getErrorMessage(mutationError)),
+    });
+
+    const settleBeforeMutation = useMutation({
+        mutationFn: ({ before, password }: { before: string; password: string }) =>
+            settleAdvancesBefore(employee.id, before, password),
         onSuccess: () => {
             invalidate();
             setPendingAction(null);
@@ -163,9 +177,20 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
                 id: pendingAction.advance.id,
                 payload: { ...pendingAction.payload, password },
             });
-        } else {
+        } else if (pendingAction.type === 'delete') {
             deleteMutation.mutate({ id: pendingAction.advance.id, password });
+        } else {
+            settleBeforeMutation.mutate({ before: pendingAction.before, password });
         }
+    }
+
+    function requestSettleBefore(before: string, total: number) {
+        setPasswordError(null);
+        if (isSuperAdmin) {
+            settleBeforeMutation.mutate({ before, password: '' });
+            return;
+        }
+        setPendingAction({ type: 'settle-before', before, total });
     }
 
     const allAdvances = data?.data ?? [];
@@ -198,17 +223,30 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
                 )}
             </div>
             {periodMonth ? (
-                <p className="mt-1 text-[10px] text-muted-foreground">
-                    Liste ci-dessous limitée aux avances données ce mois-ci ({formatCurrency(periodOutstandingTotal, { maximumFractionDigits: 2 })}).
+                <div className="mt-1 space-y-1.5">
+                    <p className="text-[10px] text-muted-foreground">
+                        Liste ci-dessous limitée aux avances données ce mois-ci ({formatCurrency(periodOutstandingTotal, { maximumFractionDigits: 2 })}).
+                        {olderUnsettledTotal > 0 && (
+                            <>
+                                {' '}
+                                Les {formatCurrency(olderUnsettledTotal, { maximumFractionDigits: 2 })} restants
+                                du total ci-dessus viennent de mois précédents, toujours non soldés.
+                            </>
+                        )}
+                    </p>
                     {olderUnsettledTotal > 0 && (
-                        <>
-                            {' '}
-                            Les {formatCurrency(olderUnsettledTotal, { maximumFractionDigits: 2 })} restants du
-                            total ci-dessus viennent de mois précédents, toujours non soldés — voir la fiche
-                            employé pour le détail.
-                        </>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-[11px] text-accent hover:text-accent"
+                            disabled={settleBeforeMutation.isPending}
+                            onClick={() => requestSettleBefore(`${periodMonth}-01`, olderUnsettledTotal)}
+                        >
+                            Déjà remboursées → solder les {formatCurrency(olderUnsettledTotal, { maximumFractionDigits: 2 })} antérieures
+                        </Button>
                     )}
-                </p>
+                </div>
             ) : (
                 <p className="mt-1 text-[10px] text-muted-foreground">
                     Toutes les avances non soldées, quel que soit le mois où elles ont été données — elles
@@ -495,17 +533,31 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
                         setPasswordError(null);
                     }
                 }}
-                title={pendingAction?.type === 'delete' ? 'Supprimer cette avance ?' : 'Confirmer la modification'}
+                title={
+                    pendingAction?.type === 'delete'
+                        ? 'Supprimer cette avance ?'
+                        : pendingAction?.type === 'settle-before'
+                          ? 'Solder ces avances antérieures ?'
+                          : 'Confirmer la modification'
+                }
                 description={
                     pendingAction?.type === 'delete'
                         ? `L'avance de ${formatCurrency(pendingAction.advance.amount, { maximumFractionDigits: 2 })} du ${pendingAction.advance.given_on} sera définitivement supprimée. Cette action nécessite le mot de passe patron.`
                         : pendingAction?.type === 'edit'
                           ? "Toute correction d'une avance nécessite le mot de passe patron."
+                          : pendingAction?.type === 'settle-before'
+                            ? `${formatCurrency(pendingAction.total, { maximumFractionDigits: 2 })} d'avances antérieures à ce mois seront marquées réglées, sans créer de paiement de commission. À utiliser seulement si cet argent a déjà été remboursé en dehors de l'application. Cette action nécessite le mot de passe patron.`
+                            : undefined
+                }
+                confirmLabel={
+                    pendingAction?.type === 'edit'
+                        ? 'Enregistrer la correction'
+                        : pendingAction?.type === 'settle-before'
+                          ? 'Solder ces avances'
                           : undefined
                 }
-                confirmLabel={pendingAction?.type === 'edit' ? 'Enregistrer la correction' : undefined}
                 tone={pendingAction?.type === 'edit' ? 'accent' : 'destructive'}
-                loading={updateMutation.isPending || deleteMutation.isPending}
+                loading={updateMutation.isPending || deleteMutation.isPending || settleBeforeMutation.isPending}
                 error={passwordError}
                 onConfirm={confirmPendingAction}
             />

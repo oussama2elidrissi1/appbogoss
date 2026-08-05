@@ -7,6 +7,8 @@ use App\Http\Requests\StoreAdvanceRequest;
 use App\Http\Requests\UpdateAdvanceRequest;
 use App\Http\Resources\AdvanceResource;
 use App\Models\Advance;
+use App\Models\Employee;
+use App\Services\ActivityLogger;
 use App\Services\WorkDayService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,6 +17,10 @@ use Illuminate\Validation\ValidationException;
 
 class AdvanceController extends Controller
 {
+    public function __construct(private readonly ActivityLogger $activityLogger)
+    {
+    }
+
     public function store(StoreAdvanceRequest $request, WorkDayService $service): JsonResponse
     {
         $data = $request->validated();
@@ -57,6 +63,47 @@ class AdvanceController extends Controller
         $advance->load('employee');
 
         return response()->json(['data' => new AdvanceResource($advance)]);
+    }
+
+    /**
+     * Bulk correction for advances that were actually reimbursed before the
+     * "Paie" payout feature existed and so were never marked settled — marks
+     * every currently-outstanding advance given before a cutoff date as
+     * settled, without creating a CommissionPayout (there is no payment to
+     * record, the money already changed hands). Money-affecting, so it goes
+     * through the same patron-password gate as editing/deleting an advance.
+     */
+    public function settleBefore(Request $request): JsonResponse
+    {
+        $this->assertPatronPassword($request);
+
+        $validated = $request->validate([
+            'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')],
+            'before' => ['required', 'date'],
+        ]);
+
+        $employee = Employee::findOrFail($validated['employee_id']);
+
+        $advances = Advance::where('employee_id', $employee->id)
+            ->outstanding()
+            ->where('given_on', '<', $validated['before'])
+            ->get();
+
+        if ($advances->isNotEmpty()) {
+            Advance::whereIn('id', $advances->pluck('id'))->update(['settled_at' => now()]);
+
+            $this->activityLogger->log('advance.bulk_settled', $employee, [
+                'before' => $validated['before'],
+            ], [
+                'settled_count' => $advances->count(),
+                'settled_total' => round((float) $advances->sum('amount'), 2),
+            ]);
+        }
+
+        return response()->json([
+            'settled_count' => $advances->count(),
+            'settled_total' => round((float) $advances->sum('amount'), 2),
+        ]);
     }
 
     public function update(UpdateAdvanceRequest $request, Advance $advance): JsonResponse

@@ -86,6 +86,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     Route::middleware('permission:employees.manage')->group(function () {
+        Route::post('/advances/settle-before', [AdvanceController::class, 'settleBefore']);
         Route::post('/advances/{advance}/settle', [AdvanceController::class, 'settle']);
         Route::get('/advances', [AdvanceController::class, 'index']);
         Route::post('/advances', [AdvanceController::class, 'store']);
