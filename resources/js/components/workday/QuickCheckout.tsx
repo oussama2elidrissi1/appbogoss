@@ -262,8 +262,12 @@ export function QuickCheckout({
     }, [canSubmit, submit]);
 
     return (
-        <Card className="relative overflow-hidden">
-            {/* Success pulse — a full-card wash rather than a toast dependency. */}
+        <Card className="relative">
+            {/* Success pulse — a full-card wash rather than a toast dependency.
+                No `overflow-hidden` on the Card itself: the client picker's
+                dropdown (search results, "create new client" form) is
+                absolutely positioned and needs to be able to extend past the
+                card's bottom edge instead of being clipped. */}
             <AnimatePresence>
                 {justSaved && (
                     <motion.div
@@ -271,7 +275,7 @@ export function QuickCheckout({
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.25 }}
-                        className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-background/70 backdrop-blur-[2px]"
+                        className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-[inherit] bg-background/70 backdrop-blur-[2px]"
                     >
                         <motion.div
                             initial={{ scale: 0.8, opacity: 0 }}
