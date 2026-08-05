@@ -266,6 +266,14 @@ export async function getExpenses(workDayId?: number): Promise<Expense[]> {
     return data.data;
 }
 
+/** Fixes an expense that was actually a salary advance recorded in the wrong place. */
+export async function convertExpenseToAdvance(expenseId: number, employeeId: number): Promise<Advance> {
+    const { data } = await api.post<{ data: Advance }>(`/api/expenses/${expenseId}/convert-to-advance`, {
+        employee_id: employeeId,
+    });
+    return data.data;
+}
+
 export async function getEmployees(options?: {
     includeInactive?: boolean;
     search?: string;

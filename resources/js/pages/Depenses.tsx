@@ -6,6 +6,7 @@ import {
     AlertCircle,
     Box,
     Coffee,
+    HandCoins,
     Loader2,
     MoreHorizontal,
     Package,
@@ -17,14 +18,16 @@ import {
 import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
 import { z } from 'zod';
-import { createExpense, getErrorMessage, getExpenses } from '@/lib/api';
+import { convertExpenseToAdvance, createExpense, getEmployees, getErrorMessage, getExpenses } from '@/lib/api';
 import { useActiveWorkDay, useRefreshDay, workDayKeys } from '@/hooks/useWorkDay';
 import { cn, formatCurrency } from '@/lib/utils';
+import type { Expense } from '@/types/workday';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Chip } from '@/components/ui/chip';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 
@@ -111,6 +114,8 @@ export default function Depenses() {
     const queryClient = useQueryClient();
     const refreshDay = useRefreshDay();
     const [justSaved, setJustSaved] = useState(false);
+    const [convertingExpense, setConvertingExpense] = useState<Expense | null>(null);
+    const [convertEmployeeId, setConvertEmployeeId] = useState('');
 
     const { data: workDay, isPending: dayPending } = useActiveWorkDay();
 
@@ -144,6 +149,25 @@ export default function Depenses() {
             reset({ label: '', category, amount: 0, spent_on: today() });
             setJustSaved(true);
             window.setTimeout(() => setJustSaved(false), 1400);
+        },
+    });
+
+    const { data: employees } = useQuery({
+        queryKey: workDayKeys.employees,
+        queryFn: () => getEmployees(),
+        staleTime: 5 * 60_000,
+    });
+
+    const convertMutation = useMutation({
+        mutationFn: ({ expenseId, employeeId }: { expenseId: number; employeeId: number }) =>
+            convertExpenseToAdvance(expenseId, employeeId),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({
+                queryKey: workDayKeys.expenses(workDay?.id ?? null),
+            });
+            refreshDay();
+            setConvertingExpense(null);
+            setConvertEmployeeId('');
         },
     });
 
@@ -349,35 +373,110 @@ export default function Depenses() {
                             ) : (
                                 <ul className="max-h-[520px] space-y-2 overflow-y-auto pr-0.5">
                                     <AnimatePresence initial={false}>
-                                        {(expenses ?? []).map((expense) => (
-                                            <motion.li
-                                                key={expense.id}
-                                                layout
-                                                initial={{ opacity: 0, y: -8 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                exit={{ opacity: 0 }}
-                                                transition={{ duration: 0.25 }}
-                                                className="flex items-center justify-between gap-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3.5 py-2.5 transition-colors duration-200 hover:border-destructive/20"
-                                            >
-                                                <div className="min-w-0">
-                                                    <p className="truncate text-sm font-medium text-foreground">
-                                                        {expense.label}
-                                                    </p>
-                                                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                                                        {CATEGORY_LABELS[expense.category] ??
-                                                            expense.category}
-                                                        {' · '}
-                                                        {expense.spent_on}
-                                                    </p>
-                                                </div>
-                                                <span className="shrink-0 text-sm font-semibold tabular-nums text-destructive">
-                                                    −
-                                                    {formatCurrency(expense.amount, {
-                                                        maximumFractionDigits: 2,
-                                                    })}
-                                                </span>
-                                            </motion.li>
-                                        ))}
+                                        {(expenses ?? []).map((expense) => {
+                                            const isConverting = convertingExpense?.id === expense.id;
+
+                                            return (
+                                                <motion.li
+                                                    key={expense.id}
+                                                    layout
+                                                    initial={{ opacity: 0, y: -8 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    exit={{ opacity: 0 }}
+                                                    transition={{ duration: 0.25 }}
+                                                    className={cn(
+                                                        'rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3.5 py-2.5 transition-colors duration-200',
+                                                        !isConverting && 'hover:border-destructive/20',
+                                                        isConverting && 'border-accent/25 bg-accent/[0.05]',
+                                                    )}
+                                                >
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <p className="truncate text-sm font-medium text-foreground">
+                                                                {expense.label}
+                                                            </p>
+                                                            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                                                                {CATEGORY_LABELS[expense.category] ??
+                                                                    expense.category}
+                                                                {' · '}
+                                                                {expense.spent_on}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex shrink-0 items-center gap-2">
+                                                            <button
+                                                                type="button"
+                                                                title="Convertir en avance sur salaire"
+                                                                aria-label="Convertir en avance sur salaire"
+                                                                onClick={() => {
+                                                                    if (isConverting) {
+                                                                        setConvertingExpense(null);
+                                                                    } else {
+                                                                        setConvertingExpense(expense);
+                                                                        setConvertEmployeeId('');
+                                                                    }
+                                                                }}
+                                                                className={cn(
+                                                                    'rounded-sm p-1 text-muted-foreground transition-colors hover:text-accent',
+                                                                    isConverting && 'text-accent',
+                                                                )}
+                                                            >
+                                                                <HandCoins className="h-3.5 w-3.5" />
+                                                            </button>
+                                                            <span className="text-sm font-semibold tabular-nums text-destructive">
+                                                                −
+                                                                {formatCurrency(expense.amount, {
+                                                                    maximumFractionDigits: 2,
+                                                                })}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    {isConverting && (
+                                                        <div className="mt-2.5 space-y-2 border-t border-tint/[0.06] pt-2.5">
+                                                            <p className="text-xs text-muted-foreground">
+                                                                En réalité une avance sur salaire pour :
+                                                            </p>
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <Select value={convertEmployeeId} onValueChange={setConvertEmployeeId}>
+                                                                    <SelectTrigger className="h-8 flex-1">
+                                                                        <SelectValue placeholder="Choisir un employé…" />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        {(employees ?? []).map((option) => (
+                                                                            <SelectItem key={option.id} value={String(option.id)}>
+                                                                                {option.name}
+                                                                            </SelectItem>
+                                                                        ))}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="accent"
+                                                                    size="sm"
+                                                                    disabled={!convertEmployeeId || convertMutation.isPending}
+                                                                    onClick={() =>
+                                                                        convertMutation.mutate({
+                                                                            expenseId: expense.id,
+                                                                            employeeId: Number(convertEmployeeId),
+                                                                        })
+                                                                    }
+                                                                >
+                                                                    {convertMutation.isPending && (
+                                                                        <Loader2 className="animate-spin" />
+                                                                    )}
+                                                                    Convertir
+                                                                </Button>
+                                                            </div>
+                                                            {convertMutation.isError && (
+                                                                <p className="text-xs text-destructive">
+                                                                    {getErrorMessage(convertMutation.error)}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </motion.li>
+                                            );
+                                        })}
                                     </AnimatePresence>
                                 </ul>
                             )}
