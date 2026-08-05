@@ -25,7 +25,7 @@ class AdvanceController extends Controller
         }
 
         $advance = Advance::create($data);
-        $advance->load('employee');
+        $advance->load(['employee', 'workDay']);
 
         return response()->json(['data' => new AdvanceResource($advance)], 201);
     }
@@ -36,7 +36,7 @@ class AdvanceController extends Controller
             'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')],
         ]);
 
-        $advances = Advance::with(['employee', 'commissionPayout'])
+        $advances = Advance::with(['employee', 'commissionPayout', 'workDay'])
             ->where('employee_id', $validated['employee_id'])
             ->orderByDesc('given_on')
             ->get();
@@ -64,7 +64,7 @@ class AdvanceController extends Controller
         $this->assertPatronPassword($request);
 
         $advance->update(collect($request->validated())->except('password')->all());
-        $advance->load('employee');
+        $advance->load(['employee', 'workDay', 'commissionPayout']);
 
         return response()->json(['data' => new AdvanceResource($advance)]);
     }

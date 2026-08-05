@@ -205,6 +205,8 @@ export interface Advance {
     employee_id: number;
     employee_name: string;
     work_day_id: number | null;
+    /** 'YYYY-MM-DD' — the caisse day this advance's cash actually came out of. */
+    work_day_date: string | null;
     amount: number;
     reason: string | null;
     /** 'YYYY-MM-DD' */
@@ -231,6 +233,8 @@ export interface UpdateAdvancePayload {
     reason?: string | null;
     /** 'YYYY-MM-DD' */
     given_on?: string;
+    /** Re-attributes the advance to a different caisse day — e.g. correcting one that was wrongly linked to today instead of when the cash actually left the register. */
+    work_day_id?: number | null;
     /** Patron-only password — required server-side to correct an advance. */
     password: string;
 }

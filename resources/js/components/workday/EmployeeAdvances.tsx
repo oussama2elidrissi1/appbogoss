@@ -6,16 +6,18 @@ import {
     deleteAdvance,
     getAdvances,
     getErrorMessage,
+    getWorkDays,
     settleAdvance,
     updateAdvance,
 } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { workDayKeys } from '@/hooks/useWorkDay';
-import { cn, formatCurrency } from '@/lib/utils';
+import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import type { Advance, Employee } from '@/types/workday';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PatronPasswordDialog } from '@/components/workday/PatronPasswordDialog';
 
@@ -37,8 +39,9 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
     const [amount, setAmount] = useState('');
     const [reason, setReason] = useState('');
     const [givenOn, setGivenOn] = useState(today());
+    const [selectedWorkDayId, setSelectedWorkDayId] = useState('');
     const [editingAdvance, setEditingAdvance] = useState<Advance | null>(null);
-    const [editForm, setEditForm] = useState({ amount: '', reason: '', given_on: '' });
+    const [editForm, setEditForm] = useState({ amount: '', reason: '', given_on: '', work_day_id: '' });
     const [pendingAction, setPendingAction] = useState<
         | { type: 'edit'; advance: Advance; payload: Omit<Parameters<typeof updateAdvance>[1], 'password'> }
         | { type: 'delete'; advance: Advance }
@@ -49,6 +52,16 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
     const { data, isPending } = useQuery({
         queryKey: workDayKeys.advances(employee.id),
         queryFn: () => getAdvances(employee.id),
+    });
+
+    // Which caisse day the cash for an advance actually came out of — defaults
+    // to today's open day, but an admin can pick any other day (e.g. to
+    // correctly attribute a catch-up payment to the day it was really handed
+    // over, instead of leaving everything implicitly tied to "today").
+    const { data: workDays } = useQuery({
+        queryKey: ['work-days', 'picker'],
+        queryFn: getWorkDays,
+        staleTime: 60_000,
     });
 
     function invalidate() {
@@ -63,6 +76,7 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
             setAmount('');
             setReason('');
             setGivenOn(today());
+            setSelectedWorkDayId('');
         },
     });
 
@@ -98,12 +112,13 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
 
     function submit() {
         if (!canSubmit) return;
+        const chosenWorkDayId = selectedWorkDayId ? Number(selectedWorkDayId) : workDayId;
         createMutation.mutate({
             employee_id: employee.id,
             amount: amountValue,
             given_on: givenOn,
             ...(reason.trim() ? { reason: reason.trim() } : {}),
-            ...(workDayId ? { work_day_id: workDayId } : {}),
+            ...(chosenWorkDayId ? { work_day_id: chosenWorkDayId } : {}),
         });
     }
 
@@ -113,6 +128,7 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
             amount: String(advance.amount),
             reason: advance.reason ?? '',
             given_on: advance.given_on,
+            work_day_id: advance.work_day_id ? String(advance.work_day_id) : '',
         });
     }
 
@@ -126,6 +142,7 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
             amount: nextAmount,
             reason: editForm.reason.trim() || null,
             given_on: editForm.given_on,
+            work_day_id: editForm.work_day_id ? Number(editForm.work_day_id) : null,
         };
 
         // Super Admin already carries full authority — no second password prompt.
@@ -217,6 +234,29 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
                                         placeholder="Motif (optionnel)"
                                         className="h-8"
                                     />
+                                    <div className="space-y-1">
+                                        <Label className="text-[10px] text-muted-foreground">
+                                            Journée de caisse
+                                        </Label>
+                                        <Select
+                                            value={editForm.work_day_id}
+                                            onValueChange={(value) =>
+                                                setEditForm((current) => ({ ...current, work_day_id: value }))
+                                            }
+                                        >
+                                            <SelectTrigger className="h-8">
+                                                <SelectValue placeholder="Aucune" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {(workDays ?? []).map((day) => (
+                                                    <SelectItem key={day.id} value={String(day.id)}>
+                                                        {formatDate(day.date)}
+                                                        {day.status === 'open' ? ' (ouverte)' : ''}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
                                     <div className="flex items-center justify-end gap-1.5">
                                         <Button
                                             type="button"
@@ -257,6 +297,9 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
                                     </p>
                                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
                                         {advance.given_on}
+                                        {advance.work_day_date && advance.work_day_date !== advance.given_on
+                                            ? ` · caisse du ${formatDate(advance.work_day_date)}`
+                                            : ''}
                                         {advance.reason ? ` · ${advance.reason}` : ''}
                                     </p>
                                 </div>
@@ -367,6 +410,28 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
                         placeholder="Ex. dépannage personnel"
                         className="h-9"
                     />
+                </div>
+
+                <div className="space-y-1.5">
+                    <Label className="text-xs">
+                        Journée de caisse <span className="font-normal">(optionnel)</span>
+                    </Label>
+                    <Select value={selectedWorkDayId} onValueChange={setSelectedWorkDayId}>
+                        <SelectTrigger className="h-9">
+                            <SelectValue placeholder="Journée ouverte aujourd’hui" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {(workDays ?? []).map((day) => (
+                                <SelectItem key={day.id} value={String(day.id)}>
+                                    {formatDate(day.date)}
+                                    {day.status === 'open' ? ' (ouverte)' : ''}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-muted-foreground">
+                        Pour un versement rattrapant une avance d’une autre journée déjà clôturée.
+                    </p>
                 </div>
 
                 {createMutation.isError && (
