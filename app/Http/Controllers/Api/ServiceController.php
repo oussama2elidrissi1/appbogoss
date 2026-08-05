@@ -9,6 +9,7 @@ use App\Http\Resources\ServiceResource;
 use App\Models\Service;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class ServiceController extends Controller
@@ -16,12 +17,12 @@ class ServiceController extends Controller
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'category' => ['nullable', 'string', Rule::in(['coiffure', 'hammam', 'massage', 'boisson'])],
+            'category' => ['nullable', 'string', Rule::in(['coiffure', 'hammam', 'massage', 'boisson', 'vitrine', 'autre'])],
             'include_inactive' => ['sometimes', 'boolean'],
             'search' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $query = Service::query()->orderBy('category')->orderBy('name');
+        $query = Service::query();
 
         if (! ($validated['include_inactive'] ?? false)) {
             $query->where('is_active', true);
@@ -36,7 +37,28 @@ class ServiceController extends Controller
             $query->where('name', 'like', '%'.$search.'%');
         }
 
-        return response()->json(['data' => ServiceResource::collection($query->get())]);
+        $services = $query->orderBy('category')->orderBy('name')->get();
+
+        // Personalised to the requesting employee's own most-performed
+        // services first — an admin/caissier (no linked employee) keeps the
+        // plain alphabetical order above, and a service this employee has
+        // never used yet simply falls back to that same order.
+        $employee = $request->user()?->employee;
+        if ($employee && $services->isNotEmpty()) {
+            $usageCounts = DB::table('prestation_items')
+                ->join('prestations', 'prestations.id', '=', 'prestation_items.prestation_id')
+                ->where('prestations.employee_id', $employee->id)
+                ->whereIn('prestation_items.service_id', $services->pluck('id'))
+                ->select('prestation_items.service_id', DB::raw('COUNT(*) as usage_count'))
+                ->groupBy('prestation_items.service_id')
+                ->pluck('usage_count', 'service_id');
+
+            $services = $services->sortByDesc(
+                fn (Service $service) => $usageCounts[$service->id] ?? 0,
+            )->values();
+        }
+
+        return response()->json(['data' => ServiceResource::collection($services)]);
     }
 
     public function store(StoreServiceRequest $request): JsonResponse

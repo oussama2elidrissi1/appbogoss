@@ -33,12 +33,14 @@ class EmployeeApiTest extends TestCase
             'phone' => '0600000000',
             'avatar_color' => '#C8A24C',
             'specialties' => ['Coupe', 'Coloration'],
+            'service_categories' => ['coiffure'],
             'default_commission_rate' => 12.5,
             'is_active' => true,
         ])
             ->assertCreated()
             ->assertJsonPath('data.name', 'Amelie Rousseau')
             ->assertJsonPath('data.specialties.0', 'Coupe')
+            ->assertJsonPath('data.service_categories.0', 'coiffure')
             ->json('data');
 
         $this->getJson('/api/employees?include_inactive=1')
@@ -59,5 +61,19 @@ class EmployeeApiTest extends TestCase
             ->assertNoContent();
 
         $this->assertDatabaseMissing('employees', ['id' => $created['id']]);
+    }
+
+    public function test_store_rejects_an_unknown_service_category(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/employees', [
+            'name' => 'Test Employee',
+            'role' => 'Coiffeur',
+            'service_categories' => ['not-a-real-category'],
+        ])->assertUnprocessable();
     }
 }

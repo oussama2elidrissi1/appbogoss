@@ -323,6 +323,8 @@ export interface Employee {
     phone: string | null;
     avatar_color: string;
     specialties: string[];
+    /** Service catalog categories this employee performs — empty means no restriction. */
+    service_categories: string[];
     is_active: boolean;
     default_commission_rate: number | null;
     account?: EmployeeAccount | null;
@@ -335,6 +337,7 @@ export interface EmployeePayload {
     phone?: string | null;
     avatar_color?: string;
     specialties?: string[];
+    service_categories?: string[];
     is_active?: boolean;
     default_commission_rate?: number | null;
     login_email?: string | null;

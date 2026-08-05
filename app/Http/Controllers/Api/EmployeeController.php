@@ -268,6 +268,13 @@ class EmployeeController extends Controller
             ));
         }
 
+        if ($creating || array_key_exists('service_categories', $data)) {
+            $data['service_categories'] = array_values(array_unique(array_filter(
+                $data['service_categories'] ?? [],
+                fn ($category) => filled($category),
+            )));
+        }
+
         return $data;
     }
 }

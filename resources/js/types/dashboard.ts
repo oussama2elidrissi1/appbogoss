@@ -8,6 +8,8 @@ export interface User {
     permissions: string[];
     employee_id: number | null;
     employee_name: string | null;
+    /** Service catalog categories the linked employee performs — empty means no restriction. */
+    employee_service_categories: string[];
 }
 
 export interface ApplicationSettings {

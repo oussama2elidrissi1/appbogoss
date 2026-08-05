@@ -25,6 +25,11 @@ class StoreEmployeeRequest extends FormRequest
             'avatar_color' => ['nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
             'specialties' => ['nullable', 'array'],
             'specialties.*' => ['string', 'max:80'],
+            'service_categories' => ['nullable', 'array'],
+            'service_categories.*' => [
+                'string',
+                Rule::in(['coiffure', 'hammam', 'massage', 'boisson', 'vitrine', 'autre']),
+            ],
             'is_active' => ['sometimes', 'boolean'],
             'default_commission_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'login_email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'email')],

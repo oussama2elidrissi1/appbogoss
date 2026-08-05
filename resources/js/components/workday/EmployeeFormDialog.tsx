@@ -9,8 +9,10 @@ import {
 } from '@/lib/api';
 import { workDayKeys } from '@/hooks/useWorkDay';
 import { cn } from '@/lib/utils';
+import { CATEGORIES } from '@/components/workday/categories';
 import type { Employee, EmployeePayload } from '@/types/workday';
 import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
 import {
     Dialog,
     DialogContent,
@@ -32,6 +34,7 @@ const emptyForm = {
     phone: '',
     avatar_color: '#C8A24C',
     specialties: '',
+    service_categories: [] as string[],
     default_commission_rate: '',
     is_active: true,
     login_email: '',
@@ -49,6 +52,7 @@ function employeeToForm(employee: Employee): EmployeeFormState {
         phone: employee.phone ?? '',
         avatar_color: employee.avatar_color,
         specialties: employee.specialties.join(', '),
+        service_categories: employee.service_categories,
         default_commission_rate:
             employee.default_commission_rate !== null ? String(employee.default_commission_rate) : '',
         is_active: employee.is_active,
@@ -71,6 +75,7 @@ function formToPayload(form: EmployeeFormState): EmployeePayload {
             .split(',')
             .map((specialty) => specialty.trim())
             .filter(Boolean),
+        service_categories: form.service_categories,
         default_commission_rate: commission === '' ? null : Number(commission),
         is_active: form.is_active,
         login_email: form.login_email.trim() || null,
@@ -237,6 +242,38 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, onSaved }: Em
                                 placeholder="Coupe, Barbe, Coloration"
                             />
                         </div>
+                    </div>
+
+                    <div className="space-y-2.5">
+                        <Label>Catégories de services</Label>
+                        <div className="flex flex-wrap gap-2">
+                            {CATEGORIES.map((option) => {
+                                const Icon = option.icon;
+                                const selected = form.service_categories.includes(option.value);
+                                return (
+                                    <Chip
+                                        key={option.value}
+                                        size="sm"
+                                        selected={selected}
+                                        onClick={() =>
+                                            setForm((current) => ({
+                                                ...current,
+                                                service_categories: selected
+                                                    ? current.service_categories.filter((value) => value !== option.value)
+                                                    : [...current.service_categories, option.value],
+                                            }))
+                                        }
+                                    >
+                                        <Icon className={cn('h-3.5 w-3.5', selected ? option.chip : 'text-muted-foreground')} />
+                                        {option.label}
+                                    </Chip>
+                                );
+                            })}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                            Détermine ce que l’employé voit dans « Nouvelle prestation » sur son espace.
+                            Aucune sélection = toutes les catégories.
+                        </p>
                     </div>
 
                     <div className="space-y-4 rounded-md border border-tint/[0.06] bg-tint/[0.02] p-4">

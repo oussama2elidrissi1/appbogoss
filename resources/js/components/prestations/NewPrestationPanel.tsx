@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, CheckCircle2, Loader2, Search, SendHorizonal, Trash2 } from 'lucide-react';
 import {
@@ -12,6 +12,7 @@ import {
     removePrestationItem,
     sendPrestationToCaisse,
 } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import { cn, formatCurrency } from '@/lib/utils';
 import { CATEGORIES, type CategoryConfig } from '@/components/workday/categories';
 import { ClientPicker, EMPTY_CLIENT_SELECTION, type ClientSelection } from '@/components/workday/ClientPicker';
@@ -34,11 +35,28 @@ const STATUS_LABELS: Record<string, string> = {
 
 export function NewPrestationPanel() {
     const queryClient = useQueryClient();
+    const { user } = useAuth();
     const [clientSelection, setClientSelection] = useState<ClientSelection>(EMPTY_CLIENT_SELECTION);
     const [category, setCategory] = useState<CategoryConfig>(CATEGORIES[0]);
     const [serviceSearch, setServiceSearch] = useState('');
     const [cancelling, setCancelling] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
+
+    // An employee only sees the categories they actually work in (set on
+    // their profile) — no restriction configured means show everything, so
+    // existing employees aren't suddenly locked out of categories nobody set up yet.
+    const allowedCategories = useMemo(() => {
+        const allowed = user?.employee_service_categories ?? [];
+        if (allowed.length === 0) return CATEGORIES;
+        const filtered = CATEGORIES.filter((option) => allowed.includes(option.value));
+        return filtered.length > 0 ? filtered : CATEGORIES;
+    }, [user]);
+
+    useEffect(() => {
+        if (!allowedCategories.includes(category)) {
+            setCategory(allowedCategories[0]);
+        }
+    }, [allowedCategories, category]);
 
     const { data: myPrestations, isPending: prestationsPending } = useQuery({
         queryKey: ['prestations', 'mine'],
@@ -235,6 +253,7 @@ export function NewPrestationPanel() {
                 {editable && (
                     <ServiceGrid
                         category={category}
+                        categories={allowedCategories}
                         onCategoryChange={setCategory}
                         search={serviceSearch}
                         onSearchChange={setServiceSearch}
@@ -274,6 +293,7 @@ export function NewPrestationPanel() {
 
             <ServiceGrid
                 category={category}
+                categories={allowedCategories}
                 onCategoryChange={setCategory}
                 search={serviceSearch}
                 onSearchChange={setServiceSearch}
@@ -288,6 +308,7 @@ export function NewPrestationPanel() {
 
 function ServiceGrid({
     category,
+    categories,
     onCategoryChange,
     search,
     onSearchChange,
@@ -297,6 +318,7 @@ function ServiceGrid({
     pending,
 }: {
     category: CategoryConfig;
+    categories: CategoryConfig[];
     onCategoryChange: (category: CategoryConfig) => void;
     search: string;
     onSearchChange: (value: string) => void;
@@ -311,31 +333,33 @@ function ServiceGrid({
                 Ajouter un service
             </p>
 
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-                {CATEGORIES.map((option, index) => {
-                    const Icon = option.icon;
-                    const selected = category.value === option.value;
-                    return (
-                        <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => onCategoryChange(option)}
-                            className={cn(
-                                'relative flex h-16 min-w-0 flex-col items-center justify-center gap-1 rounded-md border px-2 text-center transition-all duration-200 active:scale-[0.98]',
-                                selected
-                                    ? 'border-accent/60 bg-accent/[0.12] text-foreground shadow-glow'
-                                    : 'border-tint/[0.08] bg-tint/[0.03] text-muted-foreground hover:border-accent/30 hover:bg-tint/[0.06] hover:text-foreground',
-                            )}
-                        >
-                            <Icon className={cn('h-4 w-4', selected ? option.chip : 'text-muted-foreground')} />
-                            <span className="truncate text-xs font-medium">{option.label}</span>
-                            <span className="absolute right-1.5 top-1.5 text-[10px] font-semibold text-muted-foreground/50">
-                                {index + 1}
-                            </span>
-                        </button>
-                    );
-                })}
-            </div>
+            {categories.length > 1 && (
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                    {categories.map((option, index) => {
+                        const Icon = option.icon;
+                        const selected = category.value === option.value;
+                        return (
+                            <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => onCategoryChange(option)}
+                                className={cn(
+                                    'relative flex h-16 min-w-0 flex-col items-center justify-center gap-1 rounded-md border px-2 text-center transition-all duration-200 active:scale-[0.98]',
+                                    selected
+                                        ? 'border-accent/60 bg-accent/[0.12] text-foreground shadow-glow'
+                                        : 'border-tint/[0.08] bg-tint/[0.03] text-muted-foreground hover:border-accent/30 hover:bg-tint/[0.06] hover:text-foreground',
+                                )}
+                            >
+                                <Icon className={cn('h-4 w-4', selected ? option.chip : 'text-muted-foreground')} />
+                                <span className="truncate text-xs font-medium">{option.label}</span>
+                                <span className="absolute right-1.5 top-1.5 text-[10px] font-semibold text-muted-foreground/50">
+                                    {index + 1}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
 
             <div className="relative">
                 <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />

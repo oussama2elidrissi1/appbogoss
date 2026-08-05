@@ -24,6 +24,7 @@ class UserResource extends JsonResource
             'permissions' => $this->getAllPermissions()->pluck('name')->all(),
             'employee_id' => $this->employee?->id,
             'employee_name' => $this->employee?->name,
+            'employee_service_categories' => $this->employee?->service_categories ?? [],
         ];
     }
 }

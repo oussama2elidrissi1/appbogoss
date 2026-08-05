@@ -20,6 +20,7 @@ class EmployeeResource extends JsonResource
             'phone' => $this->phone,
             'avatar_color' => $this->avatar_color,
             'specialties' => $this->specialties ?? [],
+            'service_categories' => $this->service_categories ?? [],
             'is_active' => (bool) $this->is_active,
             'default_commission_rate' => $this->default_commission_rate !== null
                 ? (float) $this->default_commission_rate
