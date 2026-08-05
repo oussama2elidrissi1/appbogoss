@@ -172,39 +172,40 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
     const advances = periodMonth
         ? allAdvances.filter((advance) => advance.given_on.startsWith(periodMonth))
         : allAdvances;
-    const olderUnsettledTotal = periodMonth
-        ? allAdvances
-              .filter((advance) => !advance.given_on.startsWith(periodMonth) && !advance.settled_at)
-              .reduce((sum, advance) => sum + advance.amount, 0)
-        : 0;
-    const periodOutstandingTotal = periodMonth
-        ? advances.filter((advance) => !advance.settled_at).reduce((sum, advance) => sum + advance.amount, 0)
-        : (data?.outstanding_total ?? 0);
+    // The header total always matches the row summary and the payout math
+    // above (which deducts every unsettled advance, any month) — only the
+    // list below is narrowed to the selected period, so it never displays a
+    // second, different-looking "total" for the same employee.
+    const outstandingTotal = data?.outstanding_total ?? 0;
+    const periodOutstandingTotal = advances
+        .filter((advance) => !advance.settled_at)
+        .reduce((sum, advance) => sum + advance.amount, 0);
+    const olderUnsettledTotal = outstandingTotal - periodOutstandingTotal;
 
     return (
         <div>
             <div className="flex items-center justify-between gap-3">
                 <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
                     <HandCoins className="h-4 w-4" />
-                    Avances en cours
+                    Avances en cours (total)
                 </span>
                 {isPending ? (
                     <Skeleton className="h-5 w-20" />
                 ) : (
                     <span className="text-sm font-semibold tabular-nums text-accent">
-                        {formatCurrency(periodOutstandingTotal, { maximumFractionDigits: 2 })}
+                        {formatCurrency(outstandingTotal, { maximumFractionDigits: 2 })}
                     </span>
                 )}
             </div>
             {periodMonth ? (
                 <p className="mt-1 text-[10px] text-muted-foreground">
-                    Avances données ce mois-ci uniquement.
+                    Liste ci-dessous limitée aux avances données ce mois-ci ({formatCurrency(periodOutstandingTotal, { maximumFractionDigits: 2 })}).
                     {olderUnsettledTotal > 0 && (
                         <>
                             {' '}
-                            {formatCurrency(olderUnsettledTotal, { maximumFractionDigits: 2 })} d'avances plus
-                            anciennes restent aussi non soldées et seront déduites de la même façon — non
-                            affichées ici, voir la fiche employé pour le détail.
+                            Les {formatCurrency(olderUnsettledTotal, { maximumFractionDigits: 2 })} restants du
+                            total ci-dessus viennent de mois précédents, toujours non soldés — voir la fiche
+                            employé pour le détail.
                         </>
                     )}
                 </p>
