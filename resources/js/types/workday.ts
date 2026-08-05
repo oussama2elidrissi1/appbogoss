@@ -280,6 +280,8 @@ export interface AdvancesReport {
 export interface Expense {
     id: number;
     work_day_id: number | null;
+    /** 'YYYY-MM-DD' — the caisse day this expense is actually reported under. */
+    work_day_date: string | null;
     label: string;
     category: string;
     amount: number;
@@ -294,6 +296,16 @@ export interface CreateExpensePayload {
     /** 'YYYY-MM-DD' */
     spent_on: string;
     work_day_id?: number;
+}
+
+export interface UpdateExpensePayload {
+    label?: string;
+    category?: string;
+    amount?: number;
+    /** 'YYYY-MM-DD' */
+    spent_on?: string;
+    /** Re-attributes the expense to a different caisse day. */
+    work_day_id?: number | null;
 }
 
 export interface EmployeeAccount {

@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
     AlertCircle,
     Box,
+    CalendarClock,
     Coffee,
     HandCoins,
     Loader2,
@@ -18,9 +19,17 @@ import {
 import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
 import { z } from 'zod';
-import { convertExpenseToAdvance, createExpense, getEmployees, getErrorMessage, getExpenses } from '@/lib/api';
+import {
+    convertExpenseToAdvance,
+    createExpense,
+    getEmployees,
+    getErrorMessage,
+    getExpenses,
+    getWorkDays,
+    updateExpense,
+} from '@/lib/api';
 import { useActiveWorkDay, useRefreshDay, workDayKeys } from '@/hooks/useWorkDay';
-import { cn, formatCurrency } from '@/lib/utils';
+import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import type { Expense } from '@/types/workday';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -116,6 +125,9 @@ export default function Depenses() {
     const [justSaved, setJustSaved] = useState(false);
     const [convertingExpense, setConvertingExpense] = useState<Expense | null>(null);
     const [convertEmployeeId, setConvertEmployeeId] = useState('');
+    const [movingExpense, setMovingExpense] = useState<Expense | null>(null);
+    const [moveWorkDayId, setMoveWorkDayId] = useState('');
+    const [newExpenseWorkDayId, setNewExpenseWorkDayId] = useState('');
 
     const { data: workDay, isPending: dayPending } = useActiveWorkDay();
 
@@ -147,6 +159,7 @@ export default function Depenses() {
             });
             refreshDay();
             reset({ label: '', category, amount: 0, spent_on: today() });
+            setNewExpenseWorkDayId('');
             setJustSaved(true);
             window.setTimeout(() => setJustSaved(false), 1400);
         },
@@ -156,6 +169,15 @@ export default function Depenses() {
         queryKey: workDayKeys.employees,
         queryFn: () => getEmployees(),
         staleTime: 5 * 60_000,
+    });
+
+    // Every recent caisse day, so a backdated expense can be attributed to the
+    // day it actually happened instead of always landing on today's — either
+    // up front when creating it, or after the fact to fix one already wrong.
+    const { data: workDays } = useQuery({
+        queryKey: ['work-days', 'picker'],
+        queryFn: getWorkDays,
+        staleTime: 60_000,
     });
 
     const convertMutation = useMutation({
@@ -168,6 +190,19 @@ export default function Depenses() {
             refreshDay();
             setConvertingExpense(null);
             setConvertEmployeeId('');
+        },
+    });
+
+    const moveMutation = useMutation({
+        mutationFn: ({ expenseId, workDayId }: { expenseId: number; workDayId: number }) =>
+            updateExpense(expenseId, { work_day_id: workDayId }),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({
+                queryKey: workDayKeys.expenses(workDay?.id ?? null),
+            });
+            refreshDay();
+            setMovingExpense(null);
+            setMoveWorkDayId('');
         },
     });
 
@@ -191,7 +226,7 @@ export default function Depenses() {
             category: values.category,
             amount: values.amount,
             spent_on: values.spent_on,
-            work_day_id: workDay.id,
+            work_day_id: newExpenseWorkDayId ? Number(newExpenseWorkDayId) : workDay.id,
         });
     });
 
@@ -315,6 +350,30 @@ export default function Depenses() {
                                     </div>
                                 </div>
 
+                                <div className="space-y-2">
+                                    <Label>
+                                        Journée de caisse <span className="font-normal">(optionnel)</span>
+                                    </Label>
+                                    <Select value={newExpenseWorkDayId} onValueChange={setNewExpenseWorkDayId}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Journée ouverte aujourd’hui" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {(workDays ?? []).map((day) => (
+                                                <SelectItem key={day.id} value={String(day.id)}>
+                                                    {formatDate(day.date)}
+                                                    {day.status === 'open' ? ' (ouverte)' : ''}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-[10px] text-muted-foreground">
+                                        Pour une dépense d’une journée déjà clôturée — sinon elle est
+                                        automatiquement rattachée à la journée en cours, quelle que soit la
+                                        date choisie ci-dessus.
+                                    </p>
+                                </div>
+
                                 {mutation.isError && (
                                     <div className="flex items-start gap-2.5 rounded-md border border-destructive/25 bg-destructive/[0.10] px-3.5 py-3">
                                         <AlertCircle className="mt-px h-4 w-4 shrink-0 text-destructive" />
@@ -375,6 +434,7 @@ export default function Depenses() {
                                     <AnimatePresence initial={false}>
                                         {(expenses ?? []).map((expense) => {
                                             const isConverting = convertingExpense?.id === expense.id;
+                                            const isMoving = movingExpense?.id === expense.id;
 
                                             return (
                                                 <motion.li
@@ -386,8 +446,8 @@ export default function Depenses() {
                                                     transition={{ duration: 0.25 }}
                                                     className={cn(
                                                         'rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3.5 py-2.5 transition-colors duration-200',
-                                                        !isConverting && 'hover:border-destructive/20',
-                                                        isConverting && 'border-accent/25 bg-accent/[0.05]',
+                                                        !isConverting && !isMoving && 'hover:border-destructive/20',
+                                                        (isConverting || isMoving) && 'border-accent/25 bg-accent/[0.05]',
                                                     )}
                                                 >
                                                     <div className="flex items-center justify-between gap-3">
@@ -400,9 +460,33 @@ export default function Depenses() {
                                                                     expense.category}
                                                                 {' · '}
                                                                 {expense.spent_on}
+                                                                {expense.work_day_date &&
+                                                                expense.work_day_date !== expense.spent_on
+                                                                    ? ` · caisse du ${formatDate(expense.work_day_date)}`
+                                                                    : ''}
                                                             </p>
                                                         </div>
                                                         <div className="flex shrink-0 items-center gap-2">
+                                                            <button
+                                                                type="button"
+                                                                title="Déplacer vers une autre journée de caisse"
+                                                                aria-label="Déplacer vers une autre journée de caisse"
+                                                                onClick={() => {
+                                                                    if (isMoving) {
+                                                                        setMovingExpense(null);
+                                                                    } else {
+                                                                        setMovingExpense(expense);
+                                                                        setMoveWorkDayId('');
+                                                                        setConvertingExpense(null);
+                                                                    }
+                                                                }}
+                                                                className={cn(
+                                                                    'rounded-sm p-1 text-muted-foreground transition-colors hover:text-accent',
+                                                                    isMoving && 'text-accent',
+                                                                )}
+                                                            >
+                                                                <CalendarClock className="h-3.5 w-3.5" />
+                                                            </button>
                                                             <button
                                                                 type="button"
                                                                 title="Convertir en avance sur salaire"
@@ -413,6 +497,7 @@ export default function Depenses() {
                                                                     } else {
                                                                         setConvertingExpense(expense);
                                                                         setConvertEmployeeId('');
+                                                                        setMovingExpense(null);
                                                                     }
                                                                 }}
                                                                 className={cn(
@@ -430,6 +515,51 @@ export default function Depenses() {
                                                             </span>
                                                         </div>
                                                     </div>
+
+                                                    {isMoving && (
+                                                        <div className="mt-2.5 space-y-2 border-t border-tint/[0.06] pt-2.5">
+                                                            <p className="text-xs text-muted-foreground">
+                                                                Rattacher cette dépense à la journée de caisse du :
+                                                            </p>
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <Select value={moveWorkDayId} onValueChange={setMoveWorkDayId}>
+                                                                    <SelectTrigger className="h-8 flex-1">
+                                                                        <SelectValue placeholder="Choisir une journée…" />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        {(workDays ?? []).map((day) => (
+                                                                            <SelectItem key={day.id} value={String(day.id)}>
+                                                                                {formatDate(day.date)}
+                                                                                {day.status === 'open' ? ' (ouverte)' : ''}
+                                                                            </SelectItem>
+                                                                        ))}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="accent"
+                                                                    size="sm"
+                                                                    disabled={!moveWorkDayId || moveMutation.isPending}
+                                                                    onClick={() =>
+                                                                        moveMutation.mutate({
+                                                                            expenseId: expense.id,
+                                                                            workDayId: Number(moveWorkDayId),
+                                                                        })
+                                                                    }
+                                                                >
+                                                                    {moveMutation.isPending && (
+                                                                        <Loader2 className="animate-spin" />
+                                                                    )}
+                                                                    Déplacer
+                                                                </Button>
+                                                            </div>
+                                                            {moveMutation.isError && (
+                                                                <p className="text-xs text-destructive">
+                                                                    {getErrorMessage(moveMutation.error)}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    )}
 
                                                     {isConverting && (
                                                         <div className="mt-2.5 space-y-2 border-t border-tint/[0.06] pt-2.5">

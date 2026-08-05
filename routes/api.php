@@ -79,6 +79,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/expenses', [ExpenseController::class, 'index']);
         Route::post('/expenses', [ExpenseController::class, 'store']);
+        Route::put('/expenses/{expense}', [ExpenseController::class, 'update']);
         Route::post('/expenses/{expense}/convert-to-advance', [ExpenseController::class, 'convertToAdvance']);
 
         Route::apiResource('/products', ProductController::class);

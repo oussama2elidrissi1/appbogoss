@@ -31,6 +31,7 @@ class ExpenseController extends Controller
         }
 
         $expense = Expense::create($data);
+        $expense->load('workDay');
 
         return response()->json(['data' => new ExpenseResource($expense)], 201);
     }
@@ -41,13 +42,37 @@ class ExpenseController extends Controller
             'work_day_id' => ['nullable', 'integer', Rule::exists('work_days', 'id')],
         ]);
 
-        $query = Expense::query()->orderByDesc('spent_on');
+        $query = Expense::query()->with('workDay')->orderByDesc('spent_on');
 
         if (! empty($validated['work_day_id'])) {
             $query->where('work_day_id', $validated['work_day_id']);
         }
 
         return response()->json(['data' => ExpenseResource::collection($query->get())]);
+    }
+
+    /**
+     * Corrects an expense recorded under the wrong caisse day — the create
+     * form only ever attached new expenses to whichever day was open at the
+     * time, ignoring a backdated `spent_on`, so anything entered for a past
+     * date silently landed in today's report instead of its own.
+     */
+    public function update(Request $request, Expense $expense): JsonResponse
+    {
+        $validated = $request->validate([
+            'label' => ['sometimes', 'string', 'max:255'],
+            'category' => ['sometimes', 'string', 'max:255'],
+            'amount' => ['sometimes', 'numeric', 'min:0'],
+            'spent_on' => ['sometimes', 'date'],
+            'work_day_id' => ['sometimes', 'nullable', 'integer', 'exists:work_days,id'],
+        ]);
+
+        $before = $expense->only(array_keys($validated));
+        $expense->update($validated);
+
+        $this->activityLogger->log('expense.updated', $expense, $before, $validated);
+
+        return response()->json(['data' => new ExpenseResource($expense->fresh()->load('workDay'))]);
     }
 
     /**

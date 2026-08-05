@@ -22,6 +22,7 @@ import type {
     ServicePayload,
     MonthlyReport,
     UpdateAdvancePayload,
+    UpdateExpensePayload,
     WorkDay,
 } from '@/types/workday';
 import type {
@@ -271,6 +272,11 @@ export async function convertExpenseToAdvance(expenseId: number, employeeId: num
     const { data } = await api.post<{ data: Advance }>(`/api/expenses/${expenseId}/convert-to-advance`, {
         employee_id: employeeId,
     });
+    return data.data;
+}
+
+export async function updateExpense(id: number, payload: UpdateExpensePayload): Promise<Expense> {
+    const { data } = await api.put<{ data: Expense }>(`/api/expenses/${id}`, payload);
     return data.data;
 }
 

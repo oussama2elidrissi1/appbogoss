@@ -17,6 +17,7 @@ class ExpenseResource extends JsonResource
         return [
             'id' => $this->id,
             'work_day_id' => $this->work_day_id,
+            'work_day_date' => $this->whenLoaded('workDay', fn () => $this->workDay?->date?->toDateString()),
             'label' => $this->label,
             'category' => $this->category,
             'amount' => (float) $this->amount,
