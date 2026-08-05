@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { AlertCircle, CheckCircle2, ChevronDown, HandCoins, Loader2, Wallet } from 'lucide-react';
-import { getCommissionPayouts, getEmployees, getErrorMessage, payCommission } from '@/lib/api';
+import { createAdvance, getCommissionPayouts, getEmployees, getErrorMessage, payCommission } from '@/lib/api';
 import { workDayKeys } from '@/hooks/useWorkDay';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import type { CommissionPayoutRow } from '@/types/prestation';
@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { EmployeeAdvances } from '@/components/workday/EmployeeAdvances';
@@ -21,11 +22,20 @@ function currentMonth(): string {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
+function today(): string {
+    return new Date().toISOString().slice(0, 10);
+}
+
 export default function Payroll() {
     const queryClient = useQueryClient();
     const [period, setPeriod] = useState(currentMonth());
     const [confirming, setConfirming] = useState<CommissionPayoutRow | null>(null);
     const [expandedEmployeeId, setExpandedEmployeeId] = useState<number | null>(null);
+    // Free-amount quick payment per row — lets a partial or ad-hoc payment be
+    // logged as an advance (tied to today's caisse day, so it reduces the
+    // register's cash like any other avance) without going through the
+    // once-per-month "Marquer comme payé" settlement below.
+    const [payAmounts, setPayAmounts] = useState<Record<number, string>>({});
 
     const {
         data: rows,
@@ -56,6 +66,26 @@ export default function Payroll() {
             void queryClient.invalidateQueries({ queryKey: ['commission-payouts', period] });
             void queryClient.invalidateQueries({ queryKey: workDayKeys.advances(row.employee_id) });
             setConfirming(null);
+        },
+    });
+
+    const payAdvanceMutation = useMutation({
+        mutationFn: ({ employeeId, amount }: { employeeId: number; amount: number }) =>
+            createAdvance({
+                employee_id: employeeId,
+                amount,
+                given_on: today(),
+                reason: 'Paiement commission',
+            }),
+        onSuccess: (_data, { employeeId }) => {
+            void queryClient.invalidateQueries({ queryKey: ['commission-payouts', period] });
+            void queryClient.invalidateQueries({ queryKey: workDayKeys.advances(employeeId) });
+            void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+            setPayAmounts((current) => {
+                const next = { ...current };
+                delete next[employeeId];
+                return next;
+            });
         },
     });
 
@@ -172,6 +202,73 @@ export default function Payroll() {
                                             </p>
                                             <p className="text-xs text-muted-foreground">net à payer</p>
                                         </div>
+
+                                        {!row.already_paid && (
+                                            <div className="flex shrink-0 flex-col gap-1">
+                                                <div className="flex items-center gap-1.5">
+                                                    <Input
+                                                        type="number"
+                                                        step="0.01"
+                                                        min="0"
+                                                        inputMode="decimal"
+                                                        placeholder="Montant"
+                                                        title="Montant payé maintenant — enregistré comme avance, déduit de la caisse du jour"
+                                                        value={
+                                                            payAmounts[row.employee_id] ??
+                                                            (row.net_amount > 0 ? String(row.net_amount) : '')
+                                                        }
+                                                        onChange={(event) =>
+                                                            setPayAmounts((current) => ({
+                                                                ...current,
+                                                                [row.employee_id]: event.target.value,
+                                                            }))
+                                                        }
+                                                        className="h-9 w-24 tabular-nums"
+                                                    />
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        disabled={
+                                                            payAdvanceMutation.isPending ||
+                                                            !(
+                                                                Number.parseFloat(
+                                                                    (
+                                                                        payAmounts[row.employee_id] ??
+                                                                        (row.net_amount > 0 ? String(row.net_amount) : '')
+                                                                    ).replace(',', '.'),
+                                                                ) > 0
+                                                            )
+                                                        }
+                                                        onClick={() => {
+                                                            const raw =
+                                                                payAmounts[row.employee_id] ??
+                                                                (row.net_amount > 0 ? String(row.net_amount) : '');
+                                                            const amount = Number.parseFloat(raw.replace(',', '.'));
+                                                            if (!Number.isFinite(amount) || amount <= 0) return;
+                                                            payAdvanceMutation.mutate({
+                                                                employeeId: row.employee_id,
+                                                                amount,
+                                                            });
+                                                        }}
+                                                    >
+                                                        {payAdvanceMutation.isPending &&
+                                                        payAdvanceMutation.variables?.employeeId === row.employee_id ? (
+                                                            <Loader2 className="animate-spin" />
+                                                        ) : (
+                                                            <HandCoins className="h-3.5 w-3.5" />
+                                                        )}
+                                                        Payer
+                                                    </Button>
+                                                </div>
+                                                {payAdvanceMutation.isError &&
+                                                    payAdvanceMutation.variables?.employeeId === row.employee_id && (
+                                                        <p className="text-[11px] text-destructive">
+                                                            {getErrorMessage(payAdvanceMutation.error)}
+                                                        </p>
+                                                    )}
+                                            </div>
+                                        )}
 
                                         <Button
                                             type="button"

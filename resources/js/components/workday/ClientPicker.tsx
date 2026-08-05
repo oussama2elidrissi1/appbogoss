@@ -1,13 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Loader2, Search, Sparkles, UserRound, X } from 'lucide-react';
-import { getClients } from '@/lib/api';
+import { AlertCircle, Check, Loader2, Plus, Search, Sparkles, UserPlus, UserRound, X } from 'lucide-react';
+import { createClient, getClients, getErrorMessage } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import { workDayKeys } from '@/hooks/useWorkDay';
 import { cn } from '@/lib/utils';
 import type { Client } from '@/types/workday';
+import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export interface ClientSelection {
     mode: 'client' | 'walkin';
@@ -33,10 +36,16 @@ interface ClientPickerProps {
  * `client_id`. No extra dependency — the dropdown is a positioned list.
  */
 export function ClientPicker({ value, onChange }: ClientPickerProps) {
+    const { hasPermission } = useAuth();
+    const queryClient = useQueryClient();
     const [search, setSearch] = useState('');
     const [debounced, setDebounced] = useState('');
     const [open, setOpen] = useState(false);
+    const [creating, setCreating] = useState(false);
+    const [newName, setNewName] = useState('');
+    const [newPhone, setNewPhone] = useState('');
     const containerRef = useRef<HTMLDivElement>(null);
+    const canCreateClient = hasPermission('caisse.manage');
 
     useEffect(() => {
         const timer = window.setTimeout(() => setDebounced(search.trim()), 250);
@@ -68,10 +77,39 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
         setOpen(false);
     }
 
+    const createMutation = useMutation({
+        mutationFn: createClient,
+        onSuccess: (client) => {
+            void queryClient.invalidateQueries({ queryKey: ['clients'] });
+            selectClient(client);
+            setCreating(false);
+            setNewName('');
+            setNewPhone('');
+        },
+    });
+
+    function startCreating() {
+        setNewName(search.trim());
+        setNewPhone('');
+        setCreating(true);
+    }
+
+    function cancelCreating() {
+        setCreating(false);
+        createMutation.reset();
+    }
+
+    function submitCreate() {
+        const name = newName.trim();
+        if (!name) return;
+        createMutation.mutate({ name, phone: newPhone.trim() || null });
+    }
+
     function clearClient() {
         onChange({ mode: 'client', client: null, label: '' });
         setSearch('');
         setDebounced('');
+        setCreating(false);
     }
 
     function setWalkIn(on: boolean) {
@@ -83,6 +121,7 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
         setSearch('');
         setDebounced('');
         setOpen(false);
+        setCreating(false);
     }
 
     return (
@@ -154,7 +193,68 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
                     )}
 
                     <AnimatePresence>
-                        {open && enabled && (
+                        {open && creating && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -4 }}
+                                transition={{ duration: 0.15 }}
+                                className="absolute z-30 mt-1.5 w-full space-y-2.5 rounded-md border border-accent/30 bg-popover p-3.5 shadow-soft-lg"
+                            >
+                                <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                                    <UserPlus className="h-3.5 w-3.5" />
+                                    Nouveau client
+                                </p>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="new-client-name" className="text-xs">Nom</Label>
+                                    <Input
+                                        id="new-client-name"
+                                        value={newName}
+                                        onChange={(event) => setNewName(event.target.value)}
+                                        placeholder="Nom du client"
+                                        className="h-9"
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="new-client-phone" className="text-xs">
+                                        Téléphone <span className="font-normal">(optionnel)</span>
+                                    </Label>
+                                    <Input
+                                        id="new-client-phone"
+                                        value={newPhone}
+                                        onChange={(event) => setNewPhone(event.target.value)}
+                                        placeholder="06 00 00 00 00"
+                                        className="h-9"
+                                    />
+                                </div>
+                                {createMutation.isError && (
+                                    <div className="flex items-start gap-2 rounded-md border border-destructive/25 bg-destructive/[0.10] px-3 py-2">
+                                        <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0 text-destructive" />
+                                        <p className="text-xs text-destructive">
+                                            {getErrorMessage(createMutation.error)}
+                                        </p>
+                                    </div>
+                                )}
+                                <div className="flex items-center justify-end gap-2">
+                                    <Button type="button" variant="ghost" size="sm" onClick={cancelCreating}>
+                                        Annuler
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="accent"
+                                        size="sm"
+                                        disabled={!newName.trim() || createMutation.isPending}
+                                        onClick={submitCreate}
+                                    >
+                                        {createMutation.isPending && <Loader2 className="animate-spin" />}
+                                        Créer
+                                    </Button>
+                                </div>
+                            </motion.div>
+                        )}
+
+                        {open && !creating && enabled && (
                             <motion.ul
                                 initial={{ opacity: 0, y: -4 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -166,7 +266,9 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
                                     <li className="px-3 py-3 text-center text-xs text-muted-foreground">
                                         {isFetching
                                             ? 'Recherche…'
-                                            : 'Aucun client trouvé — utilisez « Client de passage ».'}
+                                            : canCreateClient
+                                              ? 'Aucun client trouvé.'
+                                              : 'Aucun client trouvé — utilisez « Client de passage ».'}
                                     </li>
                                 ) : (
                                     (clients ?? []).map((client) => (
@@ -197,6 +299,20 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
                                             </button>
                                         </li>
                                     ))
+                                )}
+
+                                {canCreateClient && !isFetching && (
+                                    <li className={cn((clients ?? []).length > 0 && 'mt-1 border-t border-tint/[0.06] pt-1')}>
+                                        <button
+                                            type="button"
+                                            onClick={startCreating}
+                                            className="flex w-full items-center gap-2 rounded-sm px-3 py-2.5 text-left text-sm font-medium text-accent transition-colors duration-150 hover:bg-tint/[0.06]"
+                                        >
+                                            <Plus className="h-3.5 w-3.5" />
+                                            Créer un nouveau client
+                                            {search.trim() ? ` « ${search.trim()} »` : ''}
+                                        </button>
+                                    </li>
                                 )}
                             </motion.ul>
                         )}
