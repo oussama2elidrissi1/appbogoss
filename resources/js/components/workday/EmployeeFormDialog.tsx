@@ -1,16 +1,17 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, KeyRound, Loader2 } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { AlertCircle, ChevronDown, KeyRound, Loader2 } from 'lucide-react';
 import {
     createEmployee,
     getErrorMessage,
+    getServices,
     resetEmployeePassword,
     updateEmployee,
 } from '@/lib/api';
 import { workDayKeys } from '@/hooks/useWorkDay';
 import { cn } from '@/lib/utils';
-import { CATEGORIES } from '@/components/workday/categories';
-import type { Employee, EmployeePayload } from '@/types/workday';
+import { CATEGORIES, getCategoryLabel } from '@/components/workday/categories';
+import type { Employee, EmployeePayload, Service } from '@/types/workday';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import {
@@ -21,6 +22,14 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuCheckboxItem,
+    DropdownMenuContent,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -35,6 +44,7 @@ const emptyForm = {
     avatar_color: '#C8A24C',
     specialties: '',
     service_categories: [] as string[],
+    allowed_service_ids: [] as number[],
     default_commission_rate: '',
     is_active: true,
     login_email: '',
@@ -53,6 +63,7 @@ function employeeToForm(employee: Employee): EmployeeFormState {
         avatar_color: employee.avatar_color,
         specialties: employee.specialties.join(', '),
         service_categories: employee.service_categories,
+        allowed_service_ids: employee.allowed_service_ids,
         default_commission_rate:
             employee.default_commission_rate !== null ? String(employee.default_commission_rate) : '',
         is_active: employee.is_active,
@@ -76,6 +87,7 @@ function formToPayload(form: EmployeeFormState): EmployeePayload {
             .map((specialty) => specialty.trim())
             .filter(Boolean),
         service_categories: form.service_categories,
+        allowed_service_ids: form.allowed_service_ids,
         default_commission_rate: commission === '' ? null : Number(commission),
         is_active: form.is_active,
         login_email: form.login_email.trim() || null,
@@ -108,6 +120,34 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, onSaved }: Em
         setFormError(null);
         setTemporaryPassword(null);
     }, [open, employee]);
+
+    const { data: allServices } = useQuery({
+        queryKey: ['services', 'all', 'employee-picker'],
+        queryFn: () => getServices({ includeInactive: false }),
+        staleTime: 5 * 60_000,
+        enabled: open,
+    });
+
+    function toggleAllowedService(serviceId: number) {
+        setForm((current) => ({
+            ...current,
+            allowed_service_ids: current.allowed_service_ids.includes(serviceId)
+                ? current.allowed_service_ids.filter((id) => id !== serviceId)
+                : [...current.allowed_service_ids, serviceId],
+        }));
+    }
+
+    const allowedServicesLabel =
+        form.allowed_service_ids.length === 0
+            ? 'Tous les services des catégories ci-dessus'
+            : `${form.allowed_service_ids.length} service${form.allowed_service_ids.length > 1 ? 's' : ''} sélectionné${form.allowed_service_ids.length > 1 ? 's' : ''}`;
+
+    const servicesByCategory = new Map<string, Service[]>();
+    for (const service of allServices ?? []) {
+        const list = servicesByCategory.get(service.category) ?? [];
+        list.push(service);
+        servicesByCategory.set(service.category, list);
+    }
 
     function refreshEmployees() {
         void queryClient.invalidateQueries({ queryKey: workDayKeys.employees });
@@ -273,6 +313,51 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, onSaved }: Em
                         <p className="text-[11px] text-muted-foreground">
                             Détermine ce que l’employé voit dans « Nouvelle prestation » sur son espace.
                             Aucune sélection = toutes les catégories.
+                        </p>
+                    </div>
+
+                    <div className="space-y-2.5">
+                        <Label>Services autorisés</Label>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button
+                                    type="button"
+                                    className={cn(
+                                        'flex h-10 w-full items-center justify-between gap-2 rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 text-sm text-foreground outline-none transition-colors',
+                                        'focus:border-accent/60',
+                                        form.allowed_service_ids.length === 0 && 'text-muted-foreground',
+                                    )}
+                                >
+                                    <span className="truncate">{allowedServicesLabel}</span>
+                                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="max-h-80 w-[--radix-dropdown-menu-trigger-width] overflow-y-auto">
+                                {servicesByCategory.size === 0 ? (
+                                    <p className="px-2 py-1.5 text-xs text-muted-foreground">Aucun service</p>
+                                ) : (
+                                    Array.from(servicesByCategory.entries()).map(([category, services], index) => (
+                                        <div key={category}>
+                                            {index > 0 && <DropdownMenuSeparator />}
+                                            <DropdownMenuLabel>{getCategoryLabel(category)}</DropdownMenuLabel>
+                                            {services.map((service) => (
+                                                <DropdownMenuCheckboxItem
+                                                    key={service.id}
+                                                    checked={form.allowed_service_ids.includes(service.id)}
+                                                    onSelect={(event) => event.preventDefault()}
+                                                    onCheckedChange={() => toggleAllowedService(service.id)}
+                                                >
+                                                    {service.name}
+                                                </DropdownMenuCheckboxItem>
+                                            ))}
+                                        </div>
+                                    ))
+                                )}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        <p className="text-[11px] text-muted-foreground">
+                            Restreint « Nouvelle prestation » à exactement ces services — plus précis que les
+                            catégories ci-dessus. Aucune sélection = tous les services des catégories autorisées.
                         </p>
                     </div>
 

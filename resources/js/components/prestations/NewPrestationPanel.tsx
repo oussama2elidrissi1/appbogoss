@@ -75,12 +75,19 @@ export function NewPrestationPanel() {
         staleTime: 60_000,
     });
 
+    // Narrower than the category tabs: an explicit per-service allow-list set
+    // on the employee's profile (empty means no further restriction).
+    const allowedServiceIds = user?.employee_allowed_service_ids ?? [];
+
     const filteredServices = useMemo(() => {
         const term = serviceSearch.trim().toLowerCase();
-        const list = services ?? [];
+        let list = services ?? [];
+        if (allowedServiceIds.length > 0) {
+            list = list.filter((service) => allowedServiceIds.includes(service.id));
+        }
         if (!term) return list;
         return list.filter((service) => service.name.toLowerCase().includes(term));
-    }, [services, serviceSearch]);
+    }, [services, serviceSearch, allowedServiceIds]);
 
     function invalidate() {
         void queryClient.invalidateQueries({ queryKey: ['prestations'] });

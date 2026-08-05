@@ -275,6 +275,13 @@ class EmployeeController extends Controller
             )));
         }
 
+        if ($creating || array_key_exists('allowed_service_ids', $data)) {
+            $data['allowed_service_ids'] = array_values(array_unique(array_map(
+                fn ($id) => (int) $id,
+                $data['allowed_service_ids'] ?? [],
+            )));
+        }
+
         return $data;
     }
 }

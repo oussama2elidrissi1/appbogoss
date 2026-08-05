@@ -25,6 +25,7 @@ class UserResource extends JsonResource
             'employee_id' => $this->employee?->id,
             'employee_name' => $this->employee?->name,
             'employee_service_categories' => $this->employee?->service_categories ?? [],
+            'employee_allowed_service_ids' => $this->employee?->allowed_service_ids ?? [],
         ];
     }
 }

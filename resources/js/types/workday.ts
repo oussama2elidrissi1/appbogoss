@@ -325,6 +325,8 @@ export interface Employee {
     specialties: string[];
     /** Service catalog categories this employee performs — empty means no restriction. */
     service_categories: string[];
+    /** Precise service allow-list, narrower than service_categories — empty means no restriction. */
+    allowed_service_ids: number[];
     is_active: boolean;
     default_commission_rate: number | null;
     account?: EmployeeAccount | null;
@@ -338,6 +340,7 @@ export interface EmployeePayload {
     avatar_color?: string;
     specialties?: string[];
     service_categories?: string[];
+    allowed_service_ids?: number[];
     is_active?: boolean;
     default_commission_rate?: number | null;
     login_email?: string | null;

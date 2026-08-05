@@ -30,6 +30,8 @@ class StoreEmployeeRequest extends FormRequest
                 'string',
                 Rule::in(['coiffure', 'hammam', 'massage', 'boisson', 'vitrine', 'autre']),
             ],
+            'allowed_service_ids' => ['nullable', 'array'],
+            'allowed_service_ids.*' => ['integer', Rule::exists('services', 'id')],
             'is_active' => ['sometimes', 'boolean'],
             'default_commission_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'login_email' => ['nullable', 'email', 'max:255', Rule::unique('users', 'email')],

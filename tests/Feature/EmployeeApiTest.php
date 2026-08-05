@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\Service;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -74,6 +75,50 @@ class EmployeeApiTest extends TestCase
             'name' => 'Test Employee',
             'role' => 'Coiffeur',
             'service_categories' => ['not-a-real-category'],
+        ])->assertUnprocessable();
+    }
+
+    public function test_store_and_update_roundtrip_the_allowed_service_ids(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        Sanctum::actingAs($admin);
+
+        $serviceA = Service::factory()->create();
+        $serviceB = Service::factory()->create();
+
+        $created = $this->postJson('/api/employees', [
+            'name' => 'Test Employee',
+            'role' => 'Coiffeur',
+            'allowed_service_ids' => [$serviceA->id, $serviceA->id, $serviceB->id],
+        ])
+            ->assertCreated()
+            ->json('data');
+
+        // Deduplicated on the way in.
+        $this->assertCount(2, $created['allowed_service_ids']);
+        $this->assertContains($serviceA->id, $created['allowed_service_ids']);
+        $this->assertContains($serviceB->id, $created['allowed_service_ids']);
+
+        $this->patchJson('/api/employees/'.$created['id'], [
+            'allowed_service_ids' => [$serviceB->id],
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.allowed_service_ids', [$serviceB->id]);
+    }
+
+    public function test_store_rejects_an_unknown_service_id(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $admin = User::factory()->create();
+        $admin->assignRole('admin');
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/employees', [
+            'name' => 'Test Employee',
+            'role' => 'Coiffeur',
+            'allowed_service_ids' => [999999],
         ])->assertUnprocessable();
     }
 }

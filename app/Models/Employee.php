@@ -20,6 +20,7 @@ class Employee extends Model
         'avatar_color',
         'specialties',
         'service_categories',
+        'allowed_service_ids',
         'is_active',
         'is_company',
         'company_area',
@@ -29,6 +30,7 @@ class Employee extends Model
     protected $casts = [
         'specialties' => 'array',
         'service_categories' => 'array',
+        'allowed_service_ids' => 'array',
         'is_active' => 'boolean',
         'is_company' => 'boolean',
         'default_commission_rate' => 'decimal:2',
