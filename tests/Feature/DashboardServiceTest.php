@@ -83,7 +83,7 @@ class DashboardServiceTest extends TestCase
         $this->assertArrayHasKey('expenses', $array['revenue_series'][0]);
     }
 
-    public function test_active_day_summary_subtracts_advances_from_estimated_profit(): void
+    public function test_active_day_summary_cash_on_hand_ignores_commissions(): void
     {
         $employee = Employee::factory()->create();
         $workDay = WorkDay::factory()->create([
@@ -119,7 +119,9 @@ class DashboardServiceTest extends TestCase
         $this->assertSame(50.0, $activeDay['expenses_so_far']);
         $this->assertSame(80.0, $activeDay['advances_so_far']);
         $this->assertSame(40.0, $activeDay['commissions_so_far']);
-        $this->assertSame(130.0, $activeDay['estimated_profit']);
+        // 300 - 50 - 80 = 170 — commissions are a monthly Paie concern, not
+        // deducted from the live cash-on-hand figure.
+        $this->assertSame(170.0, $activeDay['cash_on_hand']);
     }
 
     public function test_revenue_today_uses_active_work_day_not_calendar_day(): void

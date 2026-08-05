@@ -69,7 +69,9 @@ export function ActiveDayCard({ day }: { day: ActiveDaySummary }) {
                 {/* Commissions are a monthly payroll concern (see "Paie"), not a
                     daily one — showing a running commission figure here read as
                     money owed today, when it's really only settled at month-end.
-                    It still reduces "Bénéfice estimé" below; the day-by-day detail
+                    "Montant de la caisse" below is the literal cash in the
+                    register (encaissé − dépenses − avances) and does not
+                    subtract commissions; the day-by-day commission detail
                     lives on the Caisse page's journée report instead. */}
                 <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
                     <Figure
@@ -92,9 +94,9 @@ export function ActiveDayCard({ day }: { day: ActiveDaySummary }) {
                     />
                     <Figure
                         icon={TrendingUp}
-                        label="Bénéfice estimé"
-                        value={formatCurrency(day.estimated_profit, { maximumFractionDigits: 2 })}
-                        tone={day.estimated_profit >= 0 ? 'success' : 'destructive'}
+                        label="Montant de la caisse"
+                        value={formatCurrency(day.cash_on_hand, { maximumFractionDigits: 2 })}
+                        tone={day.cash_on_hand >= 0 ? 'success' : 'destructive'}
                     />
                 </div>
 

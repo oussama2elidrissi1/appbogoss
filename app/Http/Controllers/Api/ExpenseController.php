@@ -40,12 +40,20 @@ class ExpenseController extends Controller
     {
         $validated = $request->validate([
             'work_day_id' => ['nullable', 'integer', Rule::exists('work_days', 'id')],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date'],
         ]);
 
-        $query = Expense::query()->with('workDay')->orderByDesc('spent_on');
+        $query = Expense::query()->with('workDay')->orderByDesc('spent_on')->orderByDesc('id');
 
         if (! empty($validated['work_day_id'])) {
             $query->where('work_day_id', $validated['work_day_id']);
+        }
+        if (! empty($validated['from'])) {
+            $query->whereDate('spent_on', '>=', $validated['from']);
+        }
+        if (! empty($validated['to'])) {
+            $query->whereDate('spent_on', '<=', $validated['to']);
         }
 
         return response()->json(['data' => ExpenseResource::collection($query->get())]);

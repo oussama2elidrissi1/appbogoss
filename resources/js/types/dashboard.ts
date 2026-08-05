@@ -55,7 +55,7 @@ export interface ActiveDaySummary {
     expenses_so_far: number;
     advances_so_far: number;
     commissions_so_far: number;
-    estimated_profit: number;
+    cash_on_hand: number;
 }
 
 export interface RevenuePoint {

@@ -143,4 +143,32 @@ class ExpenseApiTest extends TestCase
         $wrongDayExpenses = $this->getJson("/api/expenses?work_day_id={$wrongDay->id}");
         $this->assertCount(0, $wrongDayExpenses->json('data'));
     }
+
+    public function test_index_can_filter_by_a_spent_on_date_range(): void
+    {
+        $workDay = WorkDay::factory()->create(['status' => 'open', 'date' => now()->toDateString()]);
+        Expense::create([
+            'work_day_id' => $workDay->id,
+            'label' => 'Dans la période',
+            'category' => 'achats',
+            'amount' => 50,
+            'spent_on' => now()->subDays(10)->toDateString(),
+        ]);
+        Expense::create([
+            'work_day_id' => $workDay->id,
+            'label' => 'Hors période',
+            'category' => 'achats',
+            'amount' => 75,
+            'spent_on' => now()->subDays(60)->toDateString(),
+        ]);
+
+        $response = $this->getJson('/api/expenses?' . http_build_query([
+            'from' => now()->subDays(15)->toDateString(),
+            'to' => now()->toDateString(),
+        ]));
+
+        $response->assertOk();
+        $this->assertCount(1, $response->json('data'));
+        $this->assertSame('Dans la période', $response->json('data.0.label'));
+    }
 }

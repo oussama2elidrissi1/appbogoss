@@ -12,6 +12,7 @@ export const workDayKeys = {
     all: ['work-day'] as const,
     transactions: (workDayId: number) => ['transactions', workDayId] as const,
     expenses: (workDayId: number | null) => ['expenses', workDayId] as const,
+    expensesHistory: (from?: string, to?: string) => ['expenses-history', from, to] as const,
     advances: (employeeId: number) => ['advances', employeeId] as const,
     employees: ['employees'] as const,
     services: (category: string) => ['services', category] as const,

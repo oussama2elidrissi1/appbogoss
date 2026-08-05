@@ -91,7 +91,10 @@ class DashboardService
             'expenses_so_far' => round($expensesSoFar, 2),
             'advances_so_far' => round($advancesSoFar, 2),
             'commissions_so_far' => round($commissionsSoFar, 2),
-            'estimated_profit' => round($revenueSoFar - $expensesSoFar - $advancesSoFar - $commissionsSoFar, 2),
+            // Actual cash sitting in the register — commissions aren't paid out
+            // of the till day-to-day (they accrue for the monthly Paie), so
+            // they must not reduce this figure the way expenses/advances do.
+            'cash_on_hand' => round($revenueSoFar - $expensesSoFar - $advancesSoFar, 2),
         ];
     }
 

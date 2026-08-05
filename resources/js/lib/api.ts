@@ -260,9 +260,15 @@ export async function createExpense(payload: CreateExpensePayload): Promise<Expe
     return data.data;
 }
 
-export async function getExpenses(workDayId?: number): Promise<Expense[]> {
+export async function getExpenses(params?: {
+    workDayId?: number;
+    from?: string;
+    to?: string;
+}): Promise<Expense[]> {
     const { data } = await api.get<{ data: Expense[] }>('/api/expenses', {
-        params: workDayId ? { work_day_id: workDayId } : undefined,
+        params: params
+            ? { work_day_id: params.workDayId, from: params.from, to: params.to }
+            : undefined,
     });
     return data.data;
 }
