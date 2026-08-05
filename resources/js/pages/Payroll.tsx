@@ -39,10 +39,14 @@ export default function Payroll() {
     });
 
     // Needed to expand the "Avances" panel per row — Employee carries fields
-    // (email, phone, account…) that CommissionPayoutRow doesn't.
+    // (email, phone, account…) that CommissionPayoutRow doesn't. Must include
+    // inactive employees: the payout list itself (CommissionPayoutController)
+    // shows every employee regardless of is_active, so excluding them here
+    // left the "Avances" panel stuck on its loading skeleton forever for
+    // anyone no longer active but still owed/owing something.
     const { data: employees } = useQuery({
-        queryKey: ['employees'],
-        queryFn: () => getEmployees(),
+        queryKey: ['employees', 'all'],
+        queryFn: () => getEmployees({ includeInactive: true }),
         staleTime: 5 * 60_000,
     });
 
