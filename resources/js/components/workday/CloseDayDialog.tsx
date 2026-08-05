@@ -87,11 +87,7 @@ function Report({
                     value={formatCurrency(report.advances_total, { maximumFractionDigits: 2 })}
                 />
                 <Metric
-                    label="Commissions"
-                    value={formatCurrency(report.commissions_total, { maximumFractionDigits: 2 })}
-                />
-                <Metric
-                    label="Résultat net"
+                    label="Résultat de la caisse"
                     value={formatCurrency(report.net_result, { maximumFractionDigits: 2 })}
                     tone={report.net_result >= 0 ? 'success' : 'destructive'}
                 />

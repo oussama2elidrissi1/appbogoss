@@ -14,7 +14,7 @@
         .brand { color: #c8a24c; font-size: 10px; font-weight: bold; letter-spacing: 1px; text-transform: uppercase; }
         .meta { color: #53657b; margin-top: 5px; }
         .grid { width: 100%; border-collapse: separate; border-spacing: 5px; margin: 5px -5px 0; }
-        .metric { background: #f2f5f8; border: 1px solid #d9e0e8; padding: 7px; width: 20%; }
+        .metric { background: #f2f5f8; border: 1px solid #d9e0e8; padding: 7px; width: 25%; }
         .metric .label { color: #63758a; font-size: 7px; font-weight: bold; text-transform: uppercase; }
         .metric .value { color: #132238; font-size: 12px; font-weight: bold; margin-top: 4px; }
         table { width: 100%; border-collapse: collapse; margin-top: 5px; }
@@ -47,8 +47,7 @@
             ['CA', $report['revenue_total'] ?? 0],
             ['Depenses', $report['expenses_total'] ?? 0],
             ['Avances', $report['advances_total'] ?? 0],
-            ['Commissions', $report['commissions_total'] ?? 0],
-            ['Resultat net', $report['net_result'] ?? 0],
+            ['Resultat de la caisse', $report['net_result'] ?? 0],
         ] as $metric)
             <td class="metric"><div class="label">{{ $metric[0] }}</div><div class="value">{{ number_format($metric[1], 2, ',', ' ') }} MAD</div></td>
         @endforeach

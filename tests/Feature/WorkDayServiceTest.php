@@ -108,7 +108,9 @@ class WorkDayServiceTest extends TestCase
         $this->assertEquals(40.0, $report['expenses_total']);
         $this->assertEquals(30.0, $report['advances_total']);
         $this->assertEquals(20.0, $report['commissions_total']);
-        $this->assertEquals(200.0 - 40.0 - 30.0 - 20.0, $report['net_result']);
+        // Commissions are a monthly Paie concern — not deducted from the
+        // register's cash result, only from expenses/advances.
+        $this->assertEquals(200.0 - 40.0 - 30.0, $report['net_result']);
         $this->assertSame(2, $report['clients_count']);
         $this->assertEquals(100.0, $report['average_ticket']);
 

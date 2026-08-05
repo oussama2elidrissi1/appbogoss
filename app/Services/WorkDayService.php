@@ -193,7 +193,11 @@ class WorkDayService
         );
         $clientsCount = $activeSales->count();
         $averageTicket = $clientsCount > 0 ? round($revenueTotal / $clientsCount, 2) : 0.0;
-        $netResult = round($revenueTotal - $expensesTotal - $advancesTotal - $commissionsTotal, 2);
+        // Cash result of the register — commissions are a monthly payroll
+        // concern settled on the "Paie" page, not money that leaves the
+        // till day-to-day, so they no longer reduce this figure. commissions_total
+        // is still returned below for whatever still needs the raw figure.
+        $netResult = round($revenueTotal - $expensesTotal - $advancesTotal, 2);
 
         $revenueByCategory = $activeSales
             ->groupBy(fn (Sale $sale) => $sale->category ?? 'autre')

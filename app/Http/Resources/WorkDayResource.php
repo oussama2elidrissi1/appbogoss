@@ -25,6 +25,19 @@ class WorkDayResource extends JsonResource
             $reportSnapshot = app(WorkDayService::class)->buildClosingReport($this->resource);
         }
 
+        // Recomputed from fields already in the snapshot (no extra queries)
+        // so already-closed days pick up formula changes immediately —
+        // commissions no longer reduce the register's cash result, see
+        // WorkDayService::buildDetailedReport().
+        if (array_key_exists('revenue_total', $reportSnapshot)) {
+            $reportSnapshot['net_result'] = round(
+                ($reportSnapshot['revenue_total'] ?? 0)
+                    - ($reportSnapshot['expenses_total'] ?? 0)
+                    - ($reportSnapshot['advances_total'] ?? 0),
+                2,
+            );
+        }
+
         return [
             'id' => $this->id,
             'date' => $this->date->toDateString(),

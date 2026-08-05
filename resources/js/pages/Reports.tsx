@@ -110,12 +110,11 @@ function MonthlyReportPanel({ month }: { month: string }) {
             </CardHeader>
 
             <CardContent className="space-y-5">
-                <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
+                <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
                     <ReportStat label="CA" value={formatCurrency(totals.revenue_total)} />
                     <ReportStat label="Depenses" value={formatCurrency(totals.expenses_total)} />
                     <ReportStat label="Avances" value={formatCurrency(totals.advances_total)} />
-                    <ReportStat label="Commissions" value={formatCurrency(totals.commissions_total)} />
-                    <ReportStat label="Resultat" value={formatCurrency(totals.net_result)} />
+                    <ReportStat label="Resultat de la caisse" value={formatCurrency(totals.net_result)} />
                     <ReportStat label="Tickets" value={String(totals.ticket_count ?? 0)} />
                 </div>
 
@@ -399,7 +398,7 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                 <CardContent className="space-y-4">
                     {report ? (
                         <>
-                            <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+                            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
                                 <ReportStat
                                     label="CA"
                                     value={formatCurrency(report.revenue_total, {
@@ -419,13 +418,7 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                                     })}
                                 />
                                 <ReportStat
-                                    label="Commissions"
-                                    value={formatCurrency(report.commissions_total, {
-                                        maximumFractionDigits: 2,
-                                    })}
-                                />
-                                <ReportStat
-                                    label="Résultat"
+                                    label="Résultat de la caisse"
                                     value={formatCurrency(report.net_result, {
                                         maximumFractionDigits: 2,
                                     })}
