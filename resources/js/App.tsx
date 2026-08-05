@@ -7,6 +7,7 @@ import ActivityLog from '@/pages/ActivityLog';
 import Agenda from '@/pages/Agenda';
 import Caisse from '@/pages/Caisse';
 import Clients from '@/pages/Clients';
+import Comptes from '@/pages/Comptes';
 import Dashboard from '@/pages/Dashboard';
 import Depenses from '@/pages/Depenses';
 import EmployeeDetail from '@/pages/EmployeeDetail';
@@ -31,6 +32,7 @@ const realRoutes = new Set([
     '/clients',
     '/services',
     '/paie',
+    '/comptes',
     '/stock',
     '/reports',
     '/settings',
@@ -87,6 +89,10 @@ export default function App() {
 
                     <Route element={<ProtectedRoute permission="activity_log.view" />}>
                         <Route path="/activity-log" element={<ActivityLog />} />
+                    </Route>
+
+                    <Route element={<ProtectedRoute permission="users.manage" />}>
+                        <Route path="/comptes" element={<Comptes />} />
                     </Route>
 
                     {placeholderItems.map((item) => (

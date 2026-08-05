@@ -7,6 +7,7 @@ export interface User {
     roles: string[];
     permissions: string[];
     employee_id: number | null;
+    employee_name: string | null;
 }
 
 export interface ApplicationSettings {

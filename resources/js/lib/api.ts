@@ -634,3 +634,21 @@ export async function getCommissionPayoutHistory(employeeId: number): Promise<Co
     );
     return data.data;
 }
+
+export async function getUsers(): Promise<User[]> {
+    const { data } = await api.get<{ data: User[] }>('/api/users');
+    return data.data;
+}
+
+export async function updateUserAccess(
+    id: number,
+    payload: { role?: string; is_active?: boolean },
+): Promise<User> {
+    const { data } = await api.patch<{ data: User }>(`/api/users/${id}`, payload);
+    return data.data;
+}
+
+export async function resetUserPassword(id: number): Promise<{ temporary_password: string }> {
+    const { data } = await api.post<{ data: { temporary_password: string } }>(`/api/users/${id}/reset-password`);
+    return data.data;
+}

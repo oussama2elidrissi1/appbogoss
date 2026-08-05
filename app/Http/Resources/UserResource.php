@@ -23,6 +23,7 @@ class UserResource extends JsonResource
             'roles' => $this->getRoleNames()->all(),
             'permissions' => $this->getAllPermissions()->pluck('name')->all(),
             'employee_id' => $this->employee?->id,
+            'employee_name' => $this->employee?->name,
         ];
     }
 }

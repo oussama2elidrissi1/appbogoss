@@ -7,6 +7,7 @@ import {
     Package,
     Receipt,
     Settings,
+    ShieldCheck,
     ShoppingCart,
     Sparkles,
     UserCircle,
@@ -135,6 +136,13 @@ export const navSections: NavSection[] = [
                 icon: Megaphone,
                 description: 'Campagnes SMS, fidélité et relance automatique des clients.',
                 permission: 'caisse.manage',
+            },
+            {
+                label: 'Comptes & accès',
+                to: '/comptes',
+                icon: ShieldCheck,
+                description: 'Rôles, statut et mots de passe de tous les comptes de connexion.',
+                permission: 'users.manage',
             },
             {
                 label: 'Paramètres',

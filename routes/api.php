@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\TransactionController;
+use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\WorkDayController;
 use Illuminate\Support\Facades\Route;
 
@@ -105,6 +106,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/commission-payouts', [CommissionPayoutController::class, 'store']);
         Route::get('/employees/{employee}/commission-payouts', [CommissionPayoutController::class, 'history']);
     });
+
+    Route::middleware('permission:users.manage')->group(function () {
+        Route::get('/users', [UserController::class, 'index']);
+        Route::patch('/users/{user}', [UserController::class, 'update']);
+        Route::post('/users/{user}/reset-password', [UserController::class, 'resetPassword']);
+    });
+
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead']);
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
