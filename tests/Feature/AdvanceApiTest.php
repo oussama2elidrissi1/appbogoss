@@ -165,4 +165,53 @@ class AdvanceApiTest extends TestCase
         $response->assertUnprocessable();
         $this->assertNull($old->fresh()->settled_at);
     }
+
+    public function test_employee_can_see_their_own_advances_via_me_endpoint(): void
+    {
+        $user = User::factory()->create(['role' => 'employee']);
+        $user->assignRole('employee');
+        $employee = Employee::factory()->create(['user_id' => $user->id]);
+        $otherEmployee = Employee::factory()->create();
+
+        Advance::create([
+            'employee_id' => $employee->id,
+            'amount' => 150,
+            'given_on' => '2026-08-02',
+            'reason' => 'avance urgente',
+        ]);
+        Advance::create([
+            'employee_id' => $otherEmployee->id,
+            'amount' => 999,
+            'given_on' => '2026-08-02',
+        ]);
+
+        Sanctum::actingAs($user);
+        $response = $this->getJson('/api/me/advances');
+
+        $response->assertOk();
+        $this->assertCount(1, $response->json('data'));
+        $this->assertEquals(150, $response->json('data.0.amount'));
+        $this->assertEquals(150, $response->json('outstanding_total'));
+    }
+
+    public function test_employee_without_a_linked_record_is_forbidden_from_me_advances(): void
+    {
+        $user = User::factory()->create(['role' => 'employee']);
+        $user->assignRole('employee');
+
+        Sanctum::actingAs($user);
+        $this->getJson('/api/me/advances')->assertForbidden();
+    }
+
+    public function test_employee_cannot_settle_or_edit_their_own_advance_via_the_admin_endpoints(): void
+    {
+        $user = User::factory()->create(['role' => 'employee']);
+        $user->assignRole('employee');
+        $employee = Employee::factory()->create(['user_id' => $user->id]);
+        $advance = Advance::create(['employee_id' => $employee->id, 'amount' => 150, 'given_on' => '2026-08-02']);
+
+        Sanctum::actingAs($user);
+        $this->postJson("/api/advances/{$advance->id}/settle")->assertForbidden();
+        $this->putJson("/api/advances/{$advance->id}", ['amount' => 500])->assertForbidden();
+    }
 }

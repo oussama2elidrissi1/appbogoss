@@ -242,6 +242,12 @@ export async function getAdvances(employeeId: number): Promise<AdvancesResponse>
     return data;
 }
 
+/** The logged-in employee's own advances — read-only, scoped server-side. */
+export async function getMyAdvances(): Promise<AdvancesResponse> {
+    const { data } = await api.get<AdvancesResponse>('/api/me/advances');
+    return data;
+}
+
 export async function settleAdvance(id: number): Promise<Advance> {
     const { data } = await api.post<{ data: Advance }>(`/api/advances/${id}/settle`);
     return data.data;

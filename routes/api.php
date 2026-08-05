@@ -121,6 +121,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
 
     Route::get('/me/dashboard', [MeController::class, 'dashboard']);
+    Route::get('/me/advances', [MeController::class, 'advances']);
     Route::get('/me/commissions', [MeController::class, 'commissions']);
     Route::get('/me/report', [MeController::class, 'report']);
     Route::get('/me/report/export', [MeController::class, 'reportExport']);

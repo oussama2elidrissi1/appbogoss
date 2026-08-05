@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { NewPrestationPanel } from '@/components/prestations/NewPrestationPanel';
 import { MyPrestationsList } from '@/components/prestations/MyPrestationsList';
 import { MyCommissionsList } from '@/components/prestations/MyCommissionsList';
+import { MyAdvancesList } from '@/components/prestations/MyAdvancesList';
 import { MyReportPanel } from '@/components/prestations/MyReportPanel';
 import { MyDashboardSummary } from '@/components/prestations/MyDashboardSummary';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -24,6 +25,7 @@ export default function MonEspace() {
                     <TabsTrigger value="new">Nouvelle prestation</TabsTrigger>
                     <TabsTrigger value="mine">Mes prestations</TabsTrigger>
                     <TabsTrigger value="commissions">Mes commissions</TabsTrigger>
+                    <TabsTrigger value="advances">Mes avances</TabsTrigger>
                     <TabsTrigger value="report">Mon rapport</TabsTrigger>
                 </TabsList>
                 <TabsContent value="new" className="space-y-5">
@@ -34,6 +36,9 @@ export default function MonEspace() {
                 </TabsContent>
                 <TabsContent value="commissions" className="space-y-5">
                     <MyCommissionsList />
+                </TabsContent>
+                <TabsContent value="advances" className="space-y-5">
+                    <MyAdvancesList />
                 </TabsContent>
                 <TabsContent value="report" className="space-y-5">
                     <MyReportPanel />

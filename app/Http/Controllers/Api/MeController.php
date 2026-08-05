@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\AdvanceResource;
+use App\Models\Advance;
 use App\Models\Commission;
 use App\Models\Employee;
 use App\Models\Prestation;
@@ -117,6 +119,26 @@ class MeController extends Controller
             'commission_month' => round((float) $commissionMonth, 2),
             'recent' => $recentMerged,
         ]]);
+    }
+
+    /** Read-only — an employee can see their own advances but never create, edit, settle or delete one themselves. */
+    public function advances(Request $request): JsonResponse
+    {
+        $employee = $this->employeeOrFail($request);
+
+        $advances = Advance::with('workDay')
+            ->where('employee_id', $employee->id)
+            ->orderByDesc('given_on')
+            ->get();
+
+        $outstandingTotal = (float) Advance::where('employee_id', $employee->id)
+            ->outstanding()
+            ->sum('amount');
+
+        return response()->json([
+            'data' => AdvanceResource::collection($advances),
+            'outstanding_total' => $outstandingTotal,
+        ]);
     }
 
     public function commissions(Request $request): JsonResponse
