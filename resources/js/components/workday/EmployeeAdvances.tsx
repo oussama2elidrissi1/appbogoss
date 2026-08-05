@@ -183,6 +183,10 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
                     </span>
                 )}
             </div>
+            <p className="mt-1 text-[10px] text-muted-foreground">
+                Toutes les avances non soldées, quel que soit le mois où elles ont été données — elles
+                restent dues jusqu'à ce que la commission de cet employé soit marquée payée.
+            </p>
 
             {isPending ? (
                 <div className="mt-3 space-y-2">
