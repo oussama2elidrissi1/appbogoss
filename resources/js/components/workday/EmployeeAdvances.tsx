@@ -25,6 +25,8 @@ interface EmployeeAdvancesProps {
     employee: Employee;
     /** Attaches the advance to the open day when there is one. */
     workDayId?: number;
+    /** "YYYY-MM" — when set, only advances given during that month are listed. */
+    periodMonth?: string;
 }
 
 function today(): string {
@@ -32,7 +34,7 @@ function today(): string {
 }
 
 /** Outstanding balance, history and the "donner une avance" inline form. */
-export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps) {
+export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeAdvancesProps) {
     const queryClient = useQueryClient();
     const { hasRole } = useAuth();
     const isSuperAdmin = hasRole('super-admin');
@@ -166,7 +168,18 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
         }
     }
 
-    const advances = data?.data ?? [];
+    const allAdvances = data?.data ?? [];
+    const advances = periodMonth
+        ? allAdvances.filter((advance) => advance.given_on.startsWith(periodMonth))
+        : allAdvances;
+    const olderUnsettledTotal = periodMonth
+        ? allAdvances
+              .filter((advance) => !advance.given_on.startsWith(periodMonth) && !advance.settled_at)
+              .reduce((sum, advance) => sum + advance.amount, 0)
+        : 0;
+    const periodOutstandingTotal = periodMonth
+        ? advances.filter((advance) => !advance.settled_at).reduce((sum, advance) => sum + advance.amount, 0)
+        : (data?.outstanding_total ?? 0);
 
     return (
         <div>
@@ -179,14 +192,28 @@ export function EmployeeAdvances({ employee, workDayId }: EmployeeAdvancesProps)
                     <Skeleton className="h-5 w-20" />
                 ) : (
                     <span className="text-sm font-semibold tabular-nums text-accent">
-                        {formatCurrency(data?.outstanding_total ?? 0, { maximumFractionDigits: 2 })}
+                        {formatCurrency(periodOutstandingTotal, { maximumFractionDigits: 2 })}
                     </span>
                 )}
             </div>
-            <p className="mt-1 text-[10px] text-muted-foreground">
-                Toutes les avances non soldées, quel que soit le mois où elles ont été données — elles
-                restent dues jusqu'à ce que la commission de cet employé soit marquée payée.
-            </p>
+            {periodMonth ? (
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                    Avances données ce mois-ci uniquement.
+                    {olderUnsettledTotal > 0 && (
+                        <>
+                            {' '}
+                            {formatCurrency(olderUnsettledTotal, { maximumFractionDigits: 2 })} d'avances plus
+                            anciennes restent aussi non soldées et seront déduites de la même façon — non
+                            affichées ici, voir la fiche employé pour le détail.
+                        </>
+                    )}
+                </p>
+            ) : (
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                    Toutes les avances non soldées, quel que soit le mois où elles ont été données — elles
+                    restent dues jusqu'à ce que la commission de cet employé soit marquée payée.
+                </p>
+            )}
 
             {isPending ? (
                 <div className="mt-3 space-y-2">

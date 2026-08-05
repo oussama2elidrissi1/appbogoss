@@ -214,7 +214,7 @@ export default function Payroll() {
                                     {isExpanded && (
                                         <div className="border-t border-tint/[0.06] p-4">
                                             {employee ? (
-                                                <EmployeeAdvances employee={employee} />
+                                                <EmployeeAdvances employee={employee} periodMonth={period} />
                                             ) : (
                                                 <Skeleton className="h-24 w-full rounded-md" />
                                             )}
