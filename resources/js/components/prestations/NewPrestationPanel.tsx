@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, CheckCircle2, Loader2, Search, SendHorizonal, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Loader2, Pencil, Search, SendHorizonal, Trash2 } from 'lucide-react';
 import {
     addPrestationItem,
     cancelPrestation,
@@ -11,6 +11,7 @@ import {
     getServices,
     removePrestationItem,
     sendPrestationToCaisse,
+    updatePrestationItem,
 } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { cn, formatCurrency } from '@/lib/utils';
@@ -20,8 +21,18 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import type { PrestationItem } from '@/types/prestation';
 import type { Service } from '@/types/workday';
 
 const OPEN_STATUSES = ['draft', 'in_progress', 'services_done', 'pending_payment'];
@@ -41,6 +52,10 @@ export function NewPrestationPanel() {
     const [serviceSearch, setServiceSearch] = useState('');
     const [cancelling, setCancelling] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
+    const [pendingService, setPendingService] = useState<Service | null>(null);
+    const [priceInput, setPriceInput] = useState('');
+    const [editingItemId, setEditingItemId] = useState<number | null>(null);
+    const [editPriceInput, setEditPriceInput] = useState('');
 
     // An employee only sees the categories they actually work in (set on
     // their profile) — no restriction configured means show everything, so
@@ -94,20 +109,36 @@ export function NewPrestationPanel() {
     }
 
     const createMutation = useMutation({
-        mutationFn: (service: Service) =>
+        mutationFn: ({ service, unitPrice }: { service: Service; unitPrice: number }) =>
             createPrestation({
                 client_id: clientSelection.mode === 'client' ? clientSelection.client?.id ?? null : null,
                 client_label: clientSelection.mode === 'walkin' ? clientSelection.label.trim() || null : null,
-                items: [{ service_id: service.id }],
+                items: [{ service_id: service.id, unit_price: unitPrice }],
             }),
-        onSuccess: invalidate,
+        onSuccess: () => {
+            invalidate();
+            setPendingService(null);
+        },
         onError: (error) => setActionError(getErrorMessage(error)),
     });
 
     const addItemMutation = useMutation({
-        mutationFn: (service: Service) =>
-            addPrestationItem(openPrestation!.id, { service_id: service.id }),
-        onSuccess: invalidate,
+        mutationFn: ({ service, unitPrice }: { service: Service; unitPrice: number }) =>
+            addPrestationItem(openPrestation!.id, { service_id: service.id, unit_price: unitPrice }),
+        onSuccess: () => {
+            invalidate();
+            setPendingService(null);
+        },
+        onError: (error) => setActionError(getErrorMessage(error)),
+    });
+
+    const updateItemMutation = useMutation({
+        mutationFn: ({ itemId, unitPrice }: { itemId: number; unitPrice: number }) =>
+            updatePrestationItem(openPrestation!.id, itemId, { unit_price: unitPrice }),
+        onSuccess: () => {
+            invalidate();
+            setEditingItemId(null);
+        },
         onError: (error) => setActionError(getErrorMessage(error)),
     });
 
@@ -136,14 +167,38 @@ export function NewPrestationPanel() {
         },
     });
 
-    function handleServiceClick(service: Service) {
+    function openAddServiceDialog(service: Service) {
         setActionError(null);
+        setPendingService(service);
+        setPriceInput(String(service.price));
+    }
+
+    function confirmAddService() {
+        if (!pendingService) return;
+        const unitPrice = Number.parseFloat(priceInput.replace(',', '.'));
+        if (!Number.isFinite(unitPrice) || unitPrice < 0) return;
+
         if (openPrestation) {
-            addItemMutation.mutate(service);
+            addItemMutation.mutate({ service: pendingService, unitPrice });
         } else {
-            createMutation.mutate(service);
+            createMutation.mutate({ service: pendingService, unitPrice });
         }
     }
+
+    function startEditPrice(item: PrestationItem) {
+        setActionError(null);
+        setEditingItemId(item.id);
+        setEditPriceInput(String(item.unit_price));
+    }
+
+    function confirmEditPrice() {
+        if (editingItemId === null) return;
+        const unitPrice = Number.parseFloat(editPriceInput.replace(',', '.'));
+        if (!Number.isFinite(unitPrice) || unitPrice < 0) return;
+        updateItemMutation.mutate({ itemId: editingItemId, unitPrice });
+    }
+
+    const addServicePending = createMutation.isPending || addItemMutation.isPending;
 
     if (prestationsPending) {
         return (
@@ -182,36 +237,82 @@ export function NewPrestationPanel() {
                                 Ajoutez un premier service ci-dessous.
                             </p>
                         ) : (
-                            openPrestation.items.map((item) => (
-                                <div
-                                    key={item.id}
-                                    className="flex items-center justify-between gap-3 rounded-md border border-tint/[0.08] bg-tint/[0.02] px-3.5 py-2.5"
-                                >
-                                    <div className="min-w-0">
-                                        <p className="truncate text-sm font-medium text-foreground">{item.label}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            Qté {item.quantity} · {formatCurrency(item.unit_price)}
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-sm font-semibold tabular-nums text-accent">
-                                            {formatCurrency(item.line_total)}
-                                        </span>
-                                        {editable && (
-                                            <Button
-                                                type="button"
-                                                size="icon"
-                                                variant="ghost"
-                                                aria-label="Retirer"
-                                                disabled={removeItemMutation.isPending}
-                                                onClick={() => removeItemMutation.mutate(item.id)}
-                                            >
-                                                <Trash2 className="text-destructive" />
-                                            </Button>
+                            openPrestation.items.map((item) => {
+                                const isEditingPrice = editingItemId === item.id;
+
+                                return (
+                                    <div
+                                        key={item.id}
+                                        className="rounded-md border border-tint/[0.08] bg-tint/[0.02] px-3.5 py-2.5"
+                                    >
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className="truncate text-sm font-medium text-foreground">{item.label}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Qté {item.quantity} · {formatCurrency(item.unit_price)}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-sm font-semibold tabular-nums text-accent">
+                                                    {formatCurrency(item.line_total)}
+                                                </span>
+                                                {editable && (
+                                                    <>
+                                                        <Button
+                                                            type="button"
+                                                            size="icon"
+                                                            variant="ghost"
+                                                            aria-label="Modifier le montant"
+                                                            onClick={() =>
+                                                                isEditingPrice
+                                                                    ? setEditingItemId(null)
+                                                                    : startEditPrice(item)
+                                                            }
+                                                        >
+                                                            <Pencil className={cn('h-4 w-4', isEditingPrice && 'text-accent')} />
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            size="icon"
+                                                            variant="ghost"
+                                                            aria-label="Retirer"
+                                                            disabled={removeItemMutation.isPending}
+                                                            onClick={() => removeItemMutation.mutate(item.id)}
+                                                        >
+                                                            <Trash2 className="text-destructive" />
+                                                        </Button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {isEditingPrice && (
+                                            <div className="mt-2.5 flex items-center gap-2 border-t border-tint/[0.06] pt-2.5">
+                                                <Input
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    inputMode="decimal"
+                                                    autoFocus
+                                                    value={editPriceInput}
+                                                    onChange={(event) => setEditPriceInput(event.target.value)}
+                                                    className="h-8 flex-1 tabular-nums"
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    variant="accent"
+                                                    size="sm"
+                                                    disabled={updateItemMutation.isPending}
+                                                    onClick={confirmEditPrice}
+                                                >
+                                                    {updateItemMutation.isPending && <Loader2 className="animate-spin" />}
+                                                    Enregistrer
+                                                </Button>
+                                            </div>
                                         )}
                                     </div>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
 
@@ -266,8 +367,8 @@ export function NewPrestationPanel() {
                         onSearchChange={setServiceSearch}
                         services={filteredServices}
                         loading={servicesPending}
-                        onSelect={handleServiceClick}
-                        pending={addItemMutation.isPending}
+                        onSelect={openAddServiceDialog}
+                        pending={addServicePending}
                     />
                 )}
 
@@ -279,6 +380,18 @@ export function NewPrestationPanel() {
                     confirmLabel="Annuler la prestation"
                     loading={cancelMutation.isPending}
                     onConfirm={() => cancelMutation.mutate()}
+                />
+
+                <AddServiceDialog
+                    service={pendingService}
+                    price={priceInput}
+                    onPriceChange={setPriceInput}
+                    onOpenChange={(open) => {
+                        if (!open) setPendingService(null);
+                    }}
+                    onConfirm={confirmAddService}
+                    pending={addServicePending}
+                    error={actionError}
                 />
             </>
         );
@@ -306,10 +419,88 @@ export function NewPrestationPanel() {
                 onSearchChange={setServiceSearch}
                 services={filteredServices}
                 loading={servicesPending}
-                onSelect={handleServiceClick}
-                pending={createMutation.isPending}
+                onSelect={openAddServiceDialog}
+                pending={addServicePending}
+            />
+
+            <AddServiceDialog
+                service={pendingService}
+                price={priceInput}
+                onPriceChange={setPriceInput}
+                onOpenChange={(open) => {
+                    if (!open) setPendingService(null);
+                }}
+                onConfirm={confirmAddService}
+                pending={addServicePending}
+                error={actionError}
             />
         </div>
+    );
+}
+
+function AddServiceDialog({
+    service,
+    price,
+    onPriceChange,
+    onOpenChange,
+    onConfirm,
+    pending,
+    error,
+}: {
+    service: Service | null;
+    price: string;
+    onPriceChange: (value: string) => void;
+    onOpenChange: (open: boolean) => void;
+    onConfirm: () => void;
+    pending: boolean;
+    error: string | null;
+}) {
+    const priceValue = Number.parseFloat(price.replace(',', '.'));
+    const canConfirm = Number.isFinite(priceValue) && priceValue >= 0;
+
+    return (
+        <Dialog open={service !== null} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-sm">
+                <DialogHeader>
+                    <DialogTitle>{service?.name}</DialogTitle>
+                    <DialogDescription>
+                        Confirmez le montant de ce service avant de l’ajouter à la prestation.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-2">
+                    <Label htmlFor="add-service-price">Montant</Label>
+                    <Input
+                        id="add-service-price"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        inputMode="decimal"
+                        autoFocus
+                        value={price}
+                        onChange={(event) => onPriceChange(event.target.value)}
+                        className="text-lg font-semibold tabular-nums"
+                    />
+                </div>
+
+                {error && (
+                    <div className="flex items-start gap-2.5 rounded-md border border-destructive/25 bg-destructive/[0.10] px-3.5 py-3">
+                        <AlertCircle className="mt-px h-4 w-4 shrink-0 text-destructive" />
+                        <p className="text-sm text-destructive">{error}</p>
+                    </div>
+                )}
+
+                <DialogFooter>
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                        Annuler
+                    </Button>
+                    <Button type="button" variant="accent" disabled={!canConfirm || pending} onClick={onConfirm}>
+                        {pending && <Loader2 className="animate-spin" />}
+                        Ajouter
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }
 

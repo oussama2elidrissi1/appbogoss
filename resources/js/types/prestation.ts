@@ -86,6 +86,12 @@ export interface AddPrestationItemPayload {
     notes?: string | null;
 }
 
+export interface UpdatePrestationItemPayload {
+    quantity?: number;
+    unit_price?: number;
+    notes?: string | null;
+}
+
 export type PrestationPaymentMethod = 'especes' | 'carte' | 'virement' | 'mixte' | 'autre';
 
 export interface ConfirmPrestationPaymentPayload {

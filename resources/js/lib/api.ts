@@ -38,6 +38,7 @@ import type {
     MyDashboard,
     MyReport,
     Prestation,
+    UpdatePrestationItemPayload,
 } from '@/types/prestation';
 
 /**
@@ -511,6 +512,18 @@ export async function addPrestationItem(
 ): Promise<Prestation> {
     const { data } = await api.post<{ data: Prestation }>(
         `/api/prestations/${prestationId}/items`,
+        payload,
+    );
+    return data.data;
+}
+
+export async function updatePrestationItem(
+    prestationId: number,
+    itemId: number,
+    payload: UpdatePrestationItemPayload,
+): Promise<Prestation> {
+    const { data } = await api.patch<{ data: Prestation }>(
+        `/api/prestations/${prestationId}/items/${itemId}`,
         payload,
     );
     return data.data;

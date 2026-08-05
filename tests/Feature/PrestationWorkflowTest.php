@@ -81,6 +81,63 @@ class PrestationWorkflowTest extends TestCase
         $this->assertSame($prestationId, $pending->json('data.0.id'));
     }
 
+    public function test_employee_can_set_a_custom_price_when_creating_a_prestation_item(): void
+    {
+        [, $user] = $this->employeeWithLogin();
+        $service = Service::factory()->create(['price' => 50]);
+
+        Sanctum::actingAs($user);
+
+        $response = $this->postJson('/api/prestations', [
+            'items' => [['service_id' => $service->id, 'unit_price' => 65]],
+        ]);
+
+        $response->assertCreated();
+        $this->assertEquals(65, $response->json('data.items.0.unit_price'));
+        $this->assertEquals(65, $response->json('data.total'));
+    }
+
+    public function test_employee_can_edit_an_items_price_after_adding_it(): void
+    {
+        [, $user] = $this->employeeWithLogin();
+        $service = Service::factory()->create(['price' => 50]);
+
+        Sanctum::actingAs($user);
+        $created = $this->postJson('/api/prestations', [
+            'items' => [['service_id' => $service->id]],
+        ])->assertCreated()->json('data');
+
+        $itemId = $created['items'][0]['id'];
+
+        $response = $this->patchJson(
+            "/api/prestations/{$created['id']}/items/{$itemId}",
+            ['unit_price' => 45],
+        );
+
+        $response->assertOk();
+        $this->assertEquals(45, $response->json('data.items.0.unit_price'));
+        $this->assertEquals(45, $response->json('data.total'));
+    }
+
+    public function test_employee_cannot_edit_another_employees_prestation_item(): void
+    {
+        [, $ownerUser] = $this->employeeWithLogin();
+        [, $otherUser] = $this->employeeWithLogin();
+        $service = Service::factory()->create(['price' => 50]);
+
+        Sanctum::actingAs($ownerUser);
+        $created = $this->postJson('/api/prestations', [
+            'items' => [['service_id' => $service->id]],
+        ])->assertCreated()->json('data');
+        $itemId = $created['items'][0]['id'];
+
+        Sanctum::actingAs($otherUser);
+        $this->patchJson(
+            "/api/prestations/{$created['id']}/items/{$itemId}",
+            ['unit_price' => 999],
+        )->assertForbidden();
+    }
+
     public function test_admin_confirms_payment_and_commission_is_calculated_correctly(): void
     {
         [$employee, $user] = $this->employeeWithLogin();
