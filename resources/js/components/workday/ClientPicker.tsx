@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, Check, Loader2, Plus, Search, Sparkles, UserPlus, UserRound, X } from 'lucide-react';
+import { AlertCircle, Check, Loader2, Search, Sparkles, UserPlus, UserRound, X } from 'lucide-react';
 import { createClient, getClients, getErrorMessage } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { workDayKeys } from '@/hooks/useWorkDay';
@@ -34,6 +34,11 @@ interface ClientPickerProps {
  * Hand-built combobox: a debounced search over `GET /api/clients` with a
  * "client de passage" escape hatch that maps to `client_label` instead of
  * `client_id`. No extra dependency — the dropdown is a positioned list.
+ *
+ * "Nouveau client" is a third, always-visible chip (not hidden behind
+ * "search, find nothing, then notice a tiny link") — clicking it swaps the
+ * whole picker body for a small creation form, independent of the search
+ * dropdown's own open/closed state.
  */
 export function ClientPicker({ value, onChange }: ClientPickerProps) {
     const { hasPermission } = useAuth();
@@ -61,7 +66,7 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
         return () => document.removeEventListener('mousedown', onPointerDown);
     }, []);
 
-    const enabled = value.mode === 'client' && debounced.length >= 2;
+    const enabled = !creating && value.mode === 'client' && debounced.length >= 2;
 
     const { data: clients, isFetching } = useQuery({
         queryKey: workDayKeys.clients(debounced),
@@ -75,6 +80,7 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
         setSearch('');
         setDebounced('');
         setOpen(false);
+        setCreating(false);
     }
 
     const createMutation = useMutation({
@@ -82,7 +88,6 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
         onSuccess: (client) => {
             void queryClient.invalidateQueries({ queryKey: ['clients'] });
             selectClient(client);
-            setCreating(false);
             setNewName('');
             setNewPhone('');
         },
@@ -91,6 +96,7 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
     function startCreating() {
         setNewName(search.trim());
         setNewPhone('');
+        setOpen(false);
         setCreating(true);
     }
 
@@ -129,7 +135,7 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
             <div className="flex flex-wrap items-center gap-2">
                 <Chip
                     size="sm"
-                    selected={value.mode === 'client'}
+                    selected={value.mode === 'client' && !creating}
                     onClick={() => setWalkIn(false)}
                 >
                     <UserRound />
@@ -139,9 +145,64 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
                     <Sparkles />
                     Client de passage
                 </Chip>
+                {canCreateClient && (
+                    <Chip size="sm" selected={creating} onClick={() => (creating ? cancelCreating() : startCreating())}>
+                        <UserPlus />
+                        Nouveau client
+                    </Chip>
+                )}
             </div>
 
-            {value.mode === 'walkin' ? (
+            {creating ? (
+                <div className="space-y-2.5 rounded-md border border-accent/30 bg-accent/[0.04] p-3.5">
+                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                        <div className="space-y-1.5">
+                            <Label htmlFor="new-client-name" className="text-xs">Nom</Label>
+                            <Input
+                                id="new-client-name"
+                                value={newName}
+                                onChange={(event) => setNewName(event.target.value)}
+                                placeholder="Nom du client"
+                                className="h-9"
+                                autoFocus
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="new-client-phone" className="text-xs">
+                                Téléphone <span className="font-normal">(optionnel)</span>
+                            </Label>
+                            <Input
+                                id="new-client-phone"
+                                value={newPhone}
+                                onChange={(event) => setNewPhone(event.target.value)}
+                                placeholder="06 00 00 00 00"
+                                className="h-9"
+                            />
+                        </div>
+                    </div>
+                    {createMutation.isError && (
+                        <div className="flex items-start gap-2 rounded-md border border-destructive/25 bg-destructive/[0.10] px-3 py-2">
+                            <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0 text-destructive" />
+                            <p className="text-xs text-destructive">{getErrorMessage(createMutation.error)}</p>
+                        </div>
+                    )}
+                    <div className="flex items-center justify-end gap-2">
+                        <Button type="button" variant="ghost" size="sm" onClick={cancelCreating}>
+                            Annuler
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="accent"
+                            size="sm"
+                            disabled={!newName.trim() || createMutation.isPending}
+                            onClick={submitCreate}
+                        >
+                            {createMutation.isPending && <Loader2 className="animate-spin" />}
+                            Créer le client
+                        </Button>
+                    </div>
+                </div>
+            ) : value.mode === 'walkin' ? (
                 <Input
                     placeholder="Nom du client (optionnel)"
                     value={value.label}
@@ -193,68 +254,7 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
                     )}
 
                     <AnimatePresence>
-                        {open && creating && (
-                            <motion.div
-                                initial={{ opacity: 0, y: -4 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -4 }}
-                                transition={{ duration: 0.15 }}
-                                className="absolute z-30 mt-1.5 w-full space-y-2.5 rounded-md border border-accent/30 bg-popover p-3.5 shadow-soft-lg"
-                            >
-                                <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                                    <UserPlus className="h-3.5 w-3.5" />
-                                    Nouveau client
-                                </p>
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="new-client-name" className="text-xs">Nom</Label>
-                                    <Input
-                                        id="new-client-name"
-                                        value={newName}
-                                        onChange={(event) => setNewName(event.target.value)}
-                                        placeholder="Nom du client"
-                                        className="h-9"
-                                        autoFocus
-                                    />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="new-client-phone" className="text-xs">
-                                        Téléphone <span className="font-normal">(optionnel)</span>
-                                    </Label>
-                                    <Input
-                                        id="new-client-phone"
-                                        value={newPhone}
-                                        onChange={(event) => setNewPhone(event.target.value)}
-                                        placeholder="06 00 00 00 00"
-                                        className="h-9"
-                                    />
-                                </div>
-                                {createMutation.isError && (
-                                    <div className="flex items-start gap-2 rounded-md border border-destructive/25 bg-destructive/[0.10] px-3 py-2">
-                                        <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0 text-destructive" />
-                                        <p className="text-xs text-destructive">
-                                            {getErrorMessage(createMutation.error)}
-                                        </p>
-                                    </div>
-                                )}
-                                <div className="flex items-center justify-end gap-2">
-                                    <Button type="button" variant="ghost" size="sm" onClick={cancelCreating}>
-                                        Annuler
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        variant="accent"
-                                        size="sm"
-                                        disabled={!newName.trim() || createMutation.isPending}
-                                        onClick={submitCreate}
-                                    >
-                                        {createMutation.isPending && <Loader2 className="animate-spin" />}
-                                        Créer
-                                    </Button>
-                                </div>
-                            </motion.div>
-                        )}
-
-                        {open && !creating && enabled && (
+                        {open && enabled && (
                             <motion.ul
                                 initial={{ opacity: 0, y: -4 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -308,7 +308,7 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
                                             onClick={startCreating}
                                             className="flex w-full items-center gap-2 rounded-sm px-3 py-2.5 text-left text-sm font-medium text-accent transition-colors duration-150 hover:bg-tint/[0.06]"
                                         >
-                                            <Plus className="h-3.5 w-3.5" />
+                                            <UserPlus className="h-3.5 w-3.5" />
                                             Créer un nouveau client
                                             {search.trim() ? ` « ${search.trim()} »` : ''}
                                         </button>
