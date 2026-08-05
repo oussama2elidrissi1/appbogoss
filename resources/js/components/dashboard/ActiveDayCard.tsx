@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ArrowRight, HandCoins, Receipt, TrendingUp, Users, Wallet } from 'lucide-react';
+import { ArrowRight, HandCoins, Receipt, TrendingUp, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { ActiveDaySummary } from '@/types/dashboard';
 import { cn, formatCurrency, formatDayLabel } from '@/lib/utils';
@@ -66,7 +66,12 @@ export function ActiveDayCard({ day }: { day: ActiveDaySummary }) {
             </CardHeader>
 
             <CardContent className="relative">
-                <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-5">
+                {/* Commissions are a monthly payroll concern (see "Paie"), not a
+                    daily one — showing a running commission figure here read as
+                    money owed today, when it's really only settled at month-end.
+                    It still reduces "Bénéfice estimé" below; the day-by-day detail
+                    lives on the Caisse page's journée report instead. */}
+                <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
                     <Figure
                         icon={Wallet}
                         label="Encaissé"
@@ -84,11 +89,6 @@ export function ActiveDayCard({ day }: { day: ActiveDaySummary }) {
                         label="Avances"
                         value={formatCurrency(day.advances_so_far, { maximumFractionDigits: 2 })}
                         tone="destructive"
-                    />
-                    <Figure
-                        icon={Users}
-                        label="Commissions"
-                        value={formatCurrency(day.commissions_so_far, { maximumFractionDigits: 2 })}
                     />
                     <Figure
                         icon={TrendingUp}
