@@ -99,6 +99,18 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
         },
     });
 
+    const recalculateAllMutation = useMutation({
+        mutationFn: () =>
+            api.post<{ meta?: { recalculated_count?: number } }>(
+                '/api/employee-service-commissions/recalculate-all',
+                { employee_id: employee.id },
+            ),
+        onSuccess: (response) => {
+            invalidate();
+            setRecalculatedCount(response.data.meta?.recalculated_count ?? 0);
+        },
+    });
+
     function toggleService(serviceId: number) {
         setForm((current) => ({
             ...current,
@@ -119,9 +131,26 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
 
     return (
         <div className="space-y-3">
-            <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                Commissions par service
-            </p>
+            <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+                    Commissions par service
+                </p>
+                {!isPending && rules && rules.length > 0 && (
+                    <button
+                        type="button"
+                        disabled={recalculateAllMutation.isPending}
+                        onClick={() => {
+                            setRecalculatedCount(null);
+                            recalculateAllMutation.mutate();
+                        }}
+                        className="flex items-center gap-1.5 rounded-md border border-tint/[0.08] px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-accent/30 hover:text-accent disabled:pointer-events-none disabled:opacity-60"
+                        title="Recalculer l'historique de toutes les règles de cet employé"
+                    >
+                        <RefreshCw className={cn('h-3 w-3', recalculateAllMutation.isPending && 'animate-spin')} />
+                        Tout recalculer
+                    </button>
+                )}
+            </div>
 
             {isPending ? (
                 <Skeleton className="h-10 w-full" />

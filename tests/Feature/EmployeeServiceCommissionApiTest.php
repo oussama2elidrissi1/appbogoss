@@ -394,4 +394,75 @@ class EmployeeServiceCommissionApiTest extends TestCase
         $this->assertSame(1, $response->json('meta.recalculated_count'));
         $this->assertEquals(20, $sale->fresh()->commission_amount);
     }
+
+    public function test_recalculate_all_fixes_every_rule_for_an_employee_in_one_call(): void
+    {
+        $employee = Employee::factory()->create();
+        $otherEmployee = Employee::factory()->create();
+        $serviceA = Service::factory()->create(['name' => 'Barbe simple']);
+        $serviceB = Service::factory()->create(['name' => 'Coupe simple']);
+        $workDay = WorkDay::factory()->create(['status' => 'open']);
+
+        $ruleA = EmployeeServiceCommission::create([
+            'employee_id' => $employee->id,
+            'service_id' => $serviceA->id,
+            'type' => 'percentage',
+            'value' => 50,
+            'starts_on' => now()->subDays(10)->toDateString(),
+            'is_active' => true,
+        ]);
+        $ruleB = EmployeeServiceCommission::create([
+            'employee_id' => $employee->id,
+            'service_id' => $serviceB->id,
+            'type' => 'percentage',
+            'value' => 30,
+            'starts_on' => now()->subDays(10)->toDateString(),
+            'is_active' => true,
+        ]);
+        // Belongs to a different employee — must not be touched or counted.
+        EmployeeServiceCommission::create([
+            'employee_id' => $otherEmployee->id,
+            'service_id' => $serviceA->id,
+            'type' => 'percentage',
+            'value' => 90,
+            'starts_on' => now()->subDays(10)->toDateString(),
+            'is_active' => true,
+        ]);
+
+        $saleA = Sale::create([
+            'work_day_id' => $workDay->id,
+            'employee_id' => $employee->id,
+            'category' => 'coiffure',
+            'total' => 40,
+            'commission_amount' => null,
+            'payment_method' => 'especes',
+            'print_count' => 1,
+        ]);
+        $saleA->created_at = now()->subDays(3);
+        $saleA->save();
+        SaleItem::create(['sale_id' => $saleA->id, 'label' => 'Barbe simple', 'quantity' => 1, 'unit_price' => 40]);
+
+        $saleB = Sale::create([
+            'work_day_id' => $workDay->id,
+            'employee_id' => $employee->id,
+            'category' => 'coiffure',
+            'total' => 60,
+            'commission_amount' => null,
+            'payment_method' => 'especes',
+            'print_count' => 1,
+        ]);
+        $saleB->created_at = now()->subDays(3);
+        $saleB->save();
+        SaleItem::create(['sale_id' => $saleB->id, 'label' => 'Coupe simple', 'quantity' => 1, 'unit_price' => 60]);
+
+        $response = $this->postJson('/api/employee-service-commissions/recalculate-all', [
+            'employee_id' => $employee->id,
+        ]);
+
+        $response->assertOk();
+        $this->assertSame(2, $response->json('meta.rules_processed'));
+        $this->assertSame(2, $response->json('meta.recalculated_count'));
+        $this->assertEquals(20, $saleA->fresh()->commission_amount);
+        $this->assertEquals(18, $saleB->fresh()->commission_amount);
+    }
 }

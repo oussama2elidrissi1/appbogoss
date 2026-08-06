@@ -80,6 +80,36 @@ class EmployeeServiceCommissionController extends Controller
     }
 
     /**
+     * Same as `recalculate()` below, but for every rule an employee has at
+     * once — one click from their profile instead of hunting down and
+     * re-triggering each service's rule individually.
+     */
+    public function recalculateAll(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'employee_id' => ['required', 'integer', 'exists:employees,id'],
+        ]);
+
+        $rules = EmployeeServiceCommission::where('employee_id', $validated['employee_id'])->get();
+        $recalculated = 0;
+
+        foreach ($rules as $rule) {
+            $updated = $this->recalculator->recalculate($rule);
+
+            if ($updated > 0) {
+                $this->activityLogger->log('commission_rule.recalculated_history', $rule, [], ['entries_updated' => $updated]);
+            }
+
+            $recalculated += $updated;
+        }
+
+        return response()->json(['meta' => [
+            'recalculated_count' => $recalculated,
+            'rules_processed' => $rules->count(),
+        ]]);
+    }
+
+    /**
      * Re-runs the retroactive recalculation for a rule that already exists —
      * for rules created before this feature shipped (or edited since), so
      * fixing history never requires deleting and recreating a rule.
