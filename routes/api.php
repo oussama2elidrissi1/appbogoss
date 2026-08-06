@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\CashMovementController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\CommissionPayoutController;
+use App\Http\Controllers\Api\CommissionRegularizationController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\EmployeeServiceCommissionController;
@@ -103,6 +104,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/employee-service-commissions', [EmployeeServiceCommissionController::class, 'index']);
         Route::post('/employee-service-commissions', [EmployeeServiceCommissionController::class, 'store']);
         Route::post('/employee-service-commissions/recalculate-all', [EmployeeServiceCommissionController::class, 'recalculateAll']);
+        // TEMPORARY — see CommissionRegularizationController's doc comment.
+        Route::post('/employees/{employee}/regularize-commissions', CommissionRegularizationController::class);
         Route::post('/employee-service-commissions/{employeeServiceCommission}/recalculate', [EmployeeServiceCommissionController::class, 'recalculate']);
         Route::patch('/employee-service-commissions/{employeeServiceCommission}', [EmployeeServiceCommissionController::class, 'update']);
         Route::delete('/employee-service-commissions/{employeeServiceCommission}', [EmployeeServiceCommissionController::class, 'destroy']);

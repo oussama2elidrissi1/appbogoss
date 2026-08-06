@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, CheckCircle2, ChevronDown, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronDown, Loader2, Plus, RefreshCw, Trash2, Wrench } from 'lucide-react';
 import { api, getErrorMessage, getServices } from '@/lib/api';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import type { Employee } from '@/types/workday';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
     DropdownMenu,
     DropdownMenuCheckboxItem,
@@ -51,6 +52,9 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
     const queryClient = useQueryClient();
     const [form, setForm] = useState(emptyForm);
     const [recalculatedCount, setRecalculatedCount] = useState<number | null>(null);
+    const [regularizeRate, setRegularizeRate] = useState('50');
+    const [regularizeConfirming, setRegularizeConfirming] = useState(false);
+    const [regularizeResult, setRegularizeResult] = useState<{ items: number; sales: number } | null>(null);
 
     const { data: rules, isPending } = useQuery({
         queryKey: ['commission-rules', employee.id],
@@ -108,6 +112,25 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
         onSuccess: (response) => {
             invalidate();
             setRecalculatedCount(response.data.meta?.recalculated_count ?? 0);
+        },
+    });
+
+    // TEMPORARY — bulk-overwrite tool for regularizing old history, meant to
+    // be removed (along with its route/controller) once historical data is
+    // clean. See CommissionRegularizationController's doc comment.
+    const regularizeMutation = useMutation({
+        mutationFn: () =>
+            api.post<{ meta?: { items_updated?: number; sales_updated?: number } }>(
+                `/api/employees/${employee.id}/regularize-commissions`,
+                { rate: Number(regularizeRate) },
+            ),
+        onSuccess: (response) => {
+            invalidate();
+            setRegularizeConfirming(false);
+            setRegularizeResult({
+                items: response.data.meta?.items_updated ?? 0,
+                sales: response.data.meta?.sales_updated ?? 0,
+            });
         },
     });
 
@@ -317,6 +340,77 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
                 {createMutation.isPending ? <Loader2 className="animate-spin" /> : <Plus />}
                 Ajouter la règle
             </Button>
+
+            {/* TEMPORARY — remove this block, its mutation above and the
+                backend route/controller once historical commissions are clean. */}
+            <div className="space-y-2 rounded-md border border-dashed border-tint/[0.12] p-3">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Wrench className="h-3.5 w-3.5" />
+                    Régularisation (temporaire)
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                    Écrase la commission de TOUT l’historique de cet employé (prestations payées et ventes
+                    de caisse) avec un taux fixe — à utiliser une seule fois pour remettre les anciennes
+                    données à niveau, sans tenir compte des règles par service.
+                </p>
+                <div className="flex items-center gap-2">
+                    <div className="relative w-24">
+                        <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.01"
+                            value={regularizeRate}
+                            onChange={(event) => setRegularizeRate(event.target.value)}
+                            className="h-9 pr-6"
+                        />
+                        <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                            %
+                        </span>
+                    </div>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={!regularizeRate || Number(regularizeRate) < 0 || regularizeMutation.isPending}
+                        onClick={() => {
+                            setRegularizeResult(null);
+                            setRegularizeConfirming(true);
+                        }}
+                    >
+                        Régulariser tout l’historique
+                    </Button>
+                </div>
+
+                {regularizeMutation.isError && (
+                    <div className="flex items-start gap-2 rounded-md border border-destructive/25 bg-destructive/[0.10] px-3 py-2">
+                        <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0 text-destructive" />
+                        <p className="text-xs text-destructive">{getErrorMessage(regularizeMutation.error)}</p>
+                    </div>
+                )}
+
+                {regularizeResult && (
+                    <div className="flex items-start gap-2 rounded-md border border-success/25 bg-success/[0.10] px-3 py-2">
+                        <CheckCircle2 className="mt-px h-3.5 w-3.5 shrink-0 text-success" />
+                        <p className="text-xs text-success">
+                            {regularizeResult.items} prestation{regularizeResult.items > 1 ? 's' : ''} et{' '}
+                            {regularizeResult.sales} vente{regularizeResult.sales > 1 ? 's' : ''} mise
+                            {regularizeResult.items + regularizeResult.sales > 1 ? 's' : ''} à {regularizeRate}%.
+                        </p>
+                    </div>
+                )}
+            </div>
+
+            <ConfirmDialog
+                open={regularizeConfirming}
+                onOpenChange={setRegularizeConfirming}
+                title={`Écraser tout l’historique à ${regularizeRate}% ?`}
+                description={`Toutes les commissions déjà enregistrées pour ${employee.name} (prestations payées et ventes de caisse) seront remplacées par ${regularizeRate}% du montant, sans distinction de service. Cette action est irréversible.`}
+                confirmLabel="Écraser et régulariser"
+                variant="destructive"
+                loading={regularizeMutation.isPending}
+                onConfirm={() => regularizeMutation.mutate()}
+            />
         </div>
     );
 }

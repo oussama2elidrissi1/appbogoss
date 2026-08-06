@@ -465,4 +465,64 @@ class EmployeeServiceCommissionApiTest extends TestCase
         $this->assertEquals(20, $saleA->fresh()->commission_amount);
         $this->assertEquals(18, $saleB->fresh()->commission_amount);
     }
+
+    public function test_regularize_commissions_overwrites_paid_prestations_and_legacy_sales_with_a_flat_rate(): void
+    {
+        WorkDay::factory()->create(['status' => 'open']);
+        $employeeUser = User::factory()->create(['role' => 'employee']);
+        $employeeUser->assignRole('employee');
+        $employee = Employee::factory()->create(['user_id' => $employeeUser->id, 'default_commission_rate' => null]);
+        $otherEmployee = Employee::factory()->create();
+        $service = Service::factory()->create(['price' => 100]);
+        $admin = User::factory()->create(['role' => 'admin']);
+        $admin->assignRole('admin');
+
+        $prestation = app(PrestationService::class)->create(
+            ['items' => [['service_id' => $service->id, 'quantity' => 1]]],
+            $employee,
+            $employeeUser,
+        );
+        app(PrestationService::class)->markServicesDone($prestation, $employeeUser);
+        app(PrestationService::class)->sendToCaisse($prestation, $employeeUser);
+        $paid = app(PrestationService::class)->confirmPayment($prestation, ['payment_method' => 'especes'], $admin);
+        $item = $paid->items->first();
+        $this->assertEquals(0, $item->commission_amount);
+
+        $workDay = WorkDay::query()->where('status', 'open')->first();
+        $sale = Sale::create([
+            'work_day_id' => $workDay->id,
+            'employee_id' => $employee->id,
+            'category' => 'coiffure',
+            'total' => 40,
+            'commission_amount' => null,
+            'payment_method' => 'especes',
+            'print_count' => 1,
+        ]);
+
+        // Belongs to a different employee — must never be touched.
+        $otherSale = Sale::create([
+            'work_day_id' => $workDay->id,
+            'employee_id' => $otherEmployee->id,
+            'category' => 'coiffure',
+            'total' => 40,
+            'commission_amount' => null,
+            'payment_method' => 'especes',
+            'print_count' => 1,
+        ]);
+
+        $response = $this->postJson("/api/employees/{$employee->id}/regularize-commissions", [
+            'rate' => 50,
+        ]);
+
+        $response->assertOk();
+        $this->assertSame(1, $response->json('meta.items_updated'));
+        $this->assertSame(1, $response->json('meta.sales_updated'));
+
+        $item->refresh();
+        $this->assertEquals(50, $item->commission_amount);
+        $this->assertEquals('percentage', $item->commission_type);
+        // 50% of the sale's own 40 MAD total, not a flat 50 MAD.
+        $this->assertEquals(20, $sale->fresh()->commission_amount);
+        $this->assertNull($otherSale->fresh()->commission_amount);
+    }
 }
