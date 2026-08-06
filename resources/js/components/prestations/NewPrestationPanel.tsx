@@ -35,7 +35,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { PrestationItem } from '@/types/prestation';
 import type { Service } from '@/types/workday';
 
-const OPEN_STATUSES = ['draft', 'in_progress', 'services_done', 'pending_payment'];
+// Only these keep the cart editable and block starting a new one. Once a
+// prestation is sent to the caisse (pending_payment) it moves out of the way
+// so the employee can start a fresh cart for the next client right away,
+// instead of being stuck waiting for the caissier to confirm the first one.
+const EDITABLE_STATUSES = ['draft', 'in_progress', 'services_done'];
 
 const STATUS_LABELS: Record<string, string> = {
     draft: 'Brouillon',
@@ -56,6 +60,7 @@ export function NewPrestationPanel() {
     const [priceInput, setPriceInput] = useState('');
     const [editingItemId, setEditingItemId] = useState<number | null>(null);
     const [editPriceInput, setEditPriceInput] = useState('');
+    const [cancellingPendingId, setCancellingPendingId] = useState<number | null>(null);
 
     // An employee only sees the categories they actually work in (set on
     // their profile) — no restriction configured means show everything, so
@@ -80,7 +85,21 @@ export function NewPrestationPanel() {
     });
 
     const openPrestation = useMemo(
-        () => (myPrestations ?? []).find((prestation) => OPEN_STATUSES.includes(prestation.status)) ?? null,
+        () => (myPrestations ?? []).find((prestation) => EDITABLE_STATUSES.includes(prestation.status)) ?? null,
+        [myPrestations],
+    );
+
+    // Sent to caisse but not yet confirmed — shown as trackable cards, never
+    // blocking a new cart from being started in the meantime.
+    const pendingPrestations = useMemo(
+        () =>
+            (myPrestations ?? [])
+                .filter((prestation) => prestation.status === 'pending_payment')
+                .sort((a, b) => {
+                    const aDate = a.validated_at ?? a.created_at;
+                    const bDate = b.validated_at ?? b.created_at;
+                    return bDate.localeCompare(aDate);
+                }),
         [myPrestations],
     );
 
@@ -167,6 +186,14 @@ export function NewPrestationPanel() {
         },
     });
 
+    const cancelPendingMutation = useMutation({
+        mutationFn: (prestationId: number) => cancelPrestation(prestationId, 'Annulée par l’employé'),
+        onSuccess: () => {
+            invalidate();
+            setCancellingPendingId(null);
+        },
+    });
+
     function openAddServiceDialog(service: Service) {
         setActionError(null);
         setPendingService(service);
@@ -209,13 +236,56 @@ export function NewPrestationPanel() {
         );
     }
 
+    const pendingSection = pendingPrestations.length > 0 && (
+        <div className="space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                En attente de confirmation ({pendingPrestations.length})
+            </p>
+            {pendingPrestations.map((prestation) => (
+                <Card key={prestation.id} className="space-y-2.5 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-foreground">
+                                {prestation.reference} · {prestation.client_name ?? 'Client de passage'}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground">
+                                {prestation.items.map((item) => item.label).join(', ')}
+                            </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                            <span className="text-sm font-semibold tabular-nums text-accent">
+                                {formatCurrency(prestation.total)}
+                            </span>
+                            <Badge variant="accent">Envoyée à la caisse</Badge>
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-between border-t border-tint/[0.06] pt-2.5">
+                        <p className="text-xs text-muted-foreground">
+                            En attente de confirmation de paiement par la caisse.
+                        </p>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setCancellingPendingId(prestation.id)}
+                        >
+                            Annuler
+                        </Button>
+                    </div>
+                </Card>
+            ))}
+        </div>
+    );
+
     if (openPrestation) {
         const editable = ['draft', 'in_progress'].includes(openPrestation.status);
         const servicesDone = openPrestation.status === 'services_done';
-        const pending = openPrestation.status === 'pending_payment';
 
         return (
-            <>
+            <div className="space-y-5">
+                {pendingSection}
+
                 <Card className="space-y-5 p-6">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
@@ -226,7 +296,7 @@ export function NewPrestationPanel() {
                                 {openPrestation.client_name ?? 'Client de passage'}
                             </p>
                         </div>
-                        <Badge variant={pending ? 'accent' : 'success'}>
+                        <Badge variant="success">
                             {STATUS_LABELS[openPrestation.status] ?? openPrestation.status}
                         </Badge>
                     </div>
@@ -328,34 +398,28 @@ export function NewPrestationPanel() {
                         </div>
                     )}
 
-                    {pending ? (
-                        <p className="rounded-md border border-accent/25 bg-accent/[0.08] px-4 py-3 text-sm text-accent">
-                            En attente de confirmation de paiement par la caisse.
-                        </p>
-                    ) : (
-                        <div className="flex flex-wrap items-center gap-2">
-                            {editable && (
-                                <Button
-                                    type="button"
-                                    variant="accent"
-                                    disabled={openPrestation.items.length === 0 || completeMutation.isPending}
-                                    onClick={() => completeMutation.mutate()}
-                                >
-                                    {completeMutation.isPending ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
-                                    Services terminés
-                                </Button>
-                            )}
-                            {servicesDone && (
-                                <Button type="button" variant="accent" disabled={sendMutation.isPending} onClick={() => sendMutation.mutate()}>
-                                    {sendMutation.isPending ? <Loader2 className="animate-spin" /> : <SendHorizonal />}
-                                    Envoyer à la caisse
-                                </Button>
-                            )}
-                            <Button type="button" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setCancelling(true)}>
-                                Annuler la prestation
+                    <div className="flex flex-wrap items-center gap-2">
+                        {editable && (
+                            <Button
+                                type="button"
+                                variant="accent"
+                                disabled={openPrestation.items.length === 0 || completeMutation.isPending}
+                                onClick={() => completeMutation.mutate()}
+                            >
+                                {completeMutation.isPending ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
+                                Services terminés
                             </Button>
-                        </div>
-                    )}
+                        )}
+                        {servicesDone && (
+                            <Button type="button" variant="accent" disabled={sendMutation.isPending} onClick={() => sendMutation.mutate()}>
+                                {sendMutation.isPending ? <Loader2 className="animate-spin" /> : <SendHorizonal />}
+                                Envoyer à la caisse
+                            </Button>
+                        )}
+                        <Button type="button" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setCancelling(true)}>
+                            Annuler la prestation
+                        </Button>
+                    </div>
                 </Card>
 
                 {editable && (
@@ -382,6 +446,20 @@ export function NewPrestationPanel() {
                     onConfirm={() => cancelMutation.mutate()}
                 />
 
+                <ConfirmDialog
+                    open={cancellingPendingId !== null}
+                    onOpenChange={(open) => {
+                        if (!open) setCancellingPendingId(null);
+                    }}
+                    title="Annuler cette prestation envoyée à la caisse ?"
+                    description="Le caissier ne pourra plus confirmer ce paiement. Cette action est irréversible."
+                    confirmLabel="Annuler la prestation"
+                    loading={cancelPendingMutation.isPending}
+                    onConfirm={() => {
+                        if (cancellingPendingId !== null) cancelPendingMutation.mutate(cancellingPendingId);
+                    }}
+                />
+
                 <AddServiceDialog
                     service={pendingService}
                     price={priceInput}
@@ -393,12 +471,14 @@ export function NewPrestationPanel() {
                     pending={addServicePending}
                     error={actionError}
                 />
-            </>
+            </div>
         );
     }
 
     return (
         <div className="space-y-5">
+            {pendingSection}
+
             <Card className="space-y-4 p-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Client</p>
                 <ClientPicker value={clientSelection} onChange={setClientSelection} />
@@ -421,6 +501,20 @@ export function NewPrestationPanel() {
                 loading={servicesPending}
                 onSelect={openAddServiceDialog}
                 pending={addServicePending}
+            />
+
+            <ConfirmDialog
+                open={cancellingPendingId !== null}
+                onOpenChange={(open) => {
+                    if (!open) setCancellingPendingId(null);
+                }}
+                title="Annuler cette prestation envoyée à la caisse ?"
+                description="Le caissier ne pourra plus confirmer ce paiement. Cette action est irréversible."
+                confirmLabel="Annuler la prestation"
+                loading={cancelPendingMutation.isPending}
+                onConfirm={() => {
+                    if (cancellingPendingId !== null) cancelPendingMutation.mutate(cancellingPendingId);
+                }}
             />
 
             <AddServiceDialog
