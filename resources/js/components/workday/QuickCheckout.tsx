@@ -212,8 +212,13 @@ export function QuickCheckout({
             label: label.trim(),
             price: priceValue,
             product_id: usesProductCatalog ? serviceId : null,
+            service_id: usesProductCatalog ? null : serviceId,
+            // Left untouched (still just the client-side estimate shown as a
+            // suggestion) → omitted, so the server computes the real amount
+            // via the employee's actual commission rules instead of this
+            // rough flat-rate preview. Only an explicit edit overrides it.
             commission_amount:
-                commissionValue !== null && Number.isFinite(commissionValue)
+                commissionTouched && commissionValue !== null && Number.isFinite(commissionValue)
                     ? commissionValue
                     : null,
         };
@@ -225,7 +230,19 @@ export function QuickCheckout({
         }
 
         mutation.mutate(payload);
-    }, [canSubmit, employeeId, category, label, priceValue, commissionValue, client, mutation, serviceId, usesProductCatalog]);
+    }, [
+        canSubmit,
+        employeeId,
+        category,
+        label,
+        priceValue,
+        commissionValue,
+        commissionTouched,
+        client,
+        mutation,
+        serviceId,
+        usesProductCatalog,
+    ]);
 
     /**
      * Shortcuts: 1–6 pick a category, Enter submits. Both are suppressed while a

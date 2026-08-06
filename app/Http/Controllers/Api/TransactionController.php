@@ -9,6 +9,8 @@ use App\Models\Sale;
 use App\Models\Product;
 use App\Models\Employee;
 use App\Models\SaleItem;
+use App\Models\Service;
+use App\Services\CommissionResolver;
 use App\Services\WorkDayService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,7 +20,7 @@ use Illuminate\Validation\Rule;
 
 class TransactionController extends Controller
 {
-    public function store(StoreTransactionRequest $request, WorkDayService $service): JsonResponse
+    public function store(StoreTransactionRequest $request, WorkDayService $service, CommissionResolver $commissionResolver): JsonResponse
     {
         $activeDay = $service->getActiveDay();
 
@@ -34,11 +36,13 @@ class TransactionController extends Controller
             throw ValidationException::withMessages(['employee_id' => 'Sélectionnez un employé pour cette prestation.']);
         }
 
-        $sale = DB::transaction(function () use ($data, $activeDay) {
+        $sale = DB::transaction(function () use ($data, $activeDay, $request, $commissionResolver) {
             $product = null;
             $employeeId = $data['employee_id'] ?? null;
             $label = $data['label'];
             $price = (float) $data['price'];
+            $serviceId = $data['service_id'] ?? null;
+            $commissionAmount = $data['commission_amount'] ?? null;
 
             if (! empty($data['product_id'])) {
                 $product = Product::query()->lockForUpdate()->find($data['product_id']);
@@ -66,7 +70,20 @@ class TransactionController extends Controller
 
                 $label = $product->name;
                 $price = (float) $product->price;
+                $serviceId = null;
                 $product->decrement('stock_quantity');
+            } elseif (! $request->filled('commission_amount')) {
+                // Left blank — auto-calculate the same way the Prestation
+                // workflow does (per-service rule, falling back to the
+                // employee's flat default rate) instead of silently storing
+                // nothing. An explicitly typed value (including 0) still
+                // wins, for the rare case of a manual override.
+                $employee = Employee::find($employeeId);
+                $employeeService = $serviceId ? Service::find($serviceId) : null;
+
+                if ($employee !== null) {
+                    $commissionAmount = $commissionResolver->resolve($employee, $employeeService, $price)['amount'];
+                }
             }
 
             $sale = Sale::create([
@@ -75,8 +92,9 @@ class TransactionController extends Controller
                 'client_label' => $data['client_label'] ?? null,
                 'employee_id' => $employeeId,
                 'category' => $data['category'],
+                'service_id' => $serviceId,
                 'total' => $price,
-                'commission_amount' => $data['commission_amount'] ?? null,
+                'commission_amount' => $commissionAmount,
                 'payment_method' => $data['payment_method'] ?? 'especes',
                 'print_count' => 1,
             ]);

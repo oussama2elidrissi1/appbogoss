@@ -26,6 +26,7 @@ class StoreTransactionRequest extends FormRequest
             'client_id' => ['nullable', 'integer', 'exists:clients,id'],
             'client_label' => ['nullable', 'string', 'max:255'],
             'product_id' => ['nullable', 'integer', 'exists:products,id'],
+            'service_id' => ['nullable', 'integer', 'exists:services,id'],
             'category' => ['required', 'string', 'in:coiffure,hammam,massage,boisson,vitrine,autre'],
             'label' => ['required', 'string', 'max:255'],
             'price' => ['required', 'numeric', 'min:0'],

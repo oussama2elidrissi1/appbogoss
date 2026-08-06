@@ -191,11 +191,14 @@ export interface Sale {
 export interface CreateTransactionPayload {
     employee_id: number | null;
     product_id?: number | null;
+    /** Catalog service this line matches — lets the server auto-calculate commission from the employee's rules. */
+    service_id?: number | null;
     client_id?: number | null;
     client_label?: string | null;
     category: TransactionCategory;
     label: string;
     price: number;
+    /** Omit (or leave null) to let the server auto-calculate; send a number to override it. */
     commission_amount?: number | null;
     payment_method?: string;
 }

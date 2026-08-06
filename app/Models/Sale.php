@@ -19,6 +19,7 @@ class Sale extends Model
         'client_label',
         'employee_id',
         'category',
+        'service_id',
         'total',
         'commission_amount',
         'payment_method',
@@ -39,6 +40,11 @@ class Sale extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    public function service(): BelongsTo
+    {
+        return $this->belongsTo(Service::class);
     }
 
     public function items(): HasMany

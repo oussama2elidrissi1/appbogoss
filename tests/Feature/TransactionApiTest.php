@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\Employee;
+use App\Models\EmployeeServiceCommission;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Models\Service;
 use App\Models\User;
 use App\Models\WorkDay;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -91,5 +93,72 @@ class TransactionApiTest extends TestCase
             'work_day_id' => $workDay->id,
             'print_count' => 2,
         ]);
+    }
+
+    public function test_store_auto_calculates_commission_from_the_employees_default_rate_when_left_blank(): void
+    {
+        $this->actingAsAdmin();
+
+        $employee = Employee::factory()->create(['default_commission_rate' => 40]);
+        WorkDay::factory()->create(['status' => 'open']);
+
+        $response = $this->postJson('/api/transactions', [
+            'employee_id' => $employee->id,
+            'category' => 'coiffure',
+            'label' => 'Coupe cheveux + barbe',
+            'price' => 100,
+        ]);
+
+        $response->assertCreated();
+        $this->assertEquals(40, $response->json('data.commission_amount'));
+    }
+
+    public function test_store_auto_calculates_commission_from_a_per_service_rule_when_service_id_is_given(): void
+    {
+        $this->actingAsAdmin();
+
+        $employee = Employee::factory()->create(['default_commission_rate' => 40]);
+        $service = Service::factory()->create(['category' => 'coiffure', 'name' => 'Coupe cheveux + barbe']);
+        EmployeeServiceCommission::create([
+            'employee_id' => $employee->id,
+            'service_id' => $service->id,
+            'type' => 'percentage',
+            'value' => 70,
+            'starts_on' => now()->subDays(30)->toDateString(),
+            'is_active' => true,
+        ]);
+        WorkDay::factory()->create(['status' => 'open']);
+
+        $response = $this->postJson('/api/transactions', [
+            'employee_id' => $employee->id,
+            'category' => 'coiffure',
+            'service_id' => $service->id,
+            'label' => 'Coupe cheveux + barbe',
+            'price' => 100,
+        ]);
+
+        $response->assertCreated();
+        // The per-service rule (70%) wins over the flat default rate (40%).
+        $this->assertEquals(70, $response->json('data.commission_amount'));
+        $this->assertDatabaseHas('sales', ['id' => $response->json('data.id'), 'service_id' => $service->id]);
+    }
+
+    public function test_store_respects_an_explicit_commission_override(): void
+    {
+        $this->actingAsAdmin();
+
+        $employee = Employee::factory()->create(['default_commission_rate' => 40]);
+        WorkDay::factory()->create(['status' => 'open']);
+
+        $response = $this->postJson('/api/transactions', [
+            'employee_id' => $employee->id,
+            'category' => 'coiffure',
+            'label' => 'Coupe cheveux + barbe',
+            'price' => 100,
+            'commission_amount' => 5,
+        ]);
+
+        $response->assertCreated();
+        $this->assertEquals(5, $response->json('data.commission_amount'));
     }
 }
