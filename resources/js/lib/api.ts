@@ -40,6 +40,15 @@ import type {
     Prestation,
     UpdatePrestationItemPayload,
 } from '@/types/prestation';
+import type {
+    ClientLoyaltyStatus,
+    ClientSubscription,
+    LoyaltyProgram,
+    LoyaltyProgramPayload,
+    PurchaseSubscriptionPayload,
+    SubscriptionPlan,
+    SubscriptionPlanPayload,
+} from '@/types/loyalty';
 
 /**
  * Sanctum SPA (cookie) authentication:
@@ -702,5 +711,55 @@ export async function updateUserAccess(
 
 export async function resetUserPassword(id: number): Promise<{ temporary_password: string }> {
     const { data } = await api.post<{ data: { temporary_password: string } }>(`/api/users/${id}/reset-password`);
+    return data.data;
+}
+
+export async function getLoyaltyPrograms(): Promise<LoyaltyProgram[]> {
+    const { data } = await api.get<{ data: LoyaltyProgram[] }>('/api/loyalty-programs');
+    return data.data;
+}
+
+export async function createLoyaltyProgram(payload: LoyaltyProgramPayload): Promise<LoyaltyProgram> {
+    const { data } = await api.post<{ data: LoyaltyProgram }>('/api/loyalty-programs', payload);
+    return data.data;
+}
+
+export async function updateLoyaltyProgram(id: number, payload: LoyaltyProgramPayload): Promise<LoyaltyProgram> {
+    const { data } = await api.put<{ data: LoyaltyProgram }>(`/api/loyalty-programs/${id}`, payload);
+    return data.data;
+}
+
+export async function deactivateLoyaltyProgram(id: number): Promise<LoyaltyProgram> {
+    const { data } = await api.delete<{ data: LoyaltyProgram }>(`/api/loyalty-programs/${id}`);
+    return data.data;
+}
+
+export async function getSubscriptionPlans(): Promise<SubscriptionPlan[]> {
+    const { data } = await api.get<{ data: SubscriptionPlan[] }>('/api/subscription-plans');
+    return data.data;
+}
+
+export async function createSubscriptionPlan(payload: SubscriptionPlanPayload): Promise<SubscriptionPlan> {
+    const { data } = await api.post<{ data: SubscriptionPlan }>('/api/subscription-plans', payload);
+    return data.data;
+}
+
+export async function updateSubscriptionPlan(id: number, payload: SubscriptionPlanPayload): Promise<SubscriptionPlan> {
+    const { data } = await api.put<{ data: SubscriptionPlan }>(`/api/subscription-plans/${id}`, payload);
+    return data.data;
+}
+
+export async function deactivateSubscriptionPlan(id: number): Promise<SubscriptionPlan> {
+    const { data } = await api.delete<{ data: SubscriptionPlan }>(`/api/subscription-plans/${id}`);
+    return data.data;
+}
+
+export async function purchaseSubscription(clientId: number, payload: PurchaseSubscriptionPayload): Promise<ClientSubscription> {
+    const { data } = await api.post<{ data: ClientSubscription }>(`/api/clients/${clientId}/subscriptions`, payload);
+    return data.data;
+}
+
+export async function getClientLoyaltyStatus(clientId: number): Promise<ClientLoyaltyStatus> {
+    const { data } = await api.get<{ data: ClientLoyaltyStatus }>(`/api/clients/${clientId}/loyalty-status`);
     return data.data;
 }

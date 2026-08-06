@@ -13,6 +13,7 @@ import Depenses from '@/pages/Depenses';
 import EmployeeDetail from '@/pages/EmployeeDetail';
 import Employees from '@/pages/Employees';
 import Login from '@/pages/Login';
+import LoyaltyPrograms from '@/pages/LoyaltyPrograms';
 import MonEspace from '@/pages/MonEspace';
 import Payroll from '@/pages/Payroll';
 import PlaceholderPage from '@/pages/PlaceholderPage';
@@ -20,6 +21,7 @@ import Reports from '@/pages/Reports';
 import Services from '@/pages/Services';
 import Stock from '@/pages/Stock';
 import Settings from '@/pages/Settings';
+import SubscriptionPlans from '@/pages/SubscriptionPlans';
 
 /** Nav destinations backed by a real screen; everything else is a placeholder. */
 const realRoutes = new Set([
@@ -37,6 +39,8 @@ const realRoutes = new Set([
     '/reports',
     '/settings',
     '/activity-log',
+    '/loyalty-programs',
+    '/subscription-plans',
 ]);
 const placeholderItems = navItems.filter((item) => !realRoutes.has(item.to));
 
@@ -93,6 +97,11 @@ export default function App() {
 
                     <Route element={<ProtectedRoute permission="users.manage" />}>
                         <Route path="/comptes" element={<Comptes />} />
+                    </Route>
+
+                    <Route element={<ProtectedRoute permission="loyalty.manage" />}>
+                        <Route path="/loyalty-programs" element={<LoyaltyPrograms />} />
+                        <Route path="/subscription-plans" element={<SubscriptionPlans />} />
                     </Route>
 
                     {placeholderItems.map((item) => (

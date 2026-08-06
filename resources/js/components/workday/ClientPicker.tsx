@@ -291,11 +291,6 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
                                                         </span>
                                                     )}
                                                 </span>
-                                                {client.loyalty_points > 0 && (
-                                                    <span className="shrink-0 text-xs font-medium tabular-nums text-accent">
-                                                        {client.loyalty_points} pts
-                                                    </span>
-                                                )}
                                             </button>
                                         </li>
                                     ))

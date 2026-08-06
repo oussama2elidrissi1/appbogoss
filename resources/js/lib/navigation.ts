@@ -1,6 +1,8 @@
 import {
     BarChart3,
     Calendar,
+    CalendarClock,
+    Gift,
     History,
     LayoutDashboard,
     Megaphone,
@@ -117,6 +119,25 @@ export const navSections: NavSection[] = [
                 icon: Receipt,
                 description: 'Charges, fournisseurs et suivi budgétaire mensuel.',
                 permission: 'caisse.manage',
+            },
+        ],
+    },
+    {
+        heading: 'Fidélité',
+        items: [
+            {
+                label: 'Programmes de fidélité',
+                to: '/loyalty-programs',
+                icon: Gift,
+                description: 'Comptes fidélité numériques des clients — cumul de services, points ou visites.',
+                permission: 'loyalty.manage',
+            },
+            {
+                label: 'Abonnements',
+                to: '/subscription-plans',
+                icon: CalendarClock,
+                description: 'Plans payants avec quotas de services inclus, ex. « Hammam 3 mois ».',
+                permission: 'loyalty.manage',
             },
         ],
     },

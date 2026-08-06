@@ -87,7 +87,18 @@ class PrestationController extends Controller
             ]);
         }
 
-        $prestation = $this->service->create($request->validated(), $employee, $actor);
+        $validated = $request->validated();
+
+        foreach ($validated['items'] ?? [] as $item) {
+            if ((! empty($item['loyalty_reward_id']) || ! empty($item['client_subscription_id'])) && ! $actor->can('loyalty.redeem')) {
+                return response()->json(['message' => 'Action non autorisée.'], 403);
+            }
+            if (! empty($item['exception_override']) && ! $actor->can('loyalty.override_quota')) {
+                return response()->json(['message' => 'Action non autorisée.'], 403);
+            }
+        }
+
+        $prestation = $this->service->create($validated, $employee, $actor);
 
         return response()->json(['data' => new PrestationResource($prestation)], 201);
     }

@@ -19,6 +19,10 @@ export interface PrestationItem {
     commission_type: string | null;
     commission_value: number | null;
     commission_amount: number | null;
+    loyalty_reward_id: number | null;
+    client_subscription_id: number | null;
+    is_free: boolean;
+    public_price: number | null;
 }
 
 export interface PrestationStatusLogEntry {
@@ -74,6 +78,11 @@ export interface CreatePrestationPayload {
         unit_price?: number;
         duration_minutes?: number | null;
         notes?: string | null;
+        loyalty_reward_id?: number | null;
+        client_subscription_id?: number | null;
+        subscription_plan_service_id?: number | null;
+        exception_override?: boolean;
+        override_reason?: string | null;
     }>;
 }
 
@@ -84,6 +93,11 @@ export interface AddPrestationItemPayload {
     unit_price?: number;
     duration_minutes?: number | null;
     notes?: string | null;
+    loyalty_reward_id?: number | null;
+    client_subscription_id?: number | null;
+    subscription_plan_service_id?: number | null;
+    exception_override?: boolean;
+    override_reason?: string | null;
 }
 
 export interface UpdatePrestationItemPayload {

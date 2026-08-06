@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CashMovementController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\ClientController;
+use App\Http\Controllers\Api\ClientLoyaltyStatusController;
 use App\Http\Controllers\Api\CommissionPayoutController;
 use App\Http\Controllers\Api\CommissionRegularizationController;
 use App\Http\Controllers\Api\DashboardController;
@@ -117,13 +118,14 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/employees/{employee}/commission-payouts', [CommissionPayoutController::class, 'history']);
     });
 
-    // Loyalty & Subscriptions — Phase 1 backend scaffolding, no admin UI yet.
+    // Loyalty & Subscriptions
     Route::middleware('permission:loyalty.manage')->group(function () {
         Route::apiResource('/loyalty-programs', LoyaltyProgramController::class);
         Route::apiResource('/subscription-plans', SubscriptionPlanController::class);
     });
     Route::middleware('permission:loyalty.redeem')->group(function () {
         Route::post('/clients/{client}/subscriptions', SubscriptionPurchaseController::class);
+        Route::get('/clients/{client}/loyalty-status', ClientLoyaltyStatusController::class);
     });
 
     Route::middleware('permission:users.manage')->group(function () {

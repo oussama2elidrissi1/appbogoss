@@ -123,44 +123,21 @@ class SubscriptionService
 
             $periodKey = $planService->quota_period ? $this->periodKey($planService->quota_period, $today) : null;
 
-            // Two different counts on purpose: quota enforcement only cares
-            // about slots still actually consuming the allowance (reserved/
-            // confirmed) — a released/voided usage frees the quota back up.
-            // The unique-index sequence number, however, must never be
-            // reused even by a voided row, or a fresh reservation would
-            // collide with that now-inert row's slot (the unique index isn't
-            // status-aware). So the sequence counts every attempt ever made,
-            // successful or not.
-            $countInPeriod = null;
-            $attemptsInPeriod = null;
-            if ($periodKey !== null) {
-                $periodQuery = ClientSubscriptionUsage::where('client_subscription_id', $lockedSub->id)
-                    ->where('subscription_plan_service_id', $planService->id)
-                    ->where('period_key', $periodKey);
+            $quota = $this->quotaCounts($lockedSub, $planService, $periodKey);
+            [
+                'count_in_period' => $countInPeriod,
+                'attempts_in_period' => $attemptsInPeriod,
+                'count_total' => $countTotal,
+                'attempts_total' => $attemptsTotal,
+            ] = $quota;
 
-                $countInPeriod = (clone $periodQuery)->whereIn('status', [ClientSubscriptionUsage::STATUS_RESERVED, ClientSubscriptionUsage::STATUS_CONFIRMED])->count();
-
-                if ($planService->quota_per_period !== null && $countInPeriod >= $planService->quota_per_period && ! $exceptionOverride) {
-                    throw ValidationException::withMessages(['quota' => 'Quota atteint pour cette période.']);
-                }
-
-                $attemptsInPeriod = $periodQuery->count();
+            if ($periodKey !== null && $planService->quota_per_period !== null && $countInPeriod >= $planService->quota_per_period && ! $exceptionOverride) {
+                throw ValidationException::withMessages(['quota' => 'Quota atteint pour cette période.']);
             }
 
-            $countTotal = null;
-            $attemptsTotal = null;
-            if ($planService->quota_total !== null) {
-                $totalQuery = ClientSubscriptionUsage::where('client_subscription_id', $lockedSub->id)
-                    ->where('subscription_plan_service_id', $planService->id);
-
-                $countTotal = (clone $totalQuery)->whereIn('status', [ClientSubscriptionUsage::STATUS_RESERVED, ClientSubscriptionUsage::STATUS_CONFIRMED])->count();
-
+            if ($planService->quota_total !== null && $countTotal >= $planService->quota_total) {
                 // The lifetime quota is never bypassable, even with an exception override.
-                if ($countTotal >= $planService->quota_total) {
-                    throw ValidationException::withMessages(['quota' => 'Quota total de l’abonnement atteint.']);
-                }
-
-                $attemptsTotal = $totalQuery->count();
+                throw ValidationException::withMessages(['quota' => 'Quota total de l’abonnement atteint.']);
             }
 
             try {
@@ -259,6 +236,73 @@ class SubscriptionService
         return ClientSubscription::where('status', ClientSubscription::STATUS_ACTIVE)
             ->whereDate('ends_on', '<', now())
             ->update(['status' => ClientSubscription::STATUS_EXPIRED]);
+    }
+
+    /**
+     * Read-only quota preview for a subscription/service pair, today — same
+     * counts reserveUsage() enforces (via quotaCounts()), so this can never
+     * drift from what actually gets accepted. Null means "no limit."
+     *
+     * @return array{period_remaining: int|null, total_remaining: int|null, period_key: string|null}
+     */
+    public function quotaRemaining(ClientSubscription $subscription, SubscriptionPlanService $planService): array
+    {
+        $today = Carbon::today();
+        $periodKey = $planService->quota_period ? $this->periodKey($planService->quota_period, $today) : null;
+
+        $counts = $this->quotaCounts($subscription, $planService, $periodKey);
+
+        return [
+            'period_remaining' => $planService->quota_per_period !== null
+                ? max(0, $planService->quota_per_period - $counts['count_in_period'])
+                : null,
+            'total_remaining' => $planService->quota_total !== null
+                ? max(0, $planService->quota_total - $counts['count_total'])
+                : null,
+            'period_key' => $periodKey,
+        ];
+    }
+
+    /**
+     * Two different counts on purpose: quota enforcement only cares about
+     * slots still actually consuming the allowance (reserved/confirmed) — a
+     * released/voided usage frees the quota back up. The unique-index
+     * sequence number, however, must never be reused even by a voided row,
+     * or a fresh reservation would collide with that now-inert row's slot
+     * (the unique index isn't status-aware). So the sequence counts every
+     * attempt ever made, successful or not.
+     *
+     * @return array{count_in_period: int, attempts_in_period: int, count_total: int, attempts_total: int}
+     */
+    private function quotaCounts(ClientSubscription $subscription, SubscriptionPlanService $planService, ?string $periodKey): array
+    {
+        $countInPeriod = 0;
+        $attemptsInPeriod = 0;
+        if ($periodKey !== null) {
+            $periodQuery = ClientSubscriptionUsage::where('client_subscription_id', $subscription->id)
+                ->where('subscription_plan_service_id', $planService->id)
+                ->where('period_key', $periodKey);
+
+            $countInPeriod = (clone $periodQuery)->whereIn('status', [ClientSubscriptionUsage::STATUS_RESERVED, ClientSubscriptionUsage::STATUS_CONFIRMED])->count();
+            $attemptsInPeriod = $periodQuery->count();
+        }
+
+        $countTotal = 0;
+        $attemptsTotal = 0;
+        if ($planService->quota_total !== null) {
+            $totalQuery = ClientSubscriptionUsage::where('client_subscription_id', $subscription->id)
+                ->where('subscription_plan_service_id', $planService->id);
+
+            $countTotal = (clone $totalQuery)->whereIn('status', [ClientSubscriptionUsage::STATUS_RESERVED, ClientSubscriptionUsage::STATUS_CONFIRMED])->count();
+            $attemptsTotal = $totalQuery->count();
+        }
+
+        return [
+            'count_in_period' => $countInPeriod,
+            'attempts_in_period' => $attemptsInPeriod,
+            'count_total' => $countTotal,
+            'attempts_total' => $attemptsTotal,
+        ];
     }
 
     private function periodKey(string $period, Carbon $date): string

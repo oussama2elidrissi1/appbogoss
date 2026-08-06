@@ -1,11 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, CheckCircle2, Loader2, Pencil, Search, SendHorizonal, Trash2 } from 'lucide-react';
+import {
+    AlertCircle,
+    CalendarClock,
+    CheckCircle2,
+    Gift,
+    Loader2,
+    Pencil,
+    Search,
+    SendHorizonal,
+    Sparkles,
+    Trash2,
+} from 'lucide-react';
 import {
     addPrestationItem,
     cancelPrestation,
     completePrestationServices,
     createPrestation,
+    getClientLoyaltyStatus,
     getErrorMessage,
     getPrestations,
     getServices,
@@ -20,6 +32,7 @@ import { ClientPicker, EMPTY_CLIENT_SELECTION, type ClientSelection } from '@/co
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Chip } from '@/components/ui/chip';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -32,8 +45,21 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import type { PrestationItem } from '@/types/prestation';
+import type { AddPrestationItemPayload, PrestationItem } from '@/types/prestation';
 import type { Service } from '@/types/workday';
+import type { ClientLoyaltyReward, ClientLoyaltyStatus } from '@/types/loyalty';
+
+type Redemption =
+    | { kind: 'reward'; rewardId: number }
+    | { kind: 'subscription'; subscriptionId: number; planServiceId: number; exceptionOverride: boolean };
+
+interface SubscriptionOption {
+    subscriptionId: number;
+    planServiceId: number;
+    planName: string | null;
+    periodRemaining: number | null;
+    totalRemaining: number | null;
+}
 
 // Only these keep the cart editable and block starting a new one. Once a
 // prestation is sent to the caisse (pending_payment) it moves out of the way
@@ -50,7 +76,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 export function NewPrestationPanel() {
     const queryClient = useQueryClient();
-    const { user } = useAuth();
+    const { user, hasPermission } = useAuth();
     const [clientSelection, setClientSelection] = useState<ClientSelection>(EMPTY_CLIENT_SELECTION);
     const [category, setCategory] = useState<CategoryConfig>(CATEGORIES[0]);
     const [serviceSearch, setServiceSearch] = useState('');
@@ -61,6 +87,8 @@ export function NewPrestationPanel() {
     const [editingItemId, setEditingItemId] = useState<number | null>(null);
     const [editPriceInput, setEditPriceInput] = useState('');
     const [cancellingPendingId, setCancellingPendingId] = useState<number | null>(null);
+    const [redemption, setRedemption] = useState<Redemption | null>(null);
+    const [overrideReason, setOverrideReason] = useState('');
 
     // An employee only sees the categories they actually work in (set on
     // their profile) — no restriction configured means show everything, so
@@ -109,6 +137,20 @@ export function NewPrestationPanel() {
         staleTime: 60_000,
     });
 
+    const canRedeem = hasPermission('loyalty.redeem');
+    const canOverrideQuota = hasPermission('loyalty.override_quota');
+    const currentClientId = openPrestation
+        ? openPrestation.client_id
+        : clientSelection.mode === 'client'
+          ? (clientSelection.client?.id ?? null)
+          : null;
+
+    const { data: loyaltyStatus } = useQuery({
+        queryKey: ['loyalty-status', currentClientId],
+        queryFn: () => getClientLoyaltyStatus(currentClientId!),
+        enabled: canRedeem && currentClientId != null,
+    });
+
     // Narrower than the category tabs: an explicit per-service allow-list set
     // on the employee's profile (empty means no further restriction).
     const allowedServiceIds = user?.employee_allowed_service_ids ?? [];
@@ -127,25 +169,30 @@ export function NewPrestationPanel() {
         void queryClient.invalidateQueries({ queryKey: ['prestations'] });
     }
 
+    function invalidateLoyalty() {
+        void queryClient.invalidateQueries({ queryKey: ['loyalty-status'] });
+    }
+
     const createMutation = useMutation({
-        mutationFn: ({ service, unitPrice }: { service: Service; unitPrice: number }) =>
+        mutationFn: (itemPayload: AddPrestationItemPayload) =>
             createPrestation({
-                client_id: clientSelection.mode === 'client' ? clientSelection.client?.id ?? null : null,
+                client_id: clientSelection.mode === 'client' ? (clientSelection.client?.id ?? null) : null,
                 client_label: clientSelection.mode === 'walkin' ? clientSelection.label.trim() || null : null,
-                items: [{ service_id: service.id, unit_price: unitPrice }],
+                items: [itemPayload],
             }),
         onSuccess: () => {
             invalidate();
+            invalidateLoyalty();
             setPendingService(null);
         },
         onError: (error) => setActionError(getErrorMessage(error)),
     });
 
     const addItemMutation = useMutation({
-        mutationFn: ({ service, unitPrice }: { service: Service; unitPrice: number }) =>
-            addPrestationItem(openPrestation!.id, { service_id: service.id, unit_price: unitPrice }),
+        mutationFn: (itemPayload: AddPrestationItemPayload) => addPrestationItem(openPrestation!.id, itemPayload),
         onSuccess: () => {
             invalidate();
+            invalidateLoyalty();
             setPendingService(null);
         },
         onError: (error) => setActionError(getErrorMessage(error)),
@@ -163,7 +210,10 @@ export function NewPrestationPanel() {
 
     const removeItemMutation = useMutation({
         mutationFn: (itemId: number) => removePrestationItem(openPrestation!.id, itemId),
-        onSuccess: invalidate,
+        onSuccess: () => {
+            invalidate();
+            invalidateLoyalty();
+        },
     });
 
     const completeMutation = useMutation({
@@ -182,6 +232,7 @@ export function NewPrestationPanel() {
         mutationFn: () => cancelPrestation(openPrestation!.id, 'Annulée par l’employé'),
         onSuccess: () => {
             invalidate();
+            invalidateLoyalty();
             setCancelling(false);
         },
     });
@@ -190,6 +241,7 @@ export function NewPrestationPanel() {
         mutationFn: (prestationId: number) => cancelPrestation(prestationId, 'Annulée par l’employé'),
         onSuccess: () => {
             invalidate();
+            invalidateLoyalty();
             setCancellingPendingId(null);
         },
     });
@@ -198,17 +250,61 @@ export function NewPrestationPanel() {
         setActionError(null);
         setPendingService(service);
         setPriceInput(String(service.price));
+        setRedemption(null);
+        setOverrideReason('');
     }
+
+    const applicableRewards: ClientLoyaltyReward[] = useMemo(() => {
+        if (!loyaltyStatus || !pendingService) return [];
+        return loyaltyStatus.rewards.filter((reward) => reward.service_id === null || reward.service_id === pendingService.id);
+    }, [loyaltyStatus, pendingService]);
+
+    const applicableSubscriptionOptions: SubscriptionOption[] = useMemo(() => {
+        if (!loyaltyStatus || !pendingService) return [];
+        const options: SubscriptionOption[] = [];
+        for (const subscription of loyaltyStatus.subscriptions) {
+            for (const planService of subscription.services) {
+                if (planService.service_id === pendingService.id) {
+                    options.push({
+                        subscriptionId: subscription.id,
+                        planServiceId: planService.subscription_plan_service_id,
+                        planName: subscription.plan_name,
+                        periodRemaining: planService.period_remaining,
+                        totalRemaining: planService.total_remaining,
+                    });
+                }
+            }
+        }
+        return options;
+    }, [loyaltyStatus, pendingService]);
 
     function confirmAddService() {
         if (!pendingService) return;
-        const unitPrice = Number.parseFloat(priceInput.replace(',', '.'));
-        if (!Number.isFinite(unitPrice) || unitPrice < 0) return;
+
+        let itemPayload: AddPrestationItemPayload;
+
+        if (redemption?.kind === 'reward') {
+            itemPayload = { service_id: pendingService.id, loyalty_reward_id: redemption.rewardId };
+        } else if (redemption?.kind === 'subscription') {
+            if (redemption.exceptionOverride && !overrideReason.trim()) return;
+            itemPayload = {
+                service_id: pendingService.id,
+                client_subscription_id: redemption.subscriptionId,
+                subscription_plan_service_id: redemption.planServiceId,
+                ...(redemption.exceptionOverride
+                    ? { exception_override: true, override_reason: overrideReason.trim() }
+                    : {}),
+            };
+        } else {
+            const unitPrice = Number.parseFloat(priceInput.replace(',', '.'));
+            if (!Number.isFinite(unitPrice) || unitPrice < 0) return;
+            itemPayload = { service_id: pendingService.id, unit_price: unitPrice };
+        }
 
         if (openPrestation) {
-            addItemMutation.mutate({ service: pendingService, unitPrice });
+            addItemMutation.mutate(itemPayload);
         } else {
-            createMutation.mutate({ service: pendingService, unitPrice });
+            createMutation.mutate(itemPayload);
         }
     }
 
@@ -301,6 +397,8 @@ export function NewPrestationPanel() {
                         </Badge>
                     </div>
 
+                    {canRedeem && <ClientLoyaltyPanel status={loyaltyStatus} />}
+
                     <div className="space-y-2">
                         {openPrestation.items.length === 0 ? (
                             <p className="rounded-md border border-dashed border-tint/[0.08] px-4 py-5 text-center text-xs text-muted-foreground">
@@ -317,7 +415,14 @@ export function NewPrestationPanel() {
                                     >
                                         <div className="flex items-center justify-between gap-3">
                                             <div className="min-w-0">
-                                                <p className="truncate text-sm font-medium text-foreground">{item.label}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <p className="truncate text-sm font-medium text-foreground">{item.label}</p>
+                                                    {item.is_free && (
+                                                        <Badge variant="accent" className="shrink-0">
+                                                            {item.loyalty_reward_id ? 'Récompense' : 'Abonnement'}
+                                                        </Badge>
+                                                    )}
+                                                </div>
                                                 <p className="text-xs text-muted-foreground">
                                                     Qté {item.quantity} · {formatCurrency(item.unit_price)}
                                                 </p>
@@ -470,6 +575,13 @@ export function NewPrestationPanel() {
                     onConfirm={confirmAddService}
                     pending={addServicePending}
                     error={actionError}
+                    rewards={applicableRewards}
+                    subscriptionOptions={applicableSubscriptionOptions}
+                    redemption={redemption}
+                    onRedemptionChange={setRedemption}
+                    canOverrideQuota={canOverrideQuota}
+                    overrideReason={overrideReason}
+                    onOverrideReasonChange={setOverrideReason}
                 />
             </div>
         );
@@ -482,6 +594,7 @@ export function NewPrestationPanel() {
             <Card className="space-y-4 p-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Client</p>
                 <ClientPicker value={clientSelection} onChange={setClientSelection} />
+                {canRedeem && currentClientId != null && <ClientLoyaltyPanel status={loyaltyStatus} />}
             </Card>
 
             {actionError && (
@@ -527,7 +640,40 @@ export function NewPrestationPanel() {
                 onConfirm={confirmAddService}
                 pending={addServicePending}
                 error={actionError}
+                rewards={applicableRewards}
+                subscriptionOptions={applicableSubscriptionOptions}
+                redemption={redemption}
+                onRedemptionChange={setRedemption}
+                canOverrideQuota={canOverrideQuota}
+                overrideReason={overrideReason}
+                onOverrideReasonChange={setOverrideReason}
             />
+        </div>
+    );
+}
+
+function ClientLoyaltyPanel({ status }: { status: ClientLoyaltyStatus | undefined }) {
+    if (!status) return null;
+    if (status.points_balance === 0 && status.rewards.length === 0 && status.subscriptions.length === 0) return null;
+
+    return (
+        <div className="space-y-2 rounded-md border border-accent/20 bg-accent/[0.04] p-3.5">
+            <p className="text-xs font-semibold uppercase tracking-[0.06em] text-accent">Compte fidélité</p>
+            <div className="flex flex-wrap gap-2">
+                {status.points_balance > 0 && <Badge variant="outline">{status.points_balance} points</Badge>}
+                {status.rewards.map((reward) => (
+                    <Badge key={reward.id} variant="accent">
+                        <Gift className="h-3 w-3" />
+                        {reward.program_name ?? 'Récompense'} disponible
+                    </Badge>
+                ))}
+                {status.subscriptions.map((subscription) => (
+                    <Badge key={subscription.id} variant="outline">
+                        <CalendarClock className="h-3 w-3" />
+                        {subscription.plan_name}
+                    </Badge>
+                ))}
+            </div>
         </div>
     );
 }
@@ -540,6 +686,13 @@ function AddServiceDialog({
     onConfirm,
     pending,
     error,
+    rewards,
+    subscriptionOptions,
+    redemption,
+    onRedemptionChange,
+    canOverrideQuota,
+    overrideReason,
+    onOverrideReasonChange,
 }: {
     service: Service | null;
     price: string;
@@ -548,9 +701,20 @@ function AddServiceDialog({
     onConfirm: () => void;
     pending: boolean;
     error: string | null;
+    rewards: ClientLoyaltyReward[];
+    subscriptionOptions: SubscriptionOption[];
+    redemption: Redemption | null;
+    onRedemptionChange: (redemption: Redemption | null) => void;
+    canOverrideQuota: boolean;
+    overrideReason: string;
+    onOverrideReasonChange: (value: string) => void;
 }) {
     const priceValue = Number.parseFloat(price.replace(',', '.'));
-    const canConfirm = Number.isFinite(priceValue) && priceValue >= 0;
+    const canConfirm =
+        redemption === null
+            ? Number.isFinite(priceValue) && priceValue >= 0
+            : redemption.kind === 'reward' || !redemption.exceptionOverride || overrideReason.trim().length > 0;
+    const hasRedemptionOptions = rewards.length > 0 || subscriptionOptions.length > 0;
 
     return (
         <Dialog open={service !== null} onOpenChange={onOpenChange}>
@@ -562,20 +726,99 @@ function AddServiceDialog({
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-2">
-                    <Label htmlFor="add-service-price">Montant</Label>
-                    <Input
-                        id="add-service-price"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        inputMode="decimal"
-                        autoFocus
-                        value={price}
-                        onChange={(event) => onPriceChange(event.target.value)}
-                        className="text-lg font-semibold tabular-nums"
-                    />
-                </div>
+                {hasRedemptionOptions && (
+                    <div className="space-y-2">
+                        <Label>Mode</Label>
+                        <div className="flex flex-wrap gap-2">
+                            <Chip size="sm" selected={redemption === null} onClick={() => onRedemptionChange(null)}>
+                                <Sparkles className="h-3.5 w-3.5" />
+                                Prix normal
+                            </Chip>
+                            {rewards.map((reward) => (
+                                <Chip
+                                    key={reward.id}
+                                    size="sm"
+                                    selected={redemption?.kind === 'reward' && redemption.rewardId === reward.id}
+                                    onClick={() => onRedemptionChange({ kind: 'reward', rewardId: reward.id })}
+                                >
+                                    <Gift className="h-3.5 w-3.5" />
+                                    {reward.program_name ?? 'Récompense'}
+                                </Chip>
+                            ))}
+                            {subscriptionOptions.map((option) => {
+                                const periodExhausted = option.periodRemaining !== null && option.periodRemaining <= 0;
+                                const lifetimeExhausted = option.totalRemaining !== null && option.totalRemaining <= 0;
+                                const disabled = lifetimeExhausted || (periodExhausted && !canOverrideQuota);
+                                const selected =
+                                    redemption?.kind === 'subscription' &&
+                                    redemption.subscriptionId === option.subscriptionId &&
+                                    redemption.planServiceId === option.planServiceId;
+
+                                return (
+                                    <Chip
+                                        key={`${option.subscriptionId}-${option.planServiceId}`}
+                                        size="sm"
+                                        selected={selected}
+                                        disabled={disabled}
+                                        onClick={() =>
+                                            onRedemptionChange({
+                                                kind: 'subscription',
+                                                subscriptionId: option.subscriptionId,
+                                                planServiceId: option.planServiceId,
+                                                exceptionOverride: periodExhausted,
+                                            })
+                                        }
+                                    >
+                                        <CalendarClock className="h-3.5 w-3.5" />
+                                        {option.planName ?? 'Abonnement'}
+                                        {lifetimeExhausted
+                                            ? ' — épuisé'
+                                            : periodExhausted
+                                              ? ' — quota atteint'
+                                              : option.periodRemaining !== null
+                                                ? ` (${option.periodRemaining} restant${option.periodRemaining > 1 ? 's' : ''})`
+                                                : ''}
+                                    </Chip>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {redemption === null ? (
+                    <div className="space-y-2">
+                        <Label htmlFor="add-service-price">Montant</Label>
+                        <Input
+                            id="add-service-price"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            inputMode="decimal"
+                            autoFocus
+                            value={price}
+                            onChange={(event) => onPriceChange(event.target.value)}
+                            className="text-lg font-semibold tabular-nums"
+                        />
+                    </div>
+                ) : (
+                    <div className="rounded-md border border-accent/30 bg-accent/[0.06] px-3.5 py-3 text-sm text-accent">
+                        Ligne gratuite —{' '}
+                        {redemption.kind === 'reward' ? 'récompense de fidélité.' : 'utilisation d’un abonnement.'}
+                    </div>
+                )}
+
+                {redemption?.kind === 'subscription' && redemption.exceptionOverride && (
+                    <div className="space-y-2">
+                        <Label htmlFor="override-reason">Motif de l’exception (quota déjà atteint)</Label>
+                        <Input
+                            id="override-reason"
+                            value={overrideReason}
+                            onChange={(event) => onOverrideReasonChange(event.target.value)}
+                            placeholder="Geste commercial"
+                            autoFocus
+                        />
+                    </div>
+                )}
 
                 {error && (
                     <div className="flex items-start gap-2.5 rounded-md border border-destructive/25 bg-destructive/[0.10] px-3.5 py-3">

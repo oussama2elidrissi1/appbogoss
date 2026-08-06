@@ -27,6 +27,11 @@ class StorePrestationRequest extends FormRequest
             'items.*.unit_price' => ['nullable', 'numeric', 'min:0'],
             'items.*.duration_minutes' => ['nullable', 'integer', 'min:0'],
             'items.*.notes' => ['nullable', 'string', 'max:500'],
+            'items.*.loyalty_reward_id' => ['nullable', 'integer', 'exists:loyalty_rewards,id'],
+            'items.*.client_subscription_id' => ['nullable', 'integer', 'exists:client_subscriptions,id'],
+            'items.*.subscription_plan_service_id' => ['nullable', 'integer', 'exists:subscription_plan_services,id'],
+            'items.*.exception_override' => ['nullable', 'boolean'],
+            'items.*.override_reason' => ['nullable', 'required_if:items.*.exception_override,true', 'string', 'max:500'],
         ];
     }
 }

@@ -103,6 +103,29 @@ class LoyaltyRedemptionWorkflowTest extends TestCase
         $this->assertSame(LoyaltyReward::STATUS_RESERVED, $reward->fresh()->status);
     }
 
+    public function test_employee_can_redeem_a_reward_as_the_very_first_item_of_a_new_prestation(): void
+    {
+        [, $user] = $this->employeeWithLogin();
+        $client = Client::factory()->create();
+        $service = Service::factory()->create(['category' => 'hammam', 'price' => 150]);
+        $reward = $this->availableReward($client, $service);
+
+        // Regression: the very first item of a brand new prestation goes
+        // through PrestationController::store() (POST /api/prestations),
+        // a different code path from storeItem() — it must accept the same
+        // loyalty_reward_id field, not silently drop it and charge full price.
+        Sanctum::actingAs($user);
+        $response = $this->postJson('/api/prestations', [
+            'client_id' => $client->id,
+            'items' => [['service_id' => $service->id, 'loyalty_reward_id' => $reward->id]],
+        ]);
+
+        $response->assertCreated();
+        $this->assertTrue((bool) $response->json('data.items.0.is_free'));
+        $this->assertEquals(0, $response->json('data.items.0.unit_price'));
+        $this->assertSame(LoyaltyReward::STATUS_RESERVED, $reward->fresh()->status);
+    }
+
     public function test_employee_cannot_force_a_quota_exception_without_override_permission(): void
     {
         [$employee, $user] = $this->employeeWithLogin();
@@ -228,6 +251,29 @@ class LoyaltyRedemptionWorkflowTest extends TestCase
         );
         app(SubscriptionService::class)->reserveUsage($subscription, $planService, $prestation2, $prestation2->items->first(), $user);
         $this->assertEquals(0, $prestation2->items->first()->fresh()->unit_price);
+    }
+
+    public function test_employee_can_read_a_clients_loyalty_status_via_the_api(): void
+    {
+        [, $user] = $this->employeeWithLogin();
+        $admin = $this->admin();
+        $client = Client::factory()->create();
+        $service = Service::factory()->create(['category' => 'hammam', 'price' => 150]);
+        $reward = $this->availableReward($client, $service);
+
+        $plan = SubscriptionPlan::create(['name' => 'Hammam 3 mois', 'price' => 1000, 'duration_value' => 3, 'duration_unit' => 'months', 'is_active' => true]);
+        $planService = $plan->services()->create(['service_id' => $service->id, 'quota_period' => 'week', 'quota_per_period' => 1]);
+        app(SubscriptionService::class)->purchase($client, $plan, $admin);
+
+        Sanctum::actingAs($user);
+        $response = $this->getJson("/api/clients/{$client->id}/loyalty-status");
+
+        $response->assertOk();
+        $response->assertJsonPath('data.rewards.0.id', $reward->id);
+        $response->assertJsonPath('data.rewards.0.service_id', $service->id);
+        $response->assertJsonPath('data.subscriptions.0.services.0.subscription_plan_service_id', $planService->id);
+        $response->assertJsonPath('data.subscriptions.0.services.0.period_remaining', 1);
+        $response->assertJsonPath('data.subscriptions.0.services.0.total_remaining', null);
     }
 
     public function test_refunding_a_subscription_redemption_restores_the_quota(): void
