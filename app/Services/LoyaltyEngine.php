@@ -234,7 +234,11 @@ class LoyaltyEngine
                 'last_activity_at' => now(),
             ]);
 
-            $this->ensureLoyaltyAccount($client);
+            if ($field === 'points_balance') {
+                $this->syncAccountPointsBalance($client);
+            } else {
+                $this->ensureLoyaltyAccount($client);
+            }
 
             for ($i = 0; $i < $rewardsToGenerate; $i++) {
                 $this->generateReward($program, $client, $ledgerEntry);
@@ -279,6 +283,10 @@ class LoyaltyEngine
                 $progress->update([
                     $field => in_array($field, ['counter', 'points_balance'], true) ? (int) round($new) : $new,
                 ]);
+
+                if ($field === 'points_balance') {
+                    $this->syncAccountPointsBalance(Client::findOrFail($entry->client_id));
+                }
             }
 
             LoyaltyReward::where('triggering_ledger_entry_id', $entry->id)
@@ -352,6 +360,23 @@ class LoyaltyEngine
             ['client_id' => $client->id],
             ['status' => CustomerLoyaltyAccount::STATUS_ACTIVE],
         );
+    }
+
+    /**
+     * customer_loyalty_accounts.points_balance is a denormalized mirror of
+     * every points-type program's progress for this client — recomputed from
+     * source (not incremented) so it can never drift from
+     * loyalty_program_progress, which stays the source of truth.
+     */
+    private function syncAccountPointsBalance(Client $client): void
+    {
+        $account = $this->ensureLoyaltyAccount($client);
+
+        $total = (int) LoyaltyProgramProgress::where('client_id', $client->id)
+            ->whereIn('loyalty_program_id', LoyaltyProgram::where('type', LoyaltyProgram::TYPE_POINTS)->pluck('id'))
+            ->sum('points_balance');
+
+        $account->update(['points_balance' => $total]);
     }
 
     private function lockedProgress(Client $client, LoyaltyProgram $program): LoyaltyProgramProgress

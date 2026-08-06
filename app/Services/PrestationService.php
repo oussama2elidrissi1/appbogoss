@@ -336,8 +336,6 @@ class PrestationService
 
             $sale->update(['commission_amount' => round($totalCommission, 2)]);
 
-            $this->loyaltyEngine->processSale($sale, $locked);
-
             $locked->update([
                 'status' => Prestation::STATUS_PAID,
                 'total' => $total,
@@ -350,6 +348,8 @@ class PrestationService
                 'confirmed_by_user_id' => $actor->id,
                 'sale_id' => $sale->id,
             ]);
+
+            $this->loyaltyEngine->processSale($sale, $locked);
 
             $this->logTransition($locked, Prestation::STATUS_PENDING_PAYMENT, Prestation::STATUS_PAID, $actor);
 

@@ -29,6 +29,7 @@ class SubscriptionService
     public function __construct(
         private readonly WorkDayService $workDayService,
         private readonly ActivityLogger $activityLogger,
+        private readonly LoyaltyEngine $loyaltyEngine,
     ) {
     }
 
@@ -84,6 +85,13 @@ class SubscriptionService
                 'price' => (float) $plan->price,
             ]);
 
+            // The purchase itself is real revenue — a points/amount_spent
+            // program with no service/category filter (e.g. "Points
+            // BOGOSLAND") should accrue from it just like any other sale.
+            // A category-scoped program (e.g. "5 Hammams") never matches
+            // here since this Sale carries no category/service_id.
+            $this->loyaltyEngine->processSale($sale);
+
             return $subscription->fresh(['plan', 'client']);
         });
     }
@@ -115,30 +123,44 @@ class SubscriptionService
 
             $periodKey = $planService->quota_period ? $this->periodKey($planService->quota_period, $today) : null;
 
+            // Two different counts on purpose: quota enforcement only cares
+            // about slots still actually consuming the allowance (reserved/
+            // confirmed) — a released/voided usage frees the quota back up.
+            // The unique-index sequence number, however, must never be
+            // reused even by a voided row, or a fresh reservation would
+            // collide with that now-inert row's slot (the unique index isn't
+            // status-aware). So the sequence counts every attempt ever made,
+            // successful or not.
             $countInPeriod = null;
+            $attemptsInPeriod = null;
             if ($periodKey !== null) {
-                $countInPeriod = ClientSubscriptionUsage::where('client_subscription_id', $lockedSub->id)
+                $periodQuery = ClientSubscriptionUsage::where('client_subscription_id', $lockedSub->id)
                     ->where('subscription_plan_service_id', $planService->id)
-                    ->where('period_key', $periodKey)
-                    ->whereIn('status', [ClientSubscriptionUsage::STATUS_RESERVED, ClientSubscriptionUsage::STATUS_CONFIRMED])
-                    ->count();
+                    ->where('period_key', $periodKey);
+
+                $countInPeriod = (clone $periodQuery)->whereIn('status', [ClientSubscriptionUsage::STATUS_RESERVED, ClientSubscriptionUsage::STATUS_CONFIRMED])->count();
 
                 if ($planService->quota_per_period !== null && $countInPeriod >= $planService->quota_per_period && ! $exceptionOverride) {
                     throw ValidationException::withMessages(['quota' => 'Quota atteint pour cette période.']);
                 }
+
+                $attemptsInPeriod = $periodQuery->count();
             }
 
             $countTotal = null;
+            $attemptsTotal = null;
             if ($planService->quota_total !== null) {
-                $countTotal = ClientSubscriptionUsage::where('client_subscription_id', $lockedSub->id)
-                    ->where('subscription_plan_service_id', $planService->id)
-                    ->whereIn('status', [ClientSubscriptionUsage::STATUS_RESERVED, ClientSubscriptionUsage::STATUS_CONFIRMED])
-                    ->count();
+                $totalQuery = ClientSubscriptionUsage::where('client_subscription_id', $lockedSub->id)
+                    ->where('subscription_plan_service_id', $planService->id);
+
+                $countTotal = (clone $totalQuery)->whereIn('status', [ClientSubscriptionUsage::STATUS_RESERVED, ClientSubscriptionUsage::STATUS_CONFIRMED])->count();
 
                 // The lifetime quota is never bypassable, even with an exception override.
                 if ($countTotal >= $planService->quota_total) {
                     throw ValidationException::withMessages(['quota' => 'Quota total de l’abonnement atteint.']);
                 }
+
+                $attemptsTotal = $totalQuery->count();
             }
 
             try {
@@ -149,8 +171,8 @@ class SubscriptionService
                     'reserved_prestation_id' => $prestation->id,
                     'used_on' => $today->toDateString(),
                     'period_key' => $periodKey,
-                    'sequence_in_period' => $periodKey !== null ? $countInPeriod + 1 : null,
-                    'sequence_total' => $planService->quota_total !== null ? $countTotal + 1 : null,
+                    'sequence_in_period' => $periodKey !== null ? $attemptsInPeriod + 1 : null,
+                    'sequence_total' => $planService->quota_total !== null ? $attemptsTotal + 1 : null,
                     'exception_override' => $exceptionOverride,
                     'override_reason' => $overrideReason,
                     'override_by_user_id' => $exceptionOverride ? $actor->id : null,

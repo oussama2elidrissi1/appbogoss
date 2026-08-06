@@ -10,9 +10,15 @@ use Spatie\Permission\Models\Role;
  * Seeds the three fixed system roles (Super Admin, Administrateur/Caissier,
  * Employé) and their permissions. Idempotent: safe to re-run.
  *
- * "employee" intentionally gets no named permissions — an employee's access
- * to their own prestations/commissions is enforced by ownership in
- * PrestationPolicy, not by a flat permission grant.
+ * "employee" intentionally gets no named permissions for editing/confirming
+ * money-moving actions — that access is enforced by ownership in
+ * PrestationPolicy instead of a flat grant. "loyalty.redeem" is the one
+ * exception: PrestationPolicy::update() already requires the employee to own
+ * the prestation before they can touch it at all, so granting it just lets
+ * the servicing employee attach a client's own reward/subscription usage to
+ * their own cart — never someone else's. Quota exceptions
+ * (loyalty.override_quota) and program/plan configuration (loyalty.manage)
+ * stay admin/super-admin only.
  */
 class RolesAndPermissionsSeeder extends Seeder
 {
@@ -57,6 +63,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'loyalty.redeem',
         ]);
 
-        Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);
+        $employee = Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);
+        $employee->syncPermissions(['loyalty.redeem']);
     }
 }

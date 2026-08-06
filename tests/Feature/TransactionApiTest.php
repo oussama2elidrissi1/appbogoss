@@ -2,8 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Models\Client;
 use App\Models\Employee;
 use App\Models\EmployeeServiceCommission;
+use App\Models\LoyaltyLedgerEntry;
+use App\Models\LoyaltyProgram;
+use App\Models\LoyaltyProgramProgress;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Service;
@@ -160,5 +164,84 @@ class TransactionApiTest extends TestCase
 
         $response->assertCreated();
         $this->assertEquals(5, $response->json('data.commission_amount'));
+    }
+
+    public function test_a_quickcheckout_sale_accrues_loyalty_progress(): void
+    {
+        $this->actingAsAdmin();
+
+        $employee = Employee::factory()->create();
+        $client = Client::factory()->create();
+        WorkDay::factory()->create(['status' => 'open']);
+
+        $program = LoyaltyProgram::create([
+            'name' => '5 Hammams = 1 Gratuit',
+            'type' => LoyaltyProgram::TYPE_SERVICE_COUNT,
+            'is_active' => true,
+            'config' => ['category' => 'hammam', 'threshold' => 5],
+            'commission_basis' => 'public_price',
+        ]);
+
+        $response = $this->postJson('/api/transactions', [
+            'employee_id' => $employee->id,
+            'client_id' => $client->id,
+            'category' => 'hammam',
+            'label' => 'Hammam turc',
+            'price' => 150,
+        ]);
+
+        $response->assertCreated();
+
+        $progress = LoyaltyProgramProgress::where('client_id', $client->id)
+            ->where('loyalty_program_id', $program->id)
+            ->first();
+
+        $this->assertNotNull($progress);
+        $this->assertSame(1, $progress->counter);
+        $this->assertDatabaseHas('loyalty_ledger_entries', [
+            'client_id' => $client->id,
+            'loyalty_program_id' => $program->id,
+            'sourceable_id' => $response->json('data.id'),
+            'direction' => LoyaltyLedgerEntry::DIRECTION_ACCRUAL,
+        ]);
+    }
+
+    public function test_deleting_a_quickcheckout_sale_reverses_its_loyalty_progress(): void
+    {
+        $this->actingAsAdmin();
+
+        $employee = Employee::factory()->create();
+        $client = Client::factory()->create();
+        WorkDay::factory()->create(['status' => 'open']);
+
+        $program = LoyaltyProgram::create([
+            'name' => '5 Hammams = 1 Gratuit',
+            'type' => LoyaltyProgram::TYPE_SERVICE_COUNT,
+            'is_active' => true,
+            'config' => ['category' => 'hammam', 'threshold' => 5],
+            'commission_basis' => 'public_price',
+        ]);
+
+        $created = $this->postJson('/api/transactions', [
+            'employee_id' => $employee->id,
+            'client_id' => $client->id,
+            'category' => 'hammam',
+            'label' => 'Hammam turc',
+            'price' => 150,
+        ])->assertCreated()->json('data');
+
+        $this->assertSame(1, LoyaltyProgramProgress::where('client_id', $client->id)
+            ->where('loyalty_program_id', $program->id)->first()->counter);
+
+        $this->deleteJson('/api/transactions/'.$created['id'])->assertOk();
+
+        $this->assertSame(0, LoyaltyProgramProgress::where('client_id', $client->id)
+            ->where('loyalty_program_id', $program->id)->first()->counter);
+        $this->assertDatabaseHas('loyalty_ledger_entries', [
+            'client_id' => $client->id,
+            'loyalty_program_id' => $program->id,
+            'sourceable_id' => $created['id'],
+            'direction' => LoyaltyLedgerEntry::DIRECTION_REVERSAL,
+        ]);
     }
 }
