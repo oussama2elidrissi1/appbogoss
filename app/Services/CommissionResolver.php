@@ -49,6 +49,34 @@ class CommissionResolver
     }
 
     /**
+     * Commission on a free line (loyalty reward or subscription redemption) —
+     * the client paid 0 (or a partial discount), but the employee's
+     * commission is deliberately not tied to that charged amount. `$basis`
+     * selects one of the five modes a Super Admin can configure per program
+     * (spec §17): none, on the public/catalog price, on the internal cost
+     * value, or a flat fixed/percent override. Same return shape as
+     * resolve(), so every downstream Commission::create()/PrestationItem
+     * update call site is unchanged.
+     *
+     * @return array{type: string, value: float, rule_id: int|null, amount: float}
+     */
+    public function resolveForFreeLine(
+        Employee $employee,
+        ?Service $service,
+        string $basis,
+        ?float $overrideValue,
+        float $publicPrice,
+    ): array {
+        return match ($basis) {
+            'public_price' => $this->resolve($employee, $service, $publicPrice),
+            'internal_value' => $this->resolve($employee, $service, $overrideValue ?? 0.0),
+            'fixed' => $this->computed('fixed', $overrideValue ?? 0.0, $publicPrice, null),
+            'percent' => $this->computed('percentage', $overrideValue ?? 0.0, $publicPrice, null),
+            default => $this->computed('none', 0.0, $publicPrice, null),
+        };
+    }
+
+    /**
      * @return array{type: string, value: float, rule_id: int|null, amount: float}
      */
     private function computed(string $type, float $value, float $baseAmount, ?int $ruleId): array

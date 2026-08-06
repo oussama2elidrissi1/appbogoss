@@ -19,6 +19,12 @@ class PrestationItem extends Model
         'commission_value',
         'commission_amount',
         'commission_rule_id',
+        'loyalty_reward_id',
+        'client_subscription_id',
+        'is_free',
+        'public_price',
+        'commission_basis',
+        'commission_base_override',
     ];
 
     protected $casts = [
@@ -27,6 +33,9 @@ class PrestationItem extends Model
         'duration_minutes' => 'integer',
         'commission_value' => 'decimal:2',
         'commission_amount' => 'decimal:2',
+        'is_free' => 'boolean',
+        'public_price' => 'decimal:2',
+        'commission_base_override' => 'decimal:2',
     ];
 
     public function prestation(): BelongsTo
@@ -42,6 +51,16 @@ class PrestationItem extends Model
     public function commissionRule(): BelongsTo
     {
         return $this->belongsTo(EmployeeServiceCommission::class, 'commission_rule_id');
+    }
+
+    public function loyaltyReward(): BelongsTo
+    {
+        return $this->belongsTo(LoyaltyReward::class);
+    }
+
+    public function clientSubscription(): BelongsTo
+    {
+        return $this->belongsTo(ClientSubscription::class);
     }
 
     public function lineTotal(): float

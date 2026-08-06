@@ -30,6 +30,9 @@ class RolesAndPermissionsSeeder extends Seeder
             'activity_log.view',
             'settings.manage',
             'users.manage',
+            'loyalty.manage',
+            'loyalty.redeem',
+            'loyalty.override_quota',
         ];
 
         foreach ($permissions as $permission) {
@@ -50,6 +53,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'reports.view_all',
             'activity_log.view',
             'settings.manage',
+            'loyalty.manage',
+            'loyalty.redeem',
         ]);
 
         Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);

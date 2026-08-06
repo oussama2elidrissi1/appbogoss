@@ -13,6 +13,9 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\EmployeeServiceCommissionController;
 use App\Http\Controllers\Api\ExpenseController;
+use App\Http\Controllers\Api\LoyaltyProgramController;
+use App\Http\Controllers\Api\SubscriptionPlanController;
+use App\Http\Controllers\Api\SubscriptionPurchaseController;
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PrestationController;
@@ -112,6 +115,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/commission-payouts', [CommissionPayoutController::class, 'index']);
         Route::post('/commission-payouts', [CommissionPayoutController::class, 'store']);
         Route::get('/employees/{employee}/commission-payouts', [CommissionPayoutController::class, 'history']);
+    });
+
+    // Loyalty & Subscriptions — Phase 1 backend scaffolding, no admin UI yet.
+    Route::middleware('permission:loyalty.manage')->group(function () {
+        Route::apiResource('/loyalty-programs', LoyaltyProgramController::class);
+        Route::apiResource('/subscription-plans', SubscriptionPlanController::class);
+    });
+    Route::middleware('permission:loyalty.redeem')->group(function () {
+        Route::post('/clients/{client}/subscriptions', SubscriptionPurchaseController::class);
     });
 
     Route::middleware('permission:users.manage')->group(function () {

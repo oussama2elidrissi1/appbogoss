@@ -112,7 +112,22 @@ class PrestationController extends Controller
             'unit_price' => ['nullable', 'numeric', 'min:0'],
             'duration_minutes' => ['nullable', 'integer', 'min:0'],
             'notes' => ['nullable', 'string', 'max:500'],
+            'loyalty_reward_id' => ['nullable', 'integer', 'exists:loyalty_rewards,id'],
+            'client_subscription_id' => ['nullable', 'integer', 'exists:client_subscriptions,id'],
+            'subscription_plan_service_id' => ['nullable', 'integer', 'exists:subscription_plan_services,id'],
+            'exception_override' => ['nullable', 'boolean'],
+            'override_reason' => ['nullable', 'required_if:exception_override,true', 'string', 'max:500'],
         ]);
+
+        if (! empty($validated['loyalty_reward_id']) || ! empty($validated['client_subscription_id'])) {
+            if (! $request->user()->can('loyalty.redeem')) {
+                return response()->json(['message' => 'Action non autorisée.'], 403);
+            }
+        }
+
+        if (! empty($validated['exception_override']) && ! $request->user()->can('loyalty.override_quota')) {
+            return response()->json(['message' => 'Action non autorisée.'], 403);
+        }
 
         $this->service->addItem($prestation, $validated, $request->user());
 

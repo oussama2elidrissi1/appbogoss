@@ -11,6 +11,7 @@ use App\Models\Employee;
 use App\Models\SaleItem;
 use App\Models\Service;
 use App\Services\CommissionResolver;
+use App\Services\LoyaltyEngine;
 use App\Services\WorkDayService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,7 +21,7 @@ use Illuminate\Validation\Rule;
 
 class TransactionController extends Controller
 {
-    public function store(StoreTransactionRequest $request, WorkDayService $service, CommissionResolver $commissionResolver): JsonResponse
+    public function store(StoreTransactionRequest $request, WorkDayService $service, CommissionResolver $commissionResolver, LoyaltyEngine $loyaltyEngine): JsonResponse
     {
         $activeDay = $service->getActiveDay();
 
@@ -36,7 +37,7 @@ class TransactionController extends Controller
             throw ValidationException::withMessages(['employee_id' => 'Sélectionnez un employé pour cette prestation.']);
         }
 
-        $sale = DB::transaction(function () use ($data, $activeDay, $request, $commissionResolver) {
+        $sale = DB::transaction(function () use ($data, $activeDay, $request, $commissionResolver, $loyaltyEngine) {
             $product = null;
             $employeeId = $data['employee_id'] ?? null;
             $label = $data['label'];
@@ -108,6 +109,8 @@ class TransactionController extends Controller
                 'unit_price' => $price,
             ]);
 
+            $loyaltyEngine->processSale($sale);
+
             return $sale;
         });
 
@@ -139,9 +142,9 @@ class TransactionController extends Controller
         return response()->json(['data' => new SaleResource($sale)]);
     }
 
-    public function destroy(Sale $sale): JsonResponse
+    public function destroy(Sale $sale, LoyaltyEngine $loyaltyEngine): JsonResponse
     {
-        DB::transaction(function () use ($sale): void {
+        DB::transaction(function () use ($sale, $loyaltyEngine): void {
             if ($sale->trashed()) {
                 return;
             }
@@ -152,6 +155,8 @@ class TransactionController extends Controller
                     Product::query()->whereKey($item->itemable_id)->increment('stock_quantity', $item->quantity);
                 }
             }
+
+            $loyaltyEngine->reverseSale($sale);
 
             $sale->delete();
         });
