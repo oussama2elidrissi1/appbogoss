@@ -19,6 +19,15 @@ use Spatie\Permission\Models\Role;
  * their own cart — never someone else's. Quota exceptions
  * (loyalty.override_quota) and program/plan configuration (loyalty.manage)
  * stay admin/super-admin only.
+ *
+ * The granular loyalty.programs.x / loyalty.rewards.x / subscriptions.x
+ * permissions (Phase 2/3) sit alongside the original coarse
+ * loyalty.manage/loyalty.redeem/loyalty.override_quota rather than
+ * replacing them — those three are still what gate the original Phase 1
+ * routes (loyalty-programs/subscription-plans CRUD, prestation item
+ * redemption) and are referenced by existing tests; the granular set gates
+ * the newer surface (QR/settings/reports/manual adjustments/suspend-extend)
+ * so those actions can be delegated independently of full loyalty.manage.
  */
 class RolesAndPermissionsSeeder extends Seeder
 {
@@ -36,9 +45,31 @@ class RolesAndPermissionsSeeder extends Seeder
             'activity_log.view',
             'settings.manage',
             'users.manage',
+
+            // Original Phase 1 loyalty gates — still authoritative for the
+            // routes/controllers/tests that already reference them.
             'loyalty.manage',
             'loyalty.redeem',
             'loyalty.override_quota',
+
+            // Granular Phase 2/3 permissions.
+            'loyalty.view',
+            'loyalty.programs.view',
+            'loyalty.programs.create',
+            'loyalty.programs.edit',
+            'loyalty.programs.delete',
+            'loyalty.rewards.view',
+            'loyalty.rewards.adjust',
+            'loyalty.rewards.redeem',
+            'subscriptions.view',
+            'subscriptions.manage',
+            'subscriptions.sell',
+            'subscriptions.use',
+            'subscriptions.suspend',
+            'subscriptions.extend',
+            'loyalty.reports.view',
+            'loyalty.settings.manage',
+            'loyalty.qr.manage',
         ];
 
         foreach ($permissions as $permission) {
@@ -61,6 +92,21 @@ class RolesAndPermissionsSeeder extends Seeder
             'settings.manage',
             'loyalty.manage',
             'loyalty.redeem',
+            'loyalty.view',
+            'loyalty.programs.view',
+            'loyalty.programs.create',
+            'loyalty.programs.edit',
+            'loyalty.rewards.view',
+            'loyalty.rewards.redeem',
+            'subscriptions.view',
+            'subscriptions.manage',
+            'subscriptions.sell',
+            'subscriptions.use',
+            'loyalty.reports.view',
+            'loyalty.qr.manage',
+            // Not granted to admin: loyalty.programs.delete, loyalty.rewards.adjust,
+            // subscriptions.suspend, subscriptions.extend, loyalty.settings.manage —
+            // sensitive corrections/config stay super-admin only (§27 vs §28).
         ]);
 
         $employee = Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);

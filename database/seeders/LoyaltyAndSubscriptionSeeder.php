@@ -12,6 +12,7 @@ use App\Models\LoyaltyReward;
 use App\Models\Service;
 use App\Models\SubscriptionPlan;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Seeds the two mandatory demo loyalty programs, the mandatory "Hammam 3
@@ -77,6 +78,21 @@ class LoyaltyAndSubscriptionSeeder extends Seeder
             ],
         );
 
+        $birthdayProgram = LoyaltyProgram::firstOrCreate(
+            ['name' => 'Anniversaire BOGOSLAND'],
+            [
+                'description' => 'Une réduction de bienvenue offerte la semaine de l’anniversaire du client.',
+                'type' => LoyaltyProgram::TYPE_BIRTHDAY,
+                'is_active' => true,
+                'config' => [
+                    'reward_expires_after_days' => 14,
+                    'reward' => ['type' => 'discount_amount', 'value' => 50],
+                ],
+                'commission_basis' => 'none',
+                'starts_on' => now()->subMonths(2)->toDateString(),
+            ],
+        );
+
         $hammamPlan = SubscriptionPlan::firstOrCreate(
             ['name' => 'Hammam 3 mois'],
             [
@@ -85,6 +101,8 @@ class LoyaltyAndSubscriptionSeeder extends Seeder
                 'duration_value' => 3,
                 'duration_unit' => 'months',
                 'is_active' => true,
+                'allow_suspension' => true,
+                'allow_renewal' => true,
             ],
         );
 
@@ -99,12 +117,83 @@ class LoyaltyAndSubscriptionSeeder extends Seeder
             ]);
         }
 
-        $demoClients = Client::inRandomOrder()->limit(5)->get();
-        if ($demoClients->count() < 5) {
+        // Deterministic (not random) selection — re-running this seeder must
+        // always land on the exact same 11 clients, otherwise scenario 11's
+        // fixed demo phone number collides with whichever client held it
+        // from a previous run (unique constraint on clients.phone_e164).
+        $demoClients = Client::orderBy('id')->limit(11)->get();
+        if ($demoClients->count() < 11) {
             return;
         }
 
-        [$inProgressClient, $rewardAvailableClient, $rewardUsedClient, $activeSubClient, $expiredSubClient] = $demoClients->all();
+        [
+            $inProgressClient,
+            $rewardAvailableClient,
+            $rewardUsedClient,
+            $activeSubClient,
+            $expiredSubClient,
+            $pointsProgressClient,
+            $rewardExpiringSoonClient,
+            $subExpiringSoonClient,
+            $suspendedSubClient,
+            $birthdayClient,
+            $portalDemoClient,
+        ] = $demoClients->all();
+
+        DB::transaction(function () use (
+            $hammamProgram,
+            $pointsProgram,
+            $hammamPlan,
+            $hammamTurc,
+            $inProgressClient,
+            $rewardAvailableClient,
+            $rewardUsedClient,
+            $activeSubClient,
+            $expiredSubClient,
+            $pointsProgressClient,
+            $rewardExpiringSoonClient,
+            $subExpiringSoonClient,
+            $suspendedSubClient,
+            $birthdayClient,
+            $portalDemoClient,
+        ) {
+            $this->seedDemoScenarios(
+                $hammamProgram,
+                $pointsProgram,
+                $hammamPlan,
+                $hammamTurc,
+                $inProgressClient,
+                $rewardAvailableClient,
+                $rewardUsedClient,
+                $activeSubClient,
+                $expiredSubClient,
+                $pointsProgressClient,
+                $rewardExpiringSoonClient,
+                $subExpiringSoonClient,
+                $suspendedSubClient,
+                $birthdayClient,
+                $portalDemoClient,
+            );
+        });
+    }
+
+    private function seedDemoScenarios(
+        LoyaltyProgram $hammamProgram,
+        LoyaltyProgram $pointsProgram,
+        SubscriptionPlan $hammamPlan,
+        Service $hammamTurc,
+        Client $inProgressClient,
+        Client $rewardAvailableClient,
+        Client $rewardUsedClient,
+        Client $activeSubClient,
+        Client $expiredSubClient,
+        Client $pointsProgressClient,
+        Client $rewardExpiringSoonClient,
+        Client $subExpiringSoonClient,
+        Client $suspendedSubClient,
+        Client $birthdayClient,
+        Client $portalDemoClient,
+    ): void {
 
         // 1) In progress toward the free hammam (4/5).
         CustomerLoyaltyAccount::firstOrCreate(['client_id' => $inProgressClient->id], ['status' => CustomerLoyaltyAccount::STATUS_ACTIVE]);
@@ -184,5 +273,84 @@ class LoyaltyAndSubscriptionSeeder extends Seeder
                 'ends_on' => now()->subMonths(1)->toDateString(),
             ],
         );
+
+        // 6) Partial progress on the points program (320 / 500).
+        CustomerLoyaltyAccount::firstOrCreate(['client_id' => $pointsProgressClient->id], ['status' => CustomerLoyaltyAccount::STATUS_ACTIVE]);
+        LoyaltyProgramProgress::firstOrCreate(
+            ['client_id' => $pointsProgressClient->id, 'loyalty_program_id' => $pointsProgram->id],
+            ['points_balance' => 320, 'last_activity_at' => now()->subDays(2)],
+        );
+
+        // 7) Reward expiring within the alert window — exercises loyalty:sweep's
+        // notifyExpiringRewards() and the portal's "alerts" block.
+        CustomerLoyaltyAccount::firstOrCreate(['client_id' => $rewardExpiringSoonClient->id], ['status' => CustomerLoyaltyAccount::STATUS_ACTIVE]);
+        if (! LoyaltyReward::where('client_id', $rewardExpiringSoonClient->id)->where('status', LoyaltyReward::STATUS_AVAILABLE)->exists()) {
+            LoyaltyReward::create([
+                'client_id' => $rewardExpiringSoonClient->id,
+                'loyalty_program_id' => $hammamProgram->id,
+                'program_snapshot' => $hammamProgram->toArray(),
+                'type' => 'service',
+                'status' => LoyaltyReward::STATUS_AVAILABLE,
+                'service_id' => $hammamTurc->id,
+                'commission_basis' => $hammamProgram->commission_basis,
+                'generated_at' => now()->subDays(27),
+                'expires_at' => now()->addDays(3),
+            ]);
+        }
+
+        // 8) Subscription expiring within the alert window — same purpose for
+        // SubscriptionService::notifyExpiringSubscriptions().
+        CustomerLoyaltyAccount::firstOrCreate(['client_id' => $subExpiringSoonClient->id], ['status' => CustomerLoyaltyAccount::STATUS_ACTIVE]);
+        ClientSubscription::firstOrCreate(
+            ['client_id' => $subExpiringSoonClient->id, 'subscription_plan_id' => $hammamPlan->id, 'status' => ClientSubscription::STATUS_ACTIVE],
+            [
+                'plan_snapshot' => $hammamPlan->load('services.service')->toArray(),
+                'purchased_at' => now()->subMonths(3)->addDays(4),
+                'starts_on' => now()->subMonths(3)->addDays(4)->toDateString(),
+                'ends_on' => now()->addDays(4)->toDateString(),
+            ],
+        );
+
+        // 9) Suspended subscription — exercises §17 (portal shows "Suspendu",
+        // resume() is testable against a real row).
+        CustomerLoyaltyAccount::firstOrCreate(['client_id' => $suspendedSubClient->id], ['status' => CustomerLoyaltyAccount::STATUS_ACTIVE]);
+        ClientSubscription::firstOrCreate(
+            ['client_id' => $suspendedSubClient->id, 'subscription_plan_id' => $hammamPlan->id, 'status' => ClientSubscription::STATUS_SUSPENDED],
+            [
+                'plan_snapshot' => $hammamPlan->load('services.service')->toArray(),
+                'purchased_at' => now()->subMonths(1),
+                'starts_on' => now()->subMonths(1)->toDateString(),
+                'ends_on' => now()->addMonths(2)->toDateString(),
+                'suspension_starts_on' => now()->subDays(5)->toDateString(),
+                'suspension_ends_on' => now()->addDays(9)->toDateString(),
+                'suspension_reason' => 'Voyage — demande du client.',
+            ],
+        );
+
+        // 10) Birthday this week — exercises loyalty:sweep's generateBirthdayRewards().
+        $birthdayClient->update(['birth_date' => now()->startOfWeek()->addDay()->year(now()->year - 28)->toDateString()]);
+        CustomerLoyaltyAccount::firstOrCreate(['client_id' => $birthdayClient->id], ['status' => CustomerLoyaltyAccount::STATUS_ACTIVE]);
+
+        // 11) Fully portal-ready demo account — known phone number so QA can log
+        // into /mon-compte/connexion directly (OTP code is written to the log by
+        // the dev provider, see App\Services\Otp\LogOtpProvider) without going
+        // through the QR scan step every time.
+        $portalDemoClient->update([
+            'phone_e164' => '+212600000001',
+            'phone_verified_at' => now()->subDays(10),
+            'registered_at' => now()->subDays(10),
+            'consent_terms_at' => now()->subDays(10),
+            'consent_marketing_at' => now()->subDays(10),
+        ]);
+        $portalAccount = CustomerLoyaltyAccount::firstOrCreate(['client_id' => $portalDemoClient->id], ['status' => CustomerLoyaltyAccount::STATUS_ACTIVE]);
+        LoyaltyProgramProgress::firstOrCreate(
+            ['client_id' => $portalDemoClient->id, 'loyalty_program_id' => $hammamProgram->id],
+            ['counter' => 2, 'last_activity_at' => now()->subDays(6)],
+        );
+        if ($portalAccount->loyalty_number === null) {
+            $portalAccount->update(['loyalty_number' => CustomerLoyaltyAccount::generateLoyaltyNumber()]);
+        }
+
+        $this->command?->info('Compte portail de démo : +212600000001 (connexion via /mon-compte/connexion, code OTP dans storage/logs/laravel.log).');
     }
 }

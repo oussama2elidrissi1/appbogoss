@@ -8,15 +8,28 @@ use App\Http\Controllers\Api\CashMovementController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\ClientLoyaltyStatusController;
+use App\Http\Controllers\Api\ClientQrController;
 use App\Http\Controllers\Api\CommissionPayoutController;
 use App\Http\Controllers\Api\CommissionRegularizationController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\EmployeeController;
 use App\Http\Controllers\Api\EmployeeServiceCommissionController;
 use App\Http\Controllers\Api\ExpenseController;
+use App\Http\Controllers\Api\LoyaltyDashboardController;
 use App\Http\Controllers\Api\LoyaltyProgramController;
+use App\Http\Controllers\Api\LoyaltyQrController;
+use App\Http\Controllers\Api\LoyaltyReportController;
+use App\Http\Controllers\Api\LoyaltySettingsController;
+use App\Http\Controllers\Api\MarketingSegmentController;
+use App\Http\Controllers\Api\Portal\PortalController;
+use App\Http\Controllers\Api\Portal\PortalLoyaltyController;
+use App\Http\Controllers\Api\Portal\PortalPrestationsController;
+use App\Http\Controllers\Api\Public\JoinController;
+use App\Http\Controllers\Api\Public\OtpController;
 use App\Http\Controllers\Api\SubscriptionPlanController;
 use App\Http\Controllers\Api\SubscriptionPurchaseController;
+use App\Http\Controllers\Api\ClientLoyaltyAdjustmentController;
+use App\Http\Controllers\Api\ClientSubscriptionLifecycleController;
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\PrestationController;
@@ -41,6 +54,39 @@ use Illuminate\Support\Facades\Route;
 */
 
 Route::post('/login', [AuthController::class, 'login']);
+
+// Public, unauthenticated customer-facing surface — QR self-registration
+// and phone+OTP auth. No spatie permission applies here (there is no staff
+// user), gated instead by the loyalty_qr_registration_enabled setting/token
+// and a coarse IP-based throttle (see RouteServiceProvider's 'otp' limiter).
+Route::middleware('throttle:otp')->prefix('public')->group(function () {
+    Route::get('/join/status', [JoinController::class, 'status']);
+    Route::post('/join', [JoinController::class, 'register']);
+    Route::post('/otp/request', [OtpController::class, 'request']);
+    Route::post('/otp/verify', [OtpController::class, 'verify']);
+});
+
+// Customer portal ("Mon BOGOSLAND") — separate `client` guard, no spatie
+// permissions (a Client isn't staff, see AuthServiceProvider's
+// Gate::before which only special-cases super-admin Users).
+Route::middleware('auth:client')->prefix('client')->group(function () {
+    Route::get('/me', [PortalController::class, 'me']);
+    Route::put('/me', [PortalController::class, 'updateProfile']);
+    Route::post('/logout', [PortalController::class, 'logout']);
+
+    Route::get('/home', [PortalLoyaltyController::class, 'home']);
+    Route::get('/loyalty', [PortalLoyaltyController::class, 'programs']);
+    Route::get('/rewards', [PortalLoyaltyController::class, 'rewards']);
+    Route::get('/subscriptions', [PortalLoyaltyController::class, 'subscriptions']);
+    Route::get('/prestations', [PortalPrestationsController::class, 'index']);
+
+    // Reuses the exact same controller as the staff notification bell —
+    // Request::user() resolves against whichever guard authenticated the
+    // request, so this needs no client-specific duplicate.
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+});
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -126,6 +172,46 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('permission:loyalty.redeem')->group(function () {
         Route::post('/clients/{client}/subscriptions', SubscriptionPurchaseController::class);
         Route::get('/clients/{client}/loyalty-status', ClientLoyaltyStatusController::class);
+        Route::post('/qr/lookup', [ClientQrController::class, 'lookup']);
+    });
+
+    Route::middleware('permission:loyalty.view')->group(function () {
+        Route::get('/loyalty/dashboard', [LoyaltyDashboardController::class, 'index']);
+    });
+    Route::middleware('permission:loyalty.reports.view')->group(function () {
+        Route::get('/loyalty/reports/{report}', [LoyaltyReportController::class, 'show']);
+    });
+    Route::middleware('permission:loyalty.settings.manage')->group(function () {
+        Route::get('/loyalty/settings', [LoyaltySettingsController::class, 'show']);
+        Route::match(['post', 'put'], '/loyalty/settings', [LoyaltySettingsController::class, 'update']);
+    });
+    Route::middleware('permission:loyalty.qr.manage')->group(function () {
+        Route::get('/loyalty/qr', [LoyaltyQrController::class, 'show']);
+        Route::post('/loyalty/qr/regenerate', [LoyaltyQrController::class, 'regenerate']);
+    });
+    Route::middleware('permission:loyalty.redeem')->group(function () {
+        Route::get('/clients/{client}/qr', [ClientQrController::class, 'show']);
+        Route::post('/clients/{client}/qr/regenerate', [ClientQrController::class, 'regenerate']);
+        Route::delete('/clients/{client}/qr', [ClientQrController::class, 'revoke']);
+    });
+    Route::middleware('permission:loyalty.rewards.adjust')->group(function () {
+        Route::post('/clients/{client}/loyalty/programs/{program}/progress', [ClientLoyaltyAdjustmentController::class, 'adjustProgress']);
+        Route::post('/clients/{client}/loyalty/programs/{program}/grant-reward', [ClientLoyaltyAdjustmentController::class, 'grantReward']);
+        Route::post('/loyalty-rewards/{loyaltyReward}/cancel', [ClientLoyaltyAdjustmentController::class, 'cancelReward']);
+    });
+    Route::middleware('permission:subscriptions.suspend')->group(function () {
+        Route::post('/client-subscriptions/{clientSubscription}/suspend', [ClientSubscriptionLifecycleController::class, 'suspend']);
+        Route::post('/client-subscriptions/{clientSubscription}/resume', [ClientSubscriptionLifecycleController::class, 'resume']);
+    });
+    Route::middleware('permission:subscriptions.extend')->group(function () {
+        Route::post('/client-subscriptions/{clientSubscription}/extend', [ClientSubscriptionLifecycleController::class, 'extend']);
+    });
+    Route::middleware('permission:subscriptions.sell')->group(function () {
+        Route::post('/client-subscriptions/{clientSubscription}/renew', [ClientSubscriptionLifecycleController::class, 'renew']);
+    });
+    Route::middleware('permission:loyalty.view')->group(function () {
+        Route::get('/marketing/segments', [MarketingSegmentController::class, 'index']);
+        Route::get('/marketing/segments/{segment}', [MarketingSegmentController::class, 'show']);
     });
 
     Route::middleware('permission:users.manage')->group(function () {

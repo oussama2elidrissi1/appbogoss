@@ -12,8 +12,10 @@ use App\Models\LoyaltyReward;
 use App\Models\Prestation;
 use App\Models\PrestationItem;
 use App\Models\Sale;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Evaluates every active loyalty program against a just-finalized Sale (and,
@@ -28,8 +30,10 @@ use Illuminate\Support\Facades\DB;
  */
 class LoyaltyEngine
 {
-    public function __construct(private readonly ActivityLogger $activityLogger)
-    {
+    public function __construct(
+        private readonly ActivityLogger $activityLogger,
+        private readonly LoyaltyNotifier $notifier,
+    ) {
     }
 
     public function processSale(Sale $sale, ?Prestation $prestation = null): void
@@ -58,7 +62,17 @@ class LoyaltyEngine
             ])
             ->where(fn ($q) => $q->whereNull('starts_on')->orWhereDate('starts_on', '<=', now()))
             ->where(fn ($q) => $q->whereNull('ends_on')->orWhereDate('ends_on', '>=', now()))
+            ->orderByDesc('priority')
             ->get();
+
+        // "Cumul autorisé" (config §12): if any active program in the mix is
+        // marked non-stackable, only the single highest-priority program
+        // accrues for this sale — this decision is made at sale level, not
+        // per line, which keeps it testable without a full combinatorial
+        // stacking engine nobody has configured yet.
+        if ($programs->contains(fn (LoyaltyProgram $program) => ! $program->stackable)) {
+            $programs = $programs->take(1);
+        }
 
         foreach ($programs as $program) {
             $this->accrueForProgram($program, $client, $sale, $lines);
@@ -108,11 +122,15 @@ class LoyaltyEngine
         $config = $program->config ?? [];
         $countFreeLines = (bool) ($config['count_free_lines'] ?? false);
 
-        $matching = array_values(array_filter($lines, function (array $line) use ($config, $countFreeLines) {
+        $serviceIds = ! empty($config['service_ids']) && is_array($config['service_ids'])
+            ? array_map('intval', $config['service_ids'])
+            : (! empty($config['service_id']) ? [(int) $config['service_id']] : []);
+
+        $matching = array_values(array_filter($lines, function (array $line) use ($config, $countFreeLines, $serviceIds) {
             if (! $countFreeLines && $line['is_free']) {
                 return false;
             }
-            if (! empty($config['service_id']) && (int) $line['service_id'] !== (int) $config['service_id']) {
+            if (! empty($serviceIds) && ! in_array((int) $line['service_id'], $serviceIds, true)) {
                 return false;
             }
             if (! empty($config['category']) && $line['category'] !== $config['category']) {
@@ -240,6 +258,13 @@ class LoyaltyEngine
                 $this->ensureLoyaltyAccount($client);
             }
 
+            if ($program->max_rewards !== null && $rewardsToGenerate > 0) {
+                $alreadyGenerated = LoyaltyReward::where('client_id', $client->id)
+                    ->where('loyalty_program_id', $program->id)
+                    ->count();
+                $rewardsToGenerate = max(0, min($rewardsToGenerate, $program->max_rewards - $alreadyGenerated));
+            }
+
             for ($i = 0; $i < $rewardsToGenerate; $i++) {
                 $this->generateReward($program, $client, $ledgerEntry);
             }
@@ -351,7 +376,95 @@ class LoyaltyEngine
             'client_id' => $client->id,
         ]);
 
+        $this->notifier->notifyClient($client, 'reward_generated', [
+            'first_name' => explode(' ', trim($client->name))[0] ?? $client->name,
+            'reward_name' => $program->name,
+            'expires_at' => $loyaltyReward->expires_at?->format('d/m/Y') ?? 'sans expiration',
+        ]);
+
         return $loyaltyReward;
+    }
+
+    /**
+     * §11/§31 — Super Admin manual correction of a client's progression on
+     * one program (e.g. "4/5" typed in by hand after a support call).
+     * Always logged with old/new values + mandatory reason, never silent
+     * (§13: "Ne jamais supprimer silencieusement l'historique").
+     */
+    public function adjustProgressManually(Client $client, LoyaltyProgram $program, float $newValue, string $reason, \App\Models\User $actor): LoyaltyProgramProgress
+    {
+        $progress = $this->lockedProgress($client, $program);
+
+        $field = match ($program->type) {
+            LoyaltyProgram::TYPE_POINTS => 'points_balance',
+            LoyaltyProgram::TYPE_AMOUNT_SPENT => 'amount_accumulated',
+            default => 'counter',
+        };
+
+        $old = [$field => $progress->{$field}];
+        $progress->update([
+            $field => in_array($field, ['counter', 'points_balance'], true) ? (int) round($newValue) : $newValue,
+            'last_activity_at' => now(),
+        ]);
+
+        if ($field === 'points_balance') {
+            $this->syncAccountPointsBalance($client);
+        }
+
+        $this->activityLogger->log('loyalty.progress_adjusted_manually', $progress, $old, [
+            $field => $progress->{$field},
+            'reason' => $reason,
+            'by' => $actor->name,
+        ]);
+
+        return $progress->fresh();
+    }
+
+    /**
+     * §11 — an exceptional grant outside the normal threshold-crossing flow.
+     * Reuses createReward() so the resulting row is indistinguishable in
+     * shape from an automatically generated one; the audit trail (reason +
+     * actor) is what marks it as manual.
+     */
+    public function grantRewardManually(Client $client, LoyaltyProgram $program, string $reason, \App\Models\User $actor): LoyaltyReward
+    {
+        $reward = $this->createReward($program, $client, null);
+
+        $this->activityLogger->log('loyalty.reward_granted_manually', $reward, [], [
+            'reason' => $reason,
+            'by' => $actor->name,
+        ]);
+
+        return $reward;
+    }
+
+    /**
+     * §11 — cancels an available/reserved reward outright (distinct from
+     * the automatic cancellation that happens when its triggering sale is
+     * refunded — see reverseLedgerEntry()). Never allowed once `used`: that
+     * would erase real consumption history instead of just correcting an
+     * unused grant.
+     */
+    public function cancelRewardManually(LoyaltyReward $reward, string $reason, \App\Models\User $actor): LoyaltyReward
+    {
+        if ($reward->status === LoyaltyReward::STATUS_USED) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'status' => 'Une récompense déjà utilisée ne peut pas être annulée.',
+            ]);
+        }
+
+        $reward->update([
+            'status' => LoyaltyReward::STATUS_CANCELLED,
+            'cancelled_at' => now(),
+            'cancel_reason' => $reason,
+        ]);
+
+        $this->activityLogger->log('loyalty.reward_cancelled_manually', $reward, [], [
+            'reason' => $reason,
+            'by' => $actor->name,
+        ]);
+
+        return $reward->fresh();
     }
 
     public function ensureLoyaltyAccount(Client $client): CustomerLoyaltyAccount
@@ -471,6 +584,67 @@ class LoyaltyEngine
         }
 
         return $generated;
+    }
+
+    /**
+     * §33 sweep — flips any reward past its expires_at from available to
+     * expired. Reserved/used rewards are untouched: one is mid-checkout, the
+     * other already irreversibly consumed.
+     */
+    public function expireDueRewards(): int
+    {
+        $rewards = LoyaltyReward::expired()->with('client')->get();
+
+        $count = 0;
+        foreach ($rewards as $reward) {
+            $reward->update(['status' => LoyaltyReward::STATUS_EXPIRED]);
+            $this->activityLogger->log('loyalty.reward_expired', $reward);
+            $count++;
+        }
+
+        return $count;
+    }
+
+    /**
+     * §33 sweep — notifies clients whose available reward expires within
+     * $withinDays. Dedups via ActivityLog so a reward sitting in the window
+     * for several sweep runs is only ever alerted once per day.
+     */
+    public function notifyExpiringRewards(int $withinDays): int
+    {
+        $threshold = now()->addDays($withinDays);
+
+        $rewards = LoyaltyReward::where('status', LoyaltyReward::STATUS_AVAILABLE)
+            ->whereNotNull('expires_at')
+            ->whereBetween('expires_at', [now(), $threshold])
+            ->with(['client', 'program'])
+            ->get();
+
+        $notified = 0;
+        foreach ($rewards as $reward) {
+            if ($reward->client === null) {
+                continue;
+            }
+
+            $alreadyNotifiedToday = \App\Models\ActivityLog::where('subject_type', LoyaltyReward::class)
+                ->where('subject_id', $reward->id)
+                ->where('action', 'loyalty.reward_expiry_alert_sent')
+                ->whereDate('created_at', now()->toDateString())
+                ->exists();
+            if ($alreadyNotifiedToday) {
+                continue;
+            }
+
+            $this->notifier->notifyClient($reward->client, 'reward_expiring_soon', [
+                'first_name' => explode(' ', trim($reward->client->name))[0] ?? $reward->client->name,
+                'reward_name' => $reward->program?->name ?? 'récompense',
+                'expires_at' => $reward->expires_at->format('d/m/Y'),
+            ]);
+            $this->activityLogger->log('loyalty.reward_expiry_alert_sent', $reward);
+            $notified++;
+        }
+
+        return $notified;
     }
 
     private function clientMatchesConditions(LoyaltyProgram $program, Client $client): bool

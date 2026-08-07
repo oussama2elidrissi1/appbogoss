@@ -12,10 +12,12 @@ class ClientSubscription extends Model
     public const STATUS_ACTIVE = 'active';
     public const STATUS_EXPIRED = 'expired';
     public const STATUS_CANCELLED = 'cancelled';
+    public const STATUS_SUSPENDED = 'suspended';
 
     protected $fillable = [
         'client_id',
         'subscription_plan_id',
+        'renewed_from_id',
         'plan_snapshot',
         'status',
         'purchased_at',
@@ -25,6 +27,9 @@ class ClientSubscription extends Model
         'purchase_prestation_id',
         'cancelled_at',
         'cancel_reason',
+        'suspension_starts_on',
+        'suspension_ends_on',
+        'suspension_reason',
     ];
 
     protected $casts = [
@@ -33,6 +38,8 @@ class ClientSubscription extends Model
         'starts_on' => 'date',
         'ends_on' => 'date',
         'cancelled_at' => 'datetime',
+        'suspension_starts_on' => 'date',
+        'suspension_ends_on' => 'date',
     ];
 
     public function client(): BelongsTo
@@ -43,6 +50,16 @@ class ClientSubscription extends Model
     public function plan(): BelongsTo
     {
         return $this->belongsTo(SubscriptionPlan::class, 'subscription_plan_id');
+    }
+
+    public function renewedFrom(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'renewed_from_id');
+    }
+
+    public function renewals(): HasMany
+    {
+        return $this->hasMany(self::class, 'renewed_from_id');
     }
 
     public function sale(): BelongsTo

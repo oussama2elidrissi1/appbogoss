@@ -149,3 +149,38 @@ export interface ClientLoyaltyStatus {
     rewards: ClientLoyaltyReward[];
     subscriptions: ClientLoyaltySubscription[];
 }
+
+export interface LoyaltyQrSettings {
+    enabled: boolean;
+    message: string | null;
+    token: string;
+    join_path: string;
+}
+
+export interface LoyaltyNotificationEventSetting {
+    enabled?: boolean;
+    channels?: string[];
+    template?: string;
+}
+
+export interface LoyaltySettings {
+    loyalty_enabled: boolean;
+    loyalty_number_prefix: string;
+    loyalty_timezone: string;
+    loyalty_qr_registration_enabled: boolean;
+    loyalty_qr_message: string;
+    loyalty_qr_token: string | null;
+    loyalty_personal_qr_enabled: boolean;
+    otp_provider: string;
+    otp_ttl_seconds: number;
+    otp_max_attempts: number;
+    otp_resend_cooldown_seconds: number;
+    otp_max_sends_per_hour: number;
+    loyalty_reward_default_expiry_days: number;
+    loyalty_reward_refund_behavior: string;
+    subscription_expiry_alert_days: number;
+    subscription_allow_suspension_default: boolean;
+    subscription_allow_renewal_default: boolean;
+    loyalty_notification_settings: Record<string, LoyaltyNotificationEventSetting> | null;
+    notification_events: Record<string, string>;
+}

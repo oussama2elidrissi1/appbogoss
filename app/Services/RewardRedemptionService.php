@@ -17,8 +17,10 @@ use Illuminate\Validation\ValidationException;
  */
 class RewardRedemptionService
 {
-    public function __construct(private readonly ActivityLogger $activityLogger)
-    {
+    public function __construct(
+        private readonly ActivityLogger $activityLogger,
+        private readonly LoyaltyNotifier $notifier,
+    ) {
     }
 
     public function reserve(LoyaltyReward $reward, Prestation $prestation, PrestationItem $item, User $actor): void
@@ -50,10 +52,23 @@ class RewardRedemptionService
                 ]);
             }
 
-            $locked->update([
-                'status' => LoyaltyReward::STATUS_RESERVED,
-                'reserved_prestation_id' => $prestation->id,
-            ]);
+            // The real anti-double-claim guarantee — lockForUpdate() alone is
+            // a no-op on SQLite, so two concurrent claims could both pass the
+            // status check above under that driver. A conditional UPDATE that
+            // only flips rows still `available` is atomic on every driver:
+            // exactly one concurrent caller can ever see $claimed === 1.
+            $claimed = LoyaltyReward::where('id', $locked->id)
+                ->where('status', LoyaltyReward::STATUS_AVAILABLE)
+                ->update([
+                    'status' => LoyaltyReward::STATUS_RESERVED,
+                    'reserved_prestation_id' => $prestation->id,
+                ]);
+
+            if ($claimed !== 1) {
+                throw ValidationException::withMessages([
+                    'loyalty_reward_id' => 'Cette récompense vient d’être réservée, réessayez.',
+                ]);
+            }
 
             $publicPrice = (float) ($item->service?->price ?? $item->unit_price);
             $discount = match ($locked->type) {
@@ -108,6 +123,14 @@ class RewardRedemptionService
         ]);
 
         $this->activityLogger->log('loyalty.reward_used', $locked, [], ['prestation_item_id' => $item->id]);
+
+        $client = $locked->client;
+        if ($client !== null) {
+            $this->notifier->notifyClient($client, 'reward_used', [
+                'first_name' => explode(' ', trim($client->name))[0] ?? $client->name,
+                'reward_name' => $locked->program?->name ?? 'récompense',
+            ]);
+        }
     }
 
     public function reverseConsumption(Prestation $prestation): void

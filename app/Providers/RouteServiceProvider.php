@@ -28,6 +28,13 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::perMinute(60)->by($request->user()?->id ?: $request->ip());
         });
 
+        // Coarse, IP-based defense in depth for the public OTP endpoints —
+        // the real per-phone-number cooldown/hourly-cap logic lives in
+        // OtpService, keyed by phone rather than IP.
+        RateLimiter::for('otp', function (Request $request) {
+            return Limit::perMinute(10)->by($request->ip());
+        });
+
         $this->routes(function () {
             Route::middleware('api')
                 ->prefix('api')

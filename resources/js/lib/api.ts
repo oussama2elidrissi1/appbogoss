@@ -45,10 +45,19 @@ import type {
     ClientSubscription,
     LoyaltyProgram,
     LoyaltyProgramPayload,
+    LoyaltyQrSettings,
+    LoyaltySettings,
     PurchaseSubscriptionPayload,
     SubscriptionPlan,
     SubscriptionPlanPayload,
 } from '@/types/loyalty';
+import type {
+    PortalClient,
+    PortalHome,
+    PortalProgramProgress,
+    PortalRewardsResponse,
+    PortalSubscription,
+} from '@/types/portal';
 
 /**
  * Sanctum SPA (cookie) authentication:
@@ -761,5 +770,110 @@ export async function purchaseSubscription(clientId: number, payload: PurchaseSu
 
 export async function getClientLoyaltyStatus(clientId: number): Promise<ClientLoyaltyStatus> {
     const { data } = await api.get<{ data: ClientLoyaltyStatus }>(`/api/clients/${clientId}/loyalty-status`);
+    return data.data;
+}
+
+/* ------------------------------------------------------------------ *
+ * Fidélité → QR Code (admin)
+ * ------------------------------------------------------------------ */
+
+export async function getLoyaltyQr(): Promise<LoyaltyQrSettings> {
+    const { data } = await api.get<{ data: LoyaltyQrSettings }>('/api/loyalty/qr');
+    return data.data;
+}
+
+export async function regenerateLoyaltyQr(): Promise<{ token: string }> {
+    const { data } = await api.post<{ data: { token: string } }>('/api/loyalty/qr/regenerate');
+    return data.data;
+}
+
+export async function updateLoyaltySettings(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const { data } = await api.put<{ data: Record<string, unknown> }>('/api/loyalty/settings', payload);
+    return data.data;
+}
+
+export async function getLoyaltySettingsFull(): Promise<LoyaltySettings> {
+    const { data } = await api.get<{ data: LoyaltySettings }>('/api/loyalty/settings');
+    return data.data;
+}
+
+/* ------------------------------------------------------------------ *
+ * Public join / OTP (no auth) — the QR scan → registration → login flow.
+ * ------------------------------------------------------------------ */
+
+export interface JoinPayload {
+    first_name: string;
+    last_name: string;
+    phone: string;
+    email?: string;
+    birth_date?: string;
+    gender?: 'female' | 'male' | 'other';
+    terms_consent: boolean;
+    marketing_consent?: boolean;
+    token: string;
+}
+
+export async function checkJoinAvailable(token: string): Promise<boolean> {
+    const { data } = await api.get<{ data: { available: boolean } }>('/api/public/join/status', {
+        params: { t: token },
+    });
+    return data.data.available;
+}
+
+export async function joinLoyaltyProgram(payload: JoinPayload): Promise<{ status: 'created' | 'existing'; phone: string }> {
+    await getCsrfCookie();
+    const { data } = await api.post<{ data: { status: 'created' | 'existing'; phone: string } }>(
+        '/api/public/join',
+        payload,
+    );
+    return data.data;
+}
+
+export async function requestOtp(phone: string): Promise<{ expires_at: string; dev_code: string | null }> {
+    await getCsrfCookie();
+    const { data } = await api.post<{ data: { expires_at: string; dev_code: string | null } }>(
+        '/api/public/otp/request',
+        { phone },
+    );
+    return data.data;
+}
+
+export async function verifyOtp(phone: string, code: string): Promise<PortalClient> {
+    await getCsrfCookie();
+    const { data } = await api.post<{ data: PortalClient }>('/api/public/otp/verify', { phone, code });
+    return data.data;
+}
+
+/* ------------------------------------------------------------------ *
+ * Customer portal ("Mon BOGOSLAND") — `client` guard, cookie session
+ * established by verifyOtp() above.
+ * ------------------------------------------------------------------ */
+
+export async function getPortalMe(): Promise<PortalClient> {
+    const { data } = await api.get<{ data: PortalClient }>('/api/client/me');
+    return data.data;
+}
+
+export async function portalLogout(): Promise<void> {
+    await api.post('/api/client/logout');
+}
+
+export async function getPortalHome(): Promise<PortalHome> {
+    const { data } = await api.get<{ data: PortalHome }>('/api/client/home');
+    return data.data;
+}
+
+export async function getPortalPrograms(): Promise<PortalProgramProgress[]> {
+    const { data } = await api.get<{ data: PortalProgramProgress[] }>('/api/client/loyalty');
+    return data.data;
+}
+
+export async function getPortalRewards(): Promise<PortalRewardsResponse> {
+    const { data } = await api.get<{ data: PortalRewardsResponse }>('/api/client/rewards');
+    return data.data;
+}
+
+export async function getPortalSubscriptions(): Promise<PortalSubscription[]> {
+    const { data } = await api.get<{ data: PortalSubscription[] }>('/api/client/subscriptions');
     return data.data;
 }

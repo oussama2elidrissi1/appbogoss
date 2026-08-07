@@ -19,7 +19,7 @@ class ActivityLogController extends Controller
             'user_id' => ['nullable', 'integer'],
         ]);
 
-        $query = ActivityLog::with('user')->orderByDesc('created_at');
+        $query = ActivityLog::with(['user', 'client'])->orderByDesc('created_at');
 
         if (! empty($validated['from'])) {
             $query->whereDate('created_at', '>=', $validated['from']);

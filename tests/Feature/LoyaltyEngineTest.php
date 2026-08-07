@@ -234,6 +234,36 @@ class LoyaltyEngineTest extends TestCase
         $this->assertSame(1, LoyaltyProgramProgress::where('client_id', $client->id)->first()->counter);
     }
 
+    public function test_eleven_purchases_with_rollover_generate_exactly_two_rewards_and_leave_one_fifth_progress(): void
+    {
+        [$employee, $user] = $this->employeeWithLogin();
+        $admin = $this->admin();
+        $client = Client::factory()->create();
+        $hammamService = Service::factory()->create(['category' => 'hammam', 'price' => 150]);
+        $this->hammamProgram($hammamService, threshold: 5, rollover: true);
+
+        for ($i = 0; $i < 11; $i++) {
+            $this->payHammamPrestation($employee, $user, $admin, $client, $hammamService);
+        }
+
+        // 11 = 2 × 5 + 1 — two full thresholds crossed (2 rewards), one
+        // qualifying purchase rolled over into the next cycle.
+        $this->assertSame(
+            2,
+            LoyaltyReward::where('client_id', $client->id)->count(),
+            '11 purchases against a threshold of 5 with rollover must generate exactly 2 rewards.',
+        );
+        $this->assertSame(
+            1,
+            LoyaltyProgramProgress::where('client_id', $client->id)->first()->counter,
+            'The 11th purchase is the 1st toward the next reward — progress must read 1/5, not 0 or reset.',
+        );
+        $this->assertSame(
+            2,
+            LoyaltyReward::where('client_id', $client->id)->where('status', LoyaltyReward::STATUS_AVAILABLE)->count(),
+        );
+    }
+
     public function test_commission_resolves_on_public_price_for_a_free_line(): void
     {
         [$employee] = $this->employeeWithLogin();

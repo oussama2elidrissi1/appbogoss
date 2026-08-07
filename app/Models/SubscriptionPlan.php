@@ -14,6 +14,8 @@ class SubscriptionPlan extends Model
         'duration_value',
         'duration_unit',
         'is_active',
+        'allow_suspension',
+        'allow_renewal',
         'notes',
     ];
 
@@ -21,6 +23,8 @@ class SubscriptionPlan extends Model
         'price' => 'decimal:2',
         'duration_value' => 'integer',
         'is_active' => 'boolean',
+        'allow_suspension' => 'boolean',
+        'allow_renewal' => 'boolean',
     ];
 
     public function services(): HasMany

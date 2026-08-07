@@ -12,8 +12,16 @@ import Dashboard from '@/pages/Dashboard';
 import Depenses from '@/pages/Depenses';
 import EmployeeDetail from '@/pages/EmployeeDetail';
 import Employees from '@/pages/Employees';
+import Join from '@/pages/Join';
 import Login from '@/pages/Login';
 import LoyaltyPrograms from '@/pages/LoyaltyPrograms';
+import LoyaltyQr from '@/pages/LoyaltyQr';
+import LoyaltySettings from '@/pages/LoyaltySettings';
+import PortalLayout, { PortalProtectedRoute } from '@/pages/portal/PortalLayout';
+import PortalLogin from '@/pages/portal/PortalLogin';
+import PortalHome from '@/pages/portal/PortalHome';
+import PortalRewards from '@/pages/portal/PortalRewards';
+import PortalSubscriptions from '@/pages/portal/PortalSubscriptions';
 import MonEspace from '@/pages/MonEspace';
 import Payroll from '@/pages/Payroll';
 import PlaceholderPage from '@/pages/PlaceholderPage';
@@ -41,6 +49,8 @@ const realRoutes = new Set([
     '/activity-log',
     '/loyalty-programs',
     '/subscription-plans',
+    '/loyalty-qr',
+    '/loyalty-settings',
 ]);
 const placeholderItems = navItems.filter((item) => !realRoutes.has(item.to));
 
@@ -48,6 +58,18 @@ export default function App() {
     return (
         <Routes>
             <Route path="/login" element={<Login />} />
+
+            {/* Public customer-facing surface — no staff auth, no AppLayout. Separate
+                `client` guard/session via PortalAuthProvider (see main.tsx). */}
+            <Route path="/join" element={<Join />} />
+            <Route path="/mon-compte/connexion" element={<PortalLogin />} />
+            <Route element={<PortalProtectedRoute />}>
+                <Route element={<PortalLayout />}>
+                    <Route path="/mon-compte" element={<PortalHome />} />
+                    <Route path="/mon-compte/recompenses" element={<PortalRewards />} />
+                    <Route path="/mon-compte/abonnements" element={<PortalSubscriptions />} />
+                </Route>
+            </Route>
 
             {/* Single persistent AppLayout for the whole authenticated app — the
                 permission gates below are nested INSIDE it (not separate top-level
@@ -102,6 +124,14 @@ export default function App() {
                     <Route element={<ProtectedRoute permission="loyalty.manage" />}>
                         <Route path="/loyalty-programs" element={<LoyaltyPrograms />} />
                         <Route path="/subscription-plans" element={<SubscriptionPlans />} />
+                    </Route>
+
+                    <Route element={<ProtectedRoute permission="loyalty.qr.manage" />}>
+                        <Route path="/loyalty-qr" element={<LoyaltyQr />} />
+                    </Route>
+
+                    <Route element={<ProtectedRoute permission="loyalty.settings.manage" />}>
+                        <Route path="/loyalty-settings" element={<LoyaltySettings />} />
                     </Route>
 
                     {placeholderItems.map((item) => (

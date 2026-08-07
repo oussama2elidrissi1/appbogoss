@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\ActivityLog;
 use App\Models\Client;
 use App\Models\ClientSubscription;
 use App\Models\ClientSubscriptionUsage;
@@ -30,7 +31,14 @@ class SubscriptionService
         private readonly WorkDayService $workDayService,
         private readonly ActivityLogger $activityLogger,
         private readonly LoyaltyEngine $loyaltyEngine,
+        private readonly LoyaltyNotifier $notifier,
+        private readonly LoyaltySettingsService $settings,
     ) {
+    }
+
+    private function today(): Carbon
+    {
+        return Carbon::now($this->settings->get('loyalty_timezone', 'Africa/Casablanca'))->startOfDay();
     }
 
     /**
@@ -46,7 +54,7 @@ class SubscriptionService
         }
 
         return DB::transaction(function () use ($client, $plan, $actor, $data, $activeDay) {
-            $startsOn = isset($data['starts_on']) ? Carbon::parse($data['starts_on']) : Carbon::now();
+            $startsOn = isset($data['starts_on']) ? Carbon::parse($data['starts_on']) : $this->today();
             $endsOn = $plan->computeEndsOn($startsOn);
 
             $sale = Sale::create([
@@ -92,6 +100,12 @@ class SubscriptionService
             // here since this Sale carries no category/service_id.
             $this->loyaltyEngine->processSale($sale);
 
+            $this->notifier->notifyClient($client, 'subscription_activated', [
+                'first_name' => explode(' ', trim($client->name))[0] ?? $client->name,
+                'plan_name' => $plan->name,
+                'ends_at' => $endsOn->format('d/m/Y'),
+            ]);
+
             return $subscription->fresh(['plan', 'client']);
         });
     }
@@ -116,8 +130,14 @@ class SubscriptionService
                 throw ValidationException::withMessages(['client_subscription_id' => 'Cet abonnement n’appartient pas à ce client.']);
             }
 
-            $today = Carbon::today();
-            if ($today->lt($lockedSub->starts_on) || $today->gt($lockedSub->ends_on)) {
+            $today = $this->today();
+            // Compared as calendar-date strings, not datetime instants —
+            // starts_on/ends_on are plain dates, and $today carries the
+            // salon's timezone (see loyalty_timezone setting) which would
+            // otherwise shift the instant across a date boundary relative
+            // to the app's own (UTC) timezone.
+            $todayDate = $today->toDateString();
+            if ($todayDate < $lockedSub->starts_on->toDateString() || $todayDate > $lockedSub->ends_on->toDateString()) {
                 throw ValidationException::withMessages(['client_subscription_id' => 'Cet abonnement n’est pas valide à cette date.']);
             }
 
@@ -207,6 +227,15 @@ class SubscriptionService
         ]);
 
         $this->activityLogger->log('subscription.usage_confirmed', $locked, [], ['prestation_item_id' => $item->id]);
+
+        $subscription = $locked->subscription;
+        $client = $subscription?->client;
+        if ($client !== null) {
+            $this->notifier->notifyClient($client, 'subscription_used', [
+                'first_name' => explode(' ', trim($client->name))[0] ?? $client->name,
+                'plan_name' => $subscription->plan?->name ?? 'abonnement',
+            ]);
+        }
     }
 
     public function reverseUsageForSale(Prestation $prestation): void
@@ -233,9 +262,165 @@ class SubscriptionService
 
     public function expireDueSubscriptions(): int
     {
-        return ClientSubscription::where('status', ClientSubscription::STATUS_ACTIVE)
-            ->whereDate('ends_on', '<', now())
-            ->update(['status' => ClientSubscription::STATUS_EXPIRED]);
+        $due = ClientSubscription::where('status', ClientSubscription::STATUS_ACTIVE)
+            ->whereDate('ends_on', '<', $this->today())
+            ->with('client', 'plan')
+            ->get();
+
+        foreach ($due as $subscription) {
+            $subscription->update(['status' => ClientSubscription::STATUS_EXPIRED]);
+            $this->activityLogger->log('subscription.expired', $subscription);
+
+            if ($subscription->client !== null) {
+                $this->notifier->notifyClient($subscription->client, 'subscription_expired', [
+                    'first_name' => explode(' ', trim($subscription->client->name))[0] ?? $subscription->client->name,
+                    'plan_name' => $subscription->plan?->name ?? 'abonnement',
+                ]);
+            }
+        }
+
+        return $due->count();
+    }
+
+    /**
+     * Date-driven sweep (see loyalty:sweep) — notifies clients whose active
+     * subscription ends within the configured alert window, at most once
+     * per subscription per day (guarded by activity_logs rather than a new
+     * column, since this is a pure notification concern).
+     */
+    public function notifyExpiringSubscriptions(int $withinDays): int
+    {
+        $threshold = $this->today()->addDays($withinDays);
+
+        $subscriptions = ClientSubscription::where('status', ClientSubscription::STATUS_ACTIVE)
+            ->whereDate('ends_on', '<=', $threshold)
+            ->whereDate('ends_on', '>=', $this->today())
+            ->with('client', 'plan')
+            ->get();
+
+        $notified = 0;
+        foreach ($subscriptions as $subscription) {
+            if ($subscription->client === null) {
+                continue;
+            }
+
+            $alreadyNotifiedToday = ActivityLog::where('subject_type', ClientSubscription::class)
+                ->where('subject_id', $subscription->id)
+                ->where('action', 'subscription.expiry_alert_sent')
+                ->whereDate('created_at', $this->today())
+                ->exists();
+            if ($alreadyNotifiedToday) {
+                continue;
+            }
+
+            $this->notifier->notifyClient($subscription->client, 'subscription_expiring_soon', [
+                'first_name' => explode(' ', trim($subscription->client->name))[0] ?? $subscription->client->name,
+                'plan_name' => $subscription->plan?->name ?? 'abonnement',
+                'ends_at' => $subscription->ends_on->format('d/m/Y'),
+            ]);
+            $this->activityLogger->log('subscription.expiry_alert_sent', $subscription);
+            $notified++;
+        }
+
+        return $notified;
+    }
+
+    /**
+     * §17 — blocks consumption for the given window; if the plan allows
+     * freezing duration, ends_on is pushed back by exactly the suspended
+     * span so the client doesn't lose paid-for time.
+     */
+    public function suspend(ClientSubscription $subscription, Carbon $from, Carbon $until, string $reason, User $actor): ClientSubscription
+    {
+        if (! ($subscription->plan?->allow_suspension)) {
+            throw ValidationException::withMessages(['status' => 'Ce plan n’autorise pas la suspension.']);
+        }
+        if ($subscription->status !== ClientSubscription::STATUS_ACTIVE) {
+            throw ValidationException::withMessages(['status' => 'Seul un abonnement actif peut être suspendu.']);
+        }
+
+        $old = $subscription->only(['status', 'ends_on']);
+
+        $subscription->update([
+            'status' => ClientSubscription::STATUS_SUSPENDED,
+            'suspension_starts_on' => $from->toDateString(),
+            'suspension_ends_on' => $until->toDateString(),
+            'suspension_reason' => $reason,
+            'ends_on' => $subscription->ends_on->addDays($from->diffInDays($until)),
+        ]);
+
+        $this->activityLogger->log('subscription.suspended', $subscription, $old, [
+            'suspension_starts_on' => $from->toDateString(),
+            'suspension_ends_on' => $until->toDateString(),
+            'reason' => $reason,
+            'by' => $actor->name,
+        ]);
+
+        return $subscription->fresh();
+    }
+
+    public function resume(ClientSubscription $subscription, User $actor): ClientSubscription
+    {
+        if ($subscription->status !== ClientSubscription::STATUS_SUSPENDED) {
+            throw ValidationException::withMessages(['status' => 'Cet abonnement n’est pas suspendu.']);
+        }
+
+        $subscription->update([
+            'status' => ClientSubscription::STATUS_ACTIVE,
+            'suspension_starts_on' => null,
+            'suspension_ends_on' => null,
+        ]);
+
+        $this->activityLogger->log('subscription.resumed', $subscription, [], ['by' => $actor->name]);
+
+        return $subscription->fresh();
+    }
+
+    /**
+     * §11 — Super Admin correction, e.g. compensating a service outage.
+     * Always logged with the actor + reason, never silent.
+     */
+    public function extend(ClientSubscription $subscription, int $days, string $reason, User $actor): ClientSubscription
+    {
+        if ($days <= 0) {
+            throw ValidationException::withMessages(['days' => 'Le nombre de jours doit être positif.']);
+        }
+
+        $old = $subscription->only(['ends_on']);
+        $subscription->update(['ends_on' => $subscription->ends_on->copy()->addDays($days)]);
+
+        $this->activityLogger->log('subscription.extended', $subscription, $old, [
+            'ends_on' => $subscription->ends_on->toDateString(),
+            'days' => $days,
+            'reason' => $reason,
+            'by' => $actor->name,
+        ]);
+
+        return $subscription->fresh();
+    }
+
+    /**
+     * §18 — a manual renewal never overwrites the old record: a fresh
+     * ClientSubscription is created, linked via renewed_from_id, so the
+     * history (old usages, old dates) stays intact.
+     */
+    public function renew(ClientSubscription $subscription, User $actor, array $data = []): ClientSubscription
+    {
+        if (! ($subscription->plan?->allow_renewal)) {
+            throw ValidationException::withMessages(['status' => 'Ce plan n’autorise pas le renouvellement.']);
+        }
+        if ($subscription->client === null) {
+            throw ValidationException::withMessages(['status' => 'Client introuvable pour cet abonnement.']);
+        }
+
+        $data['starts_on'] = $data['starts_on'] ?? max($this->today()->toDateString(), $subscription->ends_on->toDateString());
+
+        $renewed = $this->purchase($subscription->client, $subscription->plan, $actor, $data);
+        $renewed->update(['renewed_from_id' => $subscription->id]);
+
+        $this->activityLogger->log('subscription.renewed', $renewed, [], ['renewed_from_id' => $subscription->id]);
+
+        return $renewed->fresh(['plan', 'client']);
     }
 
     /**
@@ -247,7 +432,7 @@ class SubscriptionService
      */
     public function quotaRemaining(ClientSubscription $subscription, SubscriptionPlanService $planService): array
     {
-        $today = Carbon::today();
+        $today = $this->today();
         $periodKey = $planService->quota_period ? $this->periodKey($planService->quota_period, $today) : null;
 
         $counts = $this->quotaCounts($subscription, $planService, $periodKey);

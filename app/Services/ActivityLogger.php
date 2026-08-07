@@ -24,6 +24,7 @@ class ActivityLogger
     {
         ActivityLog::create([
             'user_id' => Auth::id(),
+            'client_id' => Auth::guard('client')->id(),
             'action' => $action,
             'subject_type' => $subject ? $subject::class : null,
             'subject_id' => $subject?->getKey(),

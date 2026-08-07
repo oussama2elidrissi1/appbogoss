@@ -197,6 +197,48 @@ class LoyaltyRedemptionWorkflowTest extends TestCase
         );
     }
 
+    public function test_two_reservation_attempts_on_the_same_available_reward_only_one_succeeds(): void
+    {
+        // §31 — two cashiers redeeming the same reward at the same time must
+        // never both win. A single PHPUnit process can't fork two real
+        // concurrent requests, but this exercises the exact code path the
+        // race depends on: RewardRedemptionService::reserve()'s atomic
+        // conditional UPDATE (`WHERE status = 'available'`), which is what
+        // actually decides the winner under real concurrency — not the
+        // earlier status read, which lockForUpdate() can't protect on SQLite.
+        [$employee, $user] = $this->employeeWithLogin();
+        $client = Client::factory()->create();
+        $service = Service::factory()->create(['category' => 'hammam', 'price' => 150]);
+        $reward = $this->availableReward($client, $service);
+
+        $prestationA = app(PrestationService::class)->create(
+            ['client_id' => $client->id, 'items' => [['service_id' => $service->id]]],
+            $employee,
+            $user,
+        );
+        $prestationB = app(PrestationService::class)->create(
+            ['client_id' => $client->id, 'items' => [['service_id' => $service->id]]],
+            $employee,
+            $user,
+        );
+
+        app(\App\Services\RewardRedemptionService::class)->reserve(
+            $reward,
+            $prestationA,
+            $prestationA->items->first(),
+            $user,
+        );
+        $this->assertSame(LoyaltyReward::STATUS_RESERVED, $reward->fresh()->status);
+
+        $this->expectException(ValidationException::class);
+        app(\App\Services\RewardRedemptionService::class)->reserve(
+            $reward,
+            $prestationB,
+            $prestationB->items->first(),
+            $user,
+        );
+    }
+
     public function test_removing_an_item_releases_its_reward_reservation(): void
     {
         [$employee, $user] = $this->employeeWithLogin();
