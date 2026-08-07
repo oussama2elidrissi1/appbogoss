@@ -35,9 +35,12 @@ class CustomerRegistrationService
                 'name' => trim($data['first_name'].' '.$data['last_name']),
                 'phone' => $data['phone'],
                 'phone_e164' => $phoneE164,
+                // Hashed automatically by Client's 'password' => 'hashed' cast.
+                'password' => $data['password'],
                 'email' => $data['email'] ?? null,
                 'birth_date' => $data['birth_date'] ?? null,
                 'gender' => $data['gender'] ?? null,
+                'phone_verified_at' => now(),
                 'registered_at' => now(),
                 'consent_terms_at' => now(),
                 'consent_marketing_at' => ! empty($data['marketing_consent']) ? now() : null,

@@ -24,8 +24,8 @@ use App\Http\Controllers\Api\MarketingSegmentController;
 use App\Http\Controllers\Api\Portal\PortalController;
 use App\Http\Controllers\Api\Portal\PortalLoyaltyController;
 use App\Http\Controllers\Api\Portal\PortalPrestationsController;
+use App\Http\Controllers\Api\Public\ClientLoginController;
 use App\Http\Controllers\Api\Public\JoinController;
-use App\Http\Controllers\Api\Public\OtpController;
 use App\Http\Controllers\Api\SubscriptionPlanController;
 use App\Http\Controllers\Api\SubscriptionPurchaseController;
 use App\Http\Controllers\Api\ClientLoyaltyAdjustmentController;
@@ -56,14 +56,17 @@ use Illuminate\Support\Facades\Route;
 Route::post('/login', [AuthController::class, 'login']);
 
 // Public, unauthenticated customer-facing surface — QR self-registration
-// and phone+OTP auth. No spatie permission applies here (there is no staff
-// user), gated instead by the loyalty_qr_registration_enabled setting/token
-// and a coarse IP-based throttle (see RouteServiceProvider's 'otp' limiter).
+// and phone+password auth. No spatie permission applies here (there is no
+// staff user), gated instead by the loyalty_qr_registration_enabled
+// setting/token and a coarse IP-based throttle (see RouteServiceProvider's
+// 'otp' limiter — name predates this route, still the right shape/limits).
+// Note: App\Services\Otp\* and the /api/public/otp/* routes it used to power
+// are unwired but intentionally kept (not deleted) — the exact same
+// infrastructure is what a future "mot de passe oublié" reset flow needs.
 Route::middleware('throttle:otp')->prefix('public')->group(function () {
     Route::get('/join/status', [JoinController::class, 'status']);
     Route::post('/join', [JoinController::class, 'register']);
-    Route::post('/otp/request', [OtpController::class, 'request']);
-    Route::post('/otp/verify', [OtpController::class, 'verify']);
+    Route::post('/login', [ClientLoginController::class, 'login']);
 });
 
 // Customer portal ("Mon BOGOSLAND") — separate `client` guard, no spatie

@@ -798,13 +798,17 @@ export async function getLoyaltySettingsFull(): Promise<LoyaltySettings> {
 }
 
 /* ------------------------------------------------------------------ *
- * Public join / OTP (no auth) — the QR scan → registration → login flow.
+ * Public join / login (no auth) — the QR scan → registration flow, and
+ * phone+password login for returning customers. No OTP/SMS/email step:
+ * the account IS the phone number + a password the customer picks.
  * ------------------------------------------------------------------ */
 
 export interface JoinPayload {
     first_name: string;
     last_name: string;
     phone: string;
+    password: string;
+    password_confirmation: string;
     email?: string;
     birth_date?: string;
     gender?: 'female' | 'male' | 'other';
@@ -820,33 +824,22 @@ export async function checkJoinAvailable(token: string): Promise<boolean> {
     return data.data.available;
 }
 
-export async function joinLoyaltyProgram(payload: JoinPayload): Promise<{ status: 'created' | 'existing'; phone: string }> {
+/** Registration doubles as login — a successful call already establishes the portal session. */
+export async function joinLoyaltyProgram(payload: JoinPayload): Promise<PortalClient> {
     await getCsrfCookie();
-    const { data } = await api.post<{ data: { status: 'created' | 'existing'; phone: string } }>(
-        '/api/public/join',
-        payload,
-    );
+    const { data } = await api.post<{ data: PortalClient }>('/api/public/join', payload);
     return data.data;
 }
 
-export async function requestOtp(phone: string): Promise<{ expires_at: string; dev_code: string | null }> {
+export async function loginClient(phone: string, password: string): Promise<PortalClient> {
     await getCsrfCookie();
-    const { data } = await api.post<{ data: { expires_at: string; dev_code: string | null } }>(
-        '/api/public/otp/request',
-        { phone },
-    );
-    return data.data;
-}
-
-export async function verifyOtp(phone: string, code: string): Promise<PortalClient> {
-    await getCsrfCookie();
-    const { data } = await api.post<{ data: PortalClient }>('/api/public/otp/verify', { phone, code });
+    const { data } = await api.post<{ data: PortalClient }>('/api/public/login', { phone, password });
     return data.data;
 }
 
 /* ------------------------------------------------------------------ *
  * Customer portal ("Mon BOGOSLAND") — `client` guard, cookie session
- * established by verifyOtp() above.
+ * established by joinLoyaltyProgram()/loginClient() above.
  * ------------------------------------------------------------------ */
 
 export async function getPortalMe(): Promise<PortalClient> {

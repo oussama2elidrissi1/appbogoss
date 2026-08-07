@@ -4,15 +4,17 @@ Rapport final du module « Fidélité & Abonnements » de BOGOSLAND Manager, str
 
 ## 1. Statut global
 
-**Backend : complet et testé (162/162 tests, 602 assertions).**
-**Frontend : QR admin, inscription publique, OTP et portail client livrés et vérifiés en conditions réelles (Playwright). Quatre pages admin restent à construire — voir §9 « Livré / non livré ».**
+**Backend : complet et testé (167/167 tests, 617 assertions).**
+**Frontend : QR admin, inscription publique, portail client livrés et vérifiés en conditions réelles (Playwright). Trois pages admin restent à construire — voir §9 « Livré / non livré ».**
+
+**Authentification client : phone + mot de passe choisi par le client, pas d'OTP/SMS/email** (changement demandé après la première livraison de ce module — voir §8).
 
 ## 2. Fonctionnalités implémentées
 
 - Moteur de fidélité (programmes service_count / points / amount_spent / visit_count / birthday / custom), déjà en place avant cette session, conservé intact.
 - QR Code général d'inscription : génération, régénération (invalide l'ancien), activation/désactivation, page admin avec export PNG et affiche imprimable A4.
-- Inscription publique `/join` : formulaire, déduplication par téléphone normalisé E.164, consentement CGU/marketing.
-- Authentification OTP (6 chiffres, hashé, expiration/tentatives/cooldown/plafond horaire configurables) via un provider branchable (`OtpProviderInterface`) — actuellement lié à `LogOtpProvider` (voir §8, limitation connue).
+- Inscription publique `/join` : formulaire, déduplication par téléphone normalisé E.164, consentement CGU/marketing, mot de passe choisi par le client (hashé, jamais stocké/renvoyé en clair) — l'inscription établit directement la session portail, sans étape de vérification séparée.
+- Connexion des clients récurrents par téléphone + mot de passe (`POST /api/public/login`), message d'erreur générique (ne révèle jamais si un numéro correspond à un compte existant), verrouillage après 5 échecs sur un même numéro.
 - Portail client « Mon BOGOSLAND » (`/mon-compte`) : Accueil (points, prochaine récompense, alertes, abonnements actifs), Mes récompenses (disponibles/utilisées/expirées), Mes abonnements (quotas restants par service). Guard Laravel dédié (`client`), totalement indépendant de la session staff.
 - Identification client en caisse par QR personnel (token opaque, révocable, jamais de donnée sensible dans l'URL).
 - Corrections manuelles Super Admin (ajustement de progression, octroi/annulation de récompense) — motif obligatoire, entièrement journalisées.
@@ -25,7 +27,7 @@ Rapport final du module « Fidélité & Abonnements » de BOGOSLAND Manager, str
 
 ## 3. Fichiers créés / modifiés
 
-### Migrations (7, toutes additives)
+### Migrations (8, toutes additives)
 ```
 2026_08_07_090000_add_portal_columns_to_clients_table.php
 2026_08_07_090001_add_loyalty_number_to_customer_loyalty_accounts_table.php
@@ -34,19 +36,21 @@ Rapport final du module « Fidélité & Abonnements » de BOGOSLAND Manager, str
 2026_08_07_090004_add_lifecycle_columns_to_subscriptions_tables.php
 2026_08_07_090005_add_stacking_columns_to_loyalty_programs_table.php
 2026_08_07_090006_add_client_id_to_activity_logs_table.php
+2026_08_07_190520_add_password_to_clients_table.php
 ```
 
 ### Modèles
 Nouveaux : `CustomerOtpCode`, `ClientQrToken`.
-Modifiés : `Client` (guard `Authenticatable` + `Notifiable`), `CustomerLoyaltyAccount` (`loyalty_number`), `LoyaltyProgram` (stacking/priority), `SubscriptionPlan` (suspension/renouvellement), `ClientSubscription` (statut `suspended`, `renewed_from_id`), `ActivityLog` (`client_id`).
+Modifiés : `Client` (guard `Authenticatable` + `Notifiable`, `password` hidden + cast `hashed`), `CustomerLoyaltyAccount` (`loyalty_number`), `LoyaltyProgram` (stacking/priority), `SubscriptionPlan` (suspension/renouvellement), `ClientSubscription` (statut `suspended`, `renewed_from_id`), `ActivityLog` (`client_id`).
 
 ### Services
 Nouveaux : `PhoneNumberNormalizer`, `LoyaltySettingsService`, `Otp/OtpProviderInterface`, `Otp/LogOtpProvider`, `Otp/OtpService`, `CustomerRegistrationService`, `LoyaltyNotifier`.
-Modifiés : `LoyaltyEngine` (+ `expireDueRewards`, `notifyExpiringRewards`, corrections manuelles), `RewardRedemptionService` (réservation atomique anti-course), `SubscriptionService` (+ suspend/resume/extend/renew/notifyExpiringSubscriptions, correction de fuseau horaire), `ActivityLogger` (capture `client_id`).
+Modifiés : `LoyaltyEngine` (+ `expireDueRewards`, `notifyExpiringRewards`, corrections manuelles), `RewardRedemptionService` (réservation atomique anti-course), `SubscriptionService` (+ suspend/resume/extend/renew/notifyExpiringSubscriptions, correction de fuseau horaire), `ActivityLogger` (capture `client_id`, **correctif** : `user_id` utilise désormais explicitement `Auth::guard('web')->id()` au lieu de `Auth::id()` — sous `auth:client`, le guard par défaut est repointé vers `client` et `Auth::id()` renvoyait l'id du client, violant la clé étrangère `users` ; bug latent préexistant, jamais déclenché avant qu'un test n'exerce `POST /api/client/logout`).
 
 ### Contrôleurs
-Nouveaux : `Public/JoinController`, `Public/OtpController`, `Portal/PortalController`, `Portal/PortalLoyaltyController`, `Portal/PortalPrestationsController`, `LoyaltySettingsController`, `LoyaltyQrController`, `ClientQrController`, `ClientLoyaltyAdjustmentController`, `ClientSubscriptionLifecycleController`, `LoyaltyDashboardController`, `LoyaltyReportController`, `MarketingSegmentController`.
+Nouveaux : `Public/JoinController`, `Public/ClientLoginController`, `Portal/PortalController`, `Portal/PortalLoyaltyController`, `Portal/PortalPrestationsController`, `LoyaltySettingsController`, `LoyaltyQrController`, `ClientQrController`, `ClientLoyaltyAdjustmentController`, `ClientSubscriptionLifecycleController`, `LoyaltyDashboardController`, `LoyaltyReportController`, `MarketingSegmentController`.
 Modifiés : `ActivityLogController`, `ActivityLogResource`.
+**Non routé (conservé, pas supprimé)** : `Public/OtpController` — l'infrastructure OTP (`OtpService`, `CustomerOtpCode`, `LogOtpProvider`) reste en place, inutilisée par l'inscription/connexion, gardée intentionnellement comme base toute prête pour un futur flux « mot de passe oublié » (voir §8).
 
 ### Notifications
 Nouveau : `LoyaltyNotification` (générique, paramétrée par événement).
@@ -56,7 +60,7 @@ Nouveaux : `pages/LoyaltyQr.tsx`, `pages/LoyaltySettings.tsx`, `pages/Join.tsx`,
 Modifiés : `App.tsx` (routes), `main.tsx` (`PortalAuthProvider`), `lib/api.ts` (endpoints QR/paramètres/join/OTP/portail), `lib/navigation.ts` (entrées « QR Code » et « Paramètres fidélité »), `types/loyalty.ts`.
 
 ### Tests
-Nouveaux : `CustomerPortalAuthTest`, `CustomerPortalSecurityTest`, `CustomerRegistrationAndOtpTest`.
+Nouveaux : `CustomerPortalAuthTest`, `CustomerPortalSecurityTest`, `CustomerRegistrationAndAuthTest` (dédup, hash de mot de passe, anti-prise-de-compte, connexion/verrouillage), `OtpServiceTest` (garde l'infra OTP non routée sous test).
 Étendus : `LoyaltyEngineTest` (scénario 11 achats), `LoyaltyRedemptionWorkflowTest` (concurrence), `SweepLoyaltyProgramsCommandTest` (expiration récompenses, alertes, purge OTP).
 
 ### Config
@@ -75,10 +79,10 @@ Réutilisées sans modification de schéma : `app_settings` (tous les réglages 
 **Publiques (`throttle:otp`, 10/min/IP, sans authentification) :**
 ```
 GET  /api/public/join/status
-POST /api/public/join
-POST /api/public/otp/request
-POST /api/public/otp/verify
+POST /api/public/join     (inscription — établit directement la session)
+POST /api/public/login    (connexion téléphone + mot de passe)
 ```
+Le nom `otp` du limiteur est un résidu de la précédente implémentation — la forme (10/min/IP) reste correcte pour ces deux routes, seul le nom prête à confusion (non renommé pour limiter le diff de cette correction).
 
 **Portail client (`auth:client`, guard dédié, aucune permission spatie) :**
 ```
@@ -132,15 +136,23 @@ Vérifié via `php artisan route:list --path=api` — aucun conflit.
 
 Confirmé en lisant directement `database/seeders/RolesAndPermissionsSeeder.php` (pas de mémoire) — l'admin a bien `loyalty.qr.manage`, donc l'entrée de menu « QR Code » lui est visible.
 
-## 8. Limitation connue — OTP en mode démo
+## 8. Authentification client — phone + mot de passe (pas d'OTP/SMS/email)
 
-**Aucun SMS réel n'est envoyé.** `OtpProviderInterface` est lié à `LogOtpProvider`, qui écrit le code dans `storage/logs/laravel.log` et le renvoie en clair dans la réponse API (`dev_code`) — uniquement utile en développement/démo. **Avant une mise en service réelle auprès des clients, un provider SMS (Twilio, Vonage, etc.) doit être implémenté et lié dans `AppServiceProvider`.** C'est l'écart le plus important entre « les tests passent » et « utilisable par de vrais clients ».
+Décision prise en cours de session : l'inscription/connexion client n'utilise **plus** d'OTP par SMS/email. Le client crée son compte avec son numéro de téléphone et un mot de passe de son choix (8 caractères minimum, confirmation requise) ; les visites suivantes se font par téléphone + mot de passe (`/mon-compte/connexion`).
+
+- **Inscription** (`POST /api/public/join`) : établit directement la session — pas d'étape de vérification séparée. Si le téléphone correspond déjà à un compte existant, la requête est rejetée (422, « Un compte existe déjà pour ce numéro ») **sans jamais connecter l'appelant** — sinon n'importe qui pourrait prendre le contrôle d'un compte existant en resoumettant le formulaire avec un numéro qu'il ne possède pas. Testé explicitement (`CustomerRegistrationAndAuthTest`).
+- **Connexion** (`POST /api/public/login`) : message d'erreur générique (« Numéro ou mot de passe incorrect ») que l'échec vienne d'un numéro inconnu ou d'un mauvais mot de passe — un message distinct aurait permis d'énumérer quels numéros sont clients. Verrouillage après 5 échecs sur un même numéro (`RateLimiter`, 5 minutes), en plus du throttle IP au niveau route.
+- Mot de passe stocké hashé (`Client::$casts['password'] = 'hashed'`), jamais renvoyé par l'API (`$hidden`).
+
+**Ce qui n'existe pas encore : « mot de passe oublié ».** Aucune demande explicite pour cette session, mais un client qui oublie son mot de passe n'a aujourd'hui aucun moyen de le réinitialiser lui-même — variable à trancher pour la mise en production réelle.
+
+**Infrastructure OTP conservée, non branchée.** `OtpService`, `CustomerOtpCode`, `OtpProviderInterface`/`LogOtpProvider` et leurs tests (`OtpServiceTest`) restent dans le code, simplement déconnectés des routes d'inscription/connexion (`Public/OtpController` n'est plus routé). C'est délibéré : un flux « mot de passe oublié » est structurellement un flux OTP (envoyer un code au téléphone, le vérifier, puis autoriser un changement de mot de passe) — cette infrastructure est prête à être réutilisée telle quelle plutôt que reconstruite. `LogOtpProvider` écrit toujours le code dans `storage/logs/laravel.log` en mode démo ; un vrai provider SMS (Twilio, Vonage, etc.) resterait à implémenter avant un usage réel de ce flux.
 
 ## 9. Livré / non livré
 
 **Livré et vérifié (backend + frontend, testé en navigateur réel) :**
 - QR Code admin (`/loyalty-qr`, permission `loyalty.qr.manage`) — affiche imprimable A4 redessinée (cadre doré, coins ornementaux, message dans un encart dédié) avec un choix de langue (français / arabe / les deux) réglable dans Fidélité → Paramètres (`loyalty_qr_poster_language`) ; le texte libre du message reste toujours celui saisi par l'admin. Vérifié visuellement dans les 3 configurations (rendu RTL correct en arabe).
-- Inscription publique (`/join`) + OTP + session portail
+- Inscription publique (`/join`, téléphone + mot de passe) + connexion retour (`/mon-compte/connexion`) + session portail — flux complet vérifié en navigateur réel (inscription → portail → déconnexion → reconnexion par mot de passe).
 - Portail client : Accueil, Mes récompenses, Mes abonnements
 - **Fidélité → Paramètres** (`/loyalty-settings`, permission `loyalty.settings.manage`, Super Admin uniquement — vérifié qu'un compte `admin` en est bien exclu et redirigé). Général, QR & inscription, OTP, Récompenses & abonnements, Notifications par événement (activer/désactiver + copie email). Testé en navigateur réel : sauvegarde, rechargement, valeur persistée confirmés.
 
@@ -153,20 +165,23 @@ Aucune de ces trois pages n'a d'entrée de menu pointant vers un écran inexista
 
 ## 10. Tests automatisés
 
-**162 tests / 602 assertions, tous verts** (`php artisan test`).
+**167 tests / 617 assertions, tous verts** (`php artisan test`).
 
 Scénarios §36 couverts explicitement cette session :
 - 11 achats avec report → exactement 2 récompenses générées + 1/5 restant (`LoyaltyEngineTest`).
 - Concurrence sur une même récompense disponible → une seule réservation réussit (`LoyaltyRedemptionWorkflowTest`).
 - Déduplication par téléphone normalisé (0612345678 / +212612345678 / 212612345678 / avec espaces → même client, jamais de doublon).
-- OTP : code faux (compteur de tentatives), code expiré, code déjà consommé, verrouillage après plafond de tentatives, cooldown de renvoi, invalidation de l'ancien code à la demande d'un nouveau.
+- Mot de passe stocké hashé et vérifiable, jamais en clair.
+- Inscription sur un numéro déjà existant → rejetée (422), aucune session établie pour l'appelant (test explicite de l'anti-prise-de-compte, §31).
+- Connexion : numéro inconnu et mauvais mot de passe renvoient le même message générique ; verrouillage après 5 échecs sur un même numéro.
+- OTP (infrastructure conservée, non routée) : code faux, expiré, déjà consommé, verrouillage, cooldown — toujours testé pour éviter qu'elle ne pourrisse en silence avant un futur usage « mot de passe oublié ».
 - Sécurité portail : le compte A ne voit jamais les données du compte B (accueil, récompenses).
 - QR personnel révoqué/inconnu rejeté ; QR valide résolu correctement.
 - Employé sans `loyalty.redeem` bloqué sur le scan QR.
 - Inscription refusée si token invalide ou inscriptions désactivées.
-- Flux HTTP réel bout en bout (join → OTP → session cookie → accès portail) sans bypass d'authentification.
+- Flux HTTP réel bout en bout (join → session cookie → accès portail ; déconnexion → reconnexion par mot de passe) sans bypass d'authentification.
 
-**Non exécuté : les scénarios Playwright A–E de la spécification.** Les invariants qu'ils viseraient (génération de récompense au 5ᵉ achat, flux complet caisse+commission, application du quota hebdomadaire, reflet en temps réel côté portail) sont déjà couverts au niveau service/HTTP par les tests ci-dessus et par la suite Phase 1 existante ; seul le rendu visuel bout-en-bout en navigateur n'a pas été rejoué formellement au-delà de la vérification manuelle du §11.
+**Non exécuté : les scénarios Playwright A–E de la spécification.** Les invariants qu'ils viseraient (génération de récompense au 5ᵉ achat, flux complet caisse+commission, application du quota hebdomadaire, reflet en temps réel côté portail) sont déjà couverts au niveau service/HTTP par les tests ci-dessus et par la suite Phase 1 existante ; le flux d'inscription/connexion complet, lui, **a** été rejoué en navigateur réel (voir §9).
 
 ## 11. Build & Typecheck
 
@@ -179,7 +194,7 @@ Scénarios §36 couverts explicitement cette session :
 
 `database/seeders/LoyaltyAndSubscriptionSeeder.php` — **idempotent, vérifié sur 3 exécutions consécutives** (sélection déterministe par `id`, pas aléatoire — un bug d'idempotence a été détecté et corrigé pendant cette session : la sélection aléatoire précédente pouvait réassigner le numéro de téléphone démo fixe à un client différent à chaque rejeu et violer la contrainte d'unicité).
 
-11 scénarios sur 11 clients déterministes : 4/5 en cours, récompense disponible, récompense utilisée (historique), abonnement actif, abonnement expiré, progression points partielle (320/500), récompense expirant dans 3 jours, abonnement expirant dans 4 jours, abonnement suspendu, anniversaire cette semaine, **compte portail entièrement prêt : téléphone `+212600000001`, déjà vérifié, connectable immédiatement via `/mon-compte/connexion` (code OTP visible dans `storage/logs/laravel.log`)**.
+11 scénarios sur 11 clients déterministes : 4/5 en cours, récompense disponible, récompense utilisée (historique), abonnement actif, abonnement expiré, progression points partielle (320/500), récompense expirant dans 3 jours, abonnement expirant dans 4 jours, abonnement suspendu, anniversaire cette semaine, **compte portail entièrement prêt : téléphone `+212600000001` / mot de passe `Bogosland2026!`, connectable immédiatement via `/mon-compte/connexion`**.
 
 **⚠️ Seeder de démonstration — ne jamais l'exécuter en production.** Il modifie des colonnes (`phone_e164`, `birth_date`, `consent_*`) sur des clients existants pour construire ses scénarios. Sur cet environnement de développement (peuplé de 40 clients factices par `DemoDataSeeder`), c'est sans risque ; sur une base contenant de vrais clients, ce serait une écriture destructive sur de vraies fiches client.
 
@@ -217,14 +232,14 @@ php artisan optimize
 
 1. Se connecter en admin → **Fidélité → QR Code** → vérifier que le QR s'affiche, télécharger le PNG, imprimer l'affiche.
 2. Scanner (ou copier) le lien `/join?t=...` dans un navigateur privé.
-3. Remplir le formulaire d'inscription → recevoir le code (visible dans `storage/logs/laravel.log`, préfixé `local.INFO`).
-4. Saisir le code → arriver sur `/mon-compte` (Accueil).
-5. Naviguer Récompenses / Abonnements.
+3. Remplir le formulaire d'inscription (nom, téléphone, mot de passe + confirmation) → arriver directement sur `/mon-compte` (Accueil) — pas d'étape de vérification intermédiaire.
+4. Naviguer Récompenses / Abonnements.
+5. Se déconnecter, revenir sur `/mon-compte/connexion`, se reconnecter avec le même téléphone + mot de passe → confirmer le retour sur `/mon-compte`.
 6. Se reconnecter en staff → **Clients** → vérifier le client nouvellement inscrit.
 7. Encaisser 5 prestations « hammam » pour ce client → vérifier qu'une récompense apparaît (base de données ou, une fois construite, l'onglet Fidélité de la fiche client).
-8. Se reconnecter côté client avec `+212600000001` (compte de démo, voir §12) pour observer un compte déjà riche en historique.
+8. Se connecter côté client avec `+212600000001` / `Bogosland2026!` (compte de démo, voir §12) pour observer un compte déjà riche en historique.
 
 ## 16. Comptes de démonstration
 
 - **Staff** : `admin@bogosland.com` / `password` (voir écran de connexion).
-- **Client portail** : téléphone `+212600000001`, OTP dans `storage/logs/laravel.log`, aucun mot de passe.
+- **Client portail** : téléphone `+212600000001` / mot de passe `Bogosland2026!`.

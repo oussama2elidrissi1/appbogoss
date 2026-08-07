@@ -4,69 +4,26 @@ namespace Tests\Feature;
 
 use App\Models\Client;
 use App\Models\CustomerOtpCode;
-use App\Services\CustomerRegistrationService;
 use App\Services\LoyaltySettingsService;
 use App\Services\Otp\OtpService;
-use App\Services\PhoneNumberNormalizer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 /**
- * §36 — registration dedup (phone normalization) and OTP edge cases
- * (expiration, wrong code, reuse, rate limiting), exercised at the service
- * layer directly — CustomerPortalAuthTest already covers the real HTTP path
- * end to end, this file focuses on the invariants underneath it.
+ * OtpService itself is not wired into any customer-portal route anymore —
+ * registration/login are phone + password (see CustomerRegistrationAndAuthTest,
+ * ClientLoginControllerTest). It's kept, unused but intact, as the exact
+ * infrastructure a future "mot de passe oublié" reset flow needs, so this
+ * suite stays to make sure that infrastructure doesn't silently rot.
  */
-class CustomerRegistrationAndOtpTest extends TestCase
+class OtpServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_phone_variants_normalize_to_the_same_e164_identity(): void
-    {
-        $this->assertSame('+212612345678', PhoneNumberNormalizer::toE164('0612345678'));
-        $this->assertSame('+212612345678', PhoneNumberNormalizer::toE164('+212612345678'));
-        $this->assertSame('+212612345678', PhoneNumberNormalizer::toE164('212612345678'));
-        $this->assertSame('+212612345678', PhoneNumberNormalizer::toE164('06 12 34 56 78'));
-        $this->assertSame('+212612345678', PhoneNumberNormalizer::toE164('06-12-34-56-78'));
-    }
-
-    public function test_invalid_phone_numbers_are_rejected(): void
-    {
-        $this->assertNull(PhoneNumberNormalizer::toE164('123'));
-        $this->assertNull(PhoneNumberNormalizer::toE164('0412345678')); // starts with 4 — not a valid MA prefix
-        $this->assertNull(PhoneNumberNormalizer::toE164('abcdefghij'));
-    }
-
-    public function test_registering_twice_with_equivalent_phone_formats_never_creates_a_duplicate_client(): void
-    {
-        $service = app(CustomerRegistrationService::class);
-
-        $first = $service->register([
-            'first_name' => 'Sara',
-            'last_name' => 'Amrani',
-            'phone' => '0612345678',
-            'terms_consent' => true,
-        ], '+212612345678');
-        $this->assertFalse($first['already_existed']);
-
-        // Same person, phone typed differently the second time (e.g. re-scanning
-        // the QR at a later visit) — must resolve to the exact same client.
-        $second = $service->register([
-            'first_name' => 'Sara',
-            'last_name' => 'Amrani',
-            'phone' => '06 12 34 56 78',
-            'terms_consent' => true,
-        ], PhoneNumberNormalizer::toE164('06 12 34 56 78'));
-        $this->assertTrue($second['already_existed']);
-        $this->assertSame($first['client']->id, $second['client']->id);
-
-        $this->assertSame(1, Client::where('phone_e164', '+212612345678')->count());
-    }
-
     public function test_otp_verify_fails_with_wrong_code_and_increments_attempts(): void
     {
-        $client = Client::factory()->create(['phone_e164' => '+212612345678']);
+        Client::factory()->create(['phone_e164' => '+212612345678']);
         $otpService = app(OtpService::class);
         $result = $otpService->requestCode('+212612345678', '127.0.0.1');
         $this->assertNotNull($result['dev_code']);

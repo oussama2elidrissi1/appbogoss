@@ -23,7 +23,12 @@ class ActivityLogger
     public function log(string $action, ?Model $subject = null, array $old = [], array $new = []): void
     {
         ActivityLog::create([
-            'user_id' => Auth::id(),
+            // Explicit 'web' guard, not the ambiguous Auth::id() — routes
+            // behind `auth:client` middleware call shouldUse('client'),
+            // which repoints the *default* guard for the rest of the
+            // request, so Auth::id() would return the Client's id and try
+            // to insert it as a users.id foreign key.
+            'user_id' => Auth::guard('web')->id(),
             'client_id' => Auth::guard('client')->id(),
             'action' => $action,
             'subject_type' => $subject ? $subject::class : null,

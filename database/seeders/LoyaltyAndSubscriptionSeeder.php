@@ -331,10 +331,9 @@ class LoyaltyAndSubscriptionSeeder extends Seeder
         $birthdayClient->update(['birth_date' => now()->startOfWeek()->addDay()->year(now()->year - 28)->toDateString()]);
         CustomerLoyaltyAccount::firstOrCreate(['client_id' => $birthdayClient->id], ['status' => CustomerLoyaltyAccount::STATUS_ACTIVE]);
 
-        // 11) Fully portal-ready demo account — known phone number so QA can log
-        // into /mon-compte/connexion directly (OTP code is written to the log by
-        // the dev provider, see App\Services\Otp\LogOtpProvider) without going
-        // through the QR scan step every time.
+        // 11) Fully portal-ready demo account — known phone + password so QA
+        // can log into /mon-compte/connexion directly without going through
+        // /join every time.
         $portalDemoClient->update([
             'phone_e164' => '+212600000001',
             'phone_verified_at' => now()->subDays(10),
@@ -342,6 +341,10 @@ class LoyaltyAndSubscriptionSeeder extends Seeder
             'consent_terms_at' => now()->subDays(10),
             'consent_marketing_at' => now()->subDays(10),
         ]);
+        if ($portalDemoClient->password === null) {
+            // Hashed automatically by Client's 'password' => 'hashed' cast.
+            $portalDemoClient->update(['password' => 'Bogosland2026!']);
+        }
         $portalAccount = CustomerLoyaltyAccount::firstOrCreate(['client_id' => $portalDemoClient->id], ['status' => CustomerLoyaltyAccount::STATUS_ACTIVE]);
         LoyaltyProgramProgress::firstOrCreate(
             ['client_id' => $portalDemoClient->id, 'loyalty_program_id' => $hammamProgram->id],
@@ -351,6 +354,6 @@ class LoyaltyAndSubscriptionSeeder extends Seeder
             $portalAccount->update(['loyalty_number' => CustomerLoyaltyAccount::generateLoyaltyNumber()]);
         }
 
-        $this->command?->info('Compte portail de démo : +212600000001 (connexion via /mon-compte/connexion, code OTP dans storage/logs/laravel.log).');
+        $this->command?->info('Compte portail de démo : +212600000001 / Bogosland2026! (connexion via /mon-compte/connexion).');
     }
 }

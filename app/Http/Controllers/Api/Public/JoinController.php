@@ -3,24 +3,30 @@
 namespace App\Http\Controllers\Api\Public;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\PortalClientResource;
+use App\Services\ActivityLogger;
 use App\Services\CustomerRegistrationService;
 use App\Services\LoyaltySettingsService;
 use App\Services\PhoneNumberNormalizer;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
  * Public, unauthenticated registration surface reached by scanning the
  * salon's general QR code — no "carte de fidélité" concept anywhere, this
- * only ever creates/looks up a CustomerLoyaltyAccount.
+ * only ever creates/looks up a CustomerLoyaltyAccount. Auth is phone + a
+ * password the customer picks here; a successful registration logs the new
+ * client straight into the portal session (no separate verification step).
  */
 class JoinController extends Controller
 {
     public function __construct(
         private readonly CustomerRegistrationService $registrationService,
         private readonly LoyaltySettingsService $settings,
+        private readonly ActivityLogger $activityLogger,
     ) {
     }
 
@@ -45,6 +51,7 @@ class JoinController extends Controller
             'first_name' => ['required', 'string', 'max:100'],
             'last_name' => ['required', 'string', 'max:100'],
             'phone' => ['required', 'string', 'max:30'],
+            'password' => ['required', 'confirmed', 'min:8'],
             'email' => ['nullable', 'email', 'max:255'],
             'birth_date' => ['nullable', 'date', 'before:today'],
             'gender' => ['nullable', Rule::in(['female', 'male', 'other'])],
@@ -59,12 +66,23 @@ class JoinController extends Controller
 
         $result = $this->registrationService->register($validated, $phoneE164);
 
-        return response()->json([
-            'data' => [
-                'status' => $result['already_existed'] ? 'existing' : 'created',
-                'phone' => $validated['phone'],
-            ],
-        ], $result['already_existed'] ? 200 : 201);
+        if ($result['already_existed']) {
+            // Never log this client in — the caller only proved they typed
+            // an existing phone number, not that they own it. Doing so here
+            // would let anyone take over any account just by re-submitting
+            // /join with a phone they don't control.
+            throw ValidationException::withMessages([
+                'phone' => 'Un compte existe déjà pour ce numéro. Connectez-vous plutôt.',
+            ]);
+        }
+
+        $client = $result['client'];
+
+        Auth::guard('client')->login($client);
+        $request->session()->regenerate();
+        $this->activityLogger->log('loyalty.customer_login', $client);
+
+        return response()->json(['data' => new PortalClientResource($client)], 201);
     }
 
     private function assertRegistrationOpen(Request $request): void

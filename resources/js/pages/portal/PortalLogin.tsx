@@ -1,51 +1,35 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { AlertCircle, ArrowRight, Loader2, Phone, Scissors, ShieldCheck } from 'lucide-react';
+import { AlertCircle, ArrowRight, Loader2, Lock, Phone, Scissors } from 'lucide-react';
 import { usePortalAuth } from '@/hooks/usePortalAuth';
-import { getErrorMessage, requestOtp, verifyOtp } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { getErrorMessage, loginClient } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-/** Returning-customer login — phone + OTP only, no registration form. New customers arrive via /join instead. */
+/** Returning-customer login — phone + the password chosen at /join. New customers register at /join instead. */
 export default function PortalLogin() {
     const { client, isLoading, setClient } = usePortalAuth();
     const navigate = useNavigate();
 
-    const [step, setStep] = useState<'phone' | 'otp'>('phone');
     const [phone, setPhone] = useState('');
-    const [code, setCode] = useState('');
-    const [devCode, setDevCode] = useState<string | null>(null);
+    const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [busy, setBusy] = useState(false);
 
     if (!isLoading && client) return <Navigate to="/mon-compte" replace />;
 
-    const onRequestCode = async () => {
+    const onSubmit = async (event: FormEvent) => {
+        event.preventDefault();
         setError(null);
         setBusy(true);
         try {
-            const result = await requestOtp(phone);
-            setDevCode(result.dev_code);
-            setStep('otp');
-        } catch (e) {
-            setError(getErrorMessage(e, 'Impossible d’envoyer le code.'));
-        } finally {
-            setBusy(false);
-        }
-    };
-
-    const onVerify = async () => {
-        setError(null);
-        setBusy(true);
-        try {
-            const verifiedClient = await verifyOtp(phone, code);
+            const verifiedClient = await loginClient(phone, password);
             setClient(verifiedClient);
             navigate('/mon-compte', { replace: true });
         } catch (e) {
-            setError(getErrorMessage(e, 'Code invalide.'));
+            setError(getErrorMessage(e, 'Numéro ou mot de passe incorrect.'));
         } finally {
             setBusy(false);
         }
@@ -71,108 +55,69 @@ export default function PortalLogin() {
                     </div>
                 </div>
 
-                {step === 'phone' ? (
-                    <div className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="phone">Votre numéro de téléphone</Label>
-                            <div className="relative">
-                                <Phone className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
-                                <Input
-                                    id="phone"
-                                    type="tel"
-                                    autoComplete="tel"
-                                    placeholder="06 12 34 56 78"
-                                    className="pl-10"
-                                    value={phone}
-                                    onChange={(e) => setPhone(e.target.value)}
-                                />
-                            </div>
-                        </div>
-
-                        {error && (
-                            <div role="alert" className="flex items-start gap-2.5 rounded-md border border-destructive/25 bg-destructive/[0.10] px-3.5 py-3">
-                                <AlertCircle className="mt-px h-4 w-4 shrink-0 text-destructive" />
-                                <p className="text-sm text-destructive">{error}</p>
-                            </div>
-                        )}
-
-                        <Button
-                            type="button"
-                            variant="accent"
-                            size="lg"
-                            className="group w-full"
-                            disabled={busy || phone.trim().length < 9}
-                            onClick={() => void onRequestCode()}
-                        >
-                            {busy ? (
-                                <>
-                                    <Loader2 className="animate-spin" />
-                                    Envoi…
-                                </>
-                            ) : (
-                                <>
-                                    Recevoir le code
-                                    <ArrowRight className="transition-transform duration-200 group-hover:translate-x-0.5" />
-                                </>
-                            )}
-                        </Button>
-
-                        <p className="text-center text-xs text-muted-foreground">
-                            Pas encore inscrit ? Scannez le QR Code affiché au salon.
-                        </p>
-                    </div>
-                ) : (
-                    <div className="space-y-5">
-                        <div className="flex items-center gap-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] p-4">
-                            <ShieldCheck className="h-5 w-5 shrink-0 text-accent" />
-                            <p className="text-sm leading-relaxed text-muted-foreground">
-                                Un code à 6 chiffres a été envoyé au {phone}.
-                            </p>
-                        </div>
-
-                        {devCode && (
-                            <p className="rounded-md bg-tint/[0.03] px-3 py-2 text-center font-mono text-sm text-muted-foreground">
-                                Code de test : {devCode}
-                            </p>
-                        )}
-
-                        <div className="space-y-2">
-                            <Label htmlFor="code">Code de vérification</Label>
+                <form onSubmit={onSubmit} className="space-y-4" noValidate>
+                    <div className="space-y-2">
+                        <Label htmlFor="phone">Téléphone</Label>
+                        <div className="relative">
+                            <Phone className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
                             <Input
-                                id="code"
-                                inputMode="numeric"
-                                maxLength={6}
-                                placeholder="000000"
-                                value={code}
-                                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                className={cn('text-center text-lg tracking-[0.3em]', error && 'border-destructive/60')}
+                                id="phone"
+                                type="tel"
+                                autoComplete="tel"
+                                placeholder="06 12 34 56 78"
+                                className="pl-10"
+                                value={phone}
+                                onChange={(e) => setPhone(e.target.value)}
                             />
-                            {error && <p className="text-xs text-destructive">{error}</p>}
                         </div>
-
-                        <Button
-                            type="button"
-                            variant="accent"
-                            size="lg"
-                            className="w-full"
-                            disabled={busy || code.length !== 6}
-                            onClick={() => void onVerify()}
-                        >
-                            {busy ? (
-                                <>
-                                    <Loader2 className="animate-spin" />
-                                    Vérification…
-                                </>
-                            ) : (
-                                'Accéder à mon espace'
-                            )}
-                        </Button>
-
-                        <Button type="button" variant="ghost" className="w-full" disabled={busy} onClick={() => void onRequestCode()}>
-                            Renvoyer le code
-                        </Button>
                     </div>
-                )}
+
+                    <div className="space-y-2">
+                        <Label htmlFor="password">Mot de passe</Label>
+                        <div className="relative">
+                            <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
+                            <Input
+                                id="password"
+                                type="password"
+                                autoComplete="current-password"
+                                className="pl-10"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    {error && (
+                        <div role="alert" className="flex items-start gap-2.5 rounded-md border border-destructive/25 bg-destructive/[0.10] px-3.5 py-3">
+                            <AlertCircle className="mt-px h-4 w-4 shrink-0 text-destructive" />
+                            <p className="text-sm text-destructive">{error}</p>
+                        </div>
+                    )}
+
+                    <Button
+                        type="submit"
+                        variant="accent"
+                        size="lg"
+                        className="group w-full"
+                        disabled={busy || phone.trim().length < 9 || password.length < 1}
+                    >
+                        {busy ? (
+                            <>
+                                <Loader2 className="animate-spin" />
+                                Connexion…
+                            </>
+                        ) : (
+                            <>
+                                Se connecter
+                                <ArrowRight className="transition-transform duration-200 group-hover:translate-x-0.5" />
+                            </>
+                        )}
+                    </Button>
+
+                    <p className="text-center text-xs text-muted-foreground">
+                        Pas encore inscrit ? Scannez le QR Code affiché au salon.
+                    </p>
+                </form>
             </motion.div>
         </div>
     );

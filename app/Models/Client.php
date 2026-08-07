@@ -12,9 +12,10 @@ use Illuminate\Notifications\Notifiable;
 
 /**
  * Implements Authenticatable so the customer portal can log a Client in via
- * the `client` guard (Auth::guard('client')->login($client)) after OTP
- * verification. There is no password — getAuthPassword()/attempt() are
- * never used, only direct login().
+ * the `client` guard. Auth is phone + a password the customer chooses at
+ * registration (App\Services\CustomerRegistrationService) — checked via
+ * ClientLoginController for returning visits. No "remember me" (no
+ * remember_token column), so login() is always called without its second arg.
  */
 class Client extends Model implements Authenticatable
 {
@@ -28,6 +29,7 @@ class Client extends Model implements Authenticatable
         'phone',
         'phone_e164',
         'phone_verified_at',
+        'password',
         'birth_date',
         'gender',
         'avatar_color',
@@ -39,11 +41,16 @@ class Client extends Model implements Authenticatable
         'consent_marketing_at',
     ];
 
+    protected $hidden = [
+        'password',
+    ];
+
     protected $casts = [
         'birth_date' => 'date',
         'last_visit_at' => 'datetime',
         'loyalty_points' => 'integer',
         'phone_verified_at' => 'datetime',
+        'password' => 'hashed',
         'registered_at' => 'datetime',
         'consent_terms_at' => 'datetime',
         'consent_marketing_at' => 'datetime',

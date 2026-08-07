@@ -1,29 +1,35 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
-import { AlertCircle, ArrowRight, Gift, Loader2, Scissors, ShieldCheck } from 'lucide-react';
+import { AlertCircle, ArrowRight, Gift, Loader2, Lock, Scissors } from 'lucide-react';
 import { usePortalAuth } from '@/hooks/usePortalAuth';
-import { checkJoinAvailable, getErrorMessage, joinLoyaltyProgram, requestOtp, verifyOtp } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { checkJoinAvailable, getErrorMessage, joinLoyaltyProgram } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-const joinSchema = z.object({
-    first_name: z.string().min(1, 'Le prénom est requis.'),
-    last_name: z.string().min(1, 'Le nom est requis.'),
-    phone: z.string().min(9, 'Numéro de téléphone invalide.'),
-    email: z.string().email('Format d’email invalide.').optional().or(z.literal('')),
-    terms_consent: z.boolean().refine((v) => v, { message: 'Vous devez accepter les conditions.' }),
-    marketing_consent: z.boolean().optional(),
-});
+const joinSchema = z
+    .object({
+        first_name: z.string().min(1, 'Le prénom est requis.'),
+        last_name: z.string().min(1, 'Le nom est requis.'),
+        phone: z.string().min(9, 'Numéro de téléphone invalide.'),
+        password: z.string().min(8, 'Le mot de passe doit contenir au moins 8 caractères.'),
+        password_confirmation: z.string(),
+        email: z.string().email('Format d’email invalide.').optional().or(z.literal('')),
+        terms_consent: z.boolean().refine((v) => v, { message: 'Vous devez accepter les conditions.' }),
+        marketing_consent: z.boolean().optional(),
+    })
+    .refine((values) => values.password === values.password_confirmation, {
+        message: 'Les mots de passe ne correspondent pas.',
+        path: ['password_confirmation'],
+    });
 
 type JoinValues = z.infer<typeof joinSchema>;
 
-type Step = 'checking' | 'unavailable' | 'form' | 'otp';
+type Step = 'checking' | 'unavailable' | 'form';
 
 export default function Join() {
     const navigate = useNavigate();
@@ -33,12 +39,6 @@ export default function Join() {
 
     const [step, setStep] = useState<Step>('checking');
     const [formError, setFormError] = useState<string | null>(null);
-    const [phone, setPhone] = useState('');
-    const [code, setCode] = useState('');
-    const [devCode, setDevCode] = useState<string | null>(null);
-    const [otpError, setOtpError] = useState<string | null>(null);
-    const [verifying, setVerifying] = useState(false);
-    const [requestingOtp, setRequestingOtp] = useState(false);
 
     const {
         register,
@@ -50,6 +50,8 @@ export default function Join() {
             first_name: '',
             last_name: '',
             phone: '',
+            password: '',
+            password_confirmation: '',
             email: '',
             terms_consent: false,
             marketing_consent: false,
@@ -74,50 +76,24 @@ export default function Join() {
         };
     }, [token]);
 
-    const sendCode = async (targetPhone: string) => {
-        setOtpError(null);
-        setRequestingOtp(true);
-        try {
-            const result = await requestOtp(targetPhone);
-            setDevCode(result.dev_code);
-            setStep('otp');
-        } catch (error) {
-            setFormError(getErrorMessage(error, 'Impossible d’envoyer le code.'));
-        } finally {
-            setRequestingOtp(false);
-        }
-    };
-
     const onSubmit = async (values: JoinValues) => {
         setFormError(null);
         try {
-            await joinLoyaltyProgram({
+            const client = await joinLoyaltyProgram({
                 first_name: values.first_name,
                 last_name: values.last_name,
                 phone: values.phone,
+                password: values.password,
+                password_confirmation: values.password_confirmation,
                 email: values.email || undefined,
                 terms_consent: values.terms_consent,
                 marketing_consent: values.marketing_consent,
                 token,
             });
-            setPhone(values.phone);
-            await sendCode(values.phone);
-        } catch (error) {
-            setFormError(getErrorMessage(error, 'Inscription impossible.'));
-        }
-    };
-
-    const onVerify = async () => {
-        setOtpError(null);
-        setVerifying(true);
-        try {
-            const client = await verifyOtp(phone, code);
             setClient(client);
             navigate('/mon-compte', { replace: true });
         } catch (error) {
-            setOtpError(getErrorMessage(error, 'Code invalide.'));
-        } finally {
-            setVerifying(false);
+            setFormError(getErrorMessage(error, 'Inscription impossible.'));
         }
     };
 
@@ -198,6 +174,35 @@ export default function Join() {
                                 {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
                             </div>
 
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-2">
+                                    <Label htmlFor="password">Mot de passe</Label>
+                                    <div className="relative">
+                                        <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
+                                        <Input
+                                            id="password"
+                                            type="password"
+                                            autoComplete="new-password"
+                                            className="pl-10"
+                                            {...register('password')}
+                                        />
+                                    </div>
+                                    {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="password_confirmation">Confirmation</Label>
+                                    <Input
+                                        id="password_confirmation"
+                                        type="password"
+                                        autoComplete="new-password"
+                                        {...register('password_confirmation')}
+                                    />
+                                    {errors.password_confirmation && (
+                                        <p className="text-xs text-destructive">{errors.password_confirmation.message}</p>
+                                    )}
+                                </div>
+                            </div>
+
                             <label className="flex items-start gap-2.5 text-sm">
                                 <input type="checkbox" className="mt-0.5 h-4 w-4 rounded accent-accent" {...register('terms_consent')} />
                                 <span className="leading-relaxed text-muted-foreground">
@@ -220,8 +225,8 @@ export default function Join() {
                                 </div>
                             )}
 
-                            <Button type="submit" variant="accent" size="lg" disabled={isSubmitting || requestingOtp} className="group w-full">
-                                {isSubmitting || requestingOtp ? (
+                            <Button type="submit" variant="accent" size="lg" disabled={isSubmitting} className="group w-full">
+                                {isSubmitting ? (
                                     <>
                                         <Loader2 className="animate-spin" />
                                         Inscription…
@@ -233,67 +238,15 @@ export default function Join() {
                                     </>
                                 )}
                             </Button>
+
+                            <p className="text-center text-xs text-muted-foreground">
+                                Déjà inscrit ?{' '}
+                                <Link to="/mon-compte/connexion" className="text-accent hover:underline">
+                                    Connectez-vous
+                                </Link>
+                            </p>
                         </form>
                     </>
-                )}
-
-                {step === 'otp' && (
-                    <div className="space-y-5">
-                        <div className="flex items-center gap-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] p-4">
-                            <ShieldCheck className="h-5 w-5 shrink-0 text-accent" />
-                            <p className="text-sm leading-relaxed text-muted-foreground">
-                                Un code à 6 chiffres a été envoyé au {phone}.
-                            </p>
-                        </div>
-
-                        {devCode && (
-                            <p className="rounded-md bg-tint/[0.03] px-3 py-2 text-center font-mono text-sm text-muted-foreground">
-                                Code de test : {devCode}
-                            </p>
-                        )}
-
-                        <div className="space-y-2">
-                            <Label htmlFor="code">Code de vérification</Label>
-                            <Input
-                                id="code"
-                                inputMode="numeric"
-                                maxLength={6}
-                                placeholder="000000"
-                                value={code}
-                                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                className={cn('text-center text-lg tracking-[0.3em]', otpError && 'border-destructive/60')}
-                            />
-                            {otpError && <p className="text-xs text-destructive">{otpError}</p>}
-                        </div>
-
-                        <Button
-                            type="button"
-                            variant="accent"
-                            size="lg"
-                            className="w-full"
-                            disabled={verifying || code.length !== 6}
-                            onClick={onVerify}
-                        >
-                            {verifying ? (
-                                <>
-                                    <Loader2 className="animate-spin" />
-                                    Vérification…
-                                </>
-                            ) : (
-                                'Valider et accéder à mon espace'
-                            )}
-                        </Button>
-
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            className="w-full"
-                            disabled={requestingOtp}
-                            onClick={() => void sendCode(phone)}
-                        >
-                            Renvoyer le code
-                        </Button>
-                    </div>
                 )}
             </motion.div>
         </div>
