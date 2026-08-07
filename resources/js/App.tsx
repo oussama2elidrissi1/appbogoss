@@ -16,6 +16,7 @@ import Join from '@/pages/Join';
 import Login from '@/pages/Login';
 import LoyaltyPrograms from '@/pages/LoyaltyPrograms';
 import LoyaltyQr from '@/pages/LoyaltyQr';
+import LoyaltyQrDisplay from '@/pages/LoyaltyQrDisplay';
 import LoyaltySettings from '@/pages/LoyaltySettings';
 import PortalLayout, { PortalProtectedRoute } from '@/pages/portal/PortalLayout';
 import PortalLogin from '@/pages/portal/PortalLogin';
@@ -69,6 +70,13 @@ export default function App() {
                     <Route path="/mon-compte/recompenses" element={<PortalRewards />} />
                     <Route path="/mon-compte/abonnements" element={<PortalSubscriptions />} />
                 </Route>
+            </Route>
+
+            {/* Full-screen digital-signage version of the registration QR —
+                staff-gated but rendered OUTSIDE AppLayout (no sidebar/topbar,
+                it's meant to fill a salon tablet/screen). */}
+            <Route element={<ProtectedRoute permission="loyalty.qr.manage" />}>
+                <Route path="/loyalty-qr/affichage" element={<LoyaltyQrDisplay />} />
             </Route>
 
             {/* Single persistent AppLayout for the whole authenticated app — the

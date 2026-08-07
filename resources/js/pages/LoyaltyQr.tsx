@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import QRCode from 'qrcode';
-import { AlertCircle, Download, Loader2, Power, Printer, QrCode as QrCodeIcon, RefreshCw } from 'lucide-react';
+import { AlertCircle, Download, Loader2, MonitorPlay, Power, Printer, QrCode as QrCodeIcon, RefreshCw } from 'lucide-react';
 import { getErrorMessage, getLoyaltyQr, regenerateLoyaltyQr, updateLoyaltySettings } from '@/lib/api';
 import type { LoyaltyQrPosterLanguage } from '@/types/loyalty';
 import { Badge } from '@/components/ui/badge';
@@ -298,6 +298,14 @@ export default function LoyaltyQr() {
                         <Button type="button" variant="outline" onClick={handlePrint} disabled={!qrImage}>
                             <Printer />
                             Imprimer l’affiche
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="accent"
+                            onClick={() => window.open('/loyalty-qr/affichage', '_blank')}
+                        >
+                            <MonitorPlay />
+                            Afficher à l’écran (animé)
                         </Button>
                         <Button
                             type="button"
