@@ -26,6 +26,7 @@ class LoyaltyQrController extends Controller
         return response()->json(['data' => [
             'enabled' => (bool) $this->settings->get('loyalty_qr_registration_enabled', true),
             'message' => $this->settings->get('loyalty_qr_message'),
+            'poster_language' => $this->settings->get('loyalty_qr_poster_language', 'fr'),
             'token' => $this->settings->ensureQrToken(),
             'join_path' => '/join',
         ]]);

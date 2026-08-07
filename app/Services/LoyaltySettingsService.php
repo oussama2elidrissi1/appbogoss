@@ -23,6 +23,10 @@ class LoyaltySettingsService
         // QR & inscription publique
         'loyalty_qr_registration_enabled' => true,
         'loyalty_qr_message' => 'Scannez pour rejoindre les avantages BOGOSLAND',
+        // 'fr' | 'ar' | 'both' — language of the fixed captions (title,
+        // scan hint) on the printable poster. loyalty_qr_message itself is
+        // free text, typed by the admin in whichever language they choose.
+        'loyalty_qr_poster_language' => 'fr',
         'loyalty_qr_token' => null,
         'loyalty_personal_qr_enabled' => true,
 

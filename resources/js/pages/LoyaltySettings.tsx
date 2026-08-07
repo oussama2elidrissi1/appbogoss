@@ -4,12 +4,19 @@ import { motion } from 'framer-motion';
 import { AlertCircle, Bell, Gift, QrCode, Save, Settings as SettingsIcon, ShieldCheck, Timer } from 'lucide-react';
 import { getErrorMessage, getLoyaltySettingsFull, updateLoyaltySettings } from '@/lib/api';
 import { pageFade } from '@/lib/motion';
-import type { LoyaltyNotificationEventSetting } from '@/types/loyalty';
+import type { LoyaltyNotificationEventSetting, LoyaltyQrPosterLanguage } from '@/types/loyalty';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+
+const POSTER_LANGUAGE_LABELS: Record<LoyaltyQrPosterLanguage, string> = {
+    fr: 'Français',
+    ar: 'العربية (arabe)',
+    both: 'Français + العربية',
+};
 
 interface FormState {
     loyalty_enabled: boolean;
@@ -17,6 +24,7 @@ interface FormState {
     loyalty_timezone: string;
     loyalty_qr_registration_enabled: boolean;
     loyalty_qr_message: string;
+    loyalty_qr_poster_language: LoyaltyQrPosterLanguage;
     loyalty_personal_qr_enabled: boolean;
     otp_ttl_seconds: string;
     otp_max_attempts: string;
@@ -35,6 +43,7 @@ const emptyForm: FormState = {
     loyalty_timezone: 'Africa/Casablanca',
     loyalty_qr_registration_enabled: true,
     loyalty_qr_message: '',
+    loyalty_qr_poster_language: 'fr',
     loyalty_personal_qr_enabled: true,
     otp_ttl_seconds: '300',
     otp_max_attempts: '5',
@@ -79,6 +88,7 @@ export default function LoyaltySettings() {
             loyalty_timezone: s.loyalty_timezone,
             loyalty_qr_registration_enabled: s.loyalty_qr_registration_enabled,
             loyalty_qr_message: s.loyalty_qr_message ?? '',
+            loyalty_qr_poster_language: s.loyalty_qr_poster_language ?? 'fr',
             loyalty_personal_qr_enabled: s.loyalty_personal_qr_enabled,
             otp_ttl_seconds: String(s.otp_ttl_seconds),
             otp_max_attempts: String(s.otp_max_attempts),
@@ -110,6 +120,7 @@ export default function LoyaltySettings() {
             loyalty_timezone: form.loyalty_timezone,
             loyalty_qr_registration_enabled: form.loyalty_qr_registration_enabled,
             loyalty_qr_message: form.loyalty_qr_message,
+            loyalty_qr_poster_language: form.loyalty_qr_poster_language,
             loyalty_personal_qr_enabled: form.loyalty_personal_qr_enabled,
             otp_ttl_seconds: Number(form.otp_ttl_seconds),
             otp_max_attempts: Number(form.otp_max_attempts),
@@ -236,15 +247,39 @@ export default function LoyaltySettings() {
                                 label="QR personnel actif"
                             />
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="qr-message">Message affiché sur le QR d’inscription</Label>
-                            <Input
-                                id="qr-message"
-                                value={form.loyalty_qr_message}
-                                maxLength={255}
-                                onChange={(e) => setForm({ ...form, loyalty_qr_message: e.target.value })}
-                            />
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_200px]">
+                            <div className="space-y-2">
+                                <Label htmlFor="qr-message">Message affiché sur l’affiche QR</Label>
+                                <Input
+                                    id="qr-message"
+                                    value={form.loyalty_qr_message}
+                                    maxLength={255}
+                                    onChange={(e) => setForm({ ...form, loyalty_qr_message: e.target.value })}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="qr-lang">Langue de l’affiche</Label>
+                                <Select
+                                    value={form.loyalty_qr_poster_language}
+                                    onValueChange={(v) => setForm({ ...form, loyalty_qr_poster_language: v as LoyaltyQrPosterLanguage })}
+                                >
+                                    <SelectTrigger id="qr-lang" className="h-11 text-sm">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {(Object.keys(POSTER_LANGUAGE_LABELS) as LoyaltyQrPosterLanguage[]).map((lang) => (
+                                            <SelectItem key={lang} value={lang}>
+                                                {POSTER_LANGUAGE_LABELS[lang]}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
+                        <p className="text-xs leading-relaxed text-muted-foreground">
+                            Le message ci-dessus reste tel que vous le tapez (français ou arabe) ; la langue choisie
+                            ici ne change que les textes fixes de l’affiche imprimable (titre, indication de scan).
+                        </p>
                     </CardContent>
                 </Card>
 

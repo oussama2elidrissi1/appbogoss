@@ -150,9 +150,12 @@ export interface ClientLoyaltyStatus {
     subscriptions: ClientLoyaltySubscription[];
 }
 
+export type LoyaltyQrPosterLanguage = 'fr' | 'ar' | 'both';
+
 export interface LoyaltyQrSettings {
     enabled: boolean;
     message: string | null;
+    poster_language: LoyaltyQrPosterLanguage;
     token: string;
     join_path: string;
 }
@@ -169,6 +172,7 @@ export interface LoyaltySettings {
     loyalty_timezone: string;
     loyalty_qr_registration_enabled: boolean;
     loyalty_qr_message: string;
+    loyalty_qr_poster_language: LoyaltyQrPosterLanguage;
     loyalty_qr_token: string | null;
     loyalty_personal_qr_enabled: boolean;
     otp_provider: string;

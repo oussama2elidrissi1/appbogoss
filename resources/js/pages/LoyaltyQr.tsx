@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import QRCode from 'qrcode';
 import { AlertCircle, Download, Loader2, Power, Printer, QrCode as QrCodeIcon, RefreshCw } from 'lucide-react';
 import { getErrorMessage, getLoyaltyQr, regenerateLoyaltyQr, updateLoyaltySettings } from '@/lib/api';
+import type { LoyaltyQrPosterLanguage } from '@/types/loyalty';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -24,8 +25,59 @@ function joinUrl(token: string): string {
     return `${window.location.origin}/join?t=${encodeURIComponent(token)}`;
 }
 
-/** Prints a self-contained A4 poster through a hidden iframe, same technique as resources/js/lib/receipt.ts. */
-function printPoster(qrDataUrl: string, message: string): void {
+function escapeHtml(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+const POSTER_CAPTIONS: Record<'fr' | 'ar', { eyebrow: string; hint: string; footer: string }> = {
+    fr: {
+        eyebrow: 'Programme de fidélité',
+        hint: 'Scannez avec l’appareil photo de votre téléphone',
+        footer: 'Merci de votre confiance',
+    },
+    ar: {
+        eyebrow: 'برنامج الولاء',
+        hint: 'امسحوا الرمز بكاميرا هاتفكم',
+        footer: 'شكراً لثقتكم',
+    },
+};
+
+/**
+ * Prints a self-contained A4 poster through a hidden iframe, same technique
+ * as resources/js/lib/receipt.ts. `language` picks which fixed captions
+ * (eyebrow/hint/footer) render — 'both' stacks fr above ar, each in its own
+ * text direction. The custom message itself is free text set by the admin
+ * (Fidélité → Paramètres) and rendered as-is, only HTML-escaped.
+ */
+function printPoster(qrDataUrl: string, message: string, language: LoyaltyQrPosterLanguage): void {
+    const langs: Array<'fr' | 'ar'> = language === 'both' ? ['fr', 'ar'] : [language];
+    const safeMessage = escapeHtml(message);
+
+    const captionBlocks = langs
+        .map(
+            (lang) => `
+        <p class="eyebrow" dir="${lang === 'ar' ? 'rtl' : 'ltr'}" lang="${lang}">${escapeHtml(POSTER_CAPTIONS[lang].eyebrow)}</p>`,
+        )
+        .join('');
+
+    const hintBlocks = langs
+        .map(
+            (lang) => `
+        <p class="hint" dir="${lang === 'ar' ? 'rtl' : 'ltr'}" lang="${lang}">${escapeHtml(POSTER_CAPTIONS[lang].hint)}</p>`,
+        )
+        .join('');
+
+    const footerBlocks = langs
+        .map(
+            (lang) => `<span dir="${lang === 'ar' ? 'rtl' : 'ltr'}" lang="${lang}">${escapeHtml(POSTER_CAPTIONS[lang].footer)}</span>`,
+        )
+        .join('<span class="footer-sep">·</span>');
+
     const html = `<!doctype html>
 <html lang="fr">
 <head>
@@ -34,22 +86,87 @@ function printPoster(qrDataUrl: string, message: string): void {
 <style>
 @page { size: A4; margin: 0; }
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; width: 210mm; height: 297mm; background: #fff; color: #111; font-family: "Segoe UI", Arial, sans-serif; }
-.poster { width: 210mm; height: 297mm; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20mm; text-align: center; }
-.brand { font-size: 34px; font-weight: 700; letter-spacing: 1px; margin-bottom: 6mm; }
-.brand span { color: #b8873a; }
-.message { font-size: 18px; max-width: 140mm; margin-bottom: 12mm; line-height: 1.4; }
-.qr { border: 3px solid #111; padding: 8mm; border-radius: 8px; }
-.qr img { width: 90mm; height: 90mm; display: block; }
-.hint { margin-top: 10mm; font-size: 13px; color: #555; }
+html, body {
+    margin: 0; padding: 0; width: 210mm; height: 297mm;
+    background: #f9f8f5; color: #0e1d2f;
+    font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+}
+.page { width: 210mm; height: 297mm; padding: 14mm; }
+.frame-outer {
+    height: 100%; border: 1.5pt solid #b8873a; border-radius: 3mm;
+    padding: 3mm; position: relative;
+}
+.frame-inner {
+    height: 100%; border: 0.6pt solid #0e1d2f22; border-radius: 2mm;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    padding: 14mm 16mm; text-align: center; position: relative;
+}
+.corner {
+    position: absolute; width: 7mm; height: 7mm; border-color: #b8873a; border-style: solid; border-width: 0;
+}
+.corner-tl { top: -1.5pt; left: -1.5pt; border-top-width: 1.5pt; border-left-width: 1.5pt; border-top-left-radius: 2mm; }
+.corner-tr { top: -1.5pt; right: -1.5pt; border-top-width: 1.5pt; border-right-width: 1.5pt; border-top-right-radius: 2mm; }
+.corner-bl { bottom: -1.5pt; left: -1.5pt; border-bottom-width: 1.5pt; border-left-width: 1.5pt; border-bottom-left-radius: 2mm; }
+.corner-br { bottom: -1.5pt; right: -1.5pt; border-bottom-width: 1.5pt; border-right-width: 1.5pt; border-bottom-right-radius: 2mm; }
+.top-block { display: flex; flex-direction: column; align-items: center; }
+.brand { font-size: 40px; font-weight: 700; letter-spacing: 2px; }
+.brand .gold { color: #b8873a; }
+.rule { width: 26mm; height: 1pt; background: #b8873a; margin: 5mm 0 4mm; }
+.eyebrow { margin: 0; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: #6b5a35; }
+.message-card {
+    margin: 10mm 0; padding: 7mm 10mm; max-width: 150mm;
+    background: #ffffff; border: 0.6pt solid #b8873a55; border-radius: 3mm;
+}
+.message { margin: 0; font-size: 19px; font-style: italic; line-height: 1.55; color: #0e1d2f; }
+.qr-block { display: flex; flex-direction: column; align-items: center; }
+.qr-frame { position: relative; padding: 9mm; background: #ffffff; border: 0.75pt solid #0e1d2f18; border-radius: 4mm; box-shadow: 0 2mm 6mm rgba(14,29,47,0.08); }
+.qr-frame img { width: 78mm; height: 78mm; display: block; }
+.qr-corner { position: absolute; width: 6mm; height: 6mm; border-color: #b8873a; border-style: solid; border-width: 0; }
+.qr-corner.tl { top: 2mm; left: 2mm; border-top-width: 1.2pt; border-left-width: 1.2pt; }
+.qr-corner.tr { top: 2mm; right: 2mm; border-top-width: 1.2pt; border-right-width: 1.2pt; }
+.qr-corner.bl { bottom: 2mm; left: 2mm; border-bottom-width: 1.2pt; border-left-width: 1.2pt; }
+.qr-corner.br { bottom: 2mm; right: 2mm; border-bottom-width: 1.2pt; border-right-width: 1.2pt; }
+.hint { margin: 5mm 0 0; font-size: 13px; color: #52606d; }
+.bottom-block { display: flex; flex-direction: column; align-items: center; }
+.footer-rule { width: 40mm; height: 0.6pt; background: #0e1d2f22; margin-bottom: 4mm; }
+.footer-text { font-size: 11px; letter-spacing: 1px; color: #8a7a52; }
+.footer-sep { margin: 0 6px; }
 </style>
 </head>
 <body>
-<div class="poster">
-    <div class="brand">BOGOS<span>LAND</span></div>
-    <div class="message">${message}</div>
-    <div class="qr"><img src="${qrDataUrl}" alt="QR inscription"></div>
-    <div class="hint">Scannez avec l'appareil photo de votre téléphone</div>
+<div class="page">
+    <div class="frame-outer">
+        <div class="frame-inner">
+            <span class="corner corner-tl"></span>
+            <span class="corner corner-tr"></span>
+            <span class="corner corner-bl"></span>
+            <span class="corner corner-br"></span>
+
+            <div class="top-block">
+                <div class="brand">BOGOS<span class="gold">LAND</span></div>
+                <div class="rule"></div>
+                ${captionBlocks}
+            </div>
+
+            <div class="message-card"><p class="message">${safeMessage}</p></div>
+
+            <div class="qr-block">
+                <div class="qr-frame">
+                    <span class="qr-corner tl"></span>
+                    <span class="qr-corner tr"></span>
+                    <span class="qr-corner bl"></span>
+                    <span class="qr-corner br"></span>
+                    <img src="${qrDataUrl}" alt="QR inscription">
+                </div>
+                ${hintBlocks}
+            </div>
+
+            <div class="bottom-block">
+                <div class="footer-rule"></div>
+                <div class="footer-text">${footerBlocks}</div>
+            </div>
+        </div>
+    </div>
 </div>
 </body>
 </html>`;
@@ -129,7 +246,11 @@ export default function LoyaltyQr() {
 
     const handlePrint = () => {
         if (!qrImage || !qrQuery.data) return;
-        printPoster(qrImage, qrQuery.data.message ?? 'Scannez pour rejoindre les avantages BOGOSLAND');
+        printPoster(
+            qrImage,
+            qrQuery.data.message ?? 'Scannez pour rejoindre les avantages BOGOSLAND',
+            qrQuery.data.poster_language ?? 'fr',
+        );
     };
 
     if (qrQuery.isError) {

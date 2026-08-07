@@ -39,6 +39,7 @@ class LoyaltySettingsController extends Controller
 
             'loyalty_qr_registration_enabled' => ['sometimes', 'boolean'],
             'loyalty_qr_message' => ['sometimes', 'string', 'max:255'],
+            'loyalty_qr_poster_language' => ['sometimes', Rule::in(['fr', 'ar', 'both'])],
             'loyalty_personal_qr_enabled' => ['sometimes', 'boolean'],
 
             'otp_provider' => ['sometimes', Rule::in(['log'])],

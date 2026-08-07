@@ -139,7 +139,7 @@ Confirmé en lisant directement `database/seeders/RolesAndPermissionsSeeder.php`
 ## 9. Livré / non livré
 
 **Livré et vérifié (backend + frontend, testé en navigateur réel) :**
-- QR Code admin (`/loyalty-qr`, permission `loyalty.qr.manage`)
+- QR Code admin (`/loyalty-qr`, permission `loyalty.qr.manage`) — affiche imprimable A4 redessinée (cadre doré, coins ornementaux, message dans un encart dédié) avec un choix de langue (français / arabe / les deux) réglable dans Fidélité → Paramètres (`loyalty_qr_poster_language`) ; le texte libre du message reste toujours celui saisi par l'admin. Vérifié visuellement dans les 3 configurations (rendu RTL correct en arabe).
 - Inscription publique (`/join`) + OTP + session portail
 - Portail client : Accueil, Mes récompenses, Mes abonnements
 - **Fidélité → Paramètres** (`/loyalty-settings`, permission `loyalty.settings.manage`, Super Admin uniquement — vérifié qu'un compte `admin` en est bien exclu et redirigé). Général, QR & inscription, OTP, Récompenses & abonnements, Notifications par événement (activer/désactiver + copie email). Testé en navigateur réel : sauvegarde, rechargement, valeur persistée confirmés.
