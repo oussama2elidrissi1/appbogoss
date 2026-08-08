@@ -77,7 +77,9 @@ class DashboardServiceTest extends TestCase
             $this->assertArrayHasKey($key, $array['kpis']);
         }
 
-        $this->assertCount(14, $array['revenue_series']);
+        // 30 days — widest window of the dashboard chart's 7j/14j/30j tabs;
+        // the frontend slices down to the selected period locally.
+        $this->assertCount(30, $array['revenue_series']);
         $this->assertArrayHasKey('date', $array['revenue_series'][0]);
         $this->assertArrayHasKey('revenue', $array['revenue_series'][0]);
         $this->assertArrayHasKey('expenses', $array['revenue_series'][0]);

@@ -109,7 +109,9 @@ class DashboardService
 
     protected function buildRevenueSeries(): array
     {
-        $start = Carbon::today()->subDays(13);
+        // 30 days — the widest window the dashboard chart offers (7j/14j/30j);
+        // the frontend slices this locally so switching tabs never refetches.
+        $start = Carbon::today()->subDays(29);
         $end = Carbon::today();
 
         $revenueByDay = Sale::where('created_at', '>=', $start->copy()->startOfDay())

@@ -54,7 +54,10 @@ function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) 
 export function RevenueChart({ data }: { data: RevenuePoint[] }) {
     const [period, setPeriod] = useState('14');
 
-    const total = data.reduce((sum, point) => sum + point.revenue, 0);
+    // The API always returns the widest window (30 days); the selected tab
+    // just takes the trailing slice, so switching periods is instant.
+    const visible = data.slice(-Number(period));
+    const total = visible.reduce((sum, point) => sum + point.revenue, 0);
 
     return (
         <Card className="flex h-full flex-col">
@@ -62,12 +65,12 @@ export function RevenueChart({ data }: { data: RevenuePoint[] }) {
                 <div>
                     <CardTitle>Évolution du chiffre d’affaires</CardTitle>
                     <p className="mt-1.5 text-sm text-muted-foreground">
-                        {data.length > 0 ? (
+                        {visible.length > 0 ? (
                             <>
                                 <span className="font-semibold text-foreground">
                                     {formatCurrency(total)}
                                 </span>{' '}
-                                sur les {data.length} derniers jours
+                                sur les {visible.length} derniers jours
                             </>
                         ) : (
                             'Aucune donnée sur la période'
@@ -75,7 +78,6 @@ export function RevenueChart({ data }: { data: RevenuePoint[] }) {
                     </p>
                 </div>
 
-                {/* Visual only for now — the API returns a fixed 14-day window. */}
                 <Tabs value={period} onValueChange={setPeriod}>
                     <TabsList>
                         <TabsTrigger value="7">7j</TabsTrigger>
@@ -86,7 +88,7 @@ export function RevenueChart({ data }: { data: RevenuePoint[] }) {
             </CardHeader>
 
             <CardContent className="flex-1">
-                {data.length === 0 ? (
+                {visible.length === 0 ? (
                     <EmptyState
                         icon={TrendingUp}
                         title="Pas encore de données"
@@ -104,7 +106,7 @@ export function RevenueChart({ data }: { data: RevenuePoint[] }) {
                         <div className="h-[280px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
                                 <AreaChart
-                                    data={data}
+                                    data={visible}
                                     margin={{ top: 4, right: 8, left: 0, bottom: 0 }}
                                 >
                                     <defs>
@@ -135,14 +137,22 @@ export function RevenueChart({ data }: { data: RevenuePoint[] }) {
                                         minTickGap={24}
                                     />
                                     <YAxis
+                                        // Compact number WITHOUT the "MAD" suffix — the full
+                                        // currency string ("1,4 k MAD") overflows the axis width
+                                        // and gets left-clipped into misleading labels ("4 k MAD"
+                                        // shown below "3 k MAD"). The unit lives in the header
+                                        // total and the tooltip instead.
                                         tickFormatter={(value: number) =>
-                                            formatCurrency(value, { notation: 'compact' })
+                                            new Intl.NumberFormat('fr-FR', {
+                                                notation: 'compact',
+                                                maximumFractionDigits: 1,
+                                            }).format(value)
                                         }
                                         tickLine={false}
                                         axisLine={false}
                                         tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
                                         tickMargin={8}
-                                        width={56}
+                                        width={44}
                                     />
 
                                     <Tooltip
