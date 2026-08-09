@@ -6,14 +6,16 @@ import type { EventInteractionArgs } from 'react-big-calendar/lib/addons/dragAnd
 import {
     endOfMonth,
     endOfWeek,
+    format,
     startOfDay,
     startOfMonth,
     startOfWeek,
 } from 'date-fns';
 import { fr } from 'date-fns/locale';
-import { CalendarPlus } from 'lucide-react';
+import { CalendarDays, CalendarPlus, List } from 'lucide-react';
 import { getAppointments, getEmployees, getServices, updateAppointment } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { cn } from '@/lib/utils';
 import { pageFade } from '@/lib/motion';
 import type { Appointment } from '@/types/workday';
 import { Button } from '@/components/ui/button';
@@ -21,6 +23,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { AgendaCalendar } from '@/components/agenda/AgendaCalendar';
 import { ReservationDialog } from '@/components/agenda/ReservationDialog';
 import { ReservationDetailsDialog } from '@/components/agenda/ReservationDetailsDialog';
+import { ReservationList } from '@/components/agenda/ReservationList';
 import { itemsOf, UNASSIGNED_RESOURCE_ID, type AgendaEvent } from '@/components/agenda/agendaEvents';
 
 interface DialogState {
@@ -60,18 +63,21 @@ export default function Agenda() {
     const partnerMode = !hasPermission('agenda.manage');
     const [view, setView] = useState<View>(Views.WEEK);
     const [date, setDate] = useState(() => new Date());
+    // Partners live in list mode by default — their agenda is a booking log more
+    // than a staff planning board.
+    const [displayMode, setDisplayMode] = useState<'calendar' | 'list'>(partnerMode ? 'list' : 'calendar');
     const [dialog, setDialog] = useState<DialogState>(CLOSED_DIALOG);
 
     const { from, to } = useMemo(() => rangeFor(view, date), [view, date]);
-    const rangeKey = `${from.toISOString().slice(0, 10)}_${to.toISOString().slice(0, 10)}`;
+    // Local calendar dates — toISOString() would shift a local midnight back one
+    // day (UTC) and silently pull the previous day's reservations into the range.
+    const fromKey = format(from, 'yyyy-MM-dd');
+    const toKey = format(to, 'yyyy-MM-dd');
+    const rangeKey = `${fromKey}_${toKey}`;
 
     const { data: appointments = [], isPending: appointmentsPending } = useQuery({
         queryKey: ['appointments', rangeKey],
-        queryFn: () =>
-            getAppointments({
-                dateFrom: from.toISOString().slice(0, 10),
-                dateTo: to.toISOString().slice(0, 10),
-            }),
+        queryFn: () => getAppointments({ dateFrom: fromKey, dateTo: toKey }),
         refetchInterval: 30_000,
     });
 
@@ -166,26 +172,67 @@ export default function Agenda() {
                     </p>
                 </div>
 
-                <Button type="button" variant="accent" onClick={() => openCreateDialog(new Date(), UNASSIGNED_RESOURCE_ID)}>
-                    <CalendarPlus />
-                    Nouvelle réservation
-                </Button>
+                <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 rounded-md border border-tint/[0.08] bg-tint/[0.03] p-1">
+                        {(
+                            [
+                                { value: 'calendar', label: 'Calendrier', icon: CalendarDays },
+                                { value: 'list', label: 'Liste', icon: List },
+                            ] as const
+                        ).map((option) => {
+                            const Icon = option.icon;
+                            return (
+                                <button
+                                    key={option.value}
+                                    type="button"
+                                    onClick={() => setDisplayMode(option.value)}
+                                    className={cn(
+                                        'flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-xs font-medium transition-colors duration-200',
+                                        displayMode === option.value
+                                            ? 'bg-accent text-accent-foreground shadow-soft'
+                                            : 'text-muted-foreground hover:text-foreground',
+                                    )}
+                                >
+                                    <Icon className="h-3.5 w-3.5" />
+                                    {option.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    <Button type="button" variant="accent" onClick={() => openCreateDialog(new Date(), UNASSIGNED_RESOURCE_ID)}>
+                        <CalendarPlus />
+                        Nouvelle réservation
+                    </Button>
+                </div>
             </div>
 
             <Card className={appointmentsPending ? 'opacity-60' : undefined}>
                 <CardContent className="p-4">
-                    <AgendaCalendar
-                        appointments={appointments}
-                        employees={employees.filter((employee) => employee.is_active)}
-                        view={view}
-                        date={date}
-                        onViewChange={setView}
-                        onDateChange={setDate}
-                        onSelectSlot={(start, _end, resourceId) => openCreateDialog(start, resourceId)}
-                        onSelectEvent={openViewDialog}
-                        onEventDrop={handleEventDrop}
-                        onEventResize={handleEventResize}
-                    />
+                    {displayMode === 'calendar' ? (
+                        <AgendaCalendar
+                            appointments={appointments}
+                            employees={employees.filter((employee) => employee.is_active)}
+                            view={view}
+                            date={date}
+                            onViewChange={setView}
+                            onDateChange={setDate}
+                            onSelectSlot={(start, _end, resourceId) => openCreateDialog(start, resourceId)}
+                            onSelectEvent={openViewDialog}
+                            onEventDrop={handleEventDrop}
+                            onEventResize={handleEventResize}
+                        />
+                    ) : (
+                        <ReservationList
+                            appointments={appointments}
+                            view={view}
+                            date={date}
+                            onViewChange={setView}
+                            onDateChange={setDate}
+                            onSelect={openViewDialog}
+                            partnerMode={partnerMode}
+                        />
+                    )}
                 </CardContent>
             </Card>
 
