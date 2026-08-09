@@ -202,6 +202,9 @@ export default function LoyaltyQr() {
     const queryClient = useQueryClient();
     const [qrImage, setQrImage] = useState<string | null>(null);
     const [regenerateOpen, setRegenerateOpen] = useState(false);
+    // Sticky post-regeneration reminder: the old printed posters are dead,
+    // staff must reprint and swap every QR displayed in the salon.
+    const [justRegenerated, setJustRegenerated] = useState(false);
 
     const qrQuery = useQuery({ queryKey: ['loyalty-qr'], queryFn: getLoyaltyQr });
 
@@ -227,6 +230,7 @@ export default function LoyaltyQr() {
         mutationFn: regenerateLoyaltyQr,
         onSuccess: () => {
             setRegenerateOpen(false);
+            setJustRegenerated(true);
             void queryClient.invalidateQueries({ queryKey: ['loyalty-qr'] });
         },
     });
@@ -277,6 +281,28 @@ export default function LoyaltyQr() {
                     </Badge>
                 )}
             </motion.div>
+
+            {justRegenerated && (
+                <div
+                    role="alert"
+                    className="flex flex-col gap-3 rounded-md border border-accent/40 bg-accent/[0.10] px-4 py-3.5 sm:flex-row sm:items-center"
+                >
+                    <AlertCircle className="h-5 w-5 shrink-0 text-accent" />
+                    <div className="flex-1">
+                        <p className="text-sm font-semibold text-foreground">
+                            Nouveau QR Code généré — les anciens ne fonctionnent plus.
+                        </p>
+                        <p className="mt-0.5 text-sm text-muted-foreground">
+                            Réimprimez la nouvelle affiche et remplacez tous les QR affichés au salon
+                            (comptoir, vitrine, cabines…).
+                        </p>
+                    </div>
+                    <Button type="button" variant="accent" onClick={handlePrint} disabled={!qrImage}>
+                        <Printer />
+                        Imprimer la nouvelle affiche
+                    </Button>
+                </div>
+            )}
 
             <motion.div variants={item} className="grid grid-cols-1 gap-6 lg:grid-cols-[380px_1fr]">
                 <Card className="flex flex-col items-center gap-5 p-6">
@@ -329,8 +355,10 @@ export default function LoyaltyQr() {
                             {qrQuery.data ? joinUrl(qrQuery.data.token) : '…'}
                         </p>
                         <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-                            Régénérer le lien invalide immédiatement toute affiche déjà imprimée — à utiliser
-                            uniquement si le QR a été compromis ou perdu.
+                            <span className="font-medium text-foreground">Ce QR est permanent</span> — il ne
+                            change jamais tout seul. Il n’est invalidé que si vous cliquez « Régénérer le
+                            lien », auquel cas toutes les affiches imprimées devront être remplacées — à
+                            réserver au cas où le QR aurait été compromis ou perdu.
                         </p>
                     </Card>
 
@@ -361,8 +389,8 @@ export default function LoyaltyQr() {
                 open={regenerateOpen}
                 onOpenChange={setRegenerateOpen}
                 title="Régénérer le QR Code ?"
-                description="Toute affiche déjà imprimée avec l'ancien QR cessera immédiatement de fonctionner."
-                confirmLabel="Régénérer"
+                description="Attention : si vous régénérez, tous les QR déjà imprimés cesseront immédiatement de fonctionner. Vous devrez réimprimer la nouvelle affiche et remplacer chaque QR affiché dans le salon (comptoir, vitrine, cabines…). Le QR actuel, lui, ne change jamais tant que vous ne le régénérez pas."
+                confirmLabel="Je comprends, régénérer"
                 variant="destructive"
                 loading={regenerateMutation.isPending}
                 onConfirm={() => regenerateMutation.mutate()}
