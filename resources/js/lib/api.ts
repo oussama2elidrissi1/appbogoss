@@ -102,9 +102,9 @@ export async function getCsrfCookie(): Promise<void> {
     await api.get('/sanctum/csrf-cookie', { params: { _: Date.now() } });
 }
 
-export async function login(email: string, password: string): Promise<User> {
+export async function login(email: string, password: string, remember = true): Promise<User> {
     await getCsrfCookie();
-    const { data } = await api.post<User>('/api/login', { email, password });
+    const { data } = await api.post<User>('/api/login', { email, password, remember });
     return data;
 }
 

@@ -18,9 +18,11 @@ class AuthController extends Controller
 
     public function login(LoginRequest $request): JsonResponse
     {
-        $credentials = $request->validated();
+        $credentials = $request->safe()->only(['email', 'password']);
 
-        if (! Auth::attempt($credentials, true)) {
+        // Defaults to a persistent session (historic behaviour) unless the
+        // user explicitly unchecks "Se souvenir de moi".
+        if (! Auth::attempt($credentials, $request->boolean('remember', true))) {
             return response()->json([
                 'message' => 'Identifiants invalides',
             ], 401);

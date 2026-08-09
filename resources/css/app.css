@@ -176,6 +176,149 @@
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
     }
 
+    /* ------------------------------------------------------------------ */
+    /* Login screen — noir & or. Self-contained: fixed palette regardless  */
+    /* of the app theme, transform/opacity animations only (60 fps), all   */
+    /* decorative motion disabled under prefers-reduced-motion.            */
+    /* ------------------------------------------------------------------ */
+
+    /* Slow levitation for the dashboard mockup */
+    .login-float {
+        animation: login-float 7s ease-in-out infinite;
+        will-change: transform;
+    }
+
+    /* Drifting golden dust */
+    .login-particle {
+        position: absolute;
+        border-radius: 9999px;
+        background: radial-gradient(circle, rgba(216, 180, 90, 0.9), rgba(216, 180, 90, 0));
+        opacity: 0;
+        animation: login-particle var(--drift-duration, 14s) linear infinite;
+        animation-delay: var(--drift-delay, 0s);
+        will-change: transform, opacity;
+        pointer-events: none;
+    }
+
+    /* Diagonal light streak sweeping very slowly across the scene */
+    .login-streak {
+        position: absolute;
+        pointer-events: none;
+        background: linear-gradient(
+            105deg,
+            transparent 40%,
+            rgba(216, 180, 90, 0.05) 48%,
+            rgba(216, 180, 90, 0.1) 50%,
+            rgba(216, 180, 90, 0.05) 52%,
+            transparent 60%
+        );
+        animation: login-streak 16s ease-in-out infinite;
+        will-change: transform, opacity;
+    }
+
+    /* Button shine sweep on hover */
+    .login-shine {
+        position: relative;
+        overflow: hidden;
+    }
+
+    .login-shine::after {
+        content: '';
+        position: absolute;
+        inset: -2px;
+        transform: translateX(-120%) skewX(-18deg);
+        background: linear-gradient(
+            90deg,
+            transparent 30%,
+            rgba(255, 255, 255, 0.35) 50%,
+            transparent 70%
+        );
+        transition: none;
+        pointer-events: none;
+    }
+
+    .login-shine:hover::after {
+        animation: login-shine 0.9s ease forwards;
+    }
+
+    /* Breathing halo behind the crest / monogram */
+    .login-halo {
+        animation: login-halo 5s ease-in-out infinite;
+        will-change: opacity, transform;
+    }
+
+    @keyframes login-float {
+        0%,
+        100% {
+            transform: translateY(0) rotate(-0.4deg);
+        }
+        50% {
+            transform: translateY(-10px) rotate(0.4deg);
+        }
+    }
+
+    @keyframes login-particle {
+        0% {
+            transform: translateY(24px) translateX(0);
+            opacity: 0;
+        }
+        12% {
+            opacity: var(--drift-opacity, 0.5);
+        }
+        88% {
+            opacity: var(--drift-opacity, 0.5);
+        }
+        100% {
+            transform: translateY(calc(-1 * var(--drift-travel, 220px))) translateX(var(--drift-sway, 18px));
+            opacity: 0;
+        }
+    }
+
+    @keyframes login-streak {
+        0%,
+        100% {
+            transform: translateX(-18%);
+            opacity: 0;
+        }
+        45%,
+        60% {
+            transform: translateX(6%);
+            opacity: 1;
+        }
+    }
+
+    @keyframes login-shine {
+        to {
+            transform: translateX(120%) skewX(-18deg);
+        }
+    }
+
+    @keyframes login-halo {
+        0%,
+        100% {
+            opacity: 0.55;
+            transform: scale(1);
+        }
+        50% {
+            opacity: 1;
+            transform: scale(1.08);
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .login-float,
+        .login-particle,
+        .login-streak,
+        .login-halo,
+        .login-shine::after {
+            animation: none !important;
+        }
+
+        .login-particle {
+            opacity: 0.25;
+        }
+    }
+
     /* Hairline top highlight on elevated cards */
     .edge-light {
         position: relative;

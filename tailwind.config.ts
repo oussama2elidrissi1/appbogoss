@@ -69,6 +69,7 @@ export default {
             },
             fontFamily: {
                 sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                display: ['"Cormorant Garamond"', 'Georgia', 'serif'],
             },
             borderRadius: {
                 lg: '1rem',
