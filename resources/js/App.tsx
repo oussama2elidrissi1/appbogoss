@@ -24,6 +24,7 @@ import PortalHome from '@/pages/portal/PortalHome';
 import PortalRewards from '@/pages/portal/PortalRewards';
 import PortalSubscriptions from '@/pages/portal/PortalSubscriptions';
 import MonEspace from '@/pages/MonEspace';
+import Partenaires from '@/pages/Partenaires';
 import Payroll from '@/pages/Payroll';
 import PlaceholderPage from '@/pages/PlaceholderPage';
 import Reports from '@/pages/Reports';
@@ -39,6 +40,7 @@ const realRoutes = new Set([
     '/pos',
     '/expenses',
     '/mon-espace',
+    '/partenaires',
     '/employees',
     '/clients',
     '/services',
@@ -97,8 +99,12 @@ export default function App() {
                         <Route path="/reports" element={<Reports />} />
                     </Route>
 
-                    <Route element={<ProtectedRoute permission="agenda.manage" />}>
+                    <Route element={<ProtectedRoute permission={['agenda.manage', 'agenda.partner']} />}>
                         <Route path="/agenda" element={<Agenda />} />
+                    </Route>
+
+                    <Route element={<ProtectedRoute permission="partners.manage" />}>
+                        <Route path="/partenaires" element={<Partenaires />} />
                     </Route>
 
                     <Route element={<ProtectedRoute permission="caisse.manage" />}>

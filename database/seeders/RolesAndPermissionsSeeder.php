@@ -41,6 +41,11 @@ class RolesAndPermissionsSeeder extends Seeder
             'prestations.edit_paid',
             'caisse.manage',
             'agenda.manage',
+            // Restricted agenda surface for partner accounts: they can create
+            // reservations and see/edit only their own (scoped in
+            // AppointmentController), never the whole salon agenda.
+            'agenda.partner',
+            'partners.manage',
             'reports.view_all',
             'activity_log.view',
             'settings.manage',
@@ -87,6 +92,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'prestations.confirm_payment',
             'caisse.manage',
             'agenda.manage',
+            'partners.manage',
             'reports.view_all',
             'activity_log.view',
             'settings.manage',
@@ -111,5 +117,8 @@ class RolesAndPermissionsSeeder extends Seeder
 
         $employee = Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);
         $employee->syncPermissions(['loyalty.redeem']);
+
+        $partner = Role::firstOrCreate(['name' => 'partner', 'guard_name' => 'web']);
+        $partner->syncPermissions(['agenda.partner']);
     }
 }

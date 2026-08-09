@@ -416,11 +416,22 @@ export interface ProductPayload {
 
 export type AppointmentStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
 
+/** One participant of a reservation — index 0 is the booking contact. */
+export interface ReservationPerson {
+    name: string | null;
+    is_contact?: boolean;
+}
+
 export interface Appointment {
     id: number;
     client_id: number;
     client_ids?: number[];
     clients?: Array<{ id: number; name: string; phone: string | null }>;
+    partner_id?: number | null;
+    partner?: { id: number; name: string } | null;
+    /** Estimated partner remuneration for this reservation (partner bookings only). */
+    partner_commission?: number | null;
+    people?: ReservationPerson[];
     employee_id: number | null;
     service_id: number;
     starts_at: string;
@@ -454,6 +465,8 @@ export interface Appointment {
 export interface ReservationItem {
     service_id: number;
     employee_id: number | null;
+    /** Which participant (index into Appointment.people) receives this service. */
+    person_index?: number;
     service: {
         id: number;
         name: string;
@@ -472,7 +485,56 @@ export interface AppointmentPayload {
     starts_at?: string;
     status?: AppointmentStatus;
     notes?: string | null;
-    items?: Array<{ service_id: number; employee_id: number | null }>;
+    items?: Array<{ service_id: number; employee_id: number | null; person_index?: number }>;
+    /** Participants — index 0 is the booking contact (linked to client_id). */
+    people?: Array<{ name: string | null }>;
     /** Manual length override in minutes, set by dragging an event's edge on the calendar. */
     duration_override_minutes?: number | null;
+}
+
+export type PartnerCommissionType = 'percentage' | 'fixed';
+
+export interface PartnerCommissionRule {
+    id?: number;
+    service_id: number;
+    service_name?: string | null;
+    service_category?: string | null;
+    service_price?: number | null;
+    type: PartnerCommissionType;
+    value: number;
+}
+
+export interface Partner {
+    id: number;
+    name: string;
+    contact_name: string | null;
+    phone: string | null;
+    email: string | null;
+    address: string | null;
+    notes: string | null;
+    is_active: boolean;
+    login_email: string | null;
+    user_id: number | null;
+    appointments_count?: number;
+    commissions?: PartnerCommissionRule[];
+    created_at?: string;
+}
+
+export interface PartnerPayload {
+    name?: string;
+    contact_name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    address?: string | null;
+    notes?: string | null;
+    is_active?: boolean;
+    login_email?: string | null;
+    login_password?: string | null;
+    commissions?: Array<{ service_id: number; type: PartnerCommissionType; value: number }>;
+}
+
+export interface CreatedPartnerResponse {
+    partner: Partner;
+    login_email: string;
+    temporary_password: string | null;
 }

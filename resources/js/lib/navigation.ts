@@ -3,6 +3,7 @@ import {
     Calendar,
     CalendarClock,
     Gift,
+    Handshake,
     History,
     LayoutDashboard,
     Megaphone,
@@ -26,8 +27,8 @@ export interface NavItem {
     icon: LucideIcon;
     /** One-line copy reused by the placeholder screens. */
     description: string;
-    /** When set, the link is hidden for users lacking this permission. */
-    permission?: string;
+    /** When set, the link is hidden for users lacking this permission (any one of the array suffices). */
+    permission?: string | string[];
     /** When true, the link is shown only for accounts linked to an employee record. */
     requiresEmployee?: boolean;
 }
@@ -60,7 +61,7 @@ export const navSections: NavSection[] = [
                 to: '/agenda',
                 icon: Calendar,
                 description: 'Planifiez et visualisez les rendez-vous de toute votre équipe.',
-                permission: 'agenda.manage',
+                permission: ['agenda.manage', 'agenda.partner'],
             },
         ],
     },
@@ -87,6 +88,13 @@ export const navSections: NavSection[] = [
                 icon: Sparkles,
                 description: 'Catalogue des prestations, durées et tarifs.',
                 permission: 'services.manage',
+            },
+            {
+                label: 'Partenaires',
+                to: '/partenaires',
+                icon: Handshake,
+                description: 'Comptes partenaires, commissions par service et réservations apportées.',
+                permission: 'partners.manage',
             },
             {
                 label: 'Paie',

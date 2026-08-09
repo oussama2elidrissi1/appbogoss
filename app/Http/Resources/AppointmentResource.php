@@ -24,10 +24,37 @@ class AppointmentResource extends JsonResource
         $clientIds = collect($this->client_ids ?: [$this->client_id])->filter()->unique()->values();
         $clientModels = Client::query()->whereIn('id', $clientIds)->get()->keyBy('id');
 
+        $people = collect($this->people ?: [])->values();
+        if ($people->isEmpty()) {
+            // Legacy reservations: derive one participant per selected client.
+            $people = $clientModels->count() > 0
+                ? $clientModels->values()->map(fn (Client $client) => ['name' => $client->name])
+                : collect([['name' => $this->client?->name]]);
+        }
+
+        $partner = $this->partner_id ? $this->partner : null;
+        $partnerCommission = $partner
+            ? round($items->sum(function (array $item) use ($partner, $serviceModels) {
+                $service = $serviceModels->get($item['service_id']);
+
+                return $service ? $partner->commissionFor($service->id, (float) $service->price) : 0.0;
+            }), 2)
+            : null;
+
         return [
             'id' => $this->id,
             'client_id' => $this->client_id,
             'client_ids' => $clientIds->all(),
+            'partner_id' => $this->partner_id,
+            'partner' => $partner ? [
+                'id' => $partner->id,
+                'name' => $partner->name,
+            ] : null,
+            'partner_commission' => $partnerCommission,
+            'people' => $people->map(fn (array $person, int $index) => [
+                'name' => $person['name'] ?? null,
+                'is_contact' => $index === 0,
+            ])->values()->all(),
             'clients' => $clientModels->values()->map(fn (Client $client) => [
                 'id' => $client->id,
                 'name' => $client->name,
@@ -44,6 +71,7 @@ class AppointmentResource extends JsonResource
             'reservation_items' => $items->map(fn (array $item) => [
                 'service_id' => (int) $item['service_id'],
                 'employee_id' => $item['employee_id'] !== null ? (int) $item['employee_id'] : null,
+                'person_index' => isset($item['person_index']) ? (int) $item['person_index'] : 0,
                 'service' => $serviceModels->get($item['service_id']) ? [
                     'id' => $serviceModels[$item['service_id']]->id,
                     'name' => $serviceModels[$item['service_id']]->name,

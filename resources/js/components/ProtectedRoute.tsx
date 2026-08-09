@@ -11,7 +11,7 @@ import { Scissors } from 'lucide-react';
  * resolves to the right landing page per role (see RoleAwareRedirect), so this
  * never loops back into another permission-gated route.
  */
-export function ProtectedRoute({ permission }: { permission?: string } = {}) {
+export function ProtectedRoute({ permission }: { permission?: string | string[] } = {}) {
     const { user, isLoading, hasPermission } = useAuth();
     const location = useLocation();
 
@@ -19,7 +19,10 @@ export function ProtectedRoute({ permission }: { permission?: string } = {}) {
 
     if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
 
-    if (permission && !hasPermission(permission)) return <Navigate to="/" replace />;
+    const allowed =
+        !permission ||
+        (Array.isArray(permission) ? permission.some(hasPermission) : hasPermission(permission));
+    if (!allowed) return <Navigate to="/" replace />;
 
     return <Outlet />;
 }

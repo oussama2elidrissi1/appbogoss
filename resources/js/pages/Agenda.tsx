@@ -13,6 +13,7 @@ import {
 import { fr } from 'date-fns/locale';
 import { CalendarPlus } from 'lucide-react';
 import { getAppointments, getEmployees, getServices, updateAppointment } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import { pageFade } from '@/lib/motion';
 import type { Appointment } from '@/types/workday';
 import { Button } from '@/components/ui/button';
@@ -53,6 +54,10 @@ function rangeFor(view: View, date: Date): { from: Date; to: Date } {
 
 export default function Agenda() {
     const queryClient = useQueryClient();
+    const { hasPermission } = useAuth();
+    // Partner accounts reach the agenda through `agenda.partner` only: they see
+    // just their own reservations (server-scoped) and never assign employees.
+    const partnerMode = !hasPermission('agenda.manage');
     const [view, setView] = useState<View>(Views.WEEK);
     const [date, setDate] = useState(() => new Date());
     const [dialog, setDialog] = useState<DialogState>(CLOSED_DIALOG);
@@ -74,6 +79,8 @@ export default function Agenda() {
         queryKey: ['employees', 'agenda'],
         queryFn: () => getEmployees(),
         staleTime: 5 * 60_000,
+        // The employees endpoint requires employees.manage — partners don't have it.
+        enabled: !partnerMode,
     });
 
     const { data: services = [] } = useQuery({
@@ -121,6 +128,7 @@ export default function Agenda() {
         const items = itemsOf(appointment).map((item) => ({
             service_id: item.service_id,
             employee_id: targetResource === UNASSIGNED_RESOURCE_ID ? null : Number(targetResource),
+            person_index: item.person_index ?? 0,
         }));
 
         rescheduleMutation.mutate({
@@ -152,8 +160,9 @@ export default function Agenda() {
                 <div>
                     <h2 className="text-2xl font-semibold tracking-tight">Agenda</h2>
                     <p className="mt-1.5 text-sm text-muted-foreground">
-                        Planning professionnel du salon — glissez-déposez pour reprogrammer, redimensionnez pour
-                        ajuster la durée.
+                        {partnerMode
+                            ? 'Vos réservations partenaires — créez une réservation, le salon la confirme.'
+                            : 'Planning professionnel du salon — glissez-déposez pour reprogrammer, redimensionnez pour ajuster la durée.'}
                     </p>
                 </div>
 
@@ -196,6 +205,7 @@ export default function Agenda() {
                 initialResourceId={dialog.initialResourceId}
                 employees={employees.filter((employee) => employee.is_active)}
                 services={services}
+                partnerMode={partnerMode}
             />
         </motion.div>
     );

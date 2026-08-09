@@ -9,6 +9,9 @@ import type {
     Client,
     ClientPayload,
     CreateAdvancePayload,
+    CreatedPartnerResponse,
+    Partner,
+    PartnerPayload,
     CreateExpensePayload,
     CreateTransactionPayload,
     Employee,
@@ -496,6 +499,45 @@ export async function updateAppointment(
 
 export async function deleteAppointment(id: number): Promise<void> {
     await api.delete(`/api/appointments/${id}`);
+}
+
+export async function getPartners(options?: { search?: string; includeInactive?: boolean }): Promise<Partner[]> {
+    const { data } = await api.get<{ data: Partner[] }>('/api/partners', {
+        params: {
+            ...(options?.search ? { search: options.search } : {}),
+            ...(options?.includeInactive === false ? { include_inactive: 0 } : {}),
+        },
+    });
+    return data.data;
+}
+
+export async function createPartner(payload: PartnerPayload): Promise<CreatedPartnerResponse> {
+    const { data } = await api.post<{ data: CreatedPartnerResponse }>('/api/partners', payload);
+    return data.data;
+}
+
+export async function updatePartner(id: number, payload: PartnerPayload): Promise<Partner> {
+    const { data } = await api.put<{ data: Partner }>(`/api/partners/${id}`, payload);
+    return data.data;
+}
+
+export async function deletePartner(id: number): Promise<void> {
+    await api.delete(`/api/partners/${id}`);
+}
+
+export async function resetPartnerPassword(id: number, password?: string): Promise<string> {
+    const { data } = await api.post<{ data: { temporary_password: string } }>(
+        `/api/partners/${id}/reset-password`,
+        password ? { password } : {},
+    );
+    return data.data.temporary_password;
+}
+
+export async function setPartnerStatus(id: number, isActive: boolean): Promise<Partner> {
+    const { data } = await api.patch<{ data: Partner }>(`/api/partners/${id}/status`, {
+        is_active: isActive,
+    });
+    return data.data;
 }
 
 export async function getPrestations(options?: {

@@ -9,6 +9,7 @@ use App\Http\Resources\AppointmentResource;
 use App\Models\Appointment;
 use App\Models\Client;
 use App\Models\Employee;
+use App\Models\Partner;
 use App\Models\Service;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -24,11 +25,18 @@ class AppointmentController extends Controller
             'date_from' => ['nullable', 'date'],
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
             'employee_id' => ['nullable', 'integer', Rule::exists('employees', 'id')],
+            'partner_id' => ['nullable', 'integer', Rule::exists('partners', 'id')],
             'status' => ['nullable', 'string'],
         ]);
 
-        $query = Appointment::with(['client', 'employee', 'service'])
+        $query = Appointment::with(['client', 'employee', 'service', 'partner'])
             ->orderBy('starts_at');
+
+        if ($partner = $this->restrictedPartner($request)) {
+            $query->where('partner_id', $partner->id);
+        } elseif (! empty($validated['partner_id'])) {
+            $query->where('partner_id', $validated['partner_id']);
+        }
 
         if (! empty($validated['date'])) {
             $query->whereDate('starts_at', Carbon::parse($validated['date'])->toDateString());
@@ -51,32 +59,83 @@ class AppointmentController extends Controller
 
     public function store(StoreAppointmentRequest $request): JsonResponse
     {
-        $appointment = Appointment::create($this->payloadWithEnd($request->validated()));
-        $appointment->load(['client', 'employee', 'service']);
+        $data = $request->validated();
+
+        if ($partner = $this->restrictedPartner($request)) {
+            // Partner bookings are always attributed to the partner and land
+            // as "pending" so the salon confirms them explicitly.
+            $data['partner_id'] = $partner->id;
+            $data['status'] = 'pending';
+        }
+
+        $appointment = Appointment::create($this->payloadWithEnd($data));
+        $appointment->load(['client', 'employee', 'service', 'partner']);
 
         return response()->json(['data' => new AppointmentResource($appointment)], 201);
     }
 
-    public function show(Appointment $appointment): JsonResponse
+    public function show(Request $request, Appointment $appointment): JsonResponse
     {
-        $appointment->load(['client', 'employee', 'service']);
+        $this->assertCanAccess($request, $appointment);
+        $appointment->load(['client', 'employee', 'service', 'partner']);
 
         return response()->json(['data' => new AppointmentResource($appointment)]);
     }
 
     public function update(UpdateAppointmentRequest $request, Appointment $appointment): JsonResponse
     {
-        $appointment->update($this->payloadWithEnd($request->validated(), $appointment));
-        $appointment->load(['client', 'employee', 'service']);
+        $this->assertCanAccess($request, $appointment);
+        $data = $request->validated();
+
+        if ($this->restrictedPartner($request)) {
+            // A partner may cancel their own reservation but never grant it a
+            // salon-side status (confirmed/completed/no_show), nor reassign it.
+            if (($data['status'] ?? null) !== 'cancelled') {
+                unset($data['status']);
+            }
+            unset($data['partner_id']);
+        }
+
+        $appointment->update($this->payloadWithEnd($data, $appointment));
+        $appointment->load(['client', 'employee', 'service', 'partner']);
 
         return response()->json(['data' => new AppointmentResource($appointment)]);
     }
 
-    public function destroy(Appointment $appointment): JsonResponse
+    public function destroy(Request $request, Appointment $appointment): JsonResponse
     {
+        $this->assertCanAccess($request, $appointment);
         $appointment->delete();
 
         return response()->json(status: 204);
+    }
+
+    /**
+     * Partner-restricted context: the user reaches this controller through
+     * `agenda.partner` only (no `agenda.manage`), so every operation must be
+     * scoped to their own partner record.
+     */
+    private function restrictedPartner(Request $request): ?Partner
+    {
+        $user = $request->user();
+        if (! $user || $user->can('agenda.manage')) {
+            return null;
+        }
+
+        $partner = $user->partner;
+        if (! $partner || ! $partner->is_active) {
+            abort(403, 'Aucun compte partenaire actif n’est associé à cet utilisateur.');
+        }
+
+        return $partner;
+    }
+
+    private function assertCanAccess(Request $request, Appointment $appointment): void
+    {
+        $partner = $this->restrictedPartner($request);
+        if ($partner && $appointment->partner_id !== $partner->id) {
+            abort(403, 'Cette réservation n’appartient pas à votre compte partenaire.');
+        }
     }
 
     /**
@@ -89,6 +148,7 @@ class AppointmentController extends Controller
             && ! array_key_exists('service_id', $data)
             && ! array_key_exists('employee_id', $data)
             && ! array_key_exists('items', $data)
+            && ! array_key_exists('people', $data)
             && ! array_key_exists('duration_override_minutes', $data)) {
             return $data;
         }
@@ -101,13 +161,35 @@ class AppointmentController extends Controller
             ]];
         }
 
+        // Participants: index 0 is the booking contact (the only person whose
+        // coordinates are stored, through client_id). Extra people are just
+        // names attached to the reservation.
+        $people = array_key_exists('people', $data) ? $data['people'] : $appointment?->people;
+        $people = collect(is_array($people) ? $people : [])
+            ->map(fn ($person) => ['name' => filled($person['name'] ?? null) ? trim((string) $person['name']) : null])
+            ->take(20)
+            ->values();
+        if ($people->isEmpty()) {
+            $people = collect([['name' => null]]);
+        }
+        $personCount = $people->count();
+
         $items = collect($items)
-            ->map(fn (array $item) => [
-                'service_id' => (int) $item['service_id'],
-                'employee_id' => isset($item['employee_id']) && $item['employee_id'] !== '' && $item['employee_id'] !== null
-                    ? (int) $item['employee_id']
-                    : null,
-            ])
+            ->map(function (array $item) use ($personCount) {
+                $personIndex = isset($item['person_index']) && $item['person_index'] !== '' && $item['person_index'] !== null
+                    ? (int) $item['person_index']
+                    : null;
+
+                return [
+                    'service_id' => (int) $item['service_id'],
+                    'employee_id' => isset($item['employee_id']) && $item['employee_id'] !== '' && $item['employee_id'] !== null
+                        ? (int) $item['employee_id']
+                        : null,
+                    'person_index' => $personIndex !== null && $personIndex >= 0 && $personIndex < $personCount
+                        ? $personIndex
+                        : 0,
+                ];
+            })
             ->values()
             ->all();
 
@@ -128,8 +210,12 @@ class AppointmentController extends Controller
         $durationByEmployee = $assigned->groupBy('employee_id')->map(
             fn ($employeeItems) => $employeeItems->sum(fn (array $item) => (int) $services[$item['service_id']]->duration_minutes),
         );
-        $unassignedDuration = $unassigned->sum(fn (array $item) => (int) $services[$item['service_id']]->duration_minutes);
-        $autoDuration = max((int) $durationByEmployee->max(), $unassignedDuration);
+        // Unassigned lines are worked per person in parallel: each participant's
+        // own unassigned services run one after the other.
+        $unassignedByPerson = $unassigned->groupBy('person_index')->map(
+            fn ($personItems) => $personItems->sum(fn (array $item) => (int) $services[$item['service_id']]->duration_minutes),
+        );
+        $autoDuration = max((int) $durationByEmployee->max(), (int) $unassignedByPerson->max());
 
         $itemsProvided = array_key_exists('items', $data);
         $overrideProvided = array_key_exists('duration_override_minutes', $data);
@@ -153,12 +239,20 @@ class AppointmentController extends Controller
         $data['service_id'] = $items[0]['service_id'];
         $data['employee_id'] = $assigned->first()['employee_id'] ?? null;
         $data['reservation_items'] = $items;
+        $data['people'] = $people->all();
         $data['duration_override_minutes'] = $durationOverride;
         $clientIds = collect($data['client_ids'] ?? ($appointment?->client_ids ?: [$data['client_id'] ?? $appointment?->client_id]))
             ->filter()
             ->map(fn ($id) => (int) $id)
             ->unique()
             ->values();
+        if (array_key_exists('client_id', $data) && filled($data['client_id'])) {
+            // The booking contact drives the reservation — make sure it is
+            // always part of (and first in) the participant client list.
+            $clientIds = collect([(int) $data['client_id']])
+                ->merge($clientIds->reject(fn (int $id) => $id === (int) $data['client_id']))
+                ->values();
+        }
         if ($clientIds->isEmpty() || Client::query()->whereIn('id', $clientIds)->count() !== $clientIds->count()) {
             abort(422, 'Un client sélectionné n’existe plus.');
         }

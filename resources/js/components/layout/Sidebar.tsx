@@ -70,7 +70,10 @@ export function Sidebar({ collapsed, onToggle, variant = 'desktop', onNavigate }
                 {navSections.map((section) => {
                     const visibleItems = section.items.filter(
                         (item) =>
-                            (!item.permission || hasPermission(item.permission)) &&
+                            (!item.permission ||
+                                (Array.isArray(item.permission)
+                                    ? item.permission.some(hasPermission)
+                                    : hasPermission(item.permission))) &&
                             (!item.requiresEmployee || user?.employee_id !== null),
                     );
 

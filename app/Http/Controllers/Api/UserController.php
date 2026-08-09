@@ -41,7 +41,7 @@ class UserController extends Controller
     public function update(Request $request, User $user): JsonResponse
     {
         $validated = $request->validate([
-            'role' => ['sometimes', Rule::in(['super-admin', 'admin', 'employee'])],
+            'role' => ['sometimes', Rule::in(['super-admin', 'admin', 'employee', 'partner'])],
             'is_active' => ['sometimes', 'boolean'],
         ]);
 

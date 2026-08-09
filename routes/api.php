@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\ClientLoyaltyAdjustmentController;
 use App\Http\Controllers\Api\ClientSubscriptionLifecycleController;
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\PartnerController;
 use App\Http\Controllers\Api\PrestationController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ReportController;
@@ -112,8 +113,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/profile', [SettingsController::class, 'updateProfile']);
     Route::post('/profile/password', [SettingsController::class, 'updatePassword']);
 
-    Route::middleware('permission:agenda.manage')->group(function () {
+    // `agenda.partner` grants a restricted view: AppointmentController scopes
+    // every operation to the caller's own partner record (see restrictedPartner()).
+    Route::middleware('permission:agenda.manage|agenda.partner')->group(function () {
         Route::apiResource('/appointments', AppointmentController::class);
+    });
+
+    Route::middleware('permission:partners.manage')->group(function () {
+        Route::apiResource('/partners', PartnerController::class);
+        Route::post('/partners/{partner}/reset-password', [PartnerController::class, 'resetPassword']);
+        Route::patch('/partners/{partner}/status', [PartnerController::class, 'status']);
     });
 
     Route::middleware('permission:caisse.manage')->group(function () {
@@ -248,8 +257,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/prestations/{prestation}/print', [PrestationController::class, 'print']);
 
     Route::apiResource('/clients', ClientController::class)->only(['index', 'show']);
+    // Partners must be able to register the booking contact of a reservation
+    // (name + phone), hence store is also open to `agenda.partner`.
+    Route::middleware('permission:caisse.manage|agenda.partner')->group(function () {
+        Route::apiResource('/clients', ClientController::class)->only(['store']);
+    });
     Route::middleware('permission:caisse.manage')->group(function () {
-        Route::apiResource('/clients', ClientController::class)->only(['store', 'update', 'destroy']);
+        Route::apiResource('/clients', ClientController::class)->only(['update', 'destroy']);
     });
 
     Route::apiResource('/services', ServiceController::class)->only(['index', 'show']);

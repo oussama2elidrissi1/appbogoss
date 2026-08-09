@@ -14,5 +14,10 @@ export function RoleAwareRedirect() {
         return <Navigate to="/dashboard" replace />;
     }
 
+    // Partner accounts have no employee record — their whole workspace is the agenda.
+    if (hasPermission('agenda.partner')) {
+        return <Navigate to="/agenda" replace />;
+    }
+
     return <Navigate to="/mon-espace" replace />;
 }

@@ -26,9 +26,13 @@ class UpdateAppointmentRequest extends FormRequest
             'starts_at' => ['sometimes', 'required', 'date'],
             'status' => ['sometimes', 'required', 'string', Rule::in(['pending', 'confirmed', 'completed', 'cancelled', 'no_show'])],
             'notes' => ['nullable', 'string', 'max:2000'],
-            'items' => ['sometimes', 'array', 'min:1', 'max:20'],
+            'items' => ['sometimes', 'array', 'min:1', 'max:40'],
             'items.*.service_id' => ['required_with:items', 'integer', Rule::exists('services', 'id')],
             'items.*.employee_id' => ['nullable', 'integer', Rule::exists('employees', 'id')],
+            'items.*.person_index' => ['nullable', 'integer', 'min:0', 'max:19'],
+            'people' => ['sometimes', 'array', 'min:1', 'max:20'],
+            'people.*.name' => ['nullable', 'string', 'max:120'],
+            'partner_id' => ['sometimes', 'nullable', 'integer', Rule::exists('partners', 'id')],
             'duration_override_minutes' => ['sometimes', 'nullable', 'integer', 'min:5', 'max:720'],
         ];
     }

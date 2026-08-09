@@ -13,6 +13,7 @@ class Appointment extends Model
     protected $fillable = [
         'client_id',
         'client_ids',
+        'partner_id',
         'employee_id',
         'service_id',
         'starts_at',
@@ -20,6 +21,7 @@ class Appointment extends Model
         'status',
         'notes',
         'reservation_items',
+        'people',
         'duration_override_minutes',
     ];
 
@@ -28,6 +30,7 @@ class Appointment extends Model
         'ends_at' => 'datetime',
         'reservation_items' => 'array',
         'client_ids' => 'array',
+        'people' => 'array',
     ];
 
     public function client(): BelongsTo
@@ -38,6 +41,11 @@ class Appointment extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    public function partner(): BelongsTo
+    {
+        return $this->belongsTo(Partner::class);
     }
 
     public function service(): BelongsTo

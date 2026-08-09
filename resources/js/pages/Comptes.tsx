@@ -20,12 +20,14 @@ const ROLE_LABEL: Record<string, string> = {
     'super-admin': 'Super Admin',
     admin: 'Administrateur/Caissier',
     employee: 'Employé',
+    partner: 'Partenaire',
 };
 
 const ROLE_BADGE_VARIANT: Record<string, 'accent' | 'success' | 'outline'> = {
     'super-admin': 'accent',
     admin: 'success',
     employee: 'outline',
+    partner: 'outline',
 };
 
 export default function Comptes() {
@@ -143,6 +145,7 @@ export default function Comptes() {
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="employee">{ROLE_LABEL.employee}</SelectItem>
+                                                <SelectItem value="partner">{ROLE_LABEL.partner}</SelectItem>
                                                 <SelectItem value="admin">{ROLE_LABEL.admin}</SelectItem>
                                                 <SelectItem value="super-admin">{ROLE_LABEL['super-admin']}</SelectItem>
                                             </SelectContent>
