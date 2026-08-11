@@ -496,6 +496,45 @@ class SubscriptionService
         });
     }
 
+    /**
+     * One-click full refund: cancels the subscription (if still running) AND
+     * reverses its purchase sale — loyalty accrual undone, ticket soft-deleted
+     * so it leaves the caisse totals but stays visible as "supprimé". Works
+     * also on an already-cancelled subscription whose sale was never refunded.
+     */
+    public function refundPurchase(ClientSubscription $subscription, User $actor): ClientSubscription
+    {
+        return DB::transaction(function () use ($subscription, $actor) {
+            $sale = $subscription->sale;
+            if ($subscription->sale_id === null) {
+                throw ValidationException::withMessages(['sale' => 'Aucune vente n’est liée à cet abonnement.']);
+            }
+            if ($sale === null || $sale->trashed()) {
+                throw ValidationException::withMessages(['sale' => 'Cet abonnement a déjà été remboursé.']);
+            }
+
+            $old = $subscription->only(['status']);
+            if (in_array($subscription->status, [ClientSubscription::STATUS_ACTIVE, ClientSubscription::STATUS_SUSPENDED], true)) {
+                $subscription->update([
+                    'status' => ClientSubscription::STATUS_CANCELLED,
+                    'cancelled_at' => now(),
+                    'cancel_reason' => $subscription->cancel_reason ?? 'Remboursé',
+                ]);
+            }
+
+            $this->loyaltyEngine->reverseSale($sale);
+            $sale->delete();
+
+            $this->activityLogger->log('subscription.refunded', $subscription, $old, [
+                'amount' => (float) $sale->total,
+                'sale_id' => $sale->id,
+                'by' => $actor->name,
+            ]);
+
+            return $subscription->fresh();
+        });
+    }
+
     public function release(ClientSubscriptionUsage $usage): void
     {
         DB::transaction(function () use ($usage) {

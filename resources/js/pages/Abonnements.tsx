@@ -19,6 +19,7 @@ import {
     ScanLine,
     Search,
     TrendingUp,
+    Undo2,
     Users,
 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -31,6 +32,7 @@ import {
     getSubscriptionUsages,
     getSubscriptionsDashboard,
     purchaseSubscription,
+    refundClientSubscription,
     regenerateSubscriptionQr,
     renewClientSubscription,
     resumeClientSubscription,
@@ -89,7 +91,7 @@ export default function Abonnements() {
     const [sellOpen, setSellOpen] = useState(false);
     const [qrTarget, setQrTarget] = useState<AdminSubscription | null>(null);
     const [actionTarget, setActionTarget] = useState<{
-        type: 'suspend' | 'extend' | 'cancel' | 'renew' | 'regenerate';
+        type: 'suspend' | 'extend' | 'cancel' | 'renew' | 'regenerate' | 'refund';
         subscription: AdminSubscription;
     } | null>(null);
 
@@ -293,11 +295,12 @@ function SubscriptionRow({
     canSuspend: boolean;
     canExtend: boolean;
     onShowQr: () => void;
-    onAction: (type: 'suspend' | 'extend' | 'cancel' | 'renew' | 'regenerate') => void;
+    onAction: (type: 'suspend' | 'extend' | 'cancel' | 'renew' | 'regenerate' | 'refund') => void;
 }) {
     const status = STATUS_META[subscription.status];
     const isActive = subscription.status === 'active';
     const isSuspended = subscription.status === 'suspended';
+    const refundable = canManage && !subscription.sale_refunded;
 
     return (
         <Card className={cn(!isActive && !isSuspended && 'opacity-70')}>
@@ -331,8 +334,25 @@ function SubscriptionRow({
                 <Badge variant={status.variant} className="shrink-0">
                     {status.label}
                 </Badge>
+                {subscription.sale_refunded && (
+                    <Badge variant="outline" className="shrink-0 text-muted-foreground">
+                        Remboursé
+                    </Badge>
+                )}
 
                 <div className="flex shrink-0 items-center gap-1">
+                    {refundable && (
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive hover:border-destructive/50 hover:text-destructive"
+                            onClick={() => onAction('refund')}
+                        >
+                            <Undo2 />
+                            Rembourser
+                        </Button>
+                    )}
                     <Button type="button" size="icon" variant="ghost" aria-label="Afficher le QR" onClick={onShowQr}>
                         <QrCodeIcon />
                     </Button>
@@ -801,7 +821,10 @@ function LifecycleDialog({
     onClose,
     onDone,
 }: {
-    action: { type: 'suspend' | 'extend' | 'cancel' | 'renew' | 'regenerate'; subscription: AdminSubscription } | null;
+    action: {
+        type: 'suspend' | 'extend' | 'cancel' | 'renew' | 'regenerate' | 'refund';
+        subscription: AdminSubscription;
+    } | null;
     onClose: () => void;
     onDone: () => void;
 }) {
@@ -810,7 +833,6 @@ function LifecycleDialog({
     const [from, setFrom] = useState('');
     const [until, setUntil] = useState('');
     const [paymentMethod, setPaymentMethod] = useState('especes');
-    const [refund, setRefund] = useState(true);
 
     useEffect(() => {
         setReason('');
@@ -818,7 +840,6 @@ function LifecycleDialog({
         setFrom('');
         setUntil('');
         setPaymentMethod('especes');
-        setRefund(true);
     }, [action]);
 
     const mutation = useMutation({
@@ -834,7 +855,9 @@ function LifecycleDialog({
             } else if (type === 'extend') {
                 await extendClientSubscription(subscription.id, { days: Number(days), reason });
             } else if (type === 'cancel') {
-                await cancelClientSubscription(subscription.id, { reason: reason || undefined, refund });
+                await cancelClientSubscription(subscription.id, { reason: reason || undefined, refund: false });
+            } else if (type === 'refund') {
+                await refundClientSubscription(subscription.id);
             } else if (type === 'renew') {
                 await renewClientSubscription(subscription.id, { payment_method: paymentMethod });
             } else if (type === 'regenerate') {
@@ -854,11 +877,13 @@ function LifecycleDialog({
         cancel: "Annuler l'abonnement",
         renew: "Renouveler l'abonnement",
         regenerate: 'Régénérer le QR',
+        refund: "Rembourser l'abonnement",
     };
 
     const canSubmit =
         type === 'renew' ||
         type === 'regenerate' ||
+        type === 'refund' ||
         isResume ||
         (type === 'suspend' && from !== '' && until !== '' && reason.trim() !== '') ||
         (type === 'extend' && Number(days) > 0 && reason.trim() !== '') ||
@@ -874,11 +899,22 @@ function LifecycleDialog({
                         {type === 'suspend' && !isResume && " · la date d'expiration sera prolongée d'autant."}
                         {type === 'renew' && ' · une nouvelle période sera créée, l’historique est conservé.'}
                         {type === 'regenerate' && " · l'ancien QR ne fonctionnera plus."}
-                        {type === 'cancel' && ' · cette action est définitive.'}
+                        {type === 'cancel' && ' · annulation sans remboursement — utilisez « Rembourser » si l’argent est rendu.'}
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-3">
+                    {type === 'refund' && (
+                        <div className="rounded-md border border-destructive/25 bg-destructive/[0.06] px-4 py-3 text-sm leading-relaxed">
+                            <p className="font-semibold text-destructive">
+                                Rembourser {formatCurrency(subscription.price_paid, { maximumFractionDigits: 0 })} ?
+                            </p>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                Automatiquement : l'abonnement est annulé, le ticket est retiré de l'encaissé de
+                                la caisse (marqué « supprimé ») et les points fidélité gagnés sont repris.
+                            </p>
+                        </div>
+                    )}
                     {type === 'suspend' && !isResume && (
                         <div className="grid grid-cols-2 gap-3">
                             <label className="block">
@@ -920,23 +956,6 @@ function LifecycleDialog({
                             <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Raison..." className="mt-2" />
                         </label>
                     )}
-                    {type === 'cancel' && (
-                        <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-tint/[0.08] bg-tint/[0.02] px-3.5 py-3">
-                            <input
-                                type="checkbox"
-                                checked={refund}
-                                onChange={(event) => setRefund(event.target.checked)}
-                                className="mt-0.5 h-4 w-4 accent-[#C8A24C]"
-                            />
-                            <span className="text-sm leading-snug">
-                                Rembourser la vente ({formatCurrency(subscription.price_paid, { maximumFractionDigits: 0 })})
-                                <span className="mt-0.5 block text-xs text-muted-foreground">
-                                    Le ticket est retiré de l'encaissé de la caisse et marqué « supprimé » —
-                                    à cocher si l'argent est réellement rendu au client.
-                                </span>
-                            </span>
-                        </label>
-                    )}
 
                     {mutation.isError && (
                         <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -952,12 +971,12 @@ function LifecycleDialog({
                     </Button>
                     <Button
                         type="button"
-                        variant={type === 'cancel' ? 'destructive' : 'accent'}
+                        variant={type === 'cancel' || type === 'refund' ? 'destructive' : 'accent'}
                         disabled={!canSubmit || mutation.isPending}
                         onClick={() => mutation.mutate()}
                     >
                         {mutation.isPending && <Loader2 className="animate-spin" />}
-                        Confirmer
+                        {type === 'refund' ? 'Rembourser' : 'Confirmer'}
                     </Button>
                 </DialogFooter>
             </DialogContent>

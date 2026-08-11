@@ -15,13 +15,15 @@ import {
     Loader2,
     Lock,
     Mail,
+    Phone,
     ShoppingCart,
     TrendingUp,
     Users,
     Wallet,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { getErrorMessage } from '@/lib/api';
+import { usePortalAuth } from '@/hooks/usePortalAuth';
+import { getErrorMessage, loginClient } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 /* ------------------------------------------------------------------ */
@@ -31,8 +33,20 @@ import { cn } from '@/lib/utils';
 const GOLD = '#D8B45A';
 const GOLD_DEEP = '#B08D3C';
 
+/** A phone-looking identifier: digits/spaces/+()-. and no @ — routed to the client portal login. */
+function isPhoneIdentifier(value: string): boolean {
+    const trimmed = value.trim();
+    return !trimmed.includes('@') && /^\+?[0-9 ().-]{8,}$/.test(trimmed);
+}
+
 const loginSchema = z.object({
-    email: z.string().min(1, 'L’email est requis.').email('Format d’email invalide.'),
+    identifier: z
+        .string()
+        .min(1, 'L’email ou le téléphone est requis.')
+        .refine(
+            (value) => isPhoneIdentifier(value) || z.string().email().safeParse(value.trim()).success,
+            'Saisissez un email valide (équipe) ou votre numéro de téléphone (client).',
+        ),
     password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères.'),
 });
 
@@ -381,6 +395,7 @@ function DashboardMockup({ animate }: { animate: boolean }) {
 
 export default function Login() {
     const { user, isLoading, login } = useAuth();
+    const { setClient: setPortalClient } = usePortalAuth();
     const navigate = useNavigate();
     const prefersReducedMotion = useReducedMotion() ?? false;
     const [formError, setFormError] = useState<string | null>(null);
@@ -424,21 +439,39 @@ export default function Login() {
     const {
         register,
         handleSubmit,
+        watch,
         formState: { errors, isSubmitting },
     } = useForm<LoginValues>({
         resolver: zodResolver(loginSchema),
-        defaultValues: { email: '', password: '' },
+        defaultValues: { identifier: '', password: '' },
     });
+
+    const identifierValue = watch('identifier') ?? '';
+    const looksLikePhone = isPhoneIdentifier(identifierValue);
 
     if (!isLoading && user) return <Navigate to="/" replace />;
 
     const onSubmit = async (values: LoginValues) => {
         setFormError(null);
         try {
-            await login(values.email, values.password, remember);
-            navigate('/', { replace: true });
+            if (isPhoneIdentifier(values.identifier)) {
+                // Client account — phone + password on the portal guard.
+                const portalClient = await loginClient(values.identifier.trim(), values.password);
+                setPortalClient(portalClient);
+                navigate('/mon-compte', { replace: true });
+            } else {
+                await login(values.identifier.trim(), values.password, remember);
+                navigate('/', { replace: true });
+            }
         } catch (error) {
-            setFormError(getErrorMessage(error, 'Identifiants incorrects.'));
+            setFormError(
+                getErrorMessage(
+                    error,
+                    isPhoneIdentifier(values.identifier)
+                        ? 'Numéro de téléphone ou mot de passe incorrect.'
+                        : 'Identifiants incorrects.',
+                ),
+            );
         }
     };
 
@@ -701,32 +734,41 @@ export default function Login() {
                     </div>
 
                     <form onSubmit={handleSubmit(onSubmit)} className="mt-9 space-y-5" noValidate>
-                        {/* Email */}
+                        {/* Identifier — staff email OR client phone */}
                         <div className="space-y-2">
                             <label
-                                htmlFor="email"
+                                htmlFor="identifier"
                                 className="text-[13px] font-medium text-white/70"
                             >
-                                Email
+                                Email ou téléphone
                             </label>
                             <div className="group relative">
-                                <Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35 transition-all duration-300 group-focus-within:scale-110 group-focus-within:text-[#D8B45A]" />
+                                {looksLikePhone ? (
+                                    <Phone className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#D8B45A] transition-all duration-300" />
+                                ) : (
+                                    <Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35 transition-all duration-300 group-focus-within:scale-110 group-focus-within:text-[#D8B45A]" />
+                                )}
                                 <input
-                                    id="email"
-                                    type="email"
-                                    autoComplete="email"
-                                    placeholder="vous@bogosland.com"
-                                    aria-invalid={Boolean(errors.email)}
+                                    id="identifier"
+                                    type="text"
+                                    autoComplete="username"
+                                    placeholder="vous@bogosland.com · 06 12 34 56 78"
+                                    aria-invalid={Boolean(errors.identifier)}
                                     className={cn(
                                         loginInputClass,
-                                        errors.email &&
+                                        errors.identifier &&
                                             'border-red-400/50 focus:border-red-400/70 focus:shadow-[0_0_0_4px_rgba(248,113,113,0.08)]',
                                     )}
-                                    {...register('email')}
+                                    {...register('identifier')}
                                 />
                             </div>
-                            {errors.email && (
-                                <p className="text-xs text-red-400">{errors.email.message}</p>
+                            {looksLikePhone && !errors.identifier && (
+                                <p className="text-xs" style={{ color: GOLD }}>
+                                    Connexion client — vous serez dirigé vers votre espace « Mon BOGOSLAND ».
+                                </p>
+                            )}
+                            {errors.identifier && (
+                                <p className="text-xs text-red-400">{errors.identifier.message}</p>
                             )}
                         </div>
 

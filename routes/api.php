@@ -240,6 +240,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::middleware('permission:subscriptions.manage')->group(function () {
         Route::post('/client-subscriptions/{clientSubscription}/cancel', [SubscriptionAdminController::class, 'cancel']);
+        Route::post('/client-subscriptions/{clientSubscription}/refund', [SubscriptionAdminController::class, 'refund']);
         Route::post('/client-subscriptions/{clientSubscription}/regenerate-qr', [SubscriptionAdminController::class, 'regenerateQr']);
     });
     Route::middleware('permission:loyalty.view')->group(function () {

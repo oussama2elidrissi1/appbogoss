@@ -318,6 +318,37 @@ class SubscriptionScannerTest extends TestCase
         $this->assertDatabaseHas('sales', ['id' => $subscription->sale_id, 'deleted_at' => null]);
     }
 
+    /** Bouton Rembourser : annule + retire le ticket de la caisse en un clic. */
+    public function test_refund_button_cancels_and_voids_the_sale_automatically(): void
+    {
+        $subscription = $this->subscriptionFor();
+        $saleId = $subscription->sale_id;
+
+        $this->postJson('/api/client-subscriptions/'.$subscription->id.'/refund')
+            ->assertOk()
+            ->assertJsonPath('data.status', 'cancelled')
+            ->assertJsonPath('data.sale_refunded', true);
+
+        $this->assertSoftDeleted('sales', ['id' => $saleId]);
+    }
+
+    /** Rembourser fonctionne aussi sur un abonnement déjà annulé sans remboursement. */
+    public function test_refund_works_on_already_cancelled_subscription(): void
+    {
+        $subscription = $this->subscriptionFor();
+        $this->postJson('/api/client-subscriptions/'.$subscription->id.'/cancel', ['refund' => false])->assertOk();
+
+        $this->postJson('/api/client-subscriptions/'.$subscription->id.'/refund')
+            ->assertOk()
+            ->assertJsonPath('data.sale_refunded', true);
+
+        $this->assertSoftDeleted('sales', ['id' => $subscription->sale_id]);
+
+        // Un deuxième remboursement est refusé proprement.
+        $this->postJson('/api/client-subscriptions/'.$subscription->id.'/refund')
+            ->assertStatus(422);
+    }
+
     /** L'employé sans permission subscriptions.use ne peut pas scanner. */
     public function test_employee_role_cannot_scan(): void
     {

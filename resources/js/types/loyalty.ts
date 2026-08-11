@@ -136,6 +136,8 @@ export interface AdminSubscription {
         allow_renewal: boolean;
     };
     price_paid: number;
+    /** True when the purchase ticket has been voided from the caisse. */
+    sale_refunded: boolean;
     purchased_at: string | null;
     starts_on: string;
     ends_on: string;

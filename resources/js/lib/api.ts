@@ -954,6 +954,12 @@ export async function cancelClientSubscription(
     return data.data;
 }
 
+/** One-click refund: cancels the subscription and voids its purchase ticket. */
+export async function refundClientSubscription(id: number): Promise<AdminSubscription> {
+    const { data } = await api.post<{ data: AdminSubscription }>(`/api/client-subscriptions/${id}/refund`, {});
+    return data.data;
+}
+
 export async function regenerateSubscriptionQr(id: number): Promise<AdminSubscription> {
     const { data } = await api.post<{ data: AdminSubscription }>(`/api/client-subscriptions/${id}/regenerate-qr`, {});
     return data.data;

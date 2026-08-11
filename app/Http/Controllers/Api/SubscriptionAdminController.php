@@ -210,6 +210,14 @@ class SubscriptionAdminController extends Controller
         return response()->json(['data' => $this->row($subscription->load(['client', 'plan.services.service']))]);
     }
 
+    /** One-click refund — cancels (if needed) and voids the purchase sale. */
+    public function refund(Request $request, ClientSubscription $clientSubscription): JsonResponse
+    {
+        $subscription = $this->subscriptionService->refundPurchase($clientSubscription, $request->user());
+
+        return response()->json(['data' => $this->row($subscription->load(['client', 'plan.services.service']))]);
+    }
+
     public function regenerateQr(Request $request, ClientSubscription $clientSubscription): JsonResponse
     {
         $subscription = $this->subscriptionService->regenerateQrToken($clientSubscription, $request->user());
@@ -246,6 +254,9 @@ class SubscriptionAdminController extends Controller
                 'allow_renewal' => (bool) ($subscription->plan?->allow_renewal),
             ],
             'price_paid' => (float) ($subscription->sale?->total ?? $subscription->plan?->price ?? 0),
+            // sale relation excludes soft-deleted rows — a null sale with a
+            // sale_id still set means the purchase ticket has been refunded.
+            'sale_refunded' => $subscription->sale_id !== null && $subscription->sale === null,
             'purchased_at' => $subscription->purchased_at?->toIso8601String(),
             'starts_on' => $subscription->starts_on->toDateString(),
             'ends_on' => $subscription->ends_on->toDateString(),
