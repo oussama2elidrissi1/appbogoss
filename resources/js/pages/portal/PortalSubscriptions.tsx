@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { AlertCircle, CalendarClock } from 'lucide-react';
+import QRCode from 'qrcode';
+import { AlertCircle, CalendarClock, CheckCircle2, Clock, History, QrCode as QrCodeIcon } from 'lucide-react';
 import { getErrorMessage, getPortalSubscriptions } from '@/lib/api';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -30,7 +32,39 @@ function statusVariant(status: PortalSubscription['status']): 'accent' | 'outlin
     return 'outline';
 }
 
+const DAY_SHORT = ['', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+
+/** Personal scan QR — encodes only the random token, never an id. */
+function SubscriptionQr({ token }: { token: string }) {
+    const [dataUrl, setDataUrl] = useState<string | null>(null);
+
+    useEffect(() => {
+        void QRCode.toDataURL(token, { width: 440, margin: 2 }).then(setDataUrl);
+    }, [token]);
+
+    return (
+        <div className="mt-4 flex flex-col items-center rounded-md border border-accent/20 bg-accent/[0.04] px-4 py-5">
+            {dataUrl ? (
+                <img src={dataUrl} alt="QR de mon abonnement" className="h-52 w-52 rounded-md bg-white p-2.5" />
+            ) : (
+                <Skeleton className="h-52 w-52 rounded-md" />
+            )}
+            <p className="mt-3 flex items-center gap-1.5 text-center text-xs text-muted-foreground">
+                <QrCodeIcon className="h-3.5 w-3.5 text-accent" />
+                Présentez ce QR à la caisse lors de votre visite.
+            </p>
+        </div>
+    );
+}
+
 function SubscriptionCard({ subscription }: { subscription: PortalSubscription }) {
+    const hasRules =
+        (subscription.allowed_days?.length ?? 0) > 0 ||
+        Boolean(subscription.time_start && subscription.time_end) ||
+        subscription.max_per_day != null ||
+        subscription.max_per_week != null ||
+        subscription.min_interval_minutes != null;
+
     return (
         <Card className="p-4">
             <div className="flex items-start justify-between gap-3">
@@ -84,6 +118,79 @@ function SubscriptionCard({ subscription }: { subscription: PortalSubscription }
                             </div>
                         );
                     })}
+                </div>
+            )}
+
+            {/* Usage rules recap */}
+            {hasRules && (
+                <div className="mt-3 flex flex-wrap gap-1.5 border-t border-tint/[0.06] pt-3">
+                    {(subscription.allowed_days?.length ?? 0) > 0 && (
+                        <span className="rounded-full border border-tint/[0.08] bg-tint/[0.03] px-2.5 py-1 text-[11px] text-muted-foreground">
+                            {subscription.allowed_days!.map((day) => DAY_SHORT[day]).join(' · ')}
+                        </span>
+                    )}
+                    {subscription.time_start && subscription.time_end && (
+                        <span className="rounded-full border border-tint/[0.08] bg-tint/[0.03] px-2.5 py-1 text-[11px] text-muted-foreground">
+                            {subscription.time_start} → {subscription.time_end}
+                        </span>
+                    )}
+                    {subscription.max_per_day != null && (
+                        <span className="rounded-full border border-tint/[0.08] bg-tint/[0.03] px-2.5 py-1 text-[11px] text-muted-foreground">
+                            {subscription.max_per_day}/jour max
+                        </span>
+                    )}
+                    {subscription.max_per_week != null && (
+                        <span className="rounded-full border border-tint/[0.08] bg-tint/[0.03] px-2.5 py-1 text-[11px] text-muted-foreground">
+                            {subscription.max_per_week}/semaine max
+                        </span>
+                    )}
+                    {subscription.min_interval_minutes != null && (
+                        <span className="rounded-full border border-tint/[0.08] bg-tint/[0.03] px-2.5 py-1 text-[11px] text-muted-foreground">
+                            1 visite / {subscription.min_interval_minutes % 60 === 0 ? `${subscription.min_interval_minutes / 60}h` : `${subscription.min_interval_minutes} min`}
+                        </span>
+                    )}
+                </div>
+            )}
+
+            {/* Personal QR — only while active */}
+            {subscription.status === 'active' && subscription.qr_token && (
+                <SubscriptionQr token={subscription.qr_token} />
+            )}
+
+            {/* Visit history */}
+            {(subscription.recent_usages?.length ?? 0) > 0 && (
+                <div className="mt-4 border-t border-tint/[0.06] pt-3">
+                    <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/70">
+                        <History className="h-3.5 w-3.5" />
+                        Historique
+                    </p>
+                    <div className="mt-2 space-y-1.5">
+                        {subscription.recent_usages!.map((usage, index) => (
+                            <div
+                                key={index}
+                                className="flex items-center justify-between gap-3 rounded-md bg-tint/[0.03] px-3 py-2"
+                            >
+                                <span className="flex min-w-0 items-center gap-2 text-xs">
+                                    <Clock className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+                                    <span className="truncate">{usage.service_name}</span>
+                                </span>
+                                <span className="flex shrink-0 items-center gap-2">
+                                    <span className="text-[11px] tabular-nums text-muted-foreground">
+                                        {usage.used_at
+                                            ? new Date(usage.used_at).toLocaleDateString('fr-FR', {
+                                                  day: 'numeric',
+                                                  month: 'short',
+                                              })
+                                            : '—'}
+                                    </span>
+                                    <span className="flex items-center gap-1 text-[11px] font-medium text-success">
+                                        <CheckCircle2 className="h-3 w-3" />
+                                        Validé
+                                    </span>
+                                </span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             )}
         </Card>

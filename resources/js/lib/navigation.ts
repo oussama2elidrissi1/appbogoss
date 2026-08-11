@@ -1,4 +1,5 @@
 import {
+    BadgeCheck,
     BarChart3,
     Calendar,
     CalendarClock,
@@ -10,6 +11,7 @@ import {
     Package,
     QrCode,
     Receipt,
+    ScanLine,
     Settings,
     ShieldCheck,
     ShoppingCart,
@@ -142,11 +144,25 @@ export const navSections: NavSection[] = [
                 permission: 'loyalty.manage',
             },
             {
-                label: 'Abonnements',
+                label: "Plans d'abonnement",
                 to: '/subscription-plans',
                 icon: CalendarClock,
-                description: 'Plans payants avec quotas de services inclus, ex. « Hammam 3 mois ».',
+                description: 'Plans payants avec quotas, jours, horaires et limites configurables.',
                 permission: 'loyalty.manage',
+            },
+            {
+                label: 'Abonnés & suivi',
+                to: '/abonnements',
+                icon: BadgeCheck,
+                description: 'Abonnements vendus, historique des visites et rapports.',
+                permission: 'subscriptions.view',
+            },
+            {
+                label: 'Scanner abonnement',
+                to: '/scanner-abonnements',
+                icon: ScanLine,
+                description: 'Scannez le QR du client et validez sa visite en caisse.',
+                permission: 'subscriptions.use',
             },
             {
                 label: 'QR Code',

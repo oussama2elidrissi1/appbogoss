@@ -25,7 +25,11 @@ class SubscriptionPlanController extends Controller
 
     public function index(): JsonResponse
     {
-        $plans = SubscriptionPlan::query()->with('services.service')->orderByDesc('created_at')->get();
+        $plans = SubscriptionPlan::query()
+            ->with('services.service')
+            ->withCount(['subscriptions as active_subscriptions_count' => fn ($query) => $query->where('status', 'active')])
+            ->orderByDesc('created_at')
+            ->get();
 
         return response()->json(['data' => SubscriptionPlanResource::collection($plans)]);
     }
@@ -60,10 +64,22 @@ class SubscriptionPlanController extends Controller
 
         DB::transaction(function () use ($subscriptionPlan, $validated) {
             $subscriptionPlan->update($validated['plan']);
-            $subscriptionPlan->services()->delete();
+
+            // updateOrCreate keyed by service_id — NEVER delete-and-recreate:
+            // client_subscription_usages cascades on subscription_plan_services,
+            // so recreating the rows would silently wipe every usage (and reset
+            // all quota accounting) of every live subscription on this plan.
+            $keptServiceIds = [];
             foreach ($validated['services'] as $service) {
-                $subscriptionPlan->services()->create($service);
+                $keptServiceIds[] = (int) $service['service_id'];
+                $subscriptionPlan->services()->updateOrCreate(
+                    ['service_id' => (int) $service['service_id']],
+                    collect($service)->except('service_id')->all(),
+                );
             }
+            // Removing a service from the plan is the one destructive case
+            // left (its usages cascade) — explicit admin intent, kept as-is.
+            $subscriptionPlan->services()->whereNotIn('service_id', $keptServiceIds)->delete();
         });
 
         $this->activityLogger->log('subscription.plan_updated', $subscriptionPlan, $old, $validated['plan']);
@@ -92,7 +108,18 @@ class SubscriptionPlanController extends Controller
             'duration_value' => ['required', 'integer', 'min:1'],
             'duration_unit' => ['required', Rule::in(['days', 'weeks', 'months'])],
             'is_active' => ['nullable', 'boolean'],
+            'allow_suspension' => ['nullable', 'boolean'],
+            'allow_renewal' => ['nullable', 'boolean'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            // Usage rules — all optional, null = no restriction.
+            'allowed_days' => ['nullable', 'array', 'max:7'],
+            'allowed_days.*' => ['integer', 'min:1', 'max:7'],
+            'time_start' => ['nullable', 'date_format:H:i', 'required_with:time_end'],
+            'time_end' => ['nullable', 'date_format:H:i', 'required_with:time_start', 'after:time_start'],
+            'max_per_day' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'max_per_week' => ['nullable', 'integer', 'min:1', 'max:500'],
+            'max_per_month' => ['nullable', 'integer', 'min:1', 'max:2000'],
+            'min_interval_minutes' => ['nullable', 'integer', 'min:5', 'max:20160'],
             'services' => ['required', 'array', 'min:1'],
             'services.*.service_id' => ['required', 'integer', 'exists:services,id'],
             'services.*.quota_period' => ['nullable', Rule::in(['day', 'week', 'month'])],

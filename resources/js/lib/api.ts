@@ -44,6 +44,7 @@ import type {
     UpdatePrestationItemPayload,
 } from '@/types/prestation';
 import type {
+    AdminSubscription,
     ClientLoyaltyStatus,
     ClientSubscription,
     LoyaltyProgram,
@@ -53,6 +54,10 @@ import type {
     PurchaseSubscriptionPayload,
     SubscriptionPlan,
     SubscriptionPlanPayload,
+    SubscriptionScanCard,
+    SubscriptionUsageRow,
+    SubscriptionsDashboard,
+    ValidateVisitResponse,
 } from '@/types/loyalty';
 import type {
     PortalClient,
@@ -837,6 +842,110 @@ export async function updateLoyaltySettings(payload: Record<string, unknown>): P
 export async function getLoyaltySettingsFull(): Promise<LoyaltySettings> {
     const { data } = await api.get<{ data: LoyaltySettings }>('/api/loyalty/settings');
     return data.data;
+}
+
+/* ------------------------------------------------------------------ *
+ * Subscriptions module: scanner, sold subscriptions, history, reports.
+ * ------------------------------------------------------------------ */
+
+export async function getSubscriptionScanCard(token: string): Promise<SubscriptionScanCard> {
+    const { data } = await api.get<{ data: SubscriptionScanCard }>(
+        `/api/subscriptions/scan/${encodeURIComponent(token)}`,
+    );
+    return data.data;
+}
+
+export async function validateSubscriptionVisit(
+    token: string,
+    payload: { subscription_plan_service_id: number; employee_id: number; notes?: string | null },
+): Promise<ValidateVisitResponse> {
+    const { data } = await api.post<{ data: ValidateVisitResponse }>(
+        `/api/subscriptions/scan/${encodeURIComponent(token)}/validate`,
+        payload,
+    );
+    return data.data;
+}
+
+export async function getAdminSubscriptions(options?: {
+    status?: string;
+    planId?: number;
+    search?: string;
+    expiringWithin?: number;
+}): Promise<AdminSubscription[]> {
+    const { data } = await api.get<{ data: AdminSubscription[] }>('/api/client-subscriptions', {
+        params: {
+            ...(options?.status ? { status: options.status } : {}),
+            ...(options?.planId ? { plan_id: options.planId } : {}),
+            ...(options?.search ? { search: options.search } : {}),
+            ...(options?.expiringWithin ? { expiring_within: options.expiringWithin } : {}),
+        },
+    });
+    return data.data;
+}
+
+export async function getSubscriptionUsages(options?: {
+    from?: string;
+    to?: string;
+    status?: string;
+    planId?: number;
+    serviceId?: number;
+    employeeId?: number;
+    subscriptionId?: number;
+    search?: string;
+}): Promise<SubscriptionUsageRow[]> {
+    const { data } = await api.get<{ data: SubscriptionUsageRow[] }>('/api/subscription-usages', {
+        params: {
+            ...(options?.from ? { from: options.from } : {}),
+            ...(options?.to ? { to: options.to } : {}),
+            ...(options?.status ? { status: options.status } : {}),
+            ...(options?.planId ? { plan_id: options.planId } : {}),
+            ...(options?.serviceId ? { service_id: options.serviceId } : {}),
+            ...(options?.employeeId ? { employee_id: options.employeeId } : {}),
+            ...(options?.subscriptionId ? { subscription_id: options.subscriptionId } : {}),
+            ...(options?.search ? { search: options.search } : {}),
+        },
+    });
+    return data.data;
+}
+
+export async function getSubscriptionsDashboard(): Promise<SubscriptionsDashboard> {
+    const { data } = await api.get<{ data: SubscriptionsDashboard }>('/api/subscriptions/dashboard');
+    return data.data;
+}
+
+export async function cancelClientSubscription(id: number, reason?: string): Promise<AdminSubscription> {
+    const { data } = await api.post<{ data: AdminSubscription }>(
+        `/api/client-subscriptions/${id}/cancel`,
+        reason ? { reason } : {},
+    );
+    return data.data;
+}
+
+export async function regenerateSubscriptionQr(id: number): Promise<AdminSubscription> {
+    const { data } = await api.post<{ data: AdminSubscription }>(`/api/client-subscriptions/${id}/regenerate-qr`, {});
+    return data.data;
+}
+
+export async function suspendClientSubscription(
+    id: number,
+    payload: { from: string; until: string; reason: string },
+): Promise<void> {
+    await api.post(`/api/client-subscriptions/${id}/suspend`, payload);
+}
+
+export async function resumeClientSubscription(id: number): Promise<void> {
+    await api.post(`/api/client-subscriptions/${id}/resume`, {});
+}
+
+export async function extendClientSubscription(id: number, payload: { days: number; reason: string }): Promise<void> {
+    await api.post(`/api/client-subscriptions/${id}/extend`, payload);
+}
+
+export async function renewClientSubscription(
+    id: number,
+    payload?: { payment_method?: string; starts_on?: string },
+): Promise<void> {
+    await api.post(`/api/client-subscriptions/${id}/renew`, payload ?? {});
 }
 
 /* ------------------------------------------------------------------ *

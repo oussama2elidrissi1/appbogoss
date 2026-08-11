@@ -18,6 +18,10 @@ class ClientSubscriptionUsage extends Model
         'reserved_prestation_id',
         'prestation_item_id',
         'used_on',
+        'used_at',
+        'employee_id',
+        'validated_by_user_id',
+        'channel',
         'period_key',
         'sequence_in_period',
         'sequence_total',
@@ -28,6 +32,7 @@ class ClientSubscriptionUsage extends Model
 
     protected $casts = [
         'used_on' => 'date',
+        'used_at' => 'datetime',
         'sequence_in_period' => 'integer',
         'sequence_total' => 'integer',
         'exception_override' => 'boolean',
@@ -51,5 +56,15 @@ class ClientSubscriptionUsage extends Model
     public function prestationItem(): BelongsTo
     {
         return $this->belongsTo(PrestationItem::class);
+    }
+
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class);
+    }
+
+    public function validatedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'validated_by_user_id');
     }
 }

@@ -125,6 +125,7 @@ class PrestationService
                 $actor,
                 (bool) ($data['exception_override'] ?? false),
                 $data['override_reason'] ?? null,
+                ['channel' => $data['usage_channel'] ?? 'caisse'],
             );
             $item->refresh();
         }
@@ -205,7 +206,7 @@ class PrestationService
         return $prestation->fresh();
     }
 
-    public function sendToCaisse(Prestation $prestation, User $actor): Prestation
+    public function sendToCaisse(Prestation $prestation, User $actor, bool $notify = true): Prestation
     {
         if ($prestation->status !== Prestation::STATUS_SERVICES_DONE) {
             throw ValidationException::withMessages(['status' => 'Terminez les services avant d’envoyer en caisse.']);
@@ -219,9 +220,14 @@ class PrestationService
         ]);
         $this->logTransition($prestation, $from, Prestation::STATUS_PENDING_PAYMENT, $actor);
 
-        $admins = User::role(['admin', 'super-admin'])->get();
-        if ($admins->isNotEmpty()) {
-            Notification::send($admins, new PrestationSentToCaisse($prestation->fresh(['employee'])));
+        // $notify=false for flows that pay in the same breath (scanner
+        // validation) — pinging every admin about an already-settled 0 DH
+        // ticket would just be noise.
+        if ($notify) {
+            $admins = User::role(['admin', 'super-admin'])->get();
+            if ($admins->isNotEmpty()) {
+                Notification::send($admins, new PrestationSentToCaisse($prestation->fresh(['employee'])));
+            }
         }
 
         return $prestation->fresh();

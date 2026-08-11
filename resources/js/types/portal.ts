@@ -42,6 +42,16 @@ export interface PortalSubscription {
     suspension_ends_on: string | null;
     renewable: boolean;
     services: PortalSubscriptionServiceQuota[];
+    /** Secure random token behind the personal QR — only present while active. */
+    qr_token?: string | null;
+    allowed_days?: number[];
+    time_start?: string | null;
+    time_end?: string | null;
+    max_per_day?: number | null;
+    max_per_week?: number | null;
+    max_per_month?: number | null;
+    min_interval_minutes?: number | null;
+    recent_usages?: Array<{ used_at: string | null; service_name: string; status: string }>;
 }
 
 export interface PortalHomeAlert {

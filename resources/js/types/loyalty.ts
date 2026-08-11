@@ -73,7 +73,18 @@ export interface SubscriptionPlan {
     duration_value: number;
     duration_unit: 'days' | 'weeks' | 'months';
     is_active: boolean;
+    allow_suspension?: boolean;
+    allow_renewal?: boolean;
     notes: string | null;
+    /** ISO weekdays (1=lundi … 7=dimanche); empty = every day. */
+    allowed_days?: number[];
+    time_start?: string | null;
+    time_end?: string | null;
+    max_per_day?: number | null;
+    max_per_week?: number | null;
+    max_per_month?: number | null;
+    min_interval_minutes?: number | null;
+    active_subscriptions_count?: number | null;
     services: SubscriptionPlanServiceRow[];
 }
 
@@ -94,8 +105,146 @@ export interface SubscriptionPlanPayload {
     duration_value: number;
     duration_unit: 'days' | 'weeks' | 'months';
     is_active?: boolean;
+    allow_suspension?: boolean;
+    allow_renewal?: boolean;
     notes?: string | null;
+    allowed_days?: number[] | null;
+    time_start?: string | null;
+    time_end?: string | null;
+    max_per_day?: number | null;
+    max_per_week?: number | null;
+    max_per_month?: number | null;
+    min_interval_minutes?: number | null;
     services: SubscriptionPlanServicePayload[];
+}
+
+/* ------------------------------------------------------------------ */
+/* Sold subscriptions (admin module)                                   */
+/* ------------------------------------------------------------------ */
+
+export type AdminSubscriptionStatus = 'active' | 'expired' | 'cancelled' | 'suspended';
+
+export interface AdminSubscription {
+    id: number;
+    status: AdminSubscriptionStatus;
+    client: { id: number | null; name: string; phone: string | null };
+    plan: {
+        id: number | null;
+        name: string;
+        price: number;
+        allow_suspension: boolean;
+        allow_renewal: boolean;
+    };
+    price_paid: number;
+    purchased_at: string | null;
+    starts_on: string;
+    ends_on: string;
+    suspension_starts_on: string | null;
+    suspension_ends_on: string | null;
+    cancel_reason: string | null;
+    renewed_from_id: number | null;
+    qr_token: string | null;
+    used_visits: number;
+    total_visits: number | null;
+    services: Array<{
+        plan_service_id: number;
+        service_name: string;
+        quota_period: string | null;
+        quota_per_period: number | null;
+        quota_total: number | null;
+    }>;
+}
+
+export interface SubscriptionUsageRow {
+    id: number;
+    used_at: string | null;
+    used_on: string | null;
+    client_name: string | null;
+    plan_name: string | null;
+    service_name: string | null;
+    employee_name: string | null;
+    validated_by: string | null;
+    status: 'reserved' | 'confirmed' | 'voided';
+    channel: string | null;
+    exception_override: boolean;
+}
+
+export interface SubscriptionsDashboard {
+    active_count: number;
+    sold_this_month: number;
+    revenue_this_month: number;
+    expiring_soon_count: number;
+    expiring_soon: Array<{ id: number; client_name: string | null; plan_name: string | null; ends_on: string }>;
+    visits_today: number;
+    visits_this_month: number;
+    top_plans: Array<{ plan_name: string; count: number }>;
+    top_services: Array<{ service_name: string; count: number }>;
+}
+
+/* ------------------------------------------------------------------ */
+/* Scanner                                                             */
+/* ------------------------------------------------------------------ */
+
+export interface ScanCardService {
+    plan_service_id: number;
+    service_id: number;
+    name: string;
+    price: number;
+    duration_minutes: number | null;
+    quota_period: string | null;
+    quota_per_period: number | null;
+    period_remaining: number | null;
+    quota_total: number | null;
+    total_remaining: number | null;
+    unlimited: boolean;
+}
+
+export interface ScanCardRules {
+    allowed_days: number[];
+    day_allowed: boolean;
+    time_start: string | null;
+    time_end: string | null;
+    time_allowed: boolean;
+    min_interval_minutes: number | null;
+    interval_ok: boolean;
+    next_allowed_at: string | null;
+    caps: Record<'day' | 'week' | 'month', { limit: number | null; count: number; reached: boolean }>;
+}
+
+export interface SubscriptionScanCard {
+    subscription: {
+        id: number;
+        status: AdminSubscriptionStatus;
+        starts_on: string;
+        ends_on: string;
+        purchased_at: string | null;
+        suspension_ends_on: string | null;
+        renewable: boolean;
+    };
+    plan: { id: number | null; name: string; description: string | null; price: number };
+    client: { id: number | null; name: string; phone: string | null; avatar_color: string | null };
+    usable: boolean;
+    block_reason: string | null;
+    rules: ScanCardRules;
+    used_visits: number;
+    total_visits: number | null;
+    services: ScanCardService[];
+    recent_usages: Array<{
+        used_at: string | null;
+        service_name: string;
+        employee_name: string | null;
+        channel: string | null;
+        status: string;
+    }>;
+}
+
+export interface ValidateVisitResponse {
+    validated: boolean;
+    prestation_id: number;
+    sale_id: number | null;
+    service_name: string | null;
+    remaining: { period_remaining: number | null; total_remaining: number | null };
+    card: SubscriptionScanCard;
 }
 
 export interface ClientSubscription {

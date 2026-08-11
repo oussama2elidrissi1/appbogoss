@@ -26,8 +26,10 @@ use App\Http\Controllers\Api\Portal\PortalLoyaltyController;
 use App\Http\Controllers\Api\Portal\PortalPrestationsController;
 use App\Http\Controllers\Api\Public\ClientLoginController;
 use App\Http\Controllers\Api\Public\JoinController;
+use App\Http\Controllers\Api\SubscriptionAdminController;
 use App\Http\Controllers\Api\SubscriptionPlanController;
 use App\Http\Controllers\Api\SubscriptionPurchaseController;
+use App\Http\Controllers\Api\SubscriptionScanController;
 use App\Http\Controllers\Api\ClientLoyaltyAdjustmentController;
 use App\Http\Controllers\Api\ClientSubscriptionLifecycleController;
 use App\Http\Controllers\Api\MeController;
@@ -220,6 +222,24 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::middleware('permission:subscriptions.sell')->group(function () {
         Route::post('/client-subscriptions/{clientSubscription}/renew', [ClientSubscriptionLifecycleController::class, 'renew']);
+    });
+
+    // Scanner: resolve a subscription QR token into its card, then validate a
+    // visit explicitly — the scan itself never consumes anything.
+    Route::middleware('permission:subscriptions.use')->group(function () {
+        Route::get('/subscriptions/scan/{token}', [SubscriptionScanController::class, 'show']);
+        Route::post('/subscriptions/scan/{token}/validate', [SubscriptionScanController::class, 'validateVisit']);
+    });
+
+    Route::middleware('permission:subscriptions.view')->group(function () {
+        Route::get('/client-subscriptions', [SubscriptionAdminController::class, 'index']);
+        Route::get('/subscription-usages', [SubscriptionAdminController::class, 'usages']);
+        Route::get('/subscriptions/dashboard', [SubscriptionAdminController::class, 'dashboard']);
+    });
+
+    Route::middleware('permission:subscriptions.manage')->group(function () {
+        Route::post('/client-subscriptions/{clientSubscription}/cancel', [SubscriptionAdminController::class, 'cancel']);
+        Route::post('/client-subscriptions/{clientSubscription}/regenerate-qr', [SubscriptionAdminController::class, 'regenerateQr']);
     });
     Route::middleware('permission:loyalty.view')->group(function () {
         Route::get('/marketing/segments', [MarketingSegmentController::class, 'index']);

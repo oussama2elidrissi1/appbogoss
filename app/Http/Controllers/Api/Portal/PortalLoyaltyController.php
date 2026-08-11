@@ -159,17 +159,44 @@ class PortalLoyaltyController extends Controller
             ];
         })->values() ?? [];
 
+        $plan = $subscription->plan;
+
+        $recentUsages = $subscription->usages()
+            ->whereIn('status', ['reserved', 'confirmed'])
+            ->with('planService.service')
+            ->orderByDesc('used_at')
+            ->orderByDesc('id')
+            ->limit(10)
+            ->get()
+            ->map(fn ($usage) => [
+                'used_at' => $usage->used_at?->toIso8601String() ?? $usage->used_on?->toIso8601String(),
+                'service_name' => $usage->planService?->service?->name ?? 'Service',
+                'status' => $usage->status,
+            ])
+            ->values();
+
         return [
             'id' => $subscription->id,
-            'plan_name' => $subscription->plan?->name,
-            'price' => $subscription->plan !== null ? (float) $subscription->plan->price : null,
+            'plan_name' => $plan?->name,
+            'price' => $plan !== null ? (float) $plan->price : null,
             'status' => $subscription->status,
             'starts_on' => $subscription->starts_on?->toDateString(),
             'ends_on' => $subscription->ends_on?->toDateString(),
             'suspension_starts_on' => $subscription->suspension_starts_on?->toDateString(),
             'suspension_ends_on' => $subscription->suspension_ends_on?->toDateString(),
-            'renewable' => (bool) ($subscription->plan?->allow_renewal ?? false),
+            'renewable' => (bool) ($plan?->allow_renewal ?? false),
             'services' => $services,
+            // The personal QR only for a currently-active subscription — the
+            // token is random and resolves server-side, never an id.
+            'qr_token' => $subscription->status === ClientSubscription::STATUS_ACTIVE ? $subscription->qr_token : null,
+            'allowed_days' => $plan?->allowed_days ?? [],
+            'time_start' => $plan?->time_start,
+            'time_end' => $plan?->time_end,
+            'max_per_day' => $plan?->max_per_day,
+            'max_per_week' => $plan?->max_per_week,
+            'max_per_month' => $plan?->max_per_month,
+            'min_interval_minutes' => $plan?->min_interval_minutes,
+            'recent_usages' => $recentUsages,
         ];
     }
 

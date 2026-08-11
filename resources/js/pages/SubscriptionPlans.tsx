@@ -79,7 +79,16 @@ const emptyForm = {
     duration_value: '3',
     duration_unit: 'months' as 'days' | 'weeks' | 'months',
     is_active: true,
+    allow_suspension: false,
+    allow_renewal: true,
     notes: '',
+    allowed_days: [] as number[],
+    time_start: '',
+    time_end: '',
+    max_per_day: '',
+    max_per_week: '',
+    max_per_month: '',
+    min_interval_minutes: '',
     services: [emptyServiceRow()],
 };
 
@@ -93,7 +102,16 @@ function planToForm(plan: SubscriptionPlan): FormState {
         duration_value: String(plan.duration_value),
         duration_unit: plan.duration_unit,
         is_active: plan.is_active,
+        allow_suspension: plan.allow_suspension ?? false,
+        allow_renewal: plan.allow_renewal ?? true,
         notes: plan.notes ?? '',
+        allowed_days: plan.allowed_days ?? [],
+        time_start: plan.time_start ?? '',
+        time_end: plan.time_end ?? '',
+        max_per_day: plan.max_per_day != null ? String(plan.max_per_day) : '',
+        max_per_week: plan.max_per_week != null ? String(plan.max_per_week) : '',
+        max_per_month: plan.max_per_month != null ? String(plan.max_per_month) : '',
+        min_interval_minutes: plan.min_interval_minutes != null ? String(plan.min_interval_minutes) : '',
         services: plan.services.length
             ? plan.services.map((service) => ({
                   key: Math.random().toString(36).slice(2),
@@ -129,10 +147,29 @@ function formToPayload(form: FormState): SubscriptionPlanPayload {
         duration_value: Number(form.duration_value || 0),
         duration_unit: form.duration_unit,
         is_active: form.is_active,
+        allow_suspension: form.allow_suspension,
+        allow_renewal: form.allow_renewal,
         notes: form.notes.trim() || null,
+        allowed_days: form.allowed_days.length > 0 ? form.allowed_days : null,
+        time_start: form.time_start || null,
+        time_end: form.time_end || null,
+        max_per_day: form.max_per_day.trim() ? Number(form.max_per_day) : null,
+        max_per_week: form.max_per_week.trim() ? Number(form.max_per_week) : null,
+        max_per_month: form.max_per_month.trim() ? Number(form.max_per_month) : null,
+        min_interval_minutes: form.min_interval_minutes.trim() ? Number(form.min_interval_minutes) : null,
         services,
     };
 }
+
+const DAY_OPTIONS: Array<{ value: number; label: string }> = [
+    { value: 1, label: 'Lun' },
+    { value: 2, label: 'Mar' },
+    { value: 3, label: 'Mer' },
+    { value: 4, label: 'Jeu' },
+    { value: 5, label: 'Ven' },
+    { value: 6, label: 'Sam' },
+    { value: 7, label: 'Dim' },
+];
 
 export default function SubscriptionPlans() {
     const queryClient = useQueryClient();
@@ -442,6 +479,128 @@ function PlanDialog({
                                 <option value="weeks">Semaines</option>
                                 <option value="months">Mois</option>
                             </select>
+                        </div>
+                    </div>
+
+                    {/* ------------------------------------------------ usage rules */}
+                    <div className="space-y-4 rounded-md border border-tint/[0.08] bg-tint/[0.02] p-4">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            Règles d'utilisation
+                            <span className="ml-2 font-normal normal-case tracking-normal text-muted-foreground/70">
+                                — tout est optionnel, vide = aucune restriction
+                            </span>
+                        </p>
+
+                        <div>
+                            <Label>Jours autorisés</Label>
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                                {DAY_OPTIONS.map((day) => {
+                                    const selected = form.allowed_days.includes(day.value);
+                                    return (
+                                        <button
+                                            key={day.value}
+                                            type="button"
+                                            onClick={() =>
+                                                setForm((current) => ({
+                                                    ...current,
+                                                    allowed_days: selected
+                                                        ? current.allowed_days.filter((value) => value !== day.value)
+                                                        : [...current.allowed_days, day.value].sort((a, b) => a - b),
+                                                }))
+                                            }
+                                            className={cn(
+                                                'rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
+                                                selected
+                                                    ? 'border-accent/60 bg-accent/[0.14] text-foreground'
+                                                    : 'border-tint/[0.08] bg-tint/[0.02] text-muted-foreground hover:border-accent/30',
+                                            )}
+                                        >
+                                            {day.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            {form.allowed_days.length === 0 && (
+                                <p className="mt-1.5 text-[11px] text-muted-foreground/70">Aucun jour coché = valable tous les jours.</p>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="plan-time-start">Heure début</Label>
+                                <Input
+                                    id="plan-time-start"
+                                    type="time"
+                                    value={form.time_start}
+                                    onChange={(event) => setForm((current) => ({ ...current, time_start: event.target.value }))}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="plan-time-end">Heure fin</Label>
+                                <Input
+                                    id="plan-time-end"
+                                    type="time"
+                                    value={form.time_end}
+                                    onChange={(event) => setForm((current) => ({ ...current, time_end: event.target.value }))}
+                                />
+                            </div>
+                            <Field
+                                id="plan-max-day"
+                                label="Max / jour"
+                                value={form.max_per_day}
+                                onChange={(value) => setForm((current) => ({ ...current, max_per_day: value }))}
+                                type="number"
+                                min="1"
+                                placeholder="∞"
+                            />
+                            <Field
+                                id="plan-max-week"
+                                label="Max / semaine"
+                                value={form.max_per_week}
+                                onChange={(value) => setForm((current) => ({ ...current, max_per_week: value }))}
+                                type="number"
+                                min="1"
+                                placeholder="∞"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                            <Field
+                                id="plan-max-month"
+                                label="Max / mois"
+                                value={form.max_per_month}
+                                onChange={(value) => setForm((current) => ({ ...current, max_per_month: value }))}
+                                type="number"
+                                min="1"
+                                placeholder="∞"
+                            />
+                            <Field
+                                id="plan-min-interval"
+                                label="Intervalle min. (minutes)"
+                                value={form.min_interval_minutes}
+                                onChange={(value) => setForm((current) => ({ ...current, min_interval_minutes: value }))}
+                                type="number"
+                                min="5"
+                                placeholder="ex. 360 = 6h"
+                            />
+                            <label className="flex items-center gap-2 self-end pb-2.5 text-sm">
+                                <input
+                                    type="checkbox"
+                                    checked={form.allow_renewal}
+                                    onChange={(event) => setForm((current) => ({ ...current, allow_renewal: event.target.checked }))}
+                                    className="h-4 w-4 accent-[#C8A24C]"
+                                />
+                                Renouvelable
+                            </label>
+                            <label className="flex items-center gap-2 self-end pb-2.5 text-sm">
+                                <input
+                                    type="checkbox"
+                                    checked={form.allow_suspension}
+                                    onChange={(event) => setForm((current) => ({ ...current, allow_suspension: event.target.checked }))}
+                                    className="h-4 w-4 accent-[#C8A24C]"
+                                />
+                                Suspension autorisée
+                            </label>
                         </div>
                     </div>
 

@@ -41,6 +41,20 @@ class SubscriptionService
         return Carbon::now($this->settings->get('loyalty_timezone', 'Africa/Casablanca'))->startOfDay();
     }
 
+    /** Full wall-clock instant in the salon's timezone — for time-window and interval rules. */
+    private function nowInSalonTz(): Carbon
+    {
+        return Carbon::now($this->settings->get('loyalty_timezone', 'Africa/Casablanca'));
+    }
+
+    private const DAY_LABELS = [
+        1 => 'lundi', 2 => 'mardi', 3 => 'mercredi', 4 => 'jeudi',
+        5 => 'vendredi', 6 => 'samedi', 7 => 'dimanche',
+    ];
+
+    /** Seconds during which a second visit on the same service is treated as a double scan. */
+    private const DOUBLE_SCAN_GUARD_SECONDS = 120;
+
     /**
      * @param  array<string, mixed>  $data
      */
@@ -85,6 +99,7 @@ class SubscriptionService
                 'starts_on' => $startsOn->toDateString(),
                 'ends_on' => $endsOn->toDateString(),
                 'sale_id' => $sale->id,
+                'qr_token' => \Illuminate\Support\Str::random(48),
             ]);
 
             $this->activityLogger->log('subscription.purchased', $subscription, [], [
@@ -110,6 +125,9 @@ class SubscriptionService
         });
     }
 
+    /**
+     * @param  array{channel?: string, employee_id?: int|null}  $context
+     */
     public function reserveUsage(
         ClientSubscription $subscription,
         SubscriptionPlanService $planService,
@@ -118,27 +136,41 @@ class SubscriptionService
         User $actor,
         bool $exceptionOverride = false,
         ?string $overrideReason = null,
+        array $context = [],
     ): void {
-        DB::transaction(function () use ($subscription, $planService, $prestation, $item, $actor, $exceptionOverride, $overrideReason) {
+        DB::transaction(function () use ($subscription, $planService, $prestation, $item, $actor, $exceptionOverride, $overrideReason, $context) {
             $lockedSub = ClientSubscription::query()->whereKey($subscription->id)->lockForUpdate()->firstOrFail();
 
-            if ($lockedSub->status !== ClientSubscription::STATUS_ACTIVE) {
-                throw ValidationException::withMessages(['client_subscription_id' => 'Cet abonnement n’est pas actif.']);
-            }
+            $this->assertSubscriptionUsable($lockedSub);
 
             if ($prestation->client_id === null || $lockedSub->client_id !== $prestation->client_id) {
                 throw ValidationException::withMessages(['client_subscription_id' => 'Cet abonnement n’appartient pas à ce client.']);
             }
 
             $today = $this->today();
-            // Compared as calendar-date strings, not datetime instants —
-            // starts_on/ends_on are plain dates, and $today carries the
-            // salon's timezone (see loyalty_timezone setting) which would
-            // otherwise shift the instant across a date boundary relative
-            // to the app's own (UTC) timezone.
-            $todayDate = $today->toDateString();
-            if ($todayDate < $lockedSub->starts_on->toDateString() || $todayDate > $lockedSub->ends_on->toDateString()) {
-                throw ValidationException::withMessages(['client_subscription_id' => 'Cet abonnement n’est pas valide à cette date.']);
+            $now = $this->nowInSalonTz();
+
+            // Usage rules (days / hours / caps / interval) — an explicit
+            // exception override (loyalty.override_quota) bypasses them all;
+            // the lifetime quota below stays non-bypassable.
+            if (! $exceptionOverride) {
+                $this->assertUsageRules($lockedSub, $now);
+            }
+
+            // Anti double-scan: the same service on the same subscription
+            // within the guard window is a duplicate, whatever the channel.
+            $lastSameService = ClientSubscriptionUsage::where('client_subscription_id', $lockedSub->id)
+                ->where('subscription_plan_service_id', $planService->id)
+                ->whereIn('status', [ClientSubscriptionUsage::STATUS_RESERVED, ClientSubscriptionUsage::STATUS_CONFIRMED])
+                ->whereNotNull('used_at')
+                ->orderByDesc('used_at')
+                ->first();
+            if (! $exceptionOverride
+                && $lastSameService !== null
+                && $lastSameService->used_at->diffInSeconds(now()) < self::DOUBLE_SCAN_GUARD_SECONDS) {
+                throw ValidationException::withMessages([
+                    'quota' => 'Une visite vient d’être enregistrée il y a moins de 2 minutes pour ce service.',
+                ]);
             }
 
             $periodKey = $planService->quota_period ? $this->periodKey($planService->quota_period, $today) : null;
@@ -167,6 +199,10 @@ class SubscriptionService
                     'status' => ClientSubscriptionUsage::STATUS_RESERVED,
                     'reserved_prestation_id' => $prestation->id,
                     'used_on' => $today->toDateString(),
+                    'used_at' => now(),
+                    'employee_id' => $context['employee_id'] ?? $prestation->employee_id,
+                    'validated_by_user_id' => $actor->id,
+                    'channel' => $context['channel'] ?? 'caisse',
                     'period_key' => $periodKey,
                     'sequence_in_period' => $periodKey !== null ? $attemptsInPeriod + 1 : null,
                     'sequence_total' => $planService->quota_total !== null ? $attemptsTotal + 1 : null,
@@ -195,6 +231,251 @@ class SubscriptionService
                 'exception_override' => $exceptionOverride,
             ]);
         });
+    }
+
+    /**
+     * Status + calendar-window gate with explicit, human messages — the
+     * caisse and the scanner surface these verbatim.
+     */
+    private function assertSubscriptionUsable(ClientSubscription $subscription): void
+    {
+        $todayDate = $this->today()->toDateString();
+
+        if ($subscription->status === ClientSubscription::STATUS_SUSPENDED) {
+            $until = $subscription->suspension_ends_on?->format('d/m/Y');
+            throw ValidationException::withMessages([
+                'client_subscription_id' => 'Abonnement suspendu'.($until ? " jusqu'au {$until}" : '').'.',
+            ]);
+        }
+        if ($subscription->status === ClientSubscription::STATUS_CANCELLED) {
+            throw ValidationException::withMessages(['client_subscription_id' => 'Abonnement annulé.']);
+        }
+        if ($subscription->status === ClientSubscription::STATUS_EXPIRED
+            || $todayDate > $subscription->ends_on->toDateString()) {
+            throw ValidationException::withMessages([
+                'client_subscription_id' => 'Abonnement expiré le '.$subscription->ends_on->format('d/m/Y').'.',
+            ]);
+        }
+        if ($subscription->status !== ClientSubscription::STATUS_ACTIVE) {
+            throw ValidationException::withMessages(['client_subscription_id' => 'Cet abonnement n’est pas actif.']);
+        }
+        if ($todayDate < $subscription->starts_on->toDateString()) {
+            throw ValidationException::withMessages([
+                'client_subscription_id' => 'Cet abonnement débute le '.$subscription->starts_on->format('d/m/Y').'.',
+            ]);
+        }
+    }
+
+    /**
+     * Human-readable blocking reason for the scan card, or null when the
+     * subscription is currently usable — same gate reserveUsage() enforces.
+     */
+    public function usabilityBlockReason(ClientSubscription $subscription): ?string
+    {
+        try {
+            $this->assertSubscriptionUsable($subscription);
+
+            return null;
+        } catch (ValidationException $e) {
+            return collect($e->errors())->flatten()->first();
+        }
+    }
+
+    /**
+     * Plan-level usage rules: allowed days, time window, day/week/month caps
+     * (counted across every included service) and the minimum interval
+     * between two visits. All optional — null means "no restriction".
+     */
+    private function assertUsageRules(ClientSubscription $subscription, Carbon $now): void
+    {
+        $plan = $subscription->plan;
+        if ($plan === null) {
+            return;
+        }
+
+        $allowedDays = is_array($plan->allowed_days) ? array_map('intval', $plan->allowed_days) : [];
+        if ($allowedDays !== [] && ! in_array($now->isoWeekday(), $allowedDays, true)) {
+            $labels = implode(', ', array_map(fn (int $day) => self::DAY_LABELS[$day] ?? (string) $day, $allowedDays));
+            throw ValidationException::withMessages([
+                'rules' => 'Cet abonnement n’est pas valable le '.self::DAY_LABELS[$now->isoWeekday()].'. Jours autorisés : '.$labels.'.',
+            ]);
+        }
+
+        if ($plan->time_start && $plan->time_end) {
+            $current = $now->format('H:i');
+            if ($current < $plan->time_start || $current > $plan->time_end) {
+                throw ValidationException::withMessages([
+                    'rules' => "Cet abonnement est valide uniquement entre {$plan->time_start} et {$plan->time_end}.",
+                ]);
+            }
+        }
+
+        if ($plan->min_interval_minutes !== null) {
+            $lastUsage = ClientSubscriptionUsage::where('client_subscription_id', $subscription->id)
+                ->whereIn('status', [ClientSubscriptionUsage::STATUS_RESERVED, ClientSubscriptionUsage::STATUS_CONFIRMED])
+                ->whereNotNull('used_at')
+                ->orderByDesc('used_at')
+                ->first();
+            if ($lastUsage !== null) {
+                $elapsedMinutes = $lastUsage->used_at->diffInMinutes(now());
+                if ($elapsedMinutes < $plan->min_interval_minutes) {
+                    $nextAllowed = $lastUsage->used_at->copy()
+                        ->addMinutes($plan->min_interval_minutes)
+                        ->setTimezone($now->getTimezone());
+                    throw ValidationException::withMessages([
+                        'rules' => 'Intervalle minimum non respecté — prochaine visite possible à partir de '
+                            .$nextAllowed->format('d/m/Y H:i').'.',
+                    ]);
+                }
+            }
+        }
+
+        foreach ($this->planCapCounts($subscription, $now) as $cap) {
+            if ($cap['limit'] !== null && $cap['count'] >= $cap['limit']) {
+                throw ValidationException::withMessages(['rules' => $cap['message']]);
+            }
+        }
+    }
+
+    /**
+     * Plan-level cap counters (visits across all included services, statuses
+     * reserved+confirmed), computed on salon-timezone calendar buckets.
+     *
+     * @return array<string, array{limit: int|null, count: int, message: string}>
+     */
+    private function planCapCounts(ClientSubscription $subscription, Carbon $now): array
+    {
+        $plan = $subscription->plan;
+
+        $countBetween = function (Carbon $from, Carbon $to) use ($subscription): int {
+            return ClientSubscriptionUsage::where('client_subscription_id', $subscription->id)
+                ->whereIn('status', [ClientSubscriptionUsage::STATUS_RESERVED, ClientSubscriptionUsage::STATUS_CONFIRMED])
+                ->whereDate('used_on', '>=', $from->toDateString())
+                ->whereDate('used_on', '<=', $to->toDateString())
+                ->count();
+        };
+
+        $day = $now->copy()->startOfDay();
+
+        return [
+            'day' => [
+                'limit' => $plan?->max_per_day,
+                'count' => $plan?->max_per_day !== null ? $countBetween($day, $day) : 0,
+                'message' => 'Limite journalière atteinte — '.$plan?->max_per_day.' visite'.($plan?->max_per_day > 1 ? 's' : '').' maximum par jour.',
+            ],
+            'week' => [
+                'limit' => $plan?->max_per_week,
+                'count' => $plan?->max_per_week !== null
+                    ? $countBetween($now->copy()->startOfWeek(Carbon::MONDAY), $now->copy()->endOfWeek(Carbon::SUNDAY))
+                    : 0,
+                'message' => 'Limite hebdomadaire atteinte — '.$plan?->max_per_week.' visite'.($plan?->max_per_week > 1 ? 's' : '').' maximum par semaine.',
+            ],
+            'month' => [
+                'limit' => $plan?->max_per_month,
+                'count' => $plan?->max_per_month !== null
+                    ? $countBetween($now->copy()->startOfMonth(), $now->copy()->endOfMonth())
+                    : 0,
+                'message' => 'Limite mensuelle atteinte — '.$plan?->max_per_month.' visite'.($plan?->max_per_month > 1 ? 's' : '').' maximum par mois.',
+            ],
+        ];
+    }
+
+    /**
+     * Read-only snapshot of every rule for the scan card — mirrors exactly
+     * what assertUsageRules()/assertSubscriptionUsable() will accept, so the
+     * UI can announce AUTORISÉ / REFUSÉ before the employee validates.
+     *
+     * @return array<string, mixed>
+     */
+    public function usageRuleStatus(ClientSubscription $subscription): array
+    {
+        $plan = $subscription->plan;
+        $now = $this->nowInSalonTz();
+
+        $allowedDays = is_array($plan?->allowed_days) ? array_map('intval', $plan->allowed_days) : [];
+        $dayAllowed = $allowedDays === [] || in_array($now->isoWeekday(), $allowedDays, true);
+
+        $timeAllowed = true;
+        if ($plan?->time_start && $plan?->time_end) {
+            $current = $now->format('H:i');
+            $timeAllowed = $current >= $plan->time_start && $current <= $plan->time_end;
+        }
+
+        $nextAllowedAt = null;
+        $intervalOk = true;
+        if ($plan?->min_interval_minutes !== null) {
+            $lastUsage = ClientSubscriptionUsage::where('client_subscription_id', $subscription->id)
+                ->whereIn('status', [ClientSubscriptionUsage::STATUS_RESERVED, ClientSubscriptionUsage::STATUS_CONFIRMED])
+                ->whereNotNull('used_at')
+                ->orderByDesc('used_at')
+                ->first();
+            if ($lastUsage !== null && $lastUsage->used_at->diffInMinutes(now()) < $plan->min_interval_minutes) {
+                $intervalOk = false;
+                $nextAllowedAt = $lastUsage->used_at->copy()
+                    ->addMinutes($plan->min_interval_minutes)
+                    ->setTimezone($now->getTimezone())
+                    ->format('d/m/Y H:i');
+            }
+        }
+
+        $caps = $this->planCapCounts($subscription, $now);
+
+        return [
+            'allowed_days' => $allowedDays,
+            'day_allowed' => $dayAllowed,
+            'time_start' => $plan?->time_start,
+            'time_end' => $plan?->time_end,
+            'time_allowed' => $timeAllowed,
+            'min_interval_minutes' => $plan?->min_interval_minutes,
+            'interval_ok' => $intervalOk,
+            'next_allowed_at' => $nextAllowedAt,
+            'caps' => collect($caps)->map(fn (array $cap) => [
+                'limit' => $cap['limit'],
+                'count' => $cap['count'],
+                'reached' => $cap['limit'] !== null && $cap['count'] >= $cap['limit'],
+            ])->all(),
+        ];
+    }
+
+    public function resolveByToken(string $token): ?ClientSubscription
+    {
+        if ($token === '') {
+            return null;
+        }
+
+        return ClientSubscription::where('qr_token', $token)
+            ->with(['client', 'plan.services.service'])
+            ->first();
+    }
+
+    public function regenerateQrToken(ClientSubscription $subscription, User $actor): ClientSubscription
+    {
+        $subscription->update(['qr_token' => \Illuminate\Support\Str::random(48)]);
+
+        $this->activityLogger->log('subscription.qr_regenerated', $subscription, [], ['by' => $actor->name]);
+
+        return $subscription->fresh();
+    }
+
+    public function cancel(ClientSubscription $subscription, ?string $reason, User $actor): ClientSubscription
+    {
+        if (! in_array($subscription->status, [ClientSubscription::STATUS_ACTIVE, ClientSubscription::STATUS_SUSPENDED], true)) {
+            throw ValidationException::withMessages(['status' => 'Seul un abonnement actif ou suspendu peut être annulé.']);
+        }
+
+        $old = $subscription->only(['status']);
+        $subscription->update([
+            'status' => ClientSubscription::STATUS_CANCELLED,
+            'cancelled_at' => now(),
+            'cancel_reason' => $reason,
+        ]);
+
+        $this->activityLogger->log('subscription.cancelled', $subscription, $old, [
+            'reason' => $reason,
+            'by' => $actor->name,
+        ]);
+
+        return $subscription->fresh();
     }
 
     public function release(ClientSubscriptionUsage $usage): void

@@ -20,7 +20,19 @@ class SubscriptionPlanResource extends JsonResource
             'duration_value' => $this->duration_value,
             'duration_unit' => $this->duration_unit,
             'is_active' => (bool) $this->is_active,
+            'allow_suspension' => (bool) $this->allow_suspension,
+            'allow_renewal' => (bool) $this->allow_renewal,
             'notes' => $this->notes,
+            'allowed_days' => $this->allowed_days ?? [],
+            'time_start' => $this->time_start,
+            'time_end' => $this->time_end,
+            'max_per_day' => $this->max_per_day,
+            'max_per_week' => $this->max_per_week,
+            'max_per_month' => $this->max_per_month,
+            'min_interval_minutes' => $this->min_interval_minutes,
+            'active_subscriptions_count' => $this->active_subscriptions_count !== null
+                ? (int) $this->active_subscriptions_count
+                : null,
             'services' => $this->whenLoaded('services', fn () => $this->services->map(fn ($planService) => [
                 'id' => $planService->id,
                 'service_id' => $planService->service_id,

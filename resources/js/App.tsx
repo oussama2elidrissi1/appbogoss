@@ -3,6 +3,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { RoleAwareRedirect } from '@/components/RoleAwareRedirect';
 import { navItems } from '@/lib/navigation';
+import Abonnements from '@/pages/Abonnements';
 import ActivityLog from '@/pages/ActivityLog';
 import Agenda from '@/pages/Agenda';
 import Caisse from '@/pages/Caisse';
@@ -28,6 +29,7 @@ import Partenaires from '@/pages/Partenaires';
 import Payroll from '@/pages/Payroll';
 import PlaceholderPage from '@/pages/PlaceholderPage';
 import Reports from '@/pages/Reports';
+import ScannerAbonnements from '@/pages/ScannerAbonnements';
 import Services from '@/pages/Services';
 import Stock from '@/pages/Stock';
 import Settings from '@/pages/Settings';
@@ -52,6 +54,8 @@ const realRoutes = new Set([
     '/activity-log',
     '/loyalty-programs',
     '/subscription-plans',
+    '/abonnements',
+    '/scanner-abonnements',
     '/loyalty-qr',
     '/loyalty-settings',
 ]);
@@ -138,6 +142,14 @@ export default function App() {
                     <Route element={<ProtectedRoute permission="loyalty.manage" />}>
                         <Route path="/loyalty-programs" element={<LoyaltyPrograms />} />
                         <Route path="/subscription-plans" element={<SubscriptionPlans />} />
+                    </Route>
+
+                    <Route element={<ProtectedRoute permission="subscriptions.view" />}>
+                        <Route path="/abonnements" element={<Abonnements />} />
+                    </Route>
+
+                    <Route element={<ProtectedRoute permission="subscriptions.use" />}>
+                        <Route path="/scanner-abonnements" element={<ScannerAbonnements />} />
                     </Route>
 
                     <Route element={<ProtectedRoute permission="loyalty.qr.manage" />}>

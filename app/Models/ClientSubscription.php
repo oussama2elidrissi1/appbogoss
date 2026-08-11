@@ -24,6 +24,7 @@ class ClientSubscription extends Model
         'starts_on',
         'ends_on',
         'sale_id',
+        'qr_token',
         'purchase_prestation_id',
         'cancelled_at',
         'cancel_reason',

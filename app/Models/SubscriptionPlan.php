@@ -17,6 +17,13 @@ class SubscriptionPlan extends Model
         'allow_suspension',
         'allow_renewal',
         'notes',
+        'allowed_days',
+        'time_start',
+        'time_end',
+        'max_per_day',
+        'max_per_week',
+        'max_per_month',
+        'min_interval_minutes',
     ];
 
     protected $casts = [
@@ -25,11 +32,21 @@ class SubscriptionPlan extends Model
         'is_active' => 'boolean',
         'allow_suspension' => 'boolean',
         'allow_renewal' => 'boolean',
+        'allowed_days' => 'array',
+        'max_per_day' => 'integer',
+        'max_per_week' => 'integer',
+        'max_per_month' => 'integer',
+        'min_interval_minutes' => 'integer',
     ];
 
     public function services(): HasMany
     {
         return $this->hasMany(SubscriptionPlanService::class);
+    }
+
+    public function subscriptions(): HasMany
+    {
+        return $this->hasMany(ClientSubscription::class);
     }
 
     /**
