@@ -67,6 +67,8 @@ class ClientController extends Controller
             'name' => [$presence, 'string', 'max:255'],
             'email' => ['sometimes', 'nullable', 'email', 'max:255'],
             'phone' => ['sometimes', 'nullable', 'string', 'max:50'],
+            'birth_date' => ['sometimes', 'nullable', 'date', 'before:today'],
+            'gender' => ['sometimes', 'nullable', 'in:female,male,other'],
             'notes' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'avatar_color' => ['sometimes', 'nullable', 'regex:/^#[0-9A-Fa-f]{6}$/'],
         ]);

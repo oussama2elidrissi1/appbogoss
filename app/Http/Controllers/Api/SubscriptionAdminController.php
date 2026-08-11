@@ -8,7 +8,6 @@ use App\Models\ClientSubscriptionUsage;
 use App\Models\Sale;
 use App\Models\SubscriptionPlan;
 use App\Services\SubscriptionService;
-use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -29,6 +28,7 @@ class SubscriptionAdminController extends Controller
         $validated = $request->validate([
             'status' => ['nullable', Rule::in(['active', 'expired', 'cancelled', 'suspended'])],
             'plan_id' => ['nullable', 'integer', Rule::exists('subscription_plans', 'id')],
+            'client_id' => ['nullable', 'integer', Rule::exists('clients', 'id')],
             'search' => ['nullable', 'string', 'max:255'],
             'expiring_within' => ['nullable', 'integer', 'min:1', 'max:60'],
         ]);
@@ -43,6 +43,9 @@ class SubscriptionAdminController extends Controller
         }
         if (! empty($validated['plan_id'])) {
             $query->where('subscription_plan_id', $validated['plan_id']);
+        }
+        if (! empty($validated['client_id'])) {
+            $query->where('client_id', $validated['client_id']);
         }
         if (! empty($validated['expiring_within'])) {
             $query->where('status', ClientSubscription::STATUS_ACTIVE)

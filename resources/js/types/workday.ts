@@ -368,8 +368,56 @@ export interface ClientPayload {
     name: string;
     email?: string | null;
     phone?: string | null;
+    birth_date?: string | null;
+    gender?: 'female' | 'male' | 'other' | null;
     notes?: string | null;
     avatar_color?: string | null;
+}
+
+/** 360° view served by GET /clients/{id}/overview — the fiche client. */
+export interface ClientOverview {
+    client: {
+        id: number;
+        name: string;
+        email: string | null;
+        phone: string | null;
+        birth_date: string | null;
+        gender: 'female' | 'male' | 'other' | null;
+        avatar_color: string | null;
+        notes: string | null;
+        loyalty_points: number;
+        last_visit_at: string | null;
+        created_at: string | null;
+    };
+    portal: {
+        has_password: boolean;
+        phone_e164: string | null;
+        phone_verified_at: string | null;
+        registered_at: string | null;
+        terms_consent_at: string | null;
+        marketing_consent: boolean;
+    };
+    stats: {
+        sales_count: number;
+        total_spent: number;
+        prestations_count: number;
+        appointments_count: number;
+        active_subscriptions: number;
+    };
+    recent_sales: Array<{
+        id: number;
+        date: string | null;
+        label: string;
+        total: number;
+        payment_method: string | null;
+    }>;
+    recent_appointments: Array<{
+        id: number;
+        starts_at: string | null;
+        status: string;
+        services: number;
+        service_name: string | null;
+    }>;
 }
 
 export interface Service {

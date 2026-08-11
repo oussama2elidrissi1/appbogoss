@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AppointmentController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CashMovementController;
 use App\Http\Controllers\Api\CatalogController;
+use App\Http\Controllers\Api\ClientAccountController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\ClientLoyaltyStatusController;
 use App\Http\Controllers\Api\ClientQrController;
@@ -284,6 +285,9 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::middleware('permission:caisse.manage')->group(function () {
         Route::apiResource('/clients', ClientController::class)->only(['update', 'destroy']);
+        // Fiche client 360° + gestion de l'accès portail (téléphone + mot de passe).
+        Route::get('/clients/{client}/overview', [ClientAccountController::class, 'overview']);
+        Route::post('/clients/{client}/portal-password', [ClientAccountController::class, 'setPortalPassword']);
     });
 
     Route::apiResource('/services', ServiceController::class)->only(['index', 'show']);

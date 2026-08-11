@@ -7,6 +7,7 @@ import type {
     Appointment,
     AppointmentPayload,
     Client,
+    ClientOverview,
     ClientPayload,
     CreateAdvancePayload,
     CreatedPartnerResponse,
@@ -403,6 +404,33 @@ export async function updateClient(id: number, payload: ClientPayload): Promise<
 
 export async function deleteClient(id: number): Promise<void> {
     await api.delete(`/api/clients/${id}`);
+}
+
+export async function getClientOverview(id: number): Promise<ClientOverview> {
+    const { data } = await api.get<{ data: ClientOverview }>(`/api/clients/${id}/overview`);
+    return data.data;
+}
+
+/** Creates or resets the customer's portal access; the password is shown once. */
+export async function setClientPortalPassword(
+    id: number,
+    password?: string,
+): Promise<{ phone: string | null; temporary_password: string }> {
+    const { data } = await api.post<{ data: { phone: string | null; temporary_password: string } }>(
+        `/api/clients/${id}/portal-password`,
+        password ? { password } : {},
+    );
+    return data.data;
+}
+
+export async function getClientPersonalQr(id: number): Promise<{ enabled: boolean; token: string | null }> {
+    const { data } = await api.get<{ data: { enabled: boolean; token: string | null } }>(`/api/clients/${id}/qr`);
+    return data.data;
+}
+
+export async function regenerateClientPersonalQr(id: number): Promise<string> {
+    const { data } = await api.post<{ data: { token: string } }>(`/api/clients/${id}/qr/regenerate`);
+    return data.data.token;
 }
 
 export async function getServices(
@@ -869,6 +897,7 @@ export async function validateSubscriptionVisit(
 export async function getAdminSubscriptions(options?: {
     status?: string;
     planId?: number;
+    clientId?: number;
     search?: string;
     expiringWithin?: number;
 }): Promise<AdminSubscription[]> {
@@ -876,6 +905,7 @@ export async function getAdminSubscriptions(options?: {
         params: {
             ...(options?.status ? { status: options.status } : {}),
             ...(options?.planId ? { plan_id: options.planId } : {}),
+            ...(options?.clientId ? { client_id: options.clientId } : {}),
             ...(options?.search ? { search: options.search } : {}),
             ...(options?.expiringWithin ? { expiring_within: options.expiringWithin } : {}),
         },

@@ -7,6 +7,7 @@ import Abonnements from '@/pages/Abonnements';
 import ActivityLog from '@/pages/ActivityLog';
 import Agenda from '@/pages/Agenda';
 import Caisse from '@/pages/Caisse';
+import ClientDetail from '@/pages/ClientDetail';
 import Clients from '@/pages/Clients';
 import Comptes from '@/pages/Comptes';
 import Dashboard from '@/pages/Dashboard';
@@ -116,6 +117,7 @@ export default function App() {
                         <Route path="/expenses" element={<Depenses />} />
                         <Route path="/stock" element={<Stock />} />
                         <Route path="/clients" element={<Clients />} />
+                        <Route path="/clients/:id" element={<ClientDetail />} />
                     </Route>
 
                     <Route element={<ProtectedRoute permission="employees.manage" />}>
