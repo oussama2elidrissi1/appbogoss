@@ -290,6 +290,34 @@ class SubscriptionScannerTest extends TestCase
         ]);
     }
 
+    /** Annulation avec remboursement : la vente d'achat quitte la caisse (soft delete). */
+    public function test_cancel_with_refund_voids_the_purchase_sale(): void
+    {
+        $subscription = $this->subscriptionFor();
+        $saleId = $subscription->sale_id;
+        $this->assertNotNull($saleId);
+
+        $this->postJson('/api/client-subscriptions/'.$subscription->id.'/cancel', [
+            'reason' => 'Client remboursé',
+            'refund' => true,
+        ])->assertOk()->assertJsonPath('data.status', 'cancelled');
+
+        // Soft-deleted: excluded from totals, still visible in day history.
+        $this->assertSoftDeleted('sales', ['id' => $saleId]);
+    }
+
+    /** Annulation sans remboursement : la vente reste comptabilisée. */
+    public function test_cancel_without_refund_keeps_the_purchase_sale(): void
+    {
+        $subscription = $this->subscriptionFor();
+
+        $this->postJson('/api/client-subscriptions/'.$subscription->id.'/cancel', [
+            'refund' => false,
+        ])->assertOk();
+
+        $this->assertDatabaseHas('sales', ['id' => $subscription->sale_id, 'deleted_at' => null]);
+    }
+
     /** L'employé sans permission subscriptions.use ne peut pas scanner. */
     public function test_employee_role_cannot_scan(): void
     {

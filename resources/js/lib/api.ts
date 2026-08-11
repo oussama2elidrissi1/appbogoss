@@ -943,11 +943,14 @@ export async function getSubscriptionsDashboard(): Promise<SubscriptionsDashboar
     return data.data;
 }
 
-export async function cancelClientSubscription(id: number, reason?: string): Promise<AdminSubscription> {
-    const { data } = await api.post<{ data: AdminSubscription }>(
-        `/api/client-subscriptions/${id}/cancel`,
-        reason ? { reason } : {},
-    );
+export async function cancelClientSubscription(
+    id: number,
+    options?: { reason?: string; refund?: boolean },
+): Promise<AdminSubscription> {
+    const { data } = await api.post<{ data: AdminSubscription }>(`/api/client-subscriptions/${id}/cancel`, {
+        ...(options?.reason ? { reason: options.reason } : {}),
+        refund: options?.refund ?? false,
+    });
     return data.data;
 }
 

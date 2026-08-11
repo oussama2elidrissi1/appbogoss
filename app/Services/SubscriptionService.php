@@ -457,25 +457,43 @@ class SubscriptionService
         return $subscription->fresh();
     }
 
-    public function cancel(ClientSubscription $subscription, ?string $reason, User $actor): ClientSubscription
+    /**
+     * @param  bool  $refundSale  When the money is actually returned to the
+     *                            client: the purchase Sale is reversed exactly
+     *                            like a voided caisse ticket — loyalty accrual
+     *                            undone, then soft-deleted so it leaves the
+     *                            day's totals but stays visible as "supprimé".
+     */
+    public function cancel(ClientSubscription $subscription, ?string $reason, User $actor, bool $refundSale = false): ClientSubscription
     {
         if (! in_array($subscription->status, [ClientSubscription::STATUS_ACTIVE, ClientSubscription::STATUS_SUSPENDED], true)) {
             throw ValidationException::withMessages(['status' => 'Seul un abonnement actif ou suspendu peut être annulé.']);
         }
 
-        $old = $subscription->only(['status']);
-        $subscription->update([
-            'status' => ClientSubscription::STATUS_CANCELLED,
-            'cancelled_at' => now(),
-            'cancel_reason' => $reason,
-        ]);
+        return DB::transaction(function () use ($subscription, $reason, $actor, $refundSale) {
+            $old = $subscription->only(['status']);
+            $subscription->update([
+                'status' => ClientSubscription::STATUS_CANCELLED,
+                'cancelled_at' => now(),
+                'cancel_reason' => $reason,
+            ]);
 
-        $this->activityLogger->log('subscription.cancelled', $subscription, $old, [
-            'reason' => $reason,
-            'by' => $actor->name,
-        ]);
+            $refunded = false;
+            $sale = $subscription->sale;
+            if ($refundSale && $sale !== null && ! $sale->trashed()) {
+                $this->loyaltyEngine->reverseSale($sale);
+                $sale->delete();
+                $refunded = true;
+            }
 
-        return $subscription->fresh();
+            $this->activityLogger->log('subscription.cancelled', $subscription, $old, [
+                'reason' => $reason,
+                'refunded' => $refunded,
+                'by' => $actor->name,
+            ]);
+
+            return $subscription->fresh();
+        });
     }
 
     public function release(ClientSubscriptionUsage $usage): void

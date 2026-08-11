@@ -810,6 +810,7 @@ function LifecycleDialog({
     const [from, setFrom] = useState('');
     const [until, setUntil] = useState('');
     const [paymentMethod, setPaymentMethod] = useState('especes');
+    const [refund, setRefund] = useState(true);
 
     useEffect(() => {
         setReason('');
@@ -817,6 +818,7 @@ function LifecycleDialog({
         setFrom('');
         setUntil('');
         setPaymentMethod('especes');
+        setRefund(true);
     }, [action]);
 
     const mutation = useMutation({
@@ -832,7 +834,7 @@ function LifecycleDialog({
             } else if (type === 'extend') {
                 await extendClientSubscription(subscription.id, { days: Number(days), reason });
             } else if (type === 'cancel') {
-                await cancelClientSubscription(subscription.id, reason || undefined);
+                await cancelClientSubscription(subscription.id, { reason: reason || undefined, refund });
             } else if (type === 'renew') {
                 await renewClientSubscription(subscription.id, { payment_method: paymentMethod });
             } else if (type === 'regenerate') {
@@ -916,6 +918,23 @@ function LifecycleDialog({
                                 Motif{type === 'cancel' ? ' (optionnel)' : ''}
                             </span>
                             <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Raison..." className="mt-2" />
+                        </label>
+                    )}
+                    {type === 'cancel' && (
+                        <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-tint/[0.08] bg-tint/[0.02] px-3.5 py-3">
+                            <input
+                                type="checkbox"
+                                checked={refund}
+                                onChange={(event) => setRefund(event.target.checked)}
+                                className="mt-0.5 h-4 w-4 accent-[#C8A24C]"
+                            />
+                            <span className="text-sm leading-snug">
+                                Rembourser la vente ({formatCurrency(subscription.price_paid, { maximumFractionDigits: 0 })})
+                                <span className="mt-0.5 block text-xs text-muted-foreground">
+                                    Le ticket est retiré de l'encaissé de la caisse et marqué « supprimé » —
+                                    à cocher si l'argent est réellement rendu au client.
+                                </span>
+                            </span>
                         </label>
                     )}
 

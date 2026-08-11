@@ -197,9 +197,15 @@ class SubscriptionAdminController extends Controller
     {
         $validated = $request->validate([
             'reason' => ['nullable', 'string', 'max:500'],
+            'refund' => ['nullable', 'boolean'],
         ]);
 
-        $subscription = $this->subscriptionService->cancel($clientSubscription, $validated['reason'] ?? null, $request->user());
+        $subscription = $this->subscriptionService->cancel(
+            $clientSubscription,
+            $validated['reason'] ?? null,
+            $request->user(),
+            (bool) ($validated['refund'] ?? false),
+        );
 
         return response()->json(['data' => $this->row($subscription->load(['client', 'plan.services.service']))]);
     }
