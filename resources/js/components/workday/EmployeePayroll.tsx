@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, CheckCircle2, HandCoins } from 'lucide-react';
 import { getCommissionPayoutHistory, getCommissionPayouts, getErrorMessage, payCommission } from '@/lib/api';
+import { useActiveWorkDay, workDayKeys } from '@/hooks/useWorkDay';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import type { Employee } from '@/types/workday';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +20,11 @@ export function EmployeePayroll({ employee }: { employee: Employee }) {
     const queryClient = useQueryClient();
     const [period, setPeriod] = useState(currentMonth());
     const [confirmOpen, setConfirmOpen] = useState(false);
+    // Same option as on the "Paie" page — record the net amount as a
+    // cash-out (settled advance) on the open caisse day.
+    const [deductFromCaisse, setDeductFromCaisse] = useState(true);
+
+    const { data: activeDay } = useActiveWorkDay();
 
     const { data: rows, isPending } = useQuery({
         queryKey: ['commission-payouts', period, employee.id],
@@ -32,11 +38,18 @@ export function EmployeePayroll({ employee }: { employee: Employee }) {
     });
 
     const payMutation = useMutation({
-        mutationFn: () => payCommission({ employee_id: employee.id, period }),
+        mutationFn: () =>
+            payCommission({
+                employee_id: employee.id,
+                period,
+                deduct_from_caisse: activeDay != null && deductFromCaisse,
+            }),
         onSuccess: () => {
             void queryClient.invalidateQueries({ queryKey: ['commission-payouts', period, employee.id] });
             void queryClient.invalidateQueries({ queryKey: ['commission-payout-history', employee.id] });
             void queryClient.invalidateQueries({ queryKey: ['advances', employee.id] });
+            void queryClient.invalidateQueries({ queryKey: workDayKeys.all });
+            void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
             setConfirmOpen(false);
         },
     });
@@ -93,7 +106,15 @@ export function EmployeePayroll({ employee }: { employee: Employee }) {
                         ) : row.net_amount <= 0 ? (
                             <Badge variant="outline">Rien à payer</Badge>
                         ) : (
-                            <Button type="button" variant="accent" size="sm" onClick={() => setConfirmOpen(true)}>
+                            <Button
+                                type="button"
+                                variant="accent"
+                                size="sm"
+                                onClick={() => {
+                                    setDeductFromCaisse(true);
+                                    setConfirmOpen(true);
+                                }}
+                            >
                                 <HandCoins className="h-3.5 w-3.5" />
                                 Marquer comme payé
                             </Button>
@@ -150,7 +171,23 @@ export function EmployeePayroll({ employee }: { employee: Employee }) {
                 variant="accent"
                 loading={payMutation.isPending}
                 onConfirm={() => payMutation.mutate()}
-            />
+            >
+                {activeDay != null && row != null && row.net_amount > 0 && (
+                    <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-tint/[0.08] bg-tint/[0.03] px-3 py-2.5">
+                        <input
+                            type="checkbox"
+                            checked={deductFromCaisse}
+                            onChange={(event) => setDeductFromCaisse(event.target.checked)}
+                            className="mt-0.5 h-4 w-4 shrink-0 accent-[hsl(var(--accent))]"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                            Sortir {formatCurrency(row.net_amount)} de la caisse du jour — enregistré comme
+                            une avance déjà soldée, rattachée à cette paie. Décochez si l'argent ne sort pas
+                            de la caisse (virement, autre source).
+                        </span>
+                    </label>
+                )}
+            </ConfirmDialog>
         </div>
     );
 }

@@ -73,10 +73,17 @@ class CommissionPayoutController extends Controller
             'employee_id' => ['required', 'integer', 'exists:employees,id'],
             'period' => ['required', 'date_format:Y-m'],
             'notes' => ['nullable', 'string', 'max:255'],
+            'deduct_from_caisse' => ['sometimes', 'boolean'],
         ]);
 
         $employee = Employee::findOrFail($validated['employee_id']);
-        $payout = $this->payoutService->pay($employee, $validated['period'], $request->user(), $validated['notes'] ?? null);
+        $payout = $this->payoutService->pay(
+            $employee,
+            $validated['period'],
+            $request->user(),
+            $validated['notes'] ?? null,
+            (bool) ($validated['deduct_from_caisse'] ?? false),
+        );
 
         return response()->json(['data' => [
             'id' => $payout->id,

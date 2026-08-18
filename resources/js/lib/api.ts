@@ -768,6 +768,8 @@ export async function payCommission(payload: {
     employee_id: number;
     period: string;
     notes?: string;
+    /** Also record the net amount as a cash-out on the open caisse day. */
+    deduct_from_caisse?: boolean;
 }): Promise<CommissionPayout> {
     const { data } = await api.post<{ data: CommissionPayout }>('/api/commission-payouts', payload);
     return data.data;

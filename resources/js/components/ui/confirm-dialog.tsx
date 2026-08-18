@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Loader2, TriangleAlert } from 'lucide-react';
 import {
     Dialog,
@@ -14,6 +15,8 @@ interface ConfirmDialogProps {
     onOpenChange: (open: boolean) => void;
     title: string;
     description?: string;
+    /** Extra content (options, warnings…) rendered between the description and the buttons. */
+    children?: ReactNode;
     confirmLabel?: string;
     cancelLabel?: string;
     variant?: ButtonProps['variant'];
@@ -30,6 +33,7 @@ export function ConfirmDialog({
     onOpenChange,
     title,
     description,
+    children,
     confirmLabel = 'Confirmer',
     cancelLabel = 'Annuler',
     variant = 'destructive',
@@ -48,6 +52,8 @@ export function ConfirmDialog({
                     </div>
                     {description && <DialogDescription>{description}</DialogDescription>}
                 </DialogHeader>
+
+                {children}
 
                 <DialogFooter>
                     <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>

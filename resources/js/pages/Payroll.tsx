@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { AlertCircle, CheckCircle2, ChevronDown, HandCoins, Loader2, Wallet } from 'lucide-react';
 import { createAdvance, getCommissionPayouts, getEmployees, getErrorMessage, payCommission } from '@/lib/api';
-import { workDayKeys } from '@/hooks/useWorkDay';
+import { useActiveWorkDay, workDayKeys } from '@/hooks/useWorkDay';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import type { CommissionPayoutRow } from '@/types/prestation';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +30,10 @@ export default function Payroll() {
     const queryClient = useQueryClient();
     const [period, setPeriod] = useState(currentMonth());
     const [confirming, setConfirming] = useState<CommissionPayoutRow | null>(null);
+    // Whether "Marquer comme payé" also records the net amount as a cash-out
+    // on the open caisse day — an advance created already settled and linked
+    // to the payout, so nobody has to add + solder one by hand afterwards.
+    const [deductFromCaisse, setDeductFromCaisse] = useState(true);
     const [expandedEmployeeId, setExpandedEmployeeId] = useState<number | null>(null);
     // Free-amount quick payment per row — lets a partial or ad-hoc payment be
     // logged as an advance (tied to today's caisse day, so it reduces the
@@ -60,11 +64,20 @@ export default function Payroll() {
         staleTime: 5 * 60_000,
     });
 
+    const { data: activeDay } = useActiveWorkDay();
+
     const payMutation = useMutation({
-        mutationFn: (row: CommissionPayoutRow) => payCommission({ employee_id: row.employee_id, period }),
+        mutationFn: (row: CommissionPayoutRow) =>
+            payCommission({
+                employee_id: row.employee_id,
+                period,
+                deduct_from_caisse: activeDay != null && deductFromCaisse,
+            }),
         onSuccess: (_data, row) => {
             void queryClient.invalidateQueries({ queryKey: ['commission-payouts', period] });
             void queryClient.invalidateQueries({ queryKey: workDayKeys.advances(row.employee_id) });
+            void queryClient.invalidateQueries({ queryKey: workDayKeys.all });
+            void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
             setConfirming(null);
         },
     });
@@ -304,7 +317,10 @@ export default function Payroll() {
                                                 variant="accent"
                                                 size="sm"
                                                 className="shrink-0"
-                                                onClick={() => setConfirming(row)}
+                                                onClick={() => {
+                                                    setDeductFromCaisse(true);
+                                                    setConfirming(row);
+                                                }}
                                             >
                                                 <HandCoins className="h-3.5 w-3.5" />
                                                 Marquer comme payé
@@ -349,7 +365,23 @@ export default function Payroll() {
                 onConfirm={() => {
                     if (confirming) payMutation.mutate(confirming);
                 }}
-            />
+            >
+                {activeDay != null && confirming !== null && confirming.net_amount > 0 && (
+                    <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-tint/[0.08] bg-tint/[0.03] px-3 py-2.5">
+                        <input
+                            type="checkbox"
+                            checked={deductFromCaisse}
+                            onChange={(event) => setDeductFromCaisse(event.target.checked)}
+                            className="mt-0.5 h-4 w-4 shrink-0 accent-[hsl(var(--accent))]"
+                        />
+                        <span className="text-xs text-muted-foreground">
+                            Sortir {formatCurrency(confirming.net_amount)} de la caisse du jour — enregistré
+                            comme une avance déjà soldée, rattachée à cette paie. Décochez si l'argent ne sort
+                            pas de la caisse (virement, autre source).
+                        </span>
+                    </label>
+                )}
+            </ConfirmDialog>
 
             {payMutation.isError && (
                 <div className="fixed bottom-6 right-6 flex items-start gap-2 rounded-md border border-destructive/25 bg-destructive/[0.10] px-3.5 py-3 shadow-soft-lg">

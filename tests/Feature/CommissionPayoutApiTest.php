@@ -11,6 +11,7 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Service;
 use App\Models\User;
+use App\Models\WorkDay;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -248,6 +249,79 @@ class CommissionPayoutApiTest extends TestCase
         $this->assertCount(2, $response->json('data'));
         $this->assertSame('2026-07', $response->json('data.0.period'));
         $this->assertSame('2026-06', $response->json('data.1.period'));
+    }
+
+    public function test_deduct_from_caisse_records_a_settled_advance_on_the_open_day(): void
+    {
+        $employee = Employee::factory()->create();
+        $admin = $this->admin();
+        $this->makePrestationCommission($employee, $admin, 100, '2026-08-10');
+        Advance::create(['employee_id' => $employee->id, 'amount' => 30, 'given_on' => '2026-08-03']);
+        $openDay = WorkDay::factory()->create(['status' => 'open']);
+
+        Sanctum::actingAs($admin);
+        $response = $this->postJson('/api/commission-payouts', [
+            'employee_id' => $employee->id,
+            'period' => '2026-08',
+            'deduct_from_caisse' => true,
+        ]);
+
+        $response->assertCreated();
+        $this->assertEquals(70, $response->json('data.net_amount'));
+
+        // The cash-out advance: net amount, on the open day, born settled and
+        // linked to the payout — so it hits the register's expected cash but
+        // never counts as outstanding.
+        $cashOut = Advance::where('employee_id', $employee->id)
+            ->where('work_day_id', $openDay->id)
+            ->first();
+        $this->assertNotNull($cashOut);
+        $this->assertEquals(70, (float) $cashOut->amount);
+        $this->assertNotNull($cashOut->settled_at);
+        $this->assertEquals($response->json('data.id'), $cashOut->commission_payout_id);
+
+        $this->assertSame(0, (int) Advance::where('employee_id', $employee->id)->outstanding()->count());
+
+        // Next month's preview must not deduct it again.
+        $this->makePrestationCommission($employee, $admin, 50, '2026-09-10');
+        $row = collect($this->getJson('/api/commission-payouts?period=2026-09')->json('data'))
+            ->firstWhere('employee_id', $employee->id);
+        $this->assertEquals(0, $row['advances_outstanding']);
+        $this->assertEquals(50, $row['net_amount']);
+    }
+
+    public function test_deduct_from_caisse_fails_cleanly_when_no_day_is_open(): void
+    {
+        $employee = Employee::factory()->create();
+        $admin = $this->admin();
+        $this->makePrestationCommission($employee, $admin, 100, '2026-08-10');
+
+        Sanctum::actingAs($admin);
+        $response = $this->postJson('/api/commission-payouts', [
+            'employee_id' => $employee->id,
+            'period' => '2026-08',
+            'deduct_from_caisse' => true,
+        ]);
+
+        $response->assertStatus(422);
+        $this->assertSame(0, \App\Models\CommissionPayout::count());
+        $this->assertSame(0, Advance::count());
+    }
+
+    public function test_paying_without_deduct_from_caisse_creates_no_advance(): void
+    {
+        $employee = Employee::factory()->create();
+        $admin = $this->admin();
+        $this->makePrestationCommission($employee, $admin, 100, '2026-08-10');
+        WorkDay::factory()->create(['status' => 'open']);
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/commission-payouts', [
+            'employee_id' => $employee->id,
+            'period' => '2026-08',
+        ])->assertCreated();
+
+        $this->assertSame(0, Advance::count());
     }
 
     public function test_settled_advance_exposes_which_payout_settled_it(): void

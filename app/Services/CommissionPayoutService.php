@@ -6,6 +6,7 @@ use App\Models\Advance;
 use App\Models\CommissionPayout;
 use App\Models\Employee;
 use App\Models\User;
+use App\Models\WorkDay;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -79,8 +80,15 @@ class CommissionPayoutService
      * period (the unique constraint is the hard backstop; this check gives a
      * clean error message instead of a raw DB exception) or if there's
      * nothing owed (advances already cover or exceed commission earned).
+     *
+     * With $deductFromCaisse, the net amount handed over is also recorded as
+     * a cash-out on the open register day — stored as an advance that is born
+     * settled and linked to this payout, so it reduces the day's expected
+     * cash without ever counting as money still owed by the employee. This
+     * replaces the manual workaround of creating an advance and clicking
+     * "Solder" after marking the month paid.
      */
-    public function pay(Employee $employee, string $period, User $actor, ?string $notes = null): CommissionPayout
+    public function pay(Employee $employee, string $period, User $actor, ?string $notes = null, bool $deductFromCaisse = false): CommissionPayout
     {
         if (CommissionPayout::where('employee_id', $employee->id)->where('period', $period)->exists()) {
             throw ValidationException::withMessages([
@@ -105,7 +113,18 @@ class CommissionPayoutService
 
         $netAmount = round($commissionTotal - $advancesTotal, 2);
 
-        return DB::transaction(function () use ($employee, $period, $actor, $notes, $commissionTotal, $advancesTotal, $netAmount, $outstandingAdvances) {
+        $openDay = null;
+        if ($deductFromCaisse && $netAmount > 0) {
+            $openDay = WorkDay::where('status', 'open')->first();
+
+            if ($openDay === null) {
+                throw ValidationException::withMessages([
+                    'deduct_from_caisse' => 'Aucune journée de caisse ouverte — ouvrez la caisse ou décochez la sortie de caisse.',
+                ]);
+            }
+        }
+
+        return DB::transaction(function () use ($employee, $period, $actor, $notes, $commissionTotal, $advancesTotal, $netAmount, $outstandingAdvances, $openDay) {
             $payout = CommissionPayout::create([
                 'employee_id' => $employee->id,
                 'period' => $period,
@@ -119,6 +138,18 @@ class CommissionPayoutService
 
             if ($outstandingAdvances->isNotEmpty()) {
                 Advance::whereIn('id', $outstandingAdvances->pluck('id'))->update([
+                    'settled_at' => now(),
+                    'commission_payout_id' => $payout->id,
+                ]);
+            }
+
+            if ($openDay !== null) {
+                Advance::create([
+                    'employee_id' => $employee->id,
+                    'work_day_id' => $openDay->id,
+                    'amount' => $netAmount,
+                    'reason' => 'Paiement commission '.$payout->period,
+                    'given_on' => now()->toDateString(),
                     'settled_at' => now(),
                     'commission_payout_id' => $payout->id,
                 ]);
