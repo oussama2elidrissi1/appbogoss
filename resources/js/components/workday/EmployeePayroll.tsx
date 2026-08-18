@@ -37,6 +37,14 @@ export function EmployeePayroll({ employee }: { employee: Employee }) {
         queryFn: () => getCommissionPayoutHistory(employee.id),
     });
 
+    // Commission fully handed over as advances — net is 0 but the month still
+    // must be markable as paid so those advances get settled instead of
+    // rolling into next month's payout. Mirrors the "Paie" page.
+    const fullyAdvanced =
+        row != null &&
+        row.commission_total > 0 &&
+        Math.abs(row.advances_outstanding - row.commission_total) < 0.005;
+
     const payMutation = useMutation({
         mutationFn: () =>
             payCommission({
@@ -103,7 +111,7 @@ export function EmployeePayroll({ employee }: { employee: Employee }) {
                                 <CheckCircle2 className="mr-1 h-3 w-3" />
                                 Payé{row.payout ? ` le ${formatDate(row.payout.paid_at)}` : ''}
                             </Badge>
-                        ) : row.net_amount <= 0 ? (
+                        ) : row.net_amount <= 0 && !fullyAdvanced ? (
                             <Badge variant="outline">Rien à payer</Badge>
                         ) : (
                             <Button
@@ -160,10 +168,12 @@ export function EmployeePayroll({ employee }: { employee: Employee }) {
                 title="Marquer cette commission comme payée ?"
                 description={
                     row
-                        ? `${formatCurrency(row.net_amount)} seront enregistrés comme payés à ${employee.name} pour ${period}` +
-                          (row.advances_outstanding > 0
-                              ? `, et ${formatCurrency(row.advances_outstanding)} d'avances en cours seront soldées automatiquement.`
-                              : '.') +
+                        ? (row.net_amount <= 0
+                              ? `La commission de ${employee.name} (${formatCurrency(row.commission_total)}) a déjà été entièrement versée en avances — les ${formatCurrency(row.advances_outstanding)} d'avances seront soldées et ${period} sera marqué payé (0 MAD à verser).`
+                              : `${formatCurrency(row.net_amount)} seront enregistrés comme payés à ${employee.name} pour ${period}` +
+                                (row.advances_outstanding > 0
+                                    ? `, et ${formatCurrency(row.advances_outstanding)} d'avances en cours seront soldées automatiquement.`
+                                    : '.')) +
                           ' Cette action ne peut pas être annulée depuis cette page.'
                         : undefined
                 }

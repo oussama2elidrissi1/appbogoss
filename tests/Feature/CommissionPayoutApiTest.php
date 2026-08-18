@@ -251,6 +251,43 @@ class CommissionPayoutApiTest extends TestCase
         $this->assertSame('2026-06', $response->json('data.1.period'));
     }
 
+    public function test_can_mark_paid_with_zero_net_when_advances_exactly_cover_commission(): void
+    {
+        // "Payer" logs the whole month's pay as an advance up front — the
+        // month must still be markable as paid (net 0) so that advance gets
+        // settled instead of rolling into and reducing next month's payout.
+        $employee = Employee::factory()->create();
+        $admin = $this->admin();
+        $this->makePrestationCommission($employee, $admin, 205, '2026-08-10');
+        $advance = Advance::create([
+            'employee_id' => $employee->id,
+            'amount' => 205,
+            'given_on' => '2026-08-18',
+            'reason' => 'Paiement commission',
+        ]);
+
+        Sanctum::actingAs($admin);
+        $response = $this->postJson('/api/commission-payouts', [
+            'employee_id' => $employee->id,
+            'period' => '2026-08',
+        ]);
+
+        $response->assertCreated();
+        $this->assertEquals(0, $response->json('data.net_amount'));
+        $this->assertEquals(205, $response->json('data.advances_deducted'));
+
+        $advance->refresh();
+        $this->assertNotNull($advance->settled_at);
+        $this->assertEquals($response->json('data.id'), $advance->commission_payout_id);
+
+        // September starts clean — nothing rolls forward.
+        $this->makePrestationCommission($employee, $admin, 100, '2026-09-10');
+        $row = collect($this->getJson('/api/commission-payouts?period=2026-09')->json('data'))
+            ->firstWhere('employee_id', $employee->id);
+        $this->assertEquals(0, $row['advances_outstanding']);
+        $this->assertEquals(100, $row['net_amount']);
+    }
+
     public function test_deduct_from_caisse_records_a_settled_advance_on_the_open_day(): void
     {
         $employee = Employee::factory()->create();

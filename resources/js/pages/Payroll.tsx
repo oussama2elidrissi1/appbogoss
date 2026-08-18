@@ -190,6 +190,14 @@ export default function Payroll() {
                         {rows.map((row) => {
                             const isExpanded = expandedEmployeeId === row.employee_id;
                             const employee = employees?.find((candidate) => candidate.id === row.employee_id);
+                            // Whole commission already handed over as advances
+                            // ("Payer" logs payments that way) — net is 0 but the
+                            // month still needs to be marked paid so those
+                            // advances get settled instead of rolling into (and
+                            // wrongly reducing) next month's payout.
+                            const fullyAdvanced =
+                                row.commission_total > 0 &&
+                                Math.abs(row.advances_outstanding - row.commission_total) < 0.005;
 
                             return (
                                 <Card
@@ -307,7 +315,7 @@ export default function Payroll() {
                                                 <CheckCircle2 className="mr-1 h-3 w-3" />
                                                 Payé{row.payout ? ` le ${formatDate(row.payout.paid_at)}` : ''}
                                             </Badge>
-                                        ) : row.net_amount <= 0 ? (
+                                        ) : row.net_amount <= 0 && !fullyAdvanced ? (
                                             <Badge variant="outline" className="shrink-0">
                                                 Rien à payer
                                             </Badge>
@@ -352,10 +360,12 @@ export default function Payroll() {
                 title="Marquer cette commission comme payée ?"
                 description={
                     confirming
-                        ? `${formatCurrency(confirming.net_amount)} seront enregistrés comme payés à ${confirming.employee_name} pour ${period}` +
-                          (confirming.advances_outstanding > 0
-                              ? `, et ${formatCurrency(confirming.advances_outstanding)} d'avances en cours seront soldées automatiquement.`
-                              : '.') +
+                        ? (confirming.net_amount <= 0
+                              ? `La commission de ${confirming.employee_name} (${formatCurrency(confirming.commission_total)}) a déjà été entièrement versée en avances — les ${formatCurrency(confirming.advances_outstanding)} d'avances seront soldées et ${period} sera marqué payé (0 MAD à verser).`
+                              : `${formatCurrency(confirming.net_amount)} seront enregistrés comme payés à ${confirming.employee_name} pour ${period}` +
+                                (confirming.advances_outstanding > 0
+                                    ? `, et ${formatCurrency(confirming.advances_outstanding)} d'avances en cours seront soldées automatiquement.`
+                                    : '.')) +
                           ' Cette action ne peut pas être annulée depuis cette page.'
                         : undefined
                 }
