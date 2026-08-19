@@ -34,6 +34,7 @@ interface PartnerFormDialogProps {
 
 const emptyForm = {
     name: '',
+    trade_name: '',
     contact_name: '',
     phone: '',
     email: '',
@@ -65,6 +66,7 @@ export function PartnerFormDialog({
         if (partner) {
             setForm({
                 name: partner.name,
+                trade_name: partner.trade_name ?? '',
                 contact_name: partner.contact_name ?? '',
                 phone: partner.phone ?? '',
                 email: partner.email ?? '',
@@ -132,6 +134,7 @@ export function PartnerFormDialog({
 
         const payload: PartnerPayload = {
             name: form.name.trim(),
+            trade_name: form.trade_name.trim() || null,
             contact_name: form.contact_name.trim() || null,
             phone: form.phone.trim() || null,
             email: form.email.trim() || null,
@@ -169,6 +172,15 @@ export function PartnerFormDialog({
                                 value={form.name}
                                 onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
                                 placeholder="Hôtel Atlas, Riad Yasmine..."
+                            />
+                        </Field>
+                        <Field label="Nom commercial">
+                            <Input
+                                value={form.trade_name}
+                                onChange={(event) =>
+                                    setForm((current) => ({ ...current, trade_name: event.target.value }))
+                                }
+                                placeholder="Nom affiché sur l'espace partenaire"
                             />
                         </Field>
                         <Field label="Personne de contact">

@@ -13,6 +13,7 @@ import type {
     CreatedPartnerResponse,
     Partner,
     PartnerPayload,
+    PartnerStatus,
     CreateExpensePayload,
     CreateTransactionPayload,
     Employee,
@@ -44,6 +45,20 @@ import type {
     Prestation,
     UpdatePrestationItemPayload,
 } from '@/types/prestation';
+import type {
+    AdminPartnerCommissionsResponse,
+    PartnerBookableService,
+    PartnerClientDetail,
+    PartnerClientRow,
+    PartnerCommissionPayoutPayload,
+    PartnerCommissionPayoutResult,
+    PartnerCommissionsResponse,
+    PartnerCommissionStatus,
+    PartnerDashboard,
+    PartnerDetail,
+    PartnerProfile,
+    PartnerProfilePayload,
+} from '@/types/partner-portal';
 import type {
     AdminSubscription,
     ClientLoyaltyStatus,
@@ -392,6 +407,14 @@ export async function getClients(search?: string): Promise<Client[]> {
     return data.data;
 }
 
+/** Admin/staff only — a specific partner's client portfolio (§19 fiche partenaire). */
+export async function getClientsByPartner(partnerId: number): Promise<Client[]> {
+    const { data } = await api.get<{ data: Client[] }>('/api/clients', {
+        params: { partner_id: partnerId },
+    });
+    return data.data;
+}
+
 export async function createClient(payload: ClientPayload): Promise<Client> {
     const { data } = await api.post<{ data: Client }>('/api/clients', payload);
     return data.data;
@@ -503,6 +526,7 @@ export async function getAppointments(options?: {
     dateFrom?: string;
     dateTo?: string;
     employeeId?: number;
+    partnerId?: number;
     status?: string;
 }): Promise<Appointment[]> {
     const { data } = await api.get<{ data: Appointment[] }>('/api/appointments', {
@@ -511,9 +535,15 @@ export async function getAppointments(options?: {
             ...(options?.dateFrom ? { date_from: options.dateFrom } : {}),
             ...(options?.dateTo ? { date_to: options.dateTo } : {}),
             ...(options?.employeeId ? { employee_id: options.employeeId } : {}),
+            ...(options?.partnerId ? { partner_id: options.partnerId } : {}),
             ...(options?.status ? { status: options.status } : {}),
         },
     });
+    return data.data;
+}
+
+export async function getAppointment(id: number): Promise<Appointment> {
+    const { data } = await api.get<{ data: Appointment }>(`/api/appointments/${id}`);
     return data.data;
 }
 
@@ -566,10 +596,103 @@ export async function resetPartnerPassword(id: number, password?: string): Promi
     return data.data.temporary_password;
 }
 
-export async function setPartnerStatus(id: number, isActive: boolean): Promise<Partner> {
-    const { data } = await api.patch<{ data: Partner }>(`/api/partners/${id}/status`, {
-        is_active: isActive,
+export async function setPartnerStatus(id: number, status: PartnerStatus): Promise<Partner> {
+    const { data } = await api.patch<{ data: Partner }>(`/api/partners/${id}/status`, { status });
+    return data.data;
+}
+
+export async function getPartnerDetail(id: number): Promise<PartnerDetail> {
+    const { data } = await api.get<{ data: PartnerDetail }>(`/api/partners/${id}`);
+    return data.data;
+}
+
+/* ------------------------------------------------------------------ *
+ * Portail partenaire — every call below is scoped server-side to the
+ * authenticated account's own Partner record (see RequiresActivePartner).
+ * ------------------------------------------------------------------ */
+
+export async function getPartnerPortalDashboard(): Promise<PartnerDashboard> {
+    const { data } = await api.get<{ data: PartnerDashboard }>('/api/partner/dashboard');
+    return data.data;
+}
+
+export async function getPartnerPortalServices(): Promise<PartnerBookableService[]> {
+    const { data } = await api.get<{ data: PartnerBookableService[] }>('/api/partner/services');
+    return data.data;
+}
+
+export async function getPartnerPortalClients(search?: string): Promise<PartnerClientRow[]> {
+    const { data } = await api.get<{ data: PartnerClientRow[] }>('/api/partner/clients', {
+        params: search ? { search } : {},
     });
+    return data.data;
+}
+
+export async function getPartnerPortalClient(id: number): Promise<PartnerClientDetail> {
+    const { data } = await api.get<{ data: PartnerClientDetail }>(`/api/partner/clients/${id}`);
+    return data.data;
+}
+
+export async function getPartnerPortalCommissions(status?: PartnerCommissionStatus): Promise<PartnerCommissionsResponse> {
+    const { data } = await api.get<PartnerCommissionsResponse>('/api/partner/commissions', {
+        params: status ? { status } : {},
+    });
+    return data;
+}
+
+export async function getPartnerPortalProfile(): Promise<PartnerProfile> {
+    const { data } = await api.get<{ data: PartnerProfile }>('/api/partner/profile');
+    return data.data;
+}
+
+export async function updatePartnerPortalProfile(payload: PartnerProfilePayload): Promise<PartnerProfile> {
+    const { data } = await api.patch<{ data: PartnerProfile }>('/api/partner/profile', payload);
+    return data.data;
+}
+
+export async function updatePartnerPortalPassword(payload: {
+    current_password: string;
+    password: string;
+    password_confirmation: string;
+}): Promise<void> {
+    await api.patch('/api/partner/profile/password', payload);
+}
+
+export async function uploadPartnerPortalLogo(file: File): Promise<PartnerProfile> {
+    const form = new FormData();
+    form.append('logo', file);
+    const { data } = await api.post<{ data: PartnerProfile }>('/api/partner/profile/logo', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data.data;
+}
+
+export async function removePartnerPortalLogo(): Promise<PartnerProfile> {
+    const { data } = await api.delete<{ data: PartnerProfile }>('/api/partner/profile/logo');
+    return data.data;
+}
+
+/* ------------------------------------------------------------------ *
+ * Admin — commissions dues aux partenaires et paiement (§21).
+ * ------------------------------------------------------------------ */
+
+export async function getAdminPartnerCommissions(options?: {
+    partnerId?: number;
+    from?: string;
+    to?: string;
+}): Promise<AdminPartnerCommissionsResponse> {
+    const { data } = await api.get<AdminPartnerCommissionsResponse>('/api/partner-commissions', {
+        params: {
+            ...(options?.partnerId ? { partner_id: options.partnerId } : {}),
+            ...(options?.from ? { from: options.from } : {}),
+            ...(options?.to ? { to: options.to } : {}),
+        },
+    });
+    return data;
+}
+
+export async function payPartnerCommissions(payload: PartnerCommissionPayoutPayload): Promise<PartnerCommissionPayoutResult> {
+    const { data } = await api.post<{ data: PartnerCommissionPayoutResult }>('/api/partner-commission-payouts', payload);
     return data.data;
 }
 

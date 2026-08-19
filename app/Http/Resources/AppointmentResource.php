@@ -66,6 +66,7 @@ class AppointmentResource extends JsonResource
             'ends_at' => $this->ends_at?->toIso8601String(),
             'status' => $this->status,
             'notes' => $this->notes,
+            'created_at' => $this->created_at?->toIso8601String(),
             'duration_minutes' => $this->starts_at && $this->ends_at ? $this->starts_at->diffInMinutes($this->ends_at) : 0,
             'duration_override_minutes' => $this->duration_override_minutes,
             'reservation_items' => $items->map(fn (array $item) => [

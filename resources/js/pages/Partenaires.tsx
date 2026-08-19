@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
     AlertCircle,
     CalendarCheck,
+    Eye,
     Handshake,
     KeyRound,
     Pencil,
     Percent,
     Plus,
-    Power,
     Search,
     Trash2,
 } from 'lucide-react';
@@ -24,18 +25,26 @@ import {
     updatePartner,
 } from '@/lib/api';
 import { cn, formatCurrency } from '@/lib/utils';
-import type { Partner, PartnerPayload } from '@/types/workday';
+import type { Partner, PartnerPayload, PartnerStatus } from '@/types/workday';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 import { EmployeeAvatar } from '@/components/workday/EmployeeAvatar';
 import { CreatedAccountDialog, type CreatedAccount } from '@/components/workday/CreatedAccountDialog';
 import { PartnerFormDialog } from '@/components/partners/PartnerFormDialog';
 import { pageFade } from '@/lib/motion';
+
+const STATUS_META: Record<PartnerStatus, { label: string; variant: 'success' | 'outline' | 'destructive' }> = {
+    pending: { label: 'En attente', variant: 'outline' },
+    active: { label: 'Actif', variant: 'success' },
+    suspended: { label: 'Suspendu', variant: 'destructive' },
+    disabled: { label: 'Désactivé', variant: 'destructive' },
+};
 
 export default function Partenaires() {
     const queryClient = useQueryClient();
@@ -102,7 +111,7 @@ export default function Partenaires() {
     });
 
     const statusMutation = useMutation({
-        mutationFn: (partner: Partner) => setPartnerStatus(partner.id, !partner.is_active),
+        mutationFn: ({ id, status }: { id: number; status: PartnerStatus }) => setPartnerStatus(id, status),
         onSuccess: invalidate,
     });
 
@@ -198,13 +207,18 @@ export default function Partenaires() {
                                 key={partner.id}
                                 className={cn(
                                     'flex flex-wrap items-center gap-4 p-4',
-                                    !partner.is_active && 'opacity-70',
+                                    partner.status !== 'active' && 'opacity-70',
                                 )}
                             >
                                 <EmployeeAvatar name={partner.name} color="#5B6B85" />
 
                                 <div className="min-w-[12rem] flex-1">
-                                    <p className="truncate text-sm font-semibold text-foreground">{partner.name}</p>
+                                    <Link
+                                        to={`/partenaires/${partner.id}`}
+                                        className="truncate text-sm font-semibold text-foreground hover:text-accent hover:underline"
+                                    >
+                                        {partner.trade_name || partner.name}
+                                    </Link>
                                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
                                         {[partner.contact_name, partner.phone, partner.login_email]
                                             .filter(Boolean)
@@ -224,11 +238,38 @@ export default function Partenaires() {
                                     {(partner.commissions?.length ?? 0) > 1 ? 's' : ''}
                                 </Badge>
 
-                                <Badge variant={partner.is_active ? 'success' : 'outline'} className="shrink-0">
-                                    {partner.is_active ? 'Actif' : 'Désactivé'}
-                                </Badge>
+                                <Select
+                                    value={partner.status}
+                                    onValueChange={(value) =>
+                                        statusMutation.mutate({ id: partner.id, status: value as PartnerStatus })
+                                    }
+                                >
+                                    <SelectTrigger className="h-8 w-[132px] shrink-0 border-none bg-transparent p-0">
+                                        <Badge variant={STATUS_META[partner.status].variant} className="w-full justify-center">
+                                            <SelectValue />
+                                        </Badge>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {(Object.keys(STATUS_META) as PartnerStatus[]).map((key) => (
+                                            <SelectItem key={key} value={key}>
+                                                {STATUS_META[key].label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
 
                                 <div className="flex shrink-0 items-center gap-1.5">
+                                    <Button
+                                        type="button"
+                                        size="icon"
+                                        variant="ghost"
+                                        aria-label="Voir la fiche"
+                                        asChild
+                                    >
+                                        <Link to={`/partenaires/${partner.id}`}>
+                                            <Eye />
+                                        </Link>
+                                    </Button>
                                     <Button
                                         type="button"
                                         size="icon"
@@ -247,16 +288,6 @@ export default function Partenaires() {
                                         onClick={() => setResetTarget(partner)}
                                     >
                                         <KeyRound />
-                                    </Button>
-                                    <Button
-                                        type="button"
-                                        size="icon"
-                                        variant="ghost"
-                                        aria-label={partner.is_active ? 'Désactiver' : 'Activer'}
-                                        disabled={statusMutation.isPending}
-                                        onClick={() => statusMutation.mutate(partner)}
-                                    >
-                                        <Power className={partner.is_active ? 'text-success' : 'text-muted-foreground'} />
                                     </Button>
                                     <Button
                                         type="button"

@@ -14,6 +14,7 @@ class ClientController extends Controller
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
+            'partner_id' => ['nullable', 'integer', 'exists:partners,id'],
         ]);
         $query = Client::withCount(['sales', 'appointments'])->orderBy('name');
 
@@ -23,6 +24,12 @@ class ClientController extends Controller
         $partner = $request->user()->partner;
         if ($partner !== null && ! $this->isInternalStaff($request)) {
             $query->where('partner_id', $partner->id);
+        } elseif (! empty($validated['partner_id'])) {
+            // Internal staff viewing a specific partner's fiche (§19 "Clients"
+            // tab) — never lets a partner-only account use this to browse
+            // another partner's portfolio, since that branch is unreachable
+            // above once $partner !== null.
+            $query->where('partner_id', $validated['partner_id']);
         }
 
         if (! empty($validated['search'])) {

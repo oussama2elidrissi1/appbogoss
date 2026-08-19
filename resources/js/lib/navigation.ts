@@ -4,6 +4,7 @@ import {
     Calendar,
     CalendarClock,
     Gift,
+    HandCoins,
     Handshake,
     History,
     LayoutDashboard,
@@ -96,6 +97,13 @@ export const navSections: NavSection[] = [
                 to: '/partenaires',
                 icon: Handshake,
                 description: 'Comptes partenaires, commissions par service et réservations apportées.',
+                permission: 'partners.manage',
+            },
+            {
+                label: 'Commissions partenaires',
+                to: '/partner-commissions',
+                icon: HandCoins,
+                description: 'Commissions dues aux partenaires et paiements effectués.',
                 permission: 'partners.manage',
             },
             {

@@ -12,6 +12,8 @@ export interface User {
     employee_service_categories: string[];
     /** Precise service allow-list for the linked employee — empty means no restriction. */
     employee_allowed_service_ids: number[];
+    partner_id: number | null;
+    partner_name: string | null;
 }
 
 export interface ApplicationSettings {

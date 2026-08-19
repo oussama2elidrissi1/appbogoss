@@ -27,6 +27,18 @@ import PortalRewards from '@/pages/portal/PortalRewards';
 import PortalSubscriptions from '@/pages/portal/PortalSubscriptions';
 import MonEspace from '@/pages/MonEspace';
 import Partenaires from '@/pages/Partenaires';
+import PartnerDetail from '@/pages/PartnerDetail';
+import PartnerCommissionsAdmin from '@/pages/PartnerCommissionsAdmin';
+import PartnerLayout, { PartnerProtectedRoute } from '@/pages/partner/PartnerLayout';
+import PartnerDashboard from '@/pages/partner/PartnerDashboard';
+import PartnerNewReservation from '@/pages/partner/PartnerNewReservation';
+import PartnerReservations from '@/pages/partner/PartnerReservations';
+import PartnerReservationDetail from '@/pages/partner/PartnerReservationDetail';
+import PartnerCommissions from '@/pages/partner/PartnerCommissions';
+import PartnerClients from '@/pages/partner/PartnerClients';
+import PartnerClientDetail from '@/pages/partner/PartnerClientDetail';
+import PartnerProfile from '@/pages/partner/PartnerProfile';
+import PartnerSupport from '@/pages/partner/PartnerSupport';
 import Payroll from '@/pages/Payroll';
 import PlaceholderPage from '@/pages/PlaceholderPage';
 import Reports from '@/pages/Reports';
@@ -44,6 +56,7 @@ const realRoutes = new Set([
     '/expenses',
     '/mon-espace',
     '/partenaires',
+    '/partner-commissions',
     '/employees',
     '/clients',
     '/services',
@@ -79,6 +92,25 @@ export default function App() {
                 </Route>
             </Route>
 
+            {/* BOGOSLAND Partner Portal — a dedicated branded shell for external
+                business partners, separate from the staff AppLayout. Reuses the
+                same session/auth as staff (Partner.user_id → User), just gated
+                on the account having a linked Partner record instead of a
+                staff permission. */}
+            <Route element={<PartnerProtectedRoute />}>
+                <Route element={<PartnerLayout />}>
+                    <Route path="/partner/dashboard" element={<PartnerDashboard />} />
+                    <Route path="/partner/reservations/new" element={<PartnerNewReservation />} />
+                    <Route path="/partner/reservations" element={<PartnerReservations />} />
+                    <Route path="/partner/reservations/:id" element={<PartnerReservationDetail />} />
+                    <Route path="/partner/commissions" element={<PartnerCommissions />} />
+                    <Route path="/partner/clients" element={<PartnerClients />} />
+                    <Route path="/partner/clients/:id" element={<PartnerClientDetail />} />
+                    <Route path="/partner/profile" element={<PartnerProfile />} />
+                    <Route path="/partner/support" element={<PartnerSupport />} />
+                </Route>
+            </Route>
+
             {/* Full-screen digital-signage version of the registration QR —
                 staff-gated but rendered OUTSIDE AppLayout (no sidebar/topbar,
                 it's meant to fill a salon tablet/screen). */}
@@ -110,6 +142,8 @@ export default function App() {
 
                     <Route element={<ProtectedRoute permission="partners.manage" />}>
                         <Route path="/partenaires" element={<Partenaires />} />
+                        <Route path="/partenaires/:id" element={<PartnerDetail />} />
+                        <Route path="/partner-commissions" element={<PartnerCommissionsAdmin />} />
                     </Route>
 
                     <Route element={<ProtectedRoute permission="caisse.manage" />}>

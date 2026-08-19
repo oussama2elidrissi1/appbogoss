@@ -362,6 +362,9 @@ export interface Client {
     last_visit_at?: string | null;
     sales_count?: number;
     appointments_count?: number;
+    /** null when the client belongs to BOGOSLAND's own shared pool. */
+    partner_id?: number | null;
+    partner_name?: string | null;
 }
 
 export interface ClientPayload {
@@ -486,6 +489,7 @@ export interface Appointment {
     ends_at: string;
     status: AppointmentStatus;
     notes: string | null;
+    created_at?: string | null;
     duration_minutes?: number;
     duration_override_minutes?: number | null;
     reservation_items?: ReservationItem[];
@@ -552,15 +556,22 @@ export interface PartnerCommissionRule {
     value: number;
 }
 
+export type PartnerStatus = 'pending' | 'active' | 'suspended' | 'disabled';
+
 export interface Partner {
     id: number;
     name: string;
+    trade_name: string | null;
     contact_name: string | null;
     phone: string | null;
     email: string | null;
     address: string | null;
+    city: string | null;
+    country: string | null;
+    logo_url: string | null;
     notes: string | null;
     is_active: boolean;
+    status: PartnerStatus;
     login_email: string | null;
     user_id: number | null;
     appointments_count?: number;
@@ -570,12 +581,22 @@ export interface Partner {
 
 export interface PartnerPayload {
     name?: string;
+    trade_name?: string | null;
+    legal_name?: string | null;
+    ice?: string | null;
     contact_name?: string | null;
     phone?: string | null;
     email?: string | null;
     address?: string | null;
+    city?: string | null;
+    country?: string | null;
     notes?: string | null;
     is_active?: boolean;
+    status?: PartnerStatus;
+    payment_holder_name?: string | null;
+    payment_bank_name?: string | null;
+    payment_iban?: string | null;
+    payment_method_preference?: string | null;
     login_email?: string | null;
     login_password?: string | null;
     commissions?: Array<{ service_id: number; type: PartnerCommissionType; value: number }>;

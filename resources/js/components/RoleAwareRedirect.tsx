@@ -8,15 +8,16 @@ import { useAuth } from '@/hooks/useAuth';
  * to "/" without ever looping into another gated route.
  */
 export function RoleAwareRedirect() {
-    const { hasPermission } = useAuth();
+    const { user, hasPermission } = useAuth();
 
     if (hasPermission('reports.view_all')) {
         return <Navigate to="/dashboard" replace />;
     }
 
-    // Partner accounts have no employee record — their whole workspace is the agenda.
-    if (hasPermission('agenda.partner')) {
-        return <Navigate to="/agenda" replace />;
+    // Partner accounts have no employee record — their whole workspace is
+    // the dedicated Partner Portal, not the staff shell.
+    if (user?.partner_id) {
+        return <Navigate to="/partner/dashboard" replace />;
     }
 
     return <Navigate to="/mon-espace" replace />;
