@@ -5,8 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StorePartnerRequest;
 use App\Http\Requests\UpdatePartnerRequest;
+use App\Http\Resources\PartnerDetailResource;
 use App\Http\Resources\PartnerResource;
+use App\Models\Appointment;
+use App\Models\Client;
 use App\Models\Partner;
+use App\Models\PartnerCommission;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use Illuminate\Http\JsonResponse;
@@ -14,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 /**
  * Partner accounts: external businesses allowed to push reservations into
@@ -74,12 +79,21 @@ class PartnerController extends Controller
 
             $partner = Partner::create([
                 'name' => $validated['name'],
+                'trade_name' => $validated['trade_name'] ?? null,
+                'legal_name' => $validated['legal_name'] ?? null,
+                'ice' => $validated['ice'] ?? null,
                 'contact_name' => $validated['contact_name'] ?? null,
                 'phone' => $validated['phone'] ?? null,
                 'email' => $validated['email'] ?? null,
                 'address' => $validated['address'] ?? null,
+                'city' => $validated['city'] ?? null,
+                'country' => $validated['country'] ?? null,
+                'payment_holder_name' => $validated['payment_holder_name'] ?? null,
+                'payment_bank_name' => $validated['payment_bank_name'] ?? null,
+                'payment_iban' => $validated['payment_iban'] ?? null,
+                'payment_method_preference' => $validated['payment_method_preference'] ?? null,
                 'notes' => $validated['notes'] ?? null,
-                'is_active' => $validated['is_active'] ?? true,
+                'status' => $validated['status'] ?? (($validated['is_active'] ?? true) ? Partner::STATUS_ACTIVE : Partner::STATUS_DISABLED),
                 'user_id' => $user->id,
             ]);
 
@@ -102,22 +116,52 @@ class PartnerController extends Controller
         ]], 201);
     }
 
+    /**
+     * Admin fiche partenaire (§19) — identity/business/payment fields plus
+     * performance aggregates: clients apportés, réservations (total +
+     * confirmées), CA généré, commission totale, commission encore due. All
+     * read from persisted rows (Appointment, Client, PartnerCommission), not
+     * a recomputed estimate — §27.
+     */
     public function show(Partner $partner): JsonResponse
     {
-        return response()->json(['data' => new PartnerResource(
-            $partner->load(['user', 'commissions.service'])->loadCount('appointments'),
-        )]);
+        $partner->load(['user', 'commissions.service'])->loadCount('appointments');
+
+        $clientsCount = Client::where('partner_id', $partner->id)->count();
+        $confirmedCount = Appointment::where('partner_id', $partner->id)->where('status', 'confirmed')->count();
+        $ledger = PartnerCommission::where('partner_id', $partner->id)
+            ->where('status', '!=', PartnerCommission::STATUS_CANCELLED)
+            ->selectRaw('sum(base_amount) as revenue, sum(amount) as commission_total')
+            ->first();
+        $due = (float) PartnerCommission::where('partner_id', $partner->id)
+            ->where('status', PartnerCommission::STATUS_VALIDATED)
+            ->sum('amount');
+
+        return response()->json(['data' => array_merge((new PartnerDetailResource($partner))->toArray(request()), [
+            'performance' => [
+                'clients_count' => $clientsCount,
+                'appointments_count' => $partner->appointments_count,
+                'appointments_confirmed_count' => $confirmedCount,
+                'revenue_generated' => round((float) ($ledger->revenue ?? 0), 2),
+                'commission_total' => round((float) ($ledger->commission_total ?? 0), 2),
+                'commission_due' => round($due, 2),
+            ],
+        ])]);
     }
 
     public function update(UpdatePartnerRequest $request, Partner $partner): JsonResponse
     {
         $validated = $request->validated();
-        $before = $partner->only(['name', 'contact_name', 'phone', 'email', 'address', 'notes', 'is_active']);
+        $before = $partner->only(['name', 'contact_name', 'phone', 'email', 'address', 'notes', 'is_active', 'status']);
 
-        DB::transaction(function () use ($partner, $validated) {
-            $partner->update(collect($validated)->only([
-                'name', 'contact_name', 'phone', 'email', 'address', 'notes', 'is_active',
-            ])->all());
+        $updatableFields = [
+            'name', 'trade_name', 'legal_name', 'ice', 'contact_name', 'phone', 'email',
+            'address', 'city', 'country', 'notes', 'is_active', 'status',
+            'payment_holder_name', 'payment_bank_name', 'payment_iban', 'payment_method_preference',
+        ];
+
+        DB::transaction(function () use ($partner, $validated, $updatableFields) {
+            $partner->update(collect($validated)->only($updatableFields)->all());
 
             if ($partner->user) {
                 $userUpdates = [];
@@ -130,7 +174,13 @@ class PartnerController extends Controller
                 if (! empty($validated['login_password'])) {
                     $userUpdates['password'] = Hash::make($validated['login_password']);
                 }
-                if (array_key_exists('is_active', $validated)) {
+                // A `status` of pending/suspended is a business-state
+                // restriction, not a login lockout — only active/disabled
+                // (or the legacy `is_active` boolean) toggle the login
+                // account itself, mirroring status().
+                if (array_key_exists('status', $validated) && in_array($validated['status'], [Partner::STATUS_ACTIVE, Partner::STATUS_DISABLED], true)) {
+                    $userUpdates['is_active'] = $validated['status'] === Partner::STATUS_ACTIVE;
+                } elseif (array_key_exists('is_active', $validated)) {
                     $userUpdates['is_active'] = $validated['is_active'];
                 }
                 if ($userUpdates !== []) {
@@ -145,7 +195,7 @@ class PartnerController extends Controller
 
         $this->activityLogger->log('partner.updated', $partner, $before, $validated);
 
-        return response()->json(['data' => new PartnerResource(
+        return response()->json(['data' => new PartnerDetailResource(
             $partner->refresh()->load(['user', 'commissions.service'])->loadCount('appointments'),
         )]);
     }
@@ -191,26 +241,32 @@ class PartnerController extends Controller
     }
 
     /**
-     * Activate/deactivate a partner, cascading to the login account so a
-     * disabled partner can no longer authenticate or book.
+     * Sets the partner's lifecycle status (§17: pending/active/suspended/
+     * disabled). Only active↔disabled toggles the login account itself —
+     * a suspended or pending partner can still sign in and see their own
+     * portal (booking creation alone is blocked, in AppointmentController);
+     * `is_active` is still accepted as a legacy boolean shortcut for
+     * active/disabled.
      */
     public function status(Request $request, Partner $partner): JsonResponse
     {
         $validated = $request->validate([
-            'is_active' => ['required', 'boolean'],
+            'status' => ['required_without:is_active', Rule::in(['pending', 'active', 'suspended', 'disabled'])],
+            'is_active' => ['required_without:status', 'boolean'],
         ]);
 
-        DB::transaction(function () use ($partner, $validated) {
-            $partner->update(['is_active' => $validated['is_active']]);
-            $partner->user?->update(['is_active' => $validated['is_active']]);
+        $status = $validated['status'] ?? ($validated['is_active'] ? Partner::STATUS_ACTIVE : Partner::STATUS_DISABLED);
+
+        DB::transaction(function () use ($partner, $status) {
+            $partner->update(['status' => $status]);
+            if (in_array($status, [Partner::STATUS_ACTIVE, Partner::STATUS_DISABLED], true)) {
+                $partner->user?->update(['is_active' => $status === Partner::STATUS_ACTIVE]);
+            }
         });
 
-        $this->activityLogger->log(
-            $validated['is_active'] ? 'partner.activated' : 'partner.deactivated',
-            $partner,
-        );
+        $this->activityLogger->log('partner.status_changed', $partner, [], ['status' => $status]);
 
-        return response()->json(['data' => new PartnerResource(
+        return response()->json(['data' => new PartnerDetailResource(
             $partner->refresh()->load(['user', 'commissions.service'])->loadCount('appointments'),
         )]);
     }

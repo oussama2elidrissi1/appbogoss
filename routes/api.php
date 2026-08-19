@@ -35,6 +35,12 @@ use App\Http\Controllers\Api\ClientLoyaltyAdjustmentController;
 use App\Http\Controllers\Api\ClientSubscriptionLifecycleController;
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\NotificationController;
+use App\Http\Controllers\Api\Partner\PartnerClientController;
+use App\Http\Controllers\Api\Partner\PartnerCommissionController as PartnerPortalCommissionController;
+use App\Http\Controllers\Api\Partner\PartnerDashboardController;
+use App\Http\Controllers\Api\Partner\PartnerProfileController;
+use App\Http\Controllers\Api\Partner\PartnerServiceController as PartnerPortalServiceController;
+use App\Http\Controllers\Api\PartnerCommissionPayoutController;
 use App\Http\Controllers\Api\PartnerController;
 use App\Http\Controllers\Api\PrestationController;
 use App\Http\Controllers\Api\ProductController;
@@ -126,6 +132,29 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::apiResource('/partners', PartnerController::class);
         Route::post('/partners/{partner}/reset-password', [PartnerController::class, 'resetPassword']);
         Route::patch('/partners/{partner}/status', [PartnerController::class, 'status']);
+
+        // §21 — admin selects a partner's validated commissions and marks
+        // them paid (mode/référence/notes recorded on the payout header).
+        Route::get('/partner-commissions', [PartnerCommissionPayoutController::class, 'index']);
+        Route::post('/partner-commission-payouts', [PartnerCommissionPayoutController::class, 'store']);
+    });
+
+    // Partner portal self-service surface — no `permission:` gate: any
+    // authenticated account is allowed to *hit* these routes, but every
+    // controller immediately scopes to `$user->partner` (RequiresActivePartner
+    // trait) and aborts 403 for anyone without one, exactly like
+    // AppointmentController::restrictedPartner() already does for /appointments.
+    Route::prefix('partner')->group(function () {
+        Route::get('/dashboard', [PartnerDashboardController::class, 'index']);
+        Route::get('/services', [PartnerPortalServiceController::class, 'index']);
+        Route::get('/clients', [PartnerClientController::class, 'index']);
+        Route::get('/clients/{client}', [PartnerClientController::class, 'show']);
+        Route::get('/commissions', [PartnerPortalCommissionController::class, 'index']);
+        Route::get('/profile', [PartnerProfileController::class, 'show']);
+        Route::patch('/profile', [PartnerProfileController::class, 'update']);
+        Route::patch('/profile/password', [PartnerProfileController::class, 'updatePassword']);
+        Route::post('/profile/logo', [PartnerProfileController::class, 'updateLogo']);
+        Route::delete('/profile/logo', [PartnerProfileController::class, 'destroyLogo']);
     });
 
     Route::middleware('permission:caisse.manage')->group(function () {

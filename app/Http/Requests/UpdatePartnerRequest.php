@@ -21,12 +21,22 @@ class UpdatePartnerRequest extends FormRequest
 
         return [
             'name' => ['sometimes', 'string', 'max:255'],
+            'trade_name' => ['nullable', 'string', 'max:255'],
+            'legal_name' => ['nullable', 'string', 'max:255'],
+            'ice' => ['nullable', 'string', 'max:50'],
             'contact_name' => ['nullable', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30'],
             'email' => ['nullable', 'email', 'max:255'],
             'address' => ['nullable', 'string', 'max:255'],
+            'city' => ['nullable', 'string', 'max:120'],
+            'country' => ['nullable', 'string', 'max:120'],
             'notes' => ['nullable', 'string', 'max:2000'],
             'is_active' => ['sometimes', 'boolean'],
+            'status' => ['sometimes', Rule::in(['pending', 'active', 'suspended', 'disabled'])],
+            'payment_holder_name' => ['nullable', 'string', 'max:255'],
+            'payment_bank_name' => ['nullable', 'string', 'max:255'],
+            'payment_iban' => ['nullable', 'string', 'max:64'],
+            'payment_method_preference' => ['nullable', 'string', 'max:50'],
             'login_email' => [
                 'sometimes',
                 'nullable',

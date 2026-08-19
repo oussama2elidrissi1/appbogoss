@@ -2,13 +2,16 @@
 
 namespace App\Services;
 
+use App\Models\Appointment;
 use App\Models\Partner;
 use App\Models\PartnerCommission;
 use App\Models\PartnerCommissionPayout;
 use App\Models\PartnerServiceCommission;
 use App\Models\Prestation;
 use App\Models\PrestationItem;
+use App\Models\Service;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -86,6 +89,43 @@ class PartnerCommissionService
                 ->where('status', PartnerCommission::STATUS_PAID)
                 ->sum('amount'),
         ];
+    }
+
+    /**
+     * "Commission estimée" (§5/§11/§20) — potential commission on bookings
+     * not yet paid (pending/confirmed), computed live from Appointment +
+     * the commission grid. Never persisted: a booking may never convert into
+     * a paid Prestation, or convert into one worth a different amount.
+     */
+    public function estimatedTotal(Partner $partner, ?Carbon $from = null, ?Carbon $to = null): float
+    {
+        $query = Appointment::where('partner_id', $partner->id)
+            ->whereIn('status', ['pending', 'confirmed']);
+        if ($from !== null && $to !== null) {
+            $query->whereBetween('starts_at', [$from, $to]);
+        }
+        $appointments = $query->get(['id', 'status', 'reservation_items', 'service_id']);
+
+        if ($appointments->isEmpty()) {
+            return 0.0;
+        }
+
+        $serviceIds = $appointments
+            ->flatMap(fn (Appointment $a) => collect($a->reservation_items ?: [['service_id' => $a->service_id]])
+                ->pluck('service_id'))
+            ->filter()
+            ->unique();
+        $prices = Service::whereIn('id', $serviceIds)->pluck('price', 'id');
+
+        return (float) $appointments->sum(function (Appointment $appointment) use ($partner, $prices) {
+            $items = collect($appointment->reservation_items ?: [['service_id' => $appointment->service_id]]);
+
+            return $items->sum(function (array $item) use ($partner, $prices) {
+                $price = $prices->get($item['service_id']);
+
+                return $price !== null ? $partner->commissionFor((int) $item['service_id'], (float) $price) : 0.0;
+            });
+        });
     }
 
     /**

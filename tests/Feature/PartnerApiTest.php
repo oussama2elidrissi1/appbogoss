@@ -246,6 +246,56 @@ class PartnerApiTest extends TestCase
         ]);
     }
 
+    public function test_admin_fiche_reports_real_performance_aggregates(): void
+    {
+        $this->actingAsAdmin();
+
+        $partner = $this->createPartnerWithAccount();
+        $service = Service::factory()->create(['price' => 100]);
+        $partner->commissions()->create(['service_id' => $service->id, 'type' => 'percentage', 'value' => 10]);
+
+        Client::factory()->create(['partner_id' => $partner->id]);
+        Client::factory()->create(['partner_id' => $partner->id]);
+        Appointment::factory()->create(['partner_id' => $partner->id, 'status' => 'confirmed']);
+        Appointment::factory()->create(['partner_id' => $partner->id, 'status' => 'pending']);
+
+        $employee = \App\Models\Employee::factory()->create();
+        $creator = User::factory()->create(['role' => 'admin']);
+        \App\Models\PartnerCommission::create([
+            'partner_id' => $partner->id,
+            'client_id' => Client::where('partner_id', $partner->id)->first()->id,
+            'prestation_id' => \App\Models\Prestation::create([
+                'reference' => 'PRE-FICHE-'.uniqid(),
+                'employee_id' => $employee->id,
+                'created_by_user_id' => $creator->id,
+                'status' => 'paid',
+            ])->id,
+            'base_amount' => 100,
+            'amount' => 10,
+            'status' => 'validated',
+        ]);
+
+        $response = $this->getJson('/api/partners/'.$partner->id)->assertOk()->json('data');
+
+        $this->assertSame(2, $response['performance']['clients_count']);
+        $this->assertSame(2, $response['performance']['appointments_count']);
+        $this->assertSame(1, $response['performance']['appointments_confirmed_count']);
+        $this->assertEquals(10.0, $response['performance']['commission_due']);
+    }
+
+    public function test_admin_can_suspend_partner_without_revoking_login(): void
+    {
+        $this->actingAsAdmin();
+        $partner = $this->createPartnerWithAccount();
+
+        $this->patchJson('/api/partners/'.$partner->id.'/status', ['status' => 'suspended'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'suspended')
+            ->assertJsonPath('data.is_active', false);
+
+        $this->assertTrue($partner->user->fresh()->is_active);
+    }
+
     public function test_deleting_partner_removes_login_account_but_keeps_reservations(): void
     {
         $this->actingAsAdmin();
