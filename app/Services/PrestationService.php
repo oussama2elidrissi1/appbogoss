@@ -38,6 +38,7 @@ class PrestationService
         private readonly LoyaltyEngine $loyaltyEngine,
         private readonly RewardRedemptionService $rewardRedemptionService,
         private readonly SubscriptionService $subscriptionService,
+        private readonly PartnerCommissionService $partnerCommissionService,
     ) {
     }
 
@@ -342,6 +343,12 @@ class PrestationService
 
             $sale->update(['commission_amount' => round($totalCommission, 2)]);
 
+            // $locked->items already reflects the commission_amount/is_free
+            // mutations made in the loop above (same in-memory objects) —
+            // only `client` still needs loading before resolving ownership.
+            $locked->loadMissing('client');
+            $this->partnerCommissionService->accrueForPrestation($locked);
+
             $locked->update([
                 'status' => Prestation::STATUS_PAID,
                 'total' => $total,
@@ -408,6 +415,7 @@ class PrestationService
             ]);
 
             Commission::where('prestation_id', $prestation->id)->update(['status' => Commission::STATUS_CANCELLED]);
+            $this->partnerCommissionService->cancelForPrestation($prestation);
 
             $sale = $prestation->sale;
             if ($sale !== null) {
