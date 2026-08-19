@@ -527,6 +527,8 @@ export async function getAppointments(options?: {
     dateTo?: string;
     employeeId?: number;
     partnerId?: number;
+    /** Any partner's booking, regardless of which one — the admin review queue (§26). */
+    hasPartner?: boolean;
     status?: string;
 }): Promise<Appointment[]> {
     const { data } = await api.get<{ data: Appointment[] }>('/api/appointments', {
@@ -536,6 +538,7 @@ export async function getAppointments(options?: {
             ...(options?.dateTo ? { date_to: options.dateTo } : {}),
             ...(options?.employeeId ? { employee_id: options.employeeId } : {}),
             ...(options?.partnerId ? { partner_id: options.partnerId } : {}),
+            ...(options?.hasPartner ? { has_partner: 1 } : {}),
             ...(options?.status ? { status: options.status } : {}),
         },
     });
@@ -562,6 +565,42 @@ export async function updateAppointment(
 
 export async function deleteAppointment(id: number): Promise<void> {
     await api.delete(`/api/appointments/${id}`);
+}
+
+/** §29 — accept a pending partner booking, optionally reassigning employees per line. */
+export async function confirmAppointment(
+    id: number,
+    items?: Array<{ uid?: string | null; service_id: number; employee_id: number | null; person_index?: number }>,
+): Promise<Appointment> {
+    const { data } = await api.post<{ data: Appointment }>(`/api/appointments/${id}/confirm`, items ? { items } : {});
+    return data.data;
+}
+
+/** §31 — decline a pending partner booking, with an optional reason. */
+export async function refuseAppointment(id: number, reason?: string | null): Promise<Appointment> {
+    const { data } = await api.post<{ data: Appointment }>(`/api/appointments/${id}/refuse`, { reason: reason || null });
+    return data.data;
+}
+
+/** §32 — propose a different slot instead of refusing outright. */
+export async function proposeAlternateSlot(
+    id: number,
+    payload: { proposed_starts_at: string; proposed_ends_at: string; proposal_note?: string | null },
+): Promise<Appointment> {
+    const { data } = await api.post<{ data: Appointment }>(`/api/appointments/${id}/propose-alternate`, payload);
+    return data.data;
+}
+
+/** §32 — the partner accepts BOGOSLAND's proposed alternate slot. */
+export async function acceptProposal(id: number): Promise<Appointment> {
+    const { data } = await api.post<{ data: Appointment }>(`/api/appointments/${id}/proposal/accept`);
+    return data.data;
+}
+
+/** §32 — the partner declines BOGOSLAND's proposed alternate slot. */
+export async function declineProposal(id: number): Promise<Appointment> {
+    const { data } = await api.post<{ data: Appointment }>(`/api/appointments/${id}/proposal/decline`);
+    return data.data;
 }
 
 export async function getPartners(options?: { search?: string; includeInactive?: boolean }): Promise<Partner[]> {

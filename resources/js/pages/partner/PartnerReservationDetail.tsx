@@ -2,8 +2,22 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { AlertCircle, ArrowLeft, Ban, Calendar, Check, Clock, HandCoins, PartyPopper, Sparkles, User, X } from 'lucide-react';
-import { getAppointment, getErrorMessage, updateAppointment } from '@/lib/api';
+import {
+    AlertCircle,
+    ArrowLeft,
+    Ban,
+    Calendar,
+    CalendarPlus,
+    Check,
+    Clock,
+    HandCoins,
+    Loader2,
+    PartyPopper,
+    Sparkles,
+    User,
+    X,
+} from 'lucide-react';
+import { acceptProposal, declineProposal, getAppointment, getErrorMessage, updateAppointment } from '@/lib/api';
 import { cn, formatCurrency, formatDate, formatTime } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -53,6 +67,16 @@ export default function PartnerReservationDetail() {
             void queryClient.invalidateQueries({ queryKey: ['partner-portal'] });
             setCancelOpen(false);
         },
+    });
+
+    const acceptProposalMutation = useMutation({
+        mutationFn: () => acceptProposal(appointmentId),
+        onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['partner-portal'] }),
+    });
+
+    const declineProposalMutation = useMutation({
+        mutationFn: () => declineProposal(appointmentId),
+        onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['partner-portal'] }),
     });
 
     if (isPending) {
@@ -136,6 +160,48 @@ export default function PartnerReservationDetail() {
                     />
                 </dl>
             </Card>
+
+            {appointment.proposal_status === 'proposed' && (
+                <Card className="space-y-3 border-sky-500/25 bg-sky-500/[0.06] p-5 sm:p-6">
+                    <div className="flex items-start gap-2.5">
+                        <CalendarPlus className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />
+                        <div>
+                            <p className="text-sm font-semibold text-foreground">BOGOSLAND vous propose un autre créneau</p>
+                            <p className="mt-0.5 text-sm text-muted-foreground">
+                                {formatDate(appointment.proposed_starts_at!)} à {formatTime(appointment.proposed_starts_at!)}
+                            </p>
+                            {appointment.proposal_note && (
+                                <p className="mt-1 text-xs italic text-muted-foreground">« {appointment.proposal_note} »</p>
+                            )}
+                        </div>
+                    </div>
+                    {(acceptProposalMutation.isError || declineProposalMutation.isError) && (
+                        <p className="text-xs text-destructive">
+                            {getErrorMessage(acceptProposalMutation.error ?? declineProposalMutation.error)}
+                        </p>
+                    )}
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="accent"
+                            size="sm"
+                            disabled={acceptProposalMutation.isPending || declineProposalMutation.isPending}
+                            onClick={() => acceptProposalMutation.mutate()}
+                        >
+                            {acceptProposalMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                            Accepter
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={acceptProposalMutation.isPending || declineProposalMutation.isPending}
+                            onClick={() => declineProposalMutation.mutate()}
+                        >
+                            {declineProposalMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                            Refuser
+                        </Button>
+                    </div>
+                </Card>
+            )}
 
             <Card className="p-5 sm:p-6">
                 <h2 className="text-sm font-semibold uppercase tracking-[0.06em] text-muted-foreground">Suivi</h2>

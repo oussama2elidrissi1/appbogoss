@@ -126,6 +126,17 @@ Route::middleware('auth:sanctum')->group(function () {
     // every operation to the caller's own partner record (see restrictedPartner()).
     Route::middleware('permission:agenda.manage|agenda.partner')->group(function () {
         Route::apiResource('/appointments', AppointmentController::class);
+
+        // §26-32 — the admin review workflow for partner-submitted bookings.
+        // confirm/refuse/propose-alternate are staff-only (checked in-method,
+        // like restrictedPartner() already does for the rest of this
+        // controller); proposal/accept|decline are reachable by the owning
+        // partner via the same assertCanAccess() ownership check.
+        Route::post('/appointments/{appointment}/confirm', [AppointmentController::class, 'confirm']);
+        Route::post('/appointments/{appointment}/refuse', [AppointmentController::class, 'refuse']);
+        Route::post('/appointments/{appointment}/propose-alternate', [AppointmentController::class, 'proposeAlternate']);
+        Route::post('/appointments/{appointment}/proposal/accept', [AppointmentController::class, 'proposalAccept']);
+        Route::post('/appointments/{appointment}/proposal/decline', [AppointmentController::class, 'proposalDecline']);
     });
 
     Route::middleware('permission:partners.manage')->group(function () {

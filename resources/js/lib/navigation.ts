@@ -2,6 +2,7 @@ import {
     BadgeCheck,
     BarChart3,
     Calendar,
+    CalendarCheck,
     CalendarClock,
     Gift,
     HandCoins,
@@ -97,6 +98,13 @@ export const navSections: NavSection[] = [
                 to: '/partenaires',
                 icon: Handshake,
                 description: 'Comptes partenaires, commissions par service et réservations apportées.',
+                permission: 'partners.manage',
+            },
+            {
+                label: 'Réservations partenaires',
+                to: '/partner-reservations',
+                icon: CalendarCheck,
+                description: 'Demandes de réservation en attente — accepter, refuser ou proposer un autre créneau.',
                 permission: 'partners.manage',
             },
             {

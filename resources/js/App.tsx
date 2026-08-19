@@ -29,6 +29,7 @@ import MonEspace from '@/pages/MonEspace';
 import Partenaires from '@/pages/Partenaires';
 import PartnerDetail from '@/pages/PartnerDetail';
 import PartnerCommissionsAdmin from '@/pages/PartnerCommissionsAdmin';
+import PartnerReservationsReview from '@/pages/PartnerReservationsReview';
 import PartnerLayout, { PartnerProtectedRoute } from '@/pages/partner/PartnerLayout';
 import PartnerDashboard from '@/pages/partner/PartnerDashboard';
 import PartnerNewReservation from '@/pages/partner/PartnerNewReservation';
@@ -57,6 +58,7 @@ const realRoutes = new Set([
     '/mon-espace',
     '/partenaires',
     '/partner-commissions',
+    '/partner-reservations',
     '/employees',
     '/clients',
     '/services',
@@ -144,6 +146,7 @@ export default function App() {
                         <Route path="/partenaires" element={<Partenaires />} />
                         <Route path="/partenaires/:id" element={<PartnerDetail />} />
                         <Route path="/partner-commissions" element={<PartnerCommissionsAdmin />} />
+                        <Route path="/partner-reservations" element={<PartnerReservationsReview />} />
                     </Route>
 
                     <Route element={<ProtectedRoute permission="caisse.manage" />}>

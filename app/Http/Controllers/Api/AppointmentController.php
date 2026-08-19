@@ -28,6 +28,7 @@ class AppointmentController extends Controller
             'date_to' => ['nullable', 'date', 'after_or_equal:date_from'],
             'employee_id' => ['nullable', 'integer', Rule::exists('employees', 'id')],
             'partner_id' => ['nullable', 'integer', Rule::exists('partners', 'id')],
+            'has_partner' => ['nullable', 'boolean'],
             'status' => ['nullable', 'string'],
         ]);
 
@@ -38,6 +39,9 @@ class AppointmentController extends Controller
             $query->where('partner_id', $partner->id);
         } elseif (! empty($validated['partner_id'])) {
             $query->where('partner_id', $validated['partner_id']);
+        } elseif (! empty($validated['has_partner'])) {
+            // Admin review queue (§26): every pending partner booking, across all partners.
+            $query->whereNotNull('partner_id');
         }
 
         if (! empty($validated['date'])) {
@@ -124,6 +128,134 @@ class AppointmentController extends Controller
         $appointment->delete();
 
         return response()->json(status: 204);
+    }
+
+    /**
+     * §29 — BOGOSLAND accepts a pending partner booking, optionally
+     * reassigning employees per line in the same call (reuses the same
+     * conflict/duration engine every other write goes through).
+     */
+    public function confirm(Request $request, Appointment $appointment): JsonResponse
+    {
+        $this->assertStaff($request);
+        $this->assertPendingPartnerBooking($appointment);
+
+        $validated = $request->validate([
+            'items' => ['sometimes', 'array', 'min:1', 'max:40'],
+            'items.*.uid' => ['nullable', 'string', 'max:40'],
+            'items.*.service_id' => ['required_with:items', 'integer', Rule::exists('services', 'id')],
+            'items.*.employee_id' => ['nullable', 'integer', Rule::exists('employees', 'id')],
+            'items.*.person_index' => ['nullable', 'integer', 'min:0', 'max:19'],
+        ]);
+
+        $data = array_merge($validated, ['status' => 'confirmed']);
+        $this->logStatusChange($appointment, $appointment->status, $data, $request);
+        $appointment->update($this->payloadWithEnd($data, $appointment));
+        $appointment->load(['client', 'employee', 'service', 'partner']);
+
+        return response()->json(['data' => new AppointmentResource($appointment)]);
+    }
+
+    /** §31 — BOGOSLAND declines a pending partner booking, with an optional reason. */
+    public function refuse(Request $request, Appointment $appointment): JsonResponse
+    {
+        $this->assertStaff($request);
+        $this->assertPendingPartnerBooking($appointment);
+
+        $validated = $request->validate(['reason' => ['nullable', 'string', 'max:255']]);
+
+        $data = ['status' => 'refused', 'cancellation_reason' => $validated['reason'] ?? null];
+        $this->logStatusChange($appointment, $appointment->status, $data, $request);
+        $appointment->update($data);
+        $appointment->load(['client', 'employee', 'service', 'partner']);
+
+        return response()->json(['data' => new AppointmentResource($appointment)]);
+    }
+
+    /** §32 — BOGOSLAND proposes a different slot instead of refusing outright. */
+    public function proposeAlternate(Request $request, Appointment $appointment): JsonResponse
+    {
+        $this->assertStaff($request);
+        $this->assertPendingPartnerBooking($appointment);
+
+        $validated = $request->validate([
+            'proposed_starts_at' => ['required', 'date'],
+            'proposed_ends_at' => ['required', 'date', 'after:proposed_starts_at'],
+            'proposal_note' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $startsAt = Carbon::parse($validated['proposed_starts_at']);
+        $endsAt = Carbon::parse($validated['proposed_ends_at']);
+        $this->assertNoConflict($this->conflictItemsFor($appointment), $startsAt, $endsAt, $appointment);
+
+        $appointment->update([
+            'proposed_starts_at' => $startsAt,
+            'proposed_ends_at' => $endsAt,
+            'proposal_note' => $validated['proposal_note'] ?? null,
+            'proposal_status' => 'proposed',
+        ]);
+        $appointment->load(['client', 'employee', 'service', 'partner']);
+
+        return response()->json(['data' => new AppointmentResource($appointment)]);
+    }
+
+    /** §32 — the partner accepts BOGOSLAND's proposed alternate slot. */
+    public function proposalAccept(Request $request, Appointment $appointment): JsonResponse
+    {
+        $this->assertCanAccess($request, $appointment);
+        $this->assertProposalPending($appointment);
+
+        $startsAt = $appointment->proposed_starts_at;
+        $endsAt = $appointment->proposed_ends_at;
+        // The slot may have been taken by something else since it was
+        // proposed — re-check before committing to it.
+        $this->assertNoConflict($this->conflictItemsFor($appointment), $startsAt, $endsAt, $appointment);
+
+        $data = [
+            'starts_at' => $startsAt,
+            'ends_at' => $endsAt,
+            'status' => 'confirmed',
+            'proposal_status' => 'accepted',
+        ];
+        $this->logStatusChange($appointment, $appointment->status, $data, $request);
+        $appointment->update($data);
+        $appointment->load(['client', 'employee', 'service', 'partner']);
+
+        return response()->json(['data' => new AppointmentResource($appointment)]);
+    }
+
+    /** §32 — the partner declines BOGOSLAND's proposed alternate slot; the original request stays pending. */
+    public function proposalDecline(Request $request, Appointment $appointment): JsonResponse
+    {
+        $this->assertCanAccess($request, $appointment);
+        $this->assertProposalPending($appointment);
+
+        $appointment->update(['proposal_status' => 'declined']);
+        $appointment->load(['client', 'employee', 'service', 'partner']);
+
+        return response()->json(['data' => new AppointmentResource($appointment)]);
+    }
+
+    private function assertStaff(Request $request): void
+    {
+        abort_unless((bool) $request->user()?->can('agenda.manage'), 403, 'Action réservée au personnel BOGOSLAND.');
+    }
+
+    private function assertPendingPartnerBooking(Appointment $appointment): void
+    {
+        abort_if($appointment->partner_id === null, 422, 'Cette action concerne uniquement les réservations partenaires.');
+        abort_unless($appointment->status === 'pending', 422, 'Cette réservation n’est plus en attente.');
+    }
+
+    private function assertProposalPending(Appointment $appointment): void
+    {
+        abort_unless($appointment->proposal_status === 'proposed', 422, 'Aucune proposition de créneau n’est en attente pour cette réservation.');
+    }
+
+    /** @return array<int, array{employee_id: ?int}> */
+    private function conflictItemsFor(Appointment $appointment): array
+    {
+        return collect($appointment->reservation_items ?: [['employee_id' => $appointment->employee_id]])->all();
     }
 
     /**
