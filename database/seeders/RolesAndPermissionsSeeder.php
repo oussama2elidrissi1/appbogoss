@@ -116,7 +116,7 @@ class RolesAndPermissionsSeeder extends Seeder
         ]);
 
         $employee = Role::firstOrCreate(['name' => 'employee', 'guard_name' => 'web']);
-        $employee->syncPermissions(['loyalty.redeem']);
+        $employee->syncPermissions(['loyalty.redeem', 'subscriptions.use']);
 
         $partner = Role::firstOrCreate(['name' => 'partner', 'guard_name' => 'web']);
         $partner->syncPermissions(['agenda.partner']);

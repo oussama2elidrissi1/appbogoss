@@ -75,4 +75,14 @@ class Employee extends Model
     {
         return $this->hasMany(CommissionPayout::class);
     }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(AppointmentReview::class);
+    }
+
+    public function supportConversations(): HasMany
+    {
+        return $this->hasMany(EmployeeSupportConversation::class);
+    }
 }

@@ -122,4 +122,9 @@ class Client extends Model implements Authenticatable
     {
         return $this->hasMany(ClientQrToken::class);
     }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(AppointmentReview::class);
+    }
 }

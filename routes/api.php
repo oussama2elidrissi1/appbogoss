@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\CommissionPayoutController;
 use App\Http\Controllers\Api\CommissionRegularizationController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\EmployeeController;
+use App\Http\Controllers\Api\EmployeeWorkspaceController;
 use App\Http\Controllers\Api\EmployeeServiceCommissionController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\LoyaltyDashboardController;
@@ -283,7 +284,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Scanner: resolve a subscription QR token into its card, then validate a
     // visit explicitly — the scan itself never consumes anything.
-    Route::middleware('permission:subscriptions.use')->group(function () {
+    Route::middleware('permission:subscriptions.use|loyalty.redeem')->group(function () {
         Route::get('/subscriptions/scan/{token}', [SubscriptionScanController::class, 'show']);
         Route::post('/subscriptions/scan/{token}/validate', [SubscriptionScanController::class, 'validateVisit']);
     });
@@ -319,6 +320,22 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me/commissions', [MeController::class, 'commissions']);
     Route::get('/me/report', [MeController::class, 'report']);
     Route::get('/me/report/export', [MeController::class, 'reportExport']);
+
+    Route::prefix('me/workspace')->group(function () {
+        Route::get('/dashboard', [EmployeeWorkspaceController::class, 'dashboard']);
+        Route::get('/prestations', [EmployeeWorkspaceController::class, 'prestations']);
+        Route::get('/agenda', [EmployeeWorkspaceController::class, 'agenda']);
+        Route::get('/agenda/{appointment}', [EmployeeWorkspaceController::class, 'appointment']);
+        Route::get('/commissions', [EmployeeWorkspaceController::class, 'commissions']);
+        Route::get('/statistics', [EmployeeWorkspaceController::class, 'statistics']);
+        Route::get('/clients', [EmployeeWorkspaceController::class, 'clients']);
+        Route::get('/reviews', [EmployeeWorkspaceController::class, 'reviews']);
+        Route::get('/documents', [EmployeeWorkspaceController::class, 'documents']);
+        Route::get('/support/conversations', [EmployeeWorkspaceController::class, 'supportIndex']);
+        Route::post('/support/conversations', [EmployeeWorkspaceController::class, 'supportStore']);
+        Route::get('/support/conversations/{conversation}', [EmployeeWorkspaceController::class, 'supportShow']);
+        Route::post('/support/conversations/{conversation}/messages', [EmployeeWorkspaceController::class, 'supportMessage']);
+    });
 
     Route::get('/prestations/pending', [PrestationController::class, 'pending']);
     Route::get('/prestations', [PrestationController::class, 'index']);

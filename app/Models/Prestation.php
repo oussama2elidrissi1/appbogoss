@@ -115,6 +115,11 @@ class Prestation extends Model
         return $this->hasMany(Commission::class);
     }
 
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(AppointmentReview::class);
+    }
+
     public function isEditableByEmployee(): bool
     {
         return in_array($this->status, [self::STATUS_DRAFT, self::STATUS_IN_PROGRESS, self::STATUS_SERVICES_DONE], true);

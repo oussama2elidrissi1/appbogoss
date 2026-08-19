@@ -56,7 +56,7 @@ function extractToken(raw: string): string {
 export default function ScannerAbonnements() {
     const queryClient = useQueryClient();
     const navigate = useNavigate();
-    const { hasPermission } = useAuth();
+    const { user, hasPermission } = useAuth();
     const [scanning, setScanning] = useState(false);
     const [cameraError, setCameraError] = useState<string | null>(null);
     const [manualToken, setManualToken] = useState('');
@@ -65,7 +65,7 @@ export default function ScannerAbonnements() {
     const [lookupError, setLookupError] = useState<string | null>(null);
     const [success, setSuccess] = useState<ValidateVisitResponse | null>(null);
     const [selectedPlanServiceId, setSelectedPlanServiceId] = useState<number | null>(null);
-    const [employeeId, setEmployeeId] = useState<number | ''>('');
+    const [employeeId, setEmployeeId] = useState<number | ''>(() => user?.employee_id ?? '');
 
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
@@ -198,10 +198,13 @@ export default function ScannerAbonnements() {
     const selectedService = card?.services.find((service) => service.plan_service_id === selectedPlanServiceId) ?? null;
     const status = card ? (STATUS_META[card.subscription.status] ?? STATUS_META.active) : null;
     const validateError = validateMutation.isError ? getErrorMessage(validateMutation.error) : null;
+    const canSelectEmployee = hasPermission('employees.manage');
+    const ownEmployeeId = user?.employee_id ?? '';
+    const effectiveEmployeeId = canSelectEmployee ? employeeId : ownEmployeeId;
     const canValidate =
         Boolean(card?.usable) &&
         selectedPlanServiceId !== null &&
-        employeeId !== '' &&
+        effectiveEmployeeId !== '' &&
         !validateMutation.isPending;
 
     return (
@@ -476,27 +479,33 @@ export default function ScannerAbonnements() {
                                     </div>
                                 </div>
 
-                                <div>
-                                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                                        Employé qui réalise le service
-                                    </p>
-                                    <select
-                                        value={employeeId}
-                                        onChange={(event) =>
-                                            setEmployeeId(event.target.value ? Number(event.target.value) : '')
-                                        }
-                                        className="mt-2 flex h-11 w-full rounded-md border border-input bg-tint/[0.03] px-3.5 text-sm text-foreground shadow-sm focus-visible:border-accent/60 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/10"
-                                    >
-                                        <option value="">Sélectionner un employé…</option>
-                                        {employees
-                                            .filter((employee) => employee.is_active)
-                                            .map((employee) => (
-                                                <option key={employee.id} value={employee.id}>
-                                                    {employee.name}
-                                                </option>
-                                            ))}
-                                    </select>
-                                </div>
+                                {canSelectEmployee ? (
+                                    <div>
+                                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                                            Employé qui réalise le service
+                                        </p>
+                                        <select
+                                            value={employeeId}
+                                            onChange={(event) =>
+                                                setEmployeeId(event.target.value ? Number(event.target.value) : '')
+                                            }
+                                            className="mt-2 flex h-11 w-full rounded-md border border-input bg-tint/[0.03] px-3.5 text-sm text-foreground shadow-sm focus-visible:border-accent/60 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/10"
+                                        >
+                                            <option value="">Sélectionner un employé…</option>
+                                            {employees
+                                                .filter((employee) => employee.is_active)
+                                                .map((employee) => (
+                                                    <option key={employee.id} value={employee.id}>
+                                                        {employee.name}
+                                                    </option>
+                                                ))}
+                                        </select>
+                                    </div>
+                                ) : (
+                                    <div className="rounded-md border border-tint/[0.08] bg-tint/[0.03] px-3.5 py-3 text-sm text-muted-foreground">
+                                        Visite rattachee a votre compte employe.
+                                    </div>
+                                )}
 
                                 {validateError && (
                                     <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3">
@@ -512,11 +521,11 @@ export default function ScannerAbonnements() {
                                     className="w-full"
                                     disabled={!canValidate}
                                     onClick={() => {
-                                        if (cardToken && selectedPlanServiceId && employeeId !== '') {
+                                        if (cardToken && selectedPlanServiceId && effectiveEmployeeId !== '') {
                                             validateMutation.mutate({
                                                 token: cardToken,
                                                 planServiceId: selectedPlanServiceId,
-                                                employee: employeeId,
+                                                employee: effectiveEmployeeId,
                                             });
                                         }
                                     }}

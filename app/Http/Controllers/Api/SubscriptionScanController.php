@@ -32,6 +32,9 @@ class SubscriptionScanController extends Controller
 
     public function show(string $token): JsonResponse
     {
+        $actor = request()->user();
+        abort_if($actor && ! $actor->can('employees.manage') && $actor->employee === null, 403, 'Votre compte n est lie a aucune fiche employe.');
+
         $subscription = $this->subscriptionService->resolveByToken($token);
 
         if ($subscription === null) {
@@ -56,15 +59,21 @@ class SubscriptionScanController extends Controller
                 Rule::exists('subscription_plan_services', 'id')
                     ->where('subscription_plan_id', $subscription->subscription_plan_id),
             ],
-            'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')],
+            'employee_id' => ['nullable', 'integer', Rule::exists('employees', 'id')],
             'notes' => ['nullable', 'string', 'max:500'],
         ], [
             'subscription_plan_service_id.exists' => 'Ce service n’est pas inclus dans cet abonnement.',
         ]);
 
         $planService = SubscriptionPlanService::with('service')->findOrFail($validated['subscription_plan_service_id']);
-        $employee = Employee::findOrFail($validated['employee_id']);
         $actor = $request->user();
+        $employeeId = $actor->can('employees.manage')
+            ? ($validated['employee_id'] ?? $actor->employee?->id)
+            : $actor->employee?->id;
+
+        abort_if($employeeId === null, 403, 'Votre compte n est lie a aucune fiche employe.');
+
+        $employee = Employee::findOrFail($employeeId);
 
         // One outer transaction so a failure at any stage (rule refused,
         // payment glitch…) leaves zero trace — no orphan prestation, no

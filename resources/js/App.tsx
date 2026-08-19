@@ -25,7 +25,6 @@ import PortalLogin from '@/pages/portal/PortalLogin';
 import PortalHome from '@/pages/portal/PortalHome';
 import PortalRewards from '@/pages/portal/PortalRewards';
 import PortalSubscriptions from '@/pages/portal/PortalSubscriptions';
-import MonEspace from '@/pages/MonEspace';
 import Partenaires from '@/pages/Partenaires';
 import PartnerDetail from '@/pages/PartnerDetail';
 import PartnerCommissionsAdmin from '@/pages/PartnerCommissionsAdmin';
@@ -50,6 +49,15 @@ import Services from '@/pages/Services';
 import Stock from '@/pages/Stock';
 import Settings from '@/pages/Settings';
 import SubscriptionPlans from '@/pages/SubscriptionPlans';
+import EmployeeAgenda from '@/pages/employee/EmployeeAgenda';
+import EmployeeClients from '@/pages/employee/EmployeeClients';
+import EmployeeCommissions from '@/pages/employee/EmployeeCommissions';
+import EmployeeDashboard from '@/pages/employee/EmployeeDashboard';
+import EmployeeDocuments from '@/pages/employee/EmployeeDocuments';
+import EmployeePrestations from '@/pages/employee/EmployeePrestations';
+import EmployeeReviews from '@/pages/employee/EmployeeReviews';
+import EmployeeStatistics from '@/pages/employee/EmployeeStatistics';
+import EmployeeSupport from '@/pages/employee/EmployeeSupport';
 
 /** Nav destinations backed by a real screen; everything else is a placeholder. */
 const realRoutes = new Set([
@@ -134,7 +142,16 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
                 <Route element={<AppLayout />}>
                     <Route index element={<RoleAwareRedirect />} />
-                    <Route path="/mon-espace" element={<MonEspace />} />
+                    <Route path="/mon-espace" element={<EmployeeDashboard />} />
+                    <Route path="/employee/prestations" element={<EmployeePrestations />} />
+                    <Route path="/employee/agenda" element={<EmployeeAgenda />} />
+                    <Route path="/employee/commissions" element={<EmployeeCommissions />} />
+                    <Route path="/employee/clients" element={<EmployeeClients />} />
+                    <Route path="/employee/statistics" element={<EmployeeStatistics />} />
+                    <Route path="/employee/reviews" element={<EmployeeReviews />} />
+                    <Route path="/employee/scanner" element={<ScannerAbonnements />} />
+                    <Route path="/employee/documents" element={<EmployeeDocuments />} />
+                    <Route path="/employee/support" element={<EmployeeSupport />} />
                     <Route path="/settings" element={<Settings />} />
 
                     <Route element={<ProtectedRoute permission="reports.view_all" />}>

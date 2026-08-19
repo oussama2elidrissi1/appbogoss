@@ -85,6 +85,18 @@ import type {
     PortalRewardsResponse,
     PortalSubscription,
 } from '@/types/portal';
+import type {
+    EmployeeAgendaRow,
+    EmployeeClientRow,
+    EmployeeCommissionsResponse,
+    EmployeeDocumentsResponse,
+    EmployeePrestationRow,
+    EmployeeReviewsResponse,
+    EmployeeStatisticsResponse,
+    EmployeeSupportConversation,
+    EmployeeSupportDetail,
+    EmployeeWorkspaceDashboard,
+} from '@/types/employee-workspace';
 
 /**
  * Sanctum SPA (cookie) authentication:
@@ -915,6 +927,121 @@ export async function refundPrestation(prestationId: number, reason: string): Pr
 
 export async function getMyDashboard(): Promise<MyDashboard> {
     const { data } = await api.get<{ data: MyDashboard }>('/api/me/dashboard');
+    return data.data;
+}
+
+export async function getEmployeeWorkspaceDashboard(): Promise<EmployeeWorkspaceDashboard> {
+    const { data } = await api.get<{ data: EmployeeWorkspaceDashboard }>('/api/me/workspace/dashboard');
+    return data.data;
+}
+
+export async function getEmployeePrestations(options?: {
+    from?: string;
+    to?: string;
+    status?: string;
+    serviceId?: number;
+    search?: string;
+}): Promise<EmployeePrestationRow[]> {
+    const { data } = await api.get<{ data: EmployeePrestationRow[] }>('/api/me/workspace/prestations', {
+        params: {
+            ...(options?.from ? { from: options.from } : {}),
+            ...(options?.to ? { to: options.to } : {}),
+            ...(options?.status ? { status: options.status } : {}),
+            ...(options?.serviceId ? { service_id: options.serviceId } : {}),
+            ...(options?.search ? { search: options.search } : {}),
+        },
+    });
+    return data.data;
+}
+
+export async function getEmployeeAgenda(options?: {
+    from?: string;
+    to?: string;
+    view?: 'today' | 'day' | 'week' | 'month' | 'list';
+}): Promise<EmployeeAgendaRow[]> {
+    const { data } = await api.get<{ data: EmployeeAgendaRow[] }>('/api/me/workspace/agenda', {
+        params: {
+            ...(options?.from ? { from: options.from } : {}),
+            ...(options?.to ? { to: options.to } : {}),
+            ...(options?.view ? { view: options.view } : {}),
+        },
+    });
+    return data.data;
+}
+
+export async function getEmployeeAppointment(id: number): Promise<EmployeeAgendaRow> {
+    const { data } = await api.get<{ data: EmployeeAgendaRow }>(`/api/me/workspace/agenda/${id}`);
+    return data.data;
+}
+
+export async function getEmployeeWorkspaceCommissions(options?: {
+    from?: string;
+    to?: string;
+    status?: string;
+    range?: string;
+}): Promise<EmployeeCommissionsResponse> {
+    const { data } = await api.get<{ data: EmployeeCommissionsResponse }>('/api/me/workspace/commissions', {
+        params: {
+            ...(options?.from ? { from: options.from } : {}),
+            ...(options?.to ? { to: options.to } : {}),
+            ...(options?.status ? { status: options.status } : {}),
+            ...(options?.range ? { range: options.range } : {}),
+        },
+    });
+    return data.data;
+}
+
+export async function getEmployeeStatistics(options?: {
+    period?: string;
+    range?: string;
+    from?: string;
+    to?: string;
+}): Promise<EmployeeStatisticsResponse> {
+    const { data } = await api.get<{ data: EmployeeStatisticsResponse }>('/api/me/workspace/statistics', {
+        params: options,
+    });
+    return data.data;
+}
+
+export async function getEmployeeClients(): Promise<EmployeeClientRow[]> {
+    const { data } = await api.get<{ data: EmployeeClientRow[] }>('/api/me/workspace/clients');
+    return data.data;
+}
+
+export async function getEmployeeReviews(): Promise<EmployeeReviewsResponse> {
+    const { data } = await api.get<{ data: EmployeeReviewsResponse }>('/api/me/workspace/reviews');
+    return data.data;
+}
+
+export async function getEmployeeDocuments(): Promise<EmployeeDocumentsResponse> {
+    const { data } = await api.get<{ data: EmployeeDocumentsResponse }>('/api/me/workspace/documents');
+    return data.data;
+}
+
+export async function getEmployeeSupportConversations(): Promise<EmployeeSupportConversation[]> {
+    const { data } = await api.get<{ data: EmployeeSupportConversation[] }>('/api/me/workspace/support/conversations');
+    return data.data;
+}
+
+export async function createEmployeeSupportConversation(payload: {
+    subject: string;
+    category?: string | null;
+    body: string;
+}): Promise<EmployeeSupportDetail> {
+    const { data } = await api.post<{ data: EmployeeSupportDetail }>('/api/me/workspace/support/conversations', payload);
+    return data.data;
+}
+
+export async function getEmployeeSupportConversation(id: number): Promise<EmployeeSupportDetail> {
+    const { data } = await api.get<{ data: EmployeeSupportDetail }>(`/api/me/workspace/support/conversations/${id}`);
+    return data.data;
+}
+
+export async function sendEmployeeSupportMessage(id: number, body: string): Promise<EmployeeSupportDetail> {
+    const { data } = await api.post<{ data: EmployeeSupportDetail }>(
+        `/api/me/workspace/support/conversations/${id}/messages`,
+        { body },
+    );
     return data.data;
 }
 

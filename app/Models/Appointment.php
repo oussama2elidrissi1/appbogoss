@@ -85,4 +85,9 @@ class Appointment extends Model
     {
         return $this->belongsTo(User::class, 'cancelled_by_user_id');
     }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(AppointmentReview::class);
+    }
 }

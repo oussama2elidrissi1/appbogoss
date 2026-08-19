@@ -4,6 +4,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
+import { useAuth } from '@/hooks/useAuth';
+import { EmployeeLayout } from '@/pages/employee/EmployeeLayout';
 
 const COLLAPSED_STORAGE_KEY = 'bogosland:sidebar-collapsed';
 
@@ -18,8 +20,22 @@ function readCollapsedPreference(): boolean {
 
 export function AppLayout() {
     const location = useLocation();
+    const { user, hasPermission } = useAuth();
     const [collapsed, setCollapsed] = useState<boolean>(readCollapsedPreference);
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
+    const isEmployeeOnly =
+        user?.employee_id != null &&
+        !user?.partner_id &&
+        ![
+            'reports.view_all',
+            'caisse.manage',
+            'employees.manage',
+            'partners.manage',
+            'commissions.manage',
+            'users.manage',
+            'agenda.manage',
+            'settings.manage',
+        ].some(hasPermission);
 
     useEffect(() => {
         try {
@@ -43,6 +59,14 @@ export function AppLayout() {
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
     }, [mobileNavOpen]);
+
+    if (isEmployeeOnly) {
+        return (
+            <TooltipProvider delayDuration={200} skipDelayDuration={300}>
+                <EmployeeLayout />
+            </TooltipProvider>
+        );
+    }
 
     return (
         <TooltipProvider delayDuration={200} skipDelayDuration={300}>
