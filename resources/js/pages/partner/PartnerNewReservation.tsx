@@ -674,15 +674,21 @@ function SlotStep({
             </div>
 
             <div className="space-y-1.5">
-                <Label>
+                <Label htmlFor="reservation-time">
                     <Clock className="mr-1 inline h-3.5 w-3.5" />
-                    Créneau
+                    Heure
                 </Label>
-                {slots.length === 0 ? (
-                    <p className="rounded-md border border-dashed border-tint/[0.1] px-3 py-5 text-center text-xs text-muted-foreground">
-                        Plus de créneau disponible ce jour-là — choisissez une autre date.
-                    </p>
-                ) : (
+                <Input
+                    id="reservation-time"
+                    type="time"
+                    value={time ?? ''}
+                    onChange={(event) => onTimeChange(event.target.value)}
+                />
+            </div>
+
+            {slots.length > 0 && (
+                <div className="space-y-1.5">
+                    <Label>Suggestions</Label>
                     <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
                         {slots.map((slot) => (
                             <button
@@ -700,8 +706,8 @@ function SlotStep({
                             </button>
                         ))}
                     </div>
-                )}
-            </div>
+                </div>
+            )}
 
             <div className="flex items-start gap-2 rounded-md border border-accent/25 bg-accent/[0.06] px-3 py-2.5 text-xs text-muted-foreground">
                 <Info className="mt-px h-3.5 w-3.5 shrink-0 text-accent" />
