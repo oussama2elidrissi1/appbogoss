@@ -54,6 +54,7 @@ import EmployeeClients from '@/pages/employee/EmployeeClients';
 import EmployeeCommissions from '@/pages/employee/EmployeeCommissions';
 import EmployeeDashboard from '@/pages/employee/EmployeeDashboard';
 import EmployeeDocuments from '@/pages/employee/EmployeeDocuments';
+import EmployeePayments from '@/pages/employee/EmployeePayments';
 import EmployeePrestations from '@/pages/employee/EmployeePrestations';
 import EmployeeReviews from '@/pages/employee/EmployeeReviews';
 import EmployeeStatistics from '@/pages/employee/EmployeeStatistics';
@@ -146,6 +147,7 @@ export default function App() {
                     <Route path="/employee/prestations" element={<EmployeePrestations />} />
                     <Route path="/employee/agenda" element={<EmployeeAgenda />} />
                     <Route path="/employee/commissions" element={<EmployeeCommissions />} />
+                    <Route path="/employee/payments" element={<EmployeePayments />} />
                     <Route path="/employee/clients" element={<EmployeeClients />} />
                     <Route path="/employee/statistics" element={<EmployeeStatistics />} />
                     <Route path="/employee/reviews" element={<EmployeeReviews />} />

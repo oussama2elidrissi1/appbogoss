@@ -49,6 +49,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             // let `me` refetch, briefly flipping isPending and flashing the splash.
             queryClient.clear();
             queryClient.setQueryData(ME_QUERY_KEY, null);
+            if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+                window.location.assign('/login');
+            }
         }
     }, [queryClient]);
 

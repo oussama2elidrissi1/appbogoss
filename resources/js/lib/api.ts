@@ -145,6 +145,7 @@ export async function login(email: string, password: string, remember = true): P
 }
 
 export async function logout(): Promise<void> {
+    await getCsrfCookie();
     await api.post('/api/logout');
 }
 
@@ -1406,6 +1407,7 @@ export async function getPortalMe(): Promise<PortalClient> {
 }
 
 export async function portalLogout(): Promise<void> {
+    await getCsrfCookie();
     await api.post('/api/client/logout');
 }
 

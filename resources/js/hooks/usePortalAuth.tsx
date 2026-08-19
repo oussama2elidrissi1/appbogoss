@@ -43,6 +43,10 @@ export function PortalAuthProvider({ children }: { children: ReactNode }) {
             await apiClient.portalLogout();
         } finally {
             queryClient.setQueryData(PORTAL_ME_QUERY_KEY, null);
+            queryClient.removeQueries({ queryKey: ['portal'] });
+            if (typeof window !== 'undefined' && window.location.pathname !== '/mon-compte/connexion') {
+                window.location.assign('/mon-compte/connexion');
+            }
         }
     }, [queryClient]);
 
