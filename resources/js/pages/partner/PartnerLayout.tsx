@@ -26,12 +26,22 @@ interface PartnerNavItem {
     icon: LucideIcon;
     end?: boolean;
     highlight?: boolean;
+    /** Sub-path(s) that must NOT count as "within" this item despite the prefix match. */
+    excludePrefixes?: string[];
 }
 
 const NAV_ITEMS: PartnerNavItem[] = [
     { label: 'Tableau de bord', to: '/partner/dashboard', icon: LayoutDashboard, end: true },
     { label: 'Nouvelle réservation', to: '/partner/reservations/new', icon: CalendarPlus, highlight: true },
-    { label: 'Mes réservations', to: '/partner/reservations', icon: CalendarCheck },
+    {
+        label: 'Mes réservations',
+        to: '/partner/reservations',
+        icon: CalendarCheck,
+        // The "new reservation" wizard has its own dedicated, highlighted
+        // entry above — it shouldn't also light up this one just because
+        // the URL happens to start with the same prefix.
+        excludePrefixes: ['/partner/reservations/new'],
+    },
     { label: 'Mes commissions', to: '/partner/commissions', icon: Wallet },
     { label: 'Mes clients', to: '/partner/clients', icon: Users },
     { label: 'Mon profil', to: '/partner/profile', icon: UserCircle },
@@ -191,6 +201,8 @@ function PortalBrand() {
 }
 
 function PortalNav() {
+    const { pathname } = useLocation();
+
     return (
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
             {NAV_ITEMS.map((item) => {
@@ -209,38 +221,37 @@ function PortalNav() {
                     );
                 }
 
+                const excluded = item.excludePrefixes?.some((prefix) => pathname.startsWith(prefix)) ?? false;
+                const isActive =
+                    !excluded &&
+                    (pathname === item.to || (!item.end && pathname.startsWith(`${item.to}/`)));
+
                 return (
                     <NavLink
                         key={item.to}
                         to={item.to}
                         end={item.end}
-                        className={({ isActive }) =>
-                            cn(
-                                'group relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-all duration-200',
-                                isActive
-                                    ? 'bg-accent/[0.12] text-foreground'
-                                    : 'text-muted-foreground hover:bg-tint/[0.05] hover:text-foreground',
-                            )
-                        }
-                    >
-                        {({ isActive }: { isActive: boolean }) => (
-                            <>
-                                {isActive && (
-                                    <motion.span
-                                        layoutId="partner-sidebar-active-rail"
-                                        transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
-                                        className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-accent"
-                                    />
-                                )}
-                                <Icon
-                                    className={cn(
-                                        'h-[18px] w-[18px] shrink-0 transition-colors duration-200',
-                                        isActive ? 'text-accent' : 'text-muted-foreground group-hover:text-foreground',
-                                    )}
-                                />
-                                <span className="truncate">{item.label}</span>
-                            </>
+                        className={cn(
+                            'group relative flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-all duration-200',
+                            isActive
+                                ? 'bg-accent/[0.12] text-foreground'
+                                : 'text-muted-foreground hover:bg-tint/[0.05] hover:text-foreground',
                         )}
+                    >
+                        {isActive && (
+                            <motion.span
+                                layoutId="partner-sidebar-active-rail"
+                                transition={{ duration: 0.24, ease: [0.4, 0, 0.2, 1] }}
+                                className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-accent"
+                            />
+                        )}
+                        <Icon
+                            className={cn(
+                                'h-[18px] w-[18px] shrink-0 transition-colors duration-200',
+                                isActive ? 'text-accent' : 'text-muted-foreground group-hover:text-foreground',
+                            )}
+                        />
+                        <span className="truncate">{item.label}</span>
                     </NavLink>
                 );
             })}
