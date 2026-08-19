@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { confirmAppointment, getErrorMessage, proposeAlternateSlot, refuseAppointment } from '@/lib/api';
 import { cn, formatCurrency, formatDate, formatTime } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 import type { Appointment, AppointmentStatus } from '@/types/workday';
 import { itemsOf } from './agendaEvents';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -63,6 +64,7 @@ export function ReservationDetailsDialog({
     onEdit,
 }: ReservationDetailsDialogProps) {
     const queryClient = useQueryClient();
+    const { hasPermission } = useAuth();
     const [refusing, setRefusing] = useState(false);
     const [refuseReason, setRefuseReason] = useState(REFUSAL_REASONS[0]);
     const [proposing, setProposing] = useState(false);
@@ -128,7 +130,10 @@ export function ReservationDetailsDialog({
     const totalPrice = items.reduce((sum, item) => sum + (item.service?.price ?? 0), 0);
     const status = STATUS_META[appointment.status] ?? STATUS_META.pending;
     const totalDuration = items.reduce((sum, item) => sum + (item.service?.duration_minutes ?? 0), 0);
-    const isReviewable = Boolean(appointment.partner_id) && appointment.status === 'pending';
+    // Staff-only actions: a partner viewing their own pending booking must never see
+    // Accepter/Refuser/Proposer (those endpoints 403 for anyone without agenda.manage).
+    const isReviewable =
+        hasPermission('agenda.manage') && Boolean(appointment.partner_id) && appointment.status === 'pending';
     const anyActionPending = confirmMutation.isPending || refuseMutation.isPending || proposeMutation.isPending;
 
     function openProposeDialog() {

@@ -32,6 +32,7 @@ import PartnerCommissionsAdmin from '@/pages/PartnerCommissionsAdmin';
 import PartnerReservationsReview from '@/pages/PartnerReservationsReview';
 import PartnerLayout, { PartnerProtectedRoute } from '@/pages/partner/PartnerLayout';
 import PartnerDashboard from '@/pages/partner/PartnerDashboard';
+import PartnerAgenda from '@/pages/partner/PartnerAgenda';
 import PartnerNewReservation from '@/pages/partner/PartnerNewReservation';
 import PartnerReservations from '@/pages/partner/PartnerReservations';
 import PartnerReservationDetail from '@/pages/partner/PartnerReservationDetail';
@@ -105,6 +106,7 @@ export default function App() {
                     <Route path="/partner/reservations/new" element={<PartnerNewReservation />} />
                     <Route path="/partner/reservations" element={<PartnerReservations />} />
                     <Route path="/partner/reservations/:id" element={<PartnerReservationDetail />} />
+                    <Route path="/partner/agenda" element={<PartnerAgenda />} />
                     <Route path="/partner/commissions" element={<PartnerCommissions />} />
                     <Route path="/partner/clients" element={<PartnerClients />} />
                     <Route path="/partner/clients/:id" element={<PartnerClientDetail />} />
