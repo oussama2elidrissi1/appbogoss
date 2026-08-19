@@ -26,7 +26,7 @@ interface EmployeeAdvancesProps {
     employee: Employee;
     /** Attaches the advance to the open day when there is one. */
     workDayId?: number;
-    /** "YYYY-MM" — when set, only advances given during that month are listed. */
+    /** "YYYY-MM" — keeps monthly context while still displaying the full history. */
     periodMonth?: string;
 }
 
@@ -194,15 +194,16 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
     }
 
     const allAdvances = data?.data ?? [];
-    const advances = periodMonth
+    const advances = allAdvances;
+    const periodAdvances = periodMonth
         ? allAdvances.filter((advance) => advance.given_on.startsWith(periodMonth))
         : allAdvances;
     // The header total always matches the row summary and the payout math
-    // above (which deducts every unsettled advance, any month) — only the
-    // list below is narrowed to the selected period, so it never displays a
-    // second, different-looking "total" for the same employee.
+    // above (which deducts every unsettled advance, any month). The list
+    // below intentionally shows full history so old settled/unsettled rows
+    // are never hidden from the admin.
     const outstandingTotal = data?.outstanding_total ?? 0;
-    const periodOutstandingTotal = advances
+    const periodOutstandingTotal = periodAdvances
         .filter((advance) => !advance.settled_at)
         .reduce((sum, advance) => sum + advance.amount, 0);
     const olderUnsettledTotal = outstandingTotal - periodOutstandingTotal;
@@ -225,7 +226,7 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
             {periodMonth ? (
                 <div className="mt-1 space-y-1.5">
                     <p className="text-[10px] text-muted-foreground">
-                        Liste ci-dessous limitée aux avances données ce mois-ci ({formatCurrency(periodOutstandingTotal, { maximumFractionDigits: 2 })}).
+                        Historique complet ci-dessous. Avances non soldées données pendant {periodMonth} : {formatCurrency(periodOutstandingTotal, { maximumFractionDigits: 2 })}.
                         {olderUnsettledTotal > 0 && (
                             <>
                                 {' '}
@@ -265,7 +266,7 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
                     Aucune avance enregistrée.
                 </p>
             ) : (
-                <ul className="mt-3 max-h-56 space-y-1.5 overflow-y-auto pr-0.5">
+                <ul className="mt-3 max-h-[34rem] space-y-1.5 overflow-y-auto pr-0.5">
                     {advances.map((advance) => {
                         const isEditing = editingAdvance?.id === advance.id;
 

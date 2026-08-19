@@ -112,6 +112,24 @@ export interface EmployeeCommissionsResponse {
         amount: number;
         status: string;
     }>;
+    advances: Array<{
+        id: number;
+        amount: number;
+        reason: string | null;
+        given_on: string | null;
+        settled_at: string | null;
+        work_day_date: string | null;
+        commission_payout_period: string | null;
+    }>;
+    payouts: Array<{
+        id: number;
+        period: string;
+        commission_total: number;
+        advances_deducted: number;
+        net_amount: number;
+        paid_at: string | null;
+        paid_by: string | null;
+    }>;
 }
 
 export interface EmployeeStatisticsResponse {

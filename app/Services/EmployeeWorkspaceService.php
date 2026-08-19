@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\AppSetting;
 use App\Models\Appointment;
 use App\Models\AppointmentReview;
+use App\Models\Advance;
 use App\Models\Client;
 use App\Models\Commission;
 use App\Models\CommissionPayout;
@@ -152,6 +153,35 @@ class EmployeeWorkspaceService
             ],
             'evolution' => $this->commissionEvolution($employee, $filters['range'] ?? 'month'),
             'rows' => $rows,
+            'advances' => Advance::where('employee_id', $employee->id)
+                ->with(['workDay', 'commissionPayout'])
+                ->orderByDesc('given_on')
+                ->orderByDesc('id')
+                ->get()
+                ->map(fn (Advance $advance) => [
+                    'id' => $advance->id,
+                    'amount' => (float) $advance->amount,
+                    'reason' => $advance->reason,
+                    'given_on' => $advance->given_on?->toDateString(),
+                    'settled_at' => $advance->settled_at?->toIso8601String(),
+                    'work_day_date' => $advance->workDay?->date?->toDateString(),
+                    'commission_payout_period' => $advance->commissionPayout?->period,
+                ])
+                ->all(),
+            'payouts' => CommissionPayout::where('employee_id', $employee->id)
+                ->with('paidBy')
+                ->orderByDesc('paid_at')
+                ->get()
+                ->map(fn (CommissionPayout $payout) => [
+                    'id' => $payout->id,
+                    'period' => $payout->period,
+                    'commission_total' => (float) $payout->commission_total,
+                    'advances_deducted' => (float) $payout->advances_deducted,
+                    'net_amount' => (float) $payout->net_amount,
+                    'paid_at' => $payout->paid_at?->toIso8601String(),
+                    'paid_by' => $payout->paidBy?->name,
+                ])
+                ->all(),
         ];
     }
 

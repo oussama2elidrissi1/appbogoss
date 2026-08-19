@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Appointment;
+use App\Models\Advance;
 use App\Models\Client;
+use App\Models\CommissionPayout;
 use App\Models\Employee;
 use App\Models\Prestation;
 use App\Models\Sale;
@@ -100,5 +102,47 @@ class EmployeeWorkspaceApiTest extends TestCase
         $this->getJson('/api/me/workspace/dashboard')
             ->assertOk()
             ->assertJsonPath('data.today.monthly_commission', 350);
+    }
+
+    public function test_employee_commissions_endpoint_includes_full_advance_and_payout_history(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        $user = User::factory()->create(['role' => 'employee']);
+        $user->assignRole('employee');
+        $employee = Employee::factory()->create(['user_id' => $user->id]);
+
+        $payout = CommissionPayout::create([
+            'employee_id' => $employee->id,
+            'period' => '2026-08',
+            'commission_total' => 100,
+            'advances_deducted' => 50,
+            'net_amount' => 50,
+            'paid_by_user_id' => $user->id,
+            'paid_at' => now(),
+        ]);
+
+        Advance::create([
+            'employee_id' => $employee->id,
+            'amount' => 50,
+            'reason' => 'Ancienne avance',
+            'given_on' => '2026-07-15',
+            'settled_at' => now(),
+            'commission_payout_id' => $payout->id,
+        ]);
+
+        Advance::create([
+            'employee_id' => $employee->id,
+            'amount' => 25,
+            'reason' => 'Avance en cours',
+            'given_on' => '2026-08-19',
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/me/workspace/commissions')
+            ->assertOk()
+            ->assertJsonCount(2, 'data.advances')
+            ->assertJsonPath('data.payouts.0.period', '2026-08');
     }
 }

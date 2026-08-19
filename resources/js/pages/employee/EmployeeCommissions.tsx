@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { HandCoins, WalletCards } from 'lucide-react';
+import { CheckCircle2, HandCoins, WalletCards } from 'lucide-react';
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -97,7 +97,80 @@ export default function EmployeeCommissions() {
                     </table>
                 </div>
             </EmployeePanel>
+
+            <div className="grid gap-5 xl:grid-cols-2">
+                <EmployeePanel>
+                    <EmployeePanelTitle title="Historique des avances" icon={HandCoins} />
+                    <div className="max-h-[34rem] overflow-y-auto">
+                        <table className="w-full min-w-[620px] text-sm">
+                            <thead className="text-left text-xs uppercase tracking-[0.12em] text-white/38">
+                                <tr>
+                                    <th className="px-4 py-3">Date</th>
+                                    <th className="px-4 py-3 text-right">Montant</th>
+                                    <th className="px-4 py-3">Motif</th>
+                                    <th className="px-4 py-3 text-right">Statut</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {isPending ? (
+                                    <tr><td colSpan={4} className="px-4 py-8 text-center text-white/50">Chargement...</td></tr>
+                                ) : data?.advances.length === 0 ? (
+                                    <tr><td colSpan={4} className="px-4 py-8 text-center text-white/50">Aucune avance en historique.</td></tr>
+                                ) : data?.advances.map((advance) => (
+                                    <tr key={advance.id} className="border-t border-white/[0.06] text-white/72">
+                                        <td className="px-4 py-3">{advance.given_on ? formatDate(advance.given_on) : '-'}</td>
+                                        <td className="px-4 py-3 text-right font-semibold text-[#d5b15d]">{formatCurrency(advance.amount)}</td>
+                                        <td className="px-4 py-3">{advance.reason ?? '-'}</td>
+                                        <td className="px-4 py-3 text-right">
+                                            {advance.settled_at ? (
+                                                <Badge className="border-emerald-400/25 bg-emerald-400/10 text-emerald-200">
+                                                    <CheckCircle2 className="h-3 w-3" />
+                                                    Reglee{advance.commission_payout_period ? ` paie ${advance.commission_payout_period}` : ''}
+                                                </Badge>
+                                            ) : (
+                                                <Badge className="border-[#c8a24c]/25 bg-[#c8a24c]/10 text-[#f0d27b]">En cours</Badge>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </EmployeePanel>
+
+                <EmployeePanel>
+                    <EmployeePanelTitle title="Historique des paiements" icon={WalletCards} />
+                    <div className="max-h-[34rem] overflow-y-auto">
+                        <table className="w-full min-w-[620px] text-sm">
+                            <thead className="text-left text-xs uppercase tracking-[0.12em] text-white/38">
+                                <tr>
+                                    <th className="px-4 py-3">Periode</th>
+                                    <th className="px-4 py-3 text-right">Commission</th>
+                                    <th className="px-4 py-3 text-right">Avances soldees</th>
+                                    <th className="px-4 py-3 text-right">Net paye</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {isPending ? (
+                                    <tr><td colSpan={4} className="px-4 py-8 text-center text-white/50">Chargement...</td></tr>
+                                ) : data?.payouts.length === 0 ? (
+                                    <tr><td colSpan={4} className="px-4 py-8 text-center text-white/50">Aucun paiement de commission.</td></tr>
+                                ) : data?.payouts.map((payout) => (
+                                    <tr key={payout.id} className="border-t border-white/[0.06] text-white/72">
+                                        <td className="px-4 py-3">
+                                            <span className="font-medium text-white">{payout.period}</span>
+                                            {payout.paid_at && <span className="ml-2 text-xs text-white/42">{formatDate(payout.paid_at)}</span>}
+                                        </td>
+                                        <td className="px-4 py-3 text-right">{formatCurrency(payout.commission_total)}</td>
+                                        <td className="px-4 py-3 text-right">{formatCurrency(payout.advances_deducted)}</td>
+                                        <td className="px-4 py-3 text-right font-semibold text-emerald-300">{formatCurrency(payout.net_amount)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </EmployeePanel>
+            </div>
         </EmployeePageShell>
     );
 }
-
