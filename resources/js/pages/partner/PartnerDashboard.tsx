@@ -1,15 +1,38 @@
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
-import { AlertCircle, ArrowRight, CalendarCheck, CalendarPlus, HandCoins, ListChecks, Wallet2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+    Activity,
+    AlertCircle,
+    ArrowRight,
+    CalendarCheck,
+    CalendarDays,
+    CalendarPlus,
+    HandCoins,
+    ListChecks,
+    Sparkles,
+    Users,
+    Wallet2,
+} from 'lucide-react';
 import { getErrorMessage, getPartnerPortalDashboard } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
-import { formatCurrency } from '@/lib/utils';
+import { cn, formatCurrency, formatDate, formatRelativeTime, formatTime } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/dashboard/EmptyState';
 import { pageFade } from '@/lib/motion';
+import type { PartnerActivityEvent, PartnerUpcomingReservation } from '@/types/partner-portal';
+
+const RESERVATION_STATUS_META: Record<string, { label: string; variant: 'default' | 'accent' | 'destructive' }> = {
+    pending: { label: 'En attente', variant: 'default' },
+    confirmed: { label: 'Confirmée', variant: 'accent' },
+    completed: { label: 'Terminée', variant: 'accent' },
+    cancelled: { label: 'Annulée', variant: 'destructive' },
+    no_show: { label: 'Absent(e)', variant: 'destructive' },
+    refused: { label: 'Refusée', variant: 'destructive' },
+};
 
 const STATUS_LABEL: Record<string, { label: string; variant: 'success' | 'outline' | 'destructive' }> = {
     active: { label: 'Compte actif', variant: 'success' },
@@ -65,7 +88,12 @@ export default function PartnerDashboard() {
                     </Button>
                 </Card>
             ) : (
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                    <KpiCard
+                        icon={CalendarDays}
+                        label="Réservations aujourd'hui"
+                        value={isPending ? null : String(data?.reservations_today ?? 0)}
+                    />
                     <KpiCard
                         icon={CalendarCheck}
                         label="Réservations ce mois"
@@ -118,7 +146,142 @@ export default function PartnerDashboard() {
                     </Button>
                 </div>
             </Card>
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <UpcomingReservationsCard
+                    isPending={isPending}
+                    reservations={data?.upcoming_reservations ?? []}
+                />
+                <RecentActivityCard isPending={isPending} events={data?.recent_activity ?? []} />
+            </div>
         </motion.div>
+    );
+}
+
+function UpcomingReservationsCard({
+    isPending,
+    reservations,
+}: {
+    isPending: boolean;
+    reservations: PartnerUpcomingReservation[];
+}) {
+    return (
+        <Card className="p-5 sm:p-6">
+            <div className="flex items-center justify-between gap-3">
+                <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <CalendarDays className="h-4 w-4 text-accent" />
+                    Prochaines réservations
+                </h2>
+                <Link to="/partner/agenda" className="text-xs font-medium text-accent hover:underline">
+                    Voir mon agenda
+                </Link>
+            </div>
+
+            {isPending ? (
+                <div className="mt-4 space-y-2">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                        <Skeleton key={index} className="h-14 w-full rounded-md" />
+                    ))}
+                </div>
+            ) : reservations.length === 0 ? (
+                <EmptyState
+                    icon={CalendarDays}
+                    title="Aucune réservation à venir"
+                    description="Vos prochaines réservations apparaîtront ici."
+                    className="mt-4"
+                />
+            ) : (
+                <ul className="mt-4 space-y-2">
+                    {reservations.map((reservation) => {
+                        const status = RESERVATION_STATUS_META[reservation.status] ?? RESERVATION_STATUS_META.pending;
+                        return (
+                            <li key={reservation.id}>
+                                <Link
+                                    to={`/partner/reservations/${reservation.id}`}
+                                    className="flex items-center justify-between gap-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3.5 py-2.5 transition-colors hover:border-accent/30 hover:bg-tint/[0.04]"
+                                >
+                                    <div className="min-w-0">
+                                        <p className="truncate text-sm font-medium text-foreground">
+                                            {reservation.client_name ?? 'Client'}
+                                        </p>
+                                        <p className="mt-0.5 flex items-center gap-2 truncate text-xs text-muted-foreground">
+                                            <span>
+                                                {reservation.starts_at ? formatDate(reservation.starts_at) : '—'} ·{' '}
+                                                {reservation.starts_at ? formatTime(reservation.starts_at) : '—'}
+                                            </span>
+                                            <span className="flex items-center gap-1">
+                                                <Users className="h-3 w-3" />
+                                                {reservation.participants_count}
+                                            </span>
+                                        </p>
+                                    </div>
+                                    <Badge variant={status.variant} className="shrink-0 text-[10px]">
+                                        {status.label}
+                                    </Badge>
+                                </Link>
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
+        </Card>
+    );
+}
+
+function RecentActivityCard({ isPending, events }: { isPending: boolean; events: PartnerActivityEvent[] }) {
+    const iconFor = (type: PartnerActivityEvent['type']) =>
+        type === 'client_created' ? Users : type === 'commission_validated' ? HandCoins : Sparkles;
+
+    return (
+        <Card className="p-5 sm:p-6">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Activity className="h-4 w-4 text-accent" />
+                Activité récente
+            </h2>
+
+            {isPending ? (
+                <div className="mt-4 space-y-2">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                        <Skeleton key={index} className="h-10 w-full rounded-md" />
+                    ))}
+                </div>
+            ) : events.length === 0 ? (
+                <EmptyState
+                    icon={Activity}
+                    title="Aucune activité récente"
+                    description="Vos actions récentes apparaîtront ici."
+                    className="mt-4"
+                />
+            ) : (
+                <ul className="mt-4 space-y-3">
+                    {events.map((event, index) => {
+                        const Icon = iconFor(event.type);
+                        return (
+                            <li key={`${event.type}-${index}`} className="flex items-start gap-2.5">
+                                <span
+                                    className={cn(
+                                        'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full',
+                                        event.type === 'commission_validated'
+                                            ? 'bg-success/[0.14] text-success'
+                                            : 'bg-accent/[0.14] text-accent',
+                                    )}
+                                >
+                                    <Icon className="h-3 w-3" />
+                                </span>
+                                <div className="min-w-0">
+                                    <p className="text-sm text-foreground">{event.label}</p>
+                                    {event.created_at && (
+                                        <p className="text-xs text-muted-foreground">
+                                            {formatRelativeTime(event.created_at)}
+                                        </p>
+                                    )}
+                                </div>
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
+        </Card>
     );
 }
 

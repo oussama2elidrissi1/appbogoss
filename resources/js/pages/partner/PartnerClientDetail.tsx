@@ -1,12 +1,14 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { AlertCircle, ArrowLeft, CalendarPlus, History, Receipt } from 'lucide-react';
-import { getErrorMessage, getPartnerPortalClient } from '@/lib/api';
+import { AlertCircle, Archive, ArchiveRestore, ArrowLeft, CalendarPlus, History, Receipt } from 'lucide-react';
+import { archivePartnerClient, getErrorMessage, getPartnerPortalClient, unarchivePartnerClient } from '@/lib/api';
 import { formatCurrency, formatDate, getInitials } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { pageFade } from '@/lib/motion';
 
@@ -15,18 +17,31 @@ const STATUS_LABEL: Record<string, string> = {
     confirmed: 'Confirmée',
     completed: 'Terminée',
     cancelled: 'Annulée',
-    no_show: 'Refusée',
+    no_show: 'Absent(e)',
+    refused: 'Refusée',
 };
 
 export default function PartnerClientDetail() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const clientId = Number(id);
+    const [confirmingArchive, setConfirmingArchive] = useState(false);
 
     const { data: client, isPending, isError, error } = useQuery({
         queryKey: ['partner-portal', 'client', clientId],
         queryFn: () => getPartnerPortalClient(clientId),
         enabled: Number.isFinite(clientId),
+    });
+
+    const archiveMutation = useMutation({
+        mutationFn: () =>
+            client?.archived_at ? unarchivePartnerClient(clientId) : archivePartnerClient(clientId),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({ queryKey: ['partner-portal', 'client', clientId] });
+            void queryClient.invalidateQueries({ queryKey: ['partner-portal', 'clients'] });
+            setConfirmingArchive(false);
+        },
     });
 
     if (isPending) {
@@ -56,7 +71,8 @@ export default function PartnerClientDetail() {
                 <Button variant="ghost" size="icon" onClick={() => navigate('/partner/clients')} aria-label="Retour">
                     <ArrowLeft className="h-4 w-4" />
                 </Button>
-                <h1 className="text-xl font-semibold tracking-tight">Fiche client</h1>
+                <h1 className="flex-1 text-xl font-semibold tracking-tight">Fiche client</h1>
+                {client.archived_at && <Badge variant="outline">Archivé</Badge>}
             </div>
 
             <Card className="p-5 sm:p-6">
@@ -78,12 +94,20 @@ export default function PartnerClientDetail() {
                     </div>
                 </div>
 
-                <Button variant="accent" className="mt-5 w-full sm:w-auto" asChild>
-                    <Link to="/partner/reservations/new">
-                        <CalendarPlus className="h-4 w-4" />
-                        Nouvelle réservation
-                    </Link>
-                </Button>
+                <div className="mt-5 flex flex-wrap items-center gap-2">
+                    {!client.archived_at && (
+                        <Button variant="accent" asChild>
+                            <Link to="/partner/reservations/new">
+                                <CalendarPlus className="h-4 w-4" />
+                                Nouvelle réservation
+                            </Link>
+                        </Button>
+                    )}
+                    <Button variant="outline" onClick={() => setConfirmingArchive(true)}>
+                        {client.archived_at ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+                        {client.archived_at ? 'Désarchiver' : 'Archiver'}
+                    </Button>
+                </div>
             </Card>
 
             <Card className="p-5 sm:p-6">
@@ -142,7 +166,9 @@ export default function PartnerClientDetail() {
                                 </span>
                                 <Badge
                                     variant={
-                                        reservation.status === 'cancelled' || reservation.status === 'no_show'
+                                        reservation.status === 'cancelled' ||
+                                        reservation.status === 'no_show' ||
+                                        reservation.status === 'refused'
                                             ? 'destructive'
                                             : reservation.status === 'completed'
                                               ? 'success'
@@ -156,6 +182,21 @@ export default function PartnerClientDetail() {
                     </ul>
                 )}
             </Card>
+
+            <ConfirmDialog
+                open={confirmingArchive}
+                onOpenChange={setConfirmingArchive}
+                title={client.archived_at ? 'Désarchiver ce client ?' : 'Archiver ce client ?'}
+                description={
+                    client.archived_at
+                        ? `${client.name} réapparaîtra dans votre liste active.`
+                        : `${client.name} n'apparaîtra plus dans votre liste active — son historique est conservé.`
+                }
+                confirmLabel={client.archived_at ? 'Désarchiver' : 'Archiver'}
+                variant={client.archived_at ? 'accent' : 'destructive'}
+                loading={archiveMutation.isPending}
+                onConfirm={() => archiveMutation.mutate()}
+            />
         </motion.div>
     );
 }

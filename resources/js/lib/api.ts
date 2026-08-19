@@ -663,15 +663,28 @@ export async function getPartnerPortalServices(): Promise<PartnerBookableService
     return data.data;
 }
 
-export async function getPartnerPortalClients(search?: string): Promise<PartnerClientRow[]> {
+export async function getPartnerPortalClients(
+    search?: string,
+    filter?: 'active' | 'archived' | 'all',
+): Promise<PartnerClientRow[]> {
     const { data } = await api.get<{ data: PartnerClientRow[] }>('/api/partner/clients', {
-        params: search ? { search } : {},
+        params: { ...(search ? { search } : {}), ...(filter ? { filter } : {}) },
     });
     return data.data;
 }
 
 export async function getPartnerPortalClient(id: number): Promise<PartnerClientDetail> {
     const { data } = await api.get<{ data: PartnerClientDetail }>(`/api/partner/clients/${id}`);
+    return data.data;
+}
+
+export async function archivePartnerClient(id: number): Promise<PartnerClientRow> {
+    const { data } = await api.patch<{ data: PartnerClientRow }>(`/api/partner/clients/${id}/archive`);
+    return data.data;
+}
+
+export async function unarchivePartnerClient(id: number): Promise<PartnerClientRow> {
+    const { data } = await api.patch<{ data: PartnerClientRow }>(`/api/partner/clients/${id}/unarchive`);
     return data.data;
 }
 

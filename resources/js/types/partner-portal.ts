@@ -2,14 +2,32 @@ import type { Partner, PartnerStatus } from '@/types/workday';
 
 export type { PartnerStatus };
 
+export interface PartnerUpcomingReservation {
+    id: number;
+    client_name: string | null;
+    starts_at: string | null;
+    service_names: string[];
+    participants_count: number;
+    status: string;
+}
+
+export interface PartnerActivityEvent {
+    type: 'appointment_status' | 'client_created' | 'commission_validated';
+    label: string;
+    created_at: string | null;
+}
+
 export interface PartnerDashboard {
     partner_name: string;
     status: PartnerStatus;
+    reservations_today: number;
     reservations_month: number;
     reservations_confirmed: number;
     commission_estimated: number;
     commission_validated: number;
     commission_paid: number;
+    upcoming_reservations: PartnerUpcomingReservation[];
+    recent_activity: PartnerActivityEvent[];
 }
 
 export interface PartnerBookableService {
@@ -31,6 +49,7 @@ export interface PartnerClientRow {
     email: string | null;
     avatar_color: string;
     created_at: string | null;
+    archived_at: string | null;
     reservations_count: number;
     last_reservation_at: string | null;
     revenue_generated: number;

@@ -27,6 +27,8 @@ class Client extends Model implements Authenticatable
     protected $fillable = [
         'partner_id',
         'created_by_user_id',
+        'archived_at',
+        'archived_by_user_id',
         'name',
         'email',
         'phone',
@@ -50,6 +52,7 @@ class Client extends Model implements Authenticatable
 
     protected $casts = [
         'birth_date' => 'date',
+        'archived_at' => 'datetime',
         'last_visit_at' => 'datetime',
         'loyalty_points' => 'integer',
         'phone_verified_at' => 'datetime',
@@ -68,6 +71,11 @@ class Client extends Model implements Authenticatable
     public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by_user_id');
+    }
+
+    public function archivedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'archived_by_user_id');
     }
 
     public function appointments(): HasMany

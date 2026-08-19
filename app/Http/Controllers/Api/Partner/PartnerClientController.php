@@ -26,9 +26,19 @@ class PartnerClientController extends Controller
     public function index(Request $request): JsonResponse
     {
         $partner = $this->currentPartner($request);
-        $validated = $request->validate(['search' => ['nullable', 'string', 'max:255']]);
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+            // 'active' (default) hides archived clients; 'archived' shows only
+            // archived ones; 'all' shows both — never a silent default of "all".
+            'filter' => ['nullable', 'string', 'in:active,archived,all'],
+        ]);
 
         $query = Client::where('partner_id', $partner->id)->orderBy('name');
+        match ($validated['filter'] ?? 'active') {
+            'archived' => $query->whereNotNull('archived_at'),
+            'all' => null,
+            default => $query->whereNull('archived_at'),
+        };
         if (! empty($validated['search'])) {
             $search = $validated['search'];
             $query->where(function ($sub) use ($search): void {
@@ -70,6 +80,27 @@ class PartnerClientController extends Controller
             $this->clientRow($client, $stats[$client->id] ?? null),
             ['reservations' => $reservations],
         )]);
+    }
+
+    /** §20 — archives a client rather than deleting it, preserving its reservation/commission history intact. */
+    public function archive(Request $request, Client $client): JsonResponse
+    {
+        $partner = $this->currentPartner($request);
+        abort_unless($client->partner_id === $partner->id, 403, 'Ce client n’appartient pas à votre portefeuille.');
+
+        $client->update(['archived_at' => now(), 'archived_by_user_id' => $request->user()->id]);
+
+        return response()->json(['data' => $this->clientRow($client, null)]);
+    }
+
+    public function unarchive(Request $request, Client $client): JsonResponse
+    {
+        $partner = $this->currentPartner($request);
+        abort_unless($client->partner_id === $partner->id, 403, 'Ce client n’appartient pas à votre portefeuille.');
+
+        $client->update(['archived_at' => null, 'archived_by_user_id' => null]);
+
+        return response()->json(['data' => $this->clientRow($client, null)]);
     }
 
     /**
@@ -120,6 +151,7 @@ class PartnerClientController extends Controller
             'email' => $client->email,
             'avatar_color' => $client->avatar_color,
             'created_at' => $client->created_at?->toIso8601String(),
+            'archived_at' => $client->archived_at?->toIso8601String(),
             'reservations_count' => $stats['reservations'] ?? 0,
             'last_reservation_at' => $stats['last_visit'] ?? null,
             'revenue_generated' => round($stats['revenue'] ?? 0, 2),

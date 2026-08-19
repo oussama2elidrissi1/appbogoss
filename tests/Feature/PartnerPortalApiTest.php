@@ -83,6 +83,31 @@ class PartnerPortalApiTest extends TestCase
         $this->assertEquals(40.0, $response['commission_estimated']);
     }
 
+    public function test_dashboard_surfaces_upcoming_reservations_and_recent_activity(): void
+    {
+        $partner = $this->makePartner('a@partner.test', 'Partenaire A');
+        $service = Service::factory()->create(['price' => 100]);
+        $client = Client::factory()->create(['partner_id' => $partner->id, 'name' => 'Amina']);
+
+        Sanctum::actingAs($partner->user);
+
+        $created = $this->postJson('/api/appointments', [
+            'client_id' => $client->id,
+            'service_id' => $service->id,
+            'starts_at' => now()->addDays(3)->toDateTimeString(),
+        ])->assertCreated()->json('data');
+
+        $response = $this->getJson('/api/partner/dashboard')->assertOk()->json('data');
+
+        $this->assertCount(1, $response['upcoming_reservations']);
+        $this->assertSame($created['id'], $response['upcoming_reservations'][0]['id']);
+        $this->assertSame('Amina', $response['upcoming_reservations'][0]['client_name']);
+
+        $labels = array_column($response['recent_activity'], 'label');
+        $this->assertContains('Réservation RSV-'.$created['id'].' créée', $labels);
+        $this->assertContains('Amina ajouté(e) comme client', $labels);
+    }
+
     public function test_services_only_lists_services_this_partner_has_a_commission_rule_for(): void
     {
         $partner = $this->makePartner('a@partner.test', 'Partenaire A');
@@ -114,6 +139,39 @@ class PartnerPortalApiTest extends TestCase
 
         $otherClient = Client::where('partner_id', $partnerB->id)->firstOrFail();
         $this->getJson('/api/partner/clients/'.$otherClient->id)->assertForbidden();
+    }
+
+    public function test_partner_can_archive_and_unarchive_their_own_client(): void
+    {
+        $partner = $this->makePartner('a@partner.test', 'Partenaire A');
+        $client = Client::factory()->create(['partner_id' => $partner->id, 'name' => 'Client A']);
+        Sanctum::actingAs($partner->user);
+
+        $this->getJson('/api/partner/clients')->assertOk()->assertJsonCount(1, 'data');
+
+        $this->patchJson('/api/partner/clients/'.$client->id.'/archive')
+            ->assertOk()
+            ->assertJsonPath('data.archived_at', fn ($value) => $value !== null);
+
+        $this->getJson('/api/partner/clients')->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson('/api/partner/clients?filter=archived')->assertOk()->assertJsonCount(1, 'data');
+        $this->getJson('/api/partner/clients?filter=all')->assertOk()->assertJsonCount(1, 'data');
+
+        $this->patchJson('/api/partner/clients/'.$client->id.'/unarchive')
+            ->assertOk()
+            ->assertJsonPath('data.archived_at', null);
+
+        $this->getJson('/api/partner/clients')->assertOk()->assertJsonCount(1, 'data');
+    }
+
+    public function test_partner_cannot_archive_another_partners_client(): void
+    {
+        $partnerA = $this->makePartner('a@partner.test', 'Partenaire A');
+        $partnerB = $this->makePartner('b@partner.test', 'Partenaire B');
+        $clientB = Client::factory()->create(['partner_id' => $partnerB->id]);
+
+        Sanctum::actingAs($partnerA->user);
+        $this->patchJson('/api/partner/clients/'.$clientB->id.'/archive')->assertForbidden();
     }
 
     public function test_partner_commissions_and_summary_are_isolated_between_two_partners(): void

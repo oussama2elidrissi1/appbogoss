@@ -106,6 +106,22 @@ export default function PartnerLayout() {
         setMobileNavOpen(false);
     }, [location.pathname]);
 
+    // The `dark` class below only scopes CSS variables for elements actually
+    // inside this wrapper — but Dialog/DropdownMenu/Select all portal to
+    // document.body, a sibling of this div, not a descendant. Without also
+    // toggling `dark` on <html> for as long as the portal is mounted, every
+    // popover in this app falls back to the light theme regardless of this
+    // wrapper. Restore whatever the real global preference was on unmount.
+    useEffect(() => {
+        const root = document.documentElement;
+        const hadDark = root.classList.contains('dark');
+        root.classList.add('dark');
+
+        return () => {
+            root.classList.toggle('dark', hadDark);
+        };
+    }, []);
+
     const displayName = profile?.trade_name || profile?.name || user?.partner_name || 'Partenaire';
 
     return (

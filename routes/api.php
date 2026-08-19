@@ -168,6 +168,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/services', [PartnerPortalServiceController::class, 'index']);
         Route::get('/clients', [PartnerClientController::class, 'index']);
         Route::get('/clients/{client}', [PartnerClientController::class, 'show']);
+        Route::patch('/clients/{client}/archive', [PartnerClientController::class, 'archive']);
+        Route::patch('/clients/{client}/unarchive', [PartnerClientController::class, 'unarchive']);
         Route::get('/commissions', [PartnerPortalCommissionController::class, 'index']);
         Route::get('/profile', [PartnerProfileController::class, 'show']);
         Route::patch('/profile', [PartnerProfileController::class, 'update']);
