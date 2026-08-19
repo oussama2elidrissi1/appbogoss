@@ -20,7 +20,8 @@ const STATUS_META: Record<AppointmentStatus, { label: string; dot: string; varia
     confirmed: { label: 'Confirmée', dot: 'bg-sky-400', variant: 'outline' },
     completed: { label: 'Payée / Terminée', dot: 'bg-success', variant: 'success' },
     cancelled: { label: 'Annulée', dot: 'bg-destructive', variant: 'destructive' },
-    no_show: { label: 'Refusée', dot: 'bg-muted-foreground', variant: 'outline' },
+    no_show: { label: 'Absent(e)', dot: 'bg-muted-foreground', variant: 'outline' },
+    refused: { label: 'Refusée', dot: 'bg-destructive', variant: 'destructive' },
 };
 
 // AppointmentController defaults to "today only" when no date range is

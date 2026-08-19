@@ -15,6 +15,7 @@ const STATUS_META: Record<AppointmentStatus, { label: string; variant: BadgeProp
     completed: { label: 'Terminé', variant: 'success' },
     cancelled: { label: 'Annulé', variant: 'destructive' },
     no_show: { label: 'Absent', variant: 'destructive' },
+    refused: { label: 'Refusé', variant: 'destructive' },
 };
 
 const STATUS_FILTERS: Array<{ value: AppointmentStatus | 'all'; label: string }> = [
@@ -204,7 +205,9 @@ export function ReservationList({
                                         ),
                                     ];
                                     const cancelled =
-                                        appointment.status === 'cancelled' || appointment.status === 'no_show';
+                                        appointment.status === 'cancelled' ||
+                                        appointment.status === 'no_show' ||
+                                        appointment.status === 'refused';
 
                                     return (
                                         <button

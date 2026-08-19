@@ -18,7 +18,8 @@ const STATUS_LABEL: Record<AppointmentStatus, string> = {
     confirmed: 'CONFIRMÉE',
     completed: 'PAYÉE / TERMINÉE',
     cancelled: 'ANNULÉE',
-    no_show: 'REFUSÉE',
+    no_show: 'ABSENT(E)',
+    refused: 'REFUSÉE',
 };
 
 const STATUS_BADGE: Record<AppointmentStatus, 'outline' | 'success' | 'destructive'> = {
@@ -27,6 +28,7 @@ const STATUS_BADGE: Record<AppointmentStatus, 'outline' | 'success' | 'destructi
     completed: 'success',
     cancelled: 'destructive',
     no_show: 'destructive',
+    refused: 'destructive',
 };
 
 export default function PartnerReservationDetail() {
@@ -188,17 +190,23 @@ function DetailRow({
     );
 }
 
+const TERMINAL_LABEL: Partial<Record<AppointmentStatus, string>> = {
+    cancelled: 'Annulée',
+    no_show: 'Non honorée',
+    refused: 'Refusée par BOGOSLAND',
+};
+
 function Timeline({ appointment }: { appointment: { status: AppointmentStatus; created_at?: string | null } }) {
-    const cancelled = appointment.status === 'cancelled' || appointment.status === 'no_show';
+    const terminalLabel = TERMINAL_LABEL[appointment.status];
     const confirmed = appointment.status === 'confirmed' || appointment.status === 'completed';
     const completed = appointment.status === 'completed';
 
     const steps = [
         { label: 'Réservation créée', done: true, date: appointment.created_at },
-        cancelled
-            ? { label: appointment.status === 'cancelled' ? 'Annulée' : 'Non honorée', done: true, failed: true }
+        terminalLabel
+            ? { label: terminalLabel, done: true, failed: true }
             : { label: 'Acceptée par BOGOSLAND', done: confirmed },
-        !cancelled && { label: 'Client reçu et payé au salon', done: completed },
+        !terminalLabel && { label: 'Client reçu et payé au salon', done: completed },
     ].filter(Boolean) as Array<{ label: string; done: boolean; failed?: boolean; date?: string | null }>;
 
     return (

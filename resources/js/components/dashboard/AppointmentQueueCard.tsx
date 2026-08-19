@@ -9,7 +9,7 @@ import { EmptyState } from './EmptyState';
 function statusVariant(status: string): BadgeProps['variant'] {
     const value = status.toLowerCase();
     if (['completed', 'terminé', 'termine', 'done', 'paid'].includes(value)) return 'success';
-    if (['cancelled', 'canceled', 'annulé', 'annule', 'no_show'].includes(value))
+    if (['cancelled', 'canceled', 'annulé', 'annule', 'no_show', 'refused'].includes(value))
         return 'destructive';
     if (['confirmed', 'confirmé', 'confirme', 'in_progress', 'en_cours'].includes(value))
         return 'accent';
@@ -24,6 +24,7 @@ const statusLabels: Record<string, string> = {
     cancelled: 'Annulé',
     canceled: 'Annulé',
     no_show: 'Absent',
+    refused: 'Refusé',
     paid: 'Payé',
 };
 

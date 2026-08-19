@@ -15,6 +15,7 @@ const DnDCalendar = withDragAndDrop<AgendaEvent, AgendaResource>(Calendar);
 const STATUS_DIM: Record<string, boolean> = {
     cancelled: true,
     no_show: true,
+    refused: true,
 };
 
 interface AgendaCalendarProps {

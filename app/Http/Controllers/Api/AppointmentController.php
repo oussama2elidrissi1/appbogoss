@@ -7,6 +7,7 @@ use App\Http\Requests\StoreAppointmentRequest;
 use App\Http\Requests\UpdateAppointmentRequest;
 use App\Http\Resources\AppointmentResource;
 use App\Models\Appointment;
+use App\Models\AppointmentStatusLog;
 use App\Models\Client;
 use App\Models\Employee;
 use App\Models\Partner;
@@ -14,6 +15,7 @@ use App\Models\Service;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class AppointmentController extends Controller
@@ -60,6 +62,7 @@ class AppointmentController extends Controller
     public function store(StoreAppointmentRequest $request): JsonResponse
     {
         $data = $request->validated();
+        $data['created_by_user_id'] = $request->user()?->id;
 
         if ($partner = $this->restrictedPartner($request)) {
             // Partner bookings are always attributed to the partner and land
@@ -70,6 +73,15 @@ class AppointmentController extends Controller
         }
 
         $appointment = Appointment::create($this->payloadWithEnd($data));
+
+        AppointmentStatusLog::create([
+            'appointment_id' => $appointment->id,
+            'from_status' => null,
+            'to_status' => $appointment->status,
+            'user_id' => $request->user()?->id,
+            'reason' => null,
+        ]);
+
         $appointment->load(['client', 'employee', 'service', 'partner']);
 
         return response()->json(['data' => new AppointmentResource($appointment)], 201);
@@ -90,13 +102,15 @@ class AppointmentController extends Controller
 
         if ($partner = $this->restrictedPartner($request)) {
             // A partner may cancel their own reservation but never grant it a
-            // salon-side status (confirmed/completed/no_show), nor reassign it.
+            // salon-side status (confirmed/completed/no_show/refused), nor reassign it.
             if (($data['status'] ?? null) !== 'cancelled') {
                 unset($data['status']);
             }
             unset($data['partner_id']);
             $this->assertClientsBelongToPartner($data, $partner);
         }
+
+        $this->logStatusChange($appointment, $appointment->status, $data, $request);
 
         $appointment->update($this->payloadWithEnd($data, $appointment));
         $appointment->load(['client', 'employee', 'service', 'partner']);
@@ -167,6 +181,39 @@ class AppointmentController extends Controller
     }
 
     /**
+     * Writes an {@see AppointmentStatusLog} row for any real status
+     * transition and stamps the corresponding audit column onto $data (by
+     * reference) so it persists in the same update() call. No-op if $data
+     * carries no status change.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function logStatusChange(Appointment $appointment, ?string $previousStatus, array &$data, Request $request): void
+    {
+        $newStatus = $data['status'] ?? null;
+        if ($newStatus === null || $newStatus === $previousStatus) {
+            return;
+        }
+
+        $userId = $request->user()?->id;
+
+        if ($newStatus === 'confirmed') {
+            $data['confirmed_by_user_id'] = $userId;
+        } elseif (in_array($newStatus, ['cancelled', 'refused'], true)) {
+            $data['cancelled_by_user_id'] = $userId;
+            $data['cancelled_at'] = now();
+        }
+
+        AppointmentStatusLog::create([
+            'appointment_id' => $appointment->id,
+            'from_status' => $previousStatus,
+            'to_status' => $newStatus,
+            'user_id' => $userId,
+            'reason' => $data['cancellation_reason'] ?? null,
+        ]);
+    }
+
+    /**
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
@@ -202,20 +249,38 @@ class AppointmentController extends Controller
         }
         $personCount = $people->count();
 
+        // Preserve each line's snapshot (price/commission/duration at the
+        // moment it was first written) across edits, keyed by a stable uid
+        // stamped onto every reservation_items entry. A line only gets a
+        // fresh snapshot when it's new or its service changed — reassigning
+        // just the employee or moving the slot never rewrites what the
+        // partner already saw.
+        $existingByUid = collect($appointment?->reservation_items ?: [])
+            ->filter(fn ($existing) => filled($existing['uid'] ?? null))
+            ->keyBy('uid');
+
         $items = collect($items)
-            ->map(function (array $item) use ($personCount) {
+            ->map(function (array $item) use ($personCount, $existingByUid) {
                 $personIndex = isset($item['person_index']) && $item['person_index'] !== '' && $item['person_index'] !== null
                     ? (int) $item['person_index']
                     : null;
+                $serviceId = (int) $item['service_id'];
+
+                $existing = filled($item['uid'] ?? null) ? $existingByUid->get($item['uid']) : null;
+                $reuseSnapshot = $existing !== null && (int) ($existing['service_id'] ?? 0) === $serviceId;
 
                 return [
-                    'service_id' => (int) $item['service_id'],
+                    'uid' => $reuseSnapshot ? $existing['uid'] : (string) Str::random(12),
+                    'service_id' => $serviceId,
                     'employee_id' => isset($item['employee_id']) && $item['employee_id'] !== '' && $item['employee_id'] !== null
                         ? (int) $item['employee_id']
                         : null,
                     'person_index' => $personIndex !== null && $personIndex >= 0 && $personIndex < $personCount
                         ? $personIndex
                         : 0,
+                    'price_snapshot' => $reuseSnapshot ? ($existing['price_snapshot'] ?? null) : null,
+                    'commission_snapshot' => $reuseSnapshot ? ($existing['commission_snapshot'] ?? null) : null,
+                    'duration_minutes_snapshot' => $reuseSnapshot ? ($existing['duration_minutes_snapshot'] ?? null) : null,
                 ];
             })
             ->values()
@@ -231,6 +296,25 @@ class AppointmentController extends Controller
         if (Employee::query()->whereIn('id', $employeeIds)->count() !== $employeeIds->count()) {
             abort(422, 'Un employé sélectionné n’existe plus.');
         }
+
+        $snapshotPartnerId = $data['partner_id'] ?? $appointment?->partner_id;
+        $snapshotPartner = $snapshotPartnerId ? Partner::find($snapshotPartnerId) : null;
+        $items = collect($items)
+            ->map(function (array $item) use ($services, $snapshotPartner) {
+                if ($item['price_snapshot'] !== null) {
+                    return $item;
+                }
+                $service = $services[$item['service_id']];
+                $item['price_snapshot'] = (float) $service->price;
+                $item['duration_minutes_snapshot'] = (int) $service->duration_minutes;
+                $item['commission_snapshot'] = $snapshotPartner
+                    ? $snapshotPartner->commissionFor($service->id, (float) $service->price)
+                    : null;
+
+                return $item;
+            })
+            ->values()
+            ->all();
 
         $startsAt = Carbon::parse($data['starts_at'] ?? $appointment?->starts_at);
         $assigned = collect($items)->filter(fn (array $item) => $item['employee_id'] !== null);
@@ -304,7 +388,7 @@ class AppointmentController extends Controller
 
         $existing = Appointment::query()
             ->when($appointment, fn ($query) => $query->where('id', '!=', $appointment->id))
-            ->whereNotIn('status', ['cancelled', 'no_show'])
+            ->whereNotIn('status', ['cancelled', 'no_show', 'refused'])
             ->where('starts_at', '<', $endsAt)
             ->where('ends_at', '>', $startsAt)
             ->get(['id', 'employee_id', 'reservation_items']);

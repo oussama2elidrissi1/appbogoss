@@ -20,6 +20,7 @@ const STATUS_META: Record<AppointmentStatus, { label: string; variant: BadgeProp
     completed: { label: 'Terminé', variant: 'success' },
     cancelled: { label: 'Annulé', variant: 'destructive' },
     no_show: { label: 'Absent', variant: 'destructive' },
+    refused: { label: 'Refusé', variant: 'destructive' },
 };
 
 interface ReservationDetailsDialogProps {

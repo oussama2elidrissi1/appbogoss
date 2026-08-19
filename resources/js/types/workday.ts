@@ -465,7 +465,10 @@ export interface ProductPayload {
     low_stock_threshold?: number;
 }
 
-export type AppointmentStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
+export type AppointmentStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show' | 'refused';
+
+/** 'proposed' = awaiting the partner's decision, 'accepted'/'declined' = resolved. */
+export type ProposalStatus = 'proposed' | 'accepted' | 'declined';
 
 /** One participant of a reservation — index 0 is the booking contact. */
 export interface ReservationPerson {
@@ -489,6 +492,15 @@ export interface Appointment {
     ends_at: string;
     status: AppointmentStatus;
     notes: string | null;
+    created_by_user_id?: number | null;
+    confirmed_by_user_id?: number | null;
+    cancelled_by_user_id?: number | null;
+    cancelled_at?: string | null;
+    cancellation_reason?: string | null;
+    proposed_starts_at?: string | null;
+    proposed_ends_at?: string | null;
+    proposal_note?: string | null;
+    proposal_status?: ProposalStatus | null;
     created_at?: string | null;
     duration_minutes?: number;
     duration_override_minutes?: number | null;
@@ -515,10 +527,16 @@ export interface Appointment {
 }
 
 export interface ReservationItem {
+    /** Stable per-line identifier — echo it back on edit to preserve this line's snapshot. */
+    uid?: string | null;
     service_id: number;
     employee_id: number | null;
     /** Which participant (index into Appointment.people) receives this service. */
     person_index?: number;
+    /** Price/commission/duration captured when this line was written — never silently rewritten by a later price change. */
+    price_snapshot?: number | null;
+    commission_snapshot?: number | null;
+    duration_minutes_snapshot?: number | null;
     service: {
         id: number;
         name: string;
@@ -537,7 +555,8 @@ export interface AppointmentPayload {
     starts_at?: string;
     status?: AppointmentStatus;
     notes?: string | null;
-    items?: Array<{ service_id: number; employee_id: number | null; person_index?: number }>;
+    items?: Array<{ uid?: string | null; service_id: number; employee_id: number | null; person_index?: number }>;
+    cancellation_reason?: string | null;
     /** Participants — index 0 is the booking contact (linked to client_id). */
     people?: Array<{ name: string | null }>;
     /** Manual length override in minutes, set by dragging an event's edge on the calendar. */
