@@ -66,7 +66,14 @@ export default function EmployeeCommissions() {
 
             <EmployeePanel>
                 <EmployeePanelTitle title="Historique" icon={HandCoins} />
-                <div className="overflow-x-auto">
+                <div className="space-y-2 p-3 sm:hidden">
+                    {isPending ? <p className="px-4 py-8 text-center text-white/50">Chargement...</p> : data?.rows.length === 0 ? (
+                        <p className="px-4 py-8 text-center text-white/50">Aucune commission.</p>
+                    ) : data?.rows.map((row) => (
+                        <CommissionMobileCard key={row.id} row={row} />
+                    ))}
+                </div>
+                <div className="hidden overflow-x-auto sm:block">
                     <table className="w-full min-w-[820px] text-sm">
                         <thead className="text-left text-xs uppercase tracking-[0.12em] text-white/38">
                             <tr>
@@ -102,7 +109,34 @@ export default function EmployeeCommissions() {
                 <EmployeePanel>
                     <EmployeePanelTitle title="Historique des avances" icon={HandCoins} />
                     <div className="max-h-[34rem] overflow-y-auto">
-                        <table className="w-full min-w-[620px] text-sm">
+                        <div className="space-y-2 p-3 sm:hidden">
+                            {isPending ? (
+                                <p className="px-4 py-8 text-center text-white/50">Chargement...</p>
+                            ) : data?.advances.length === 0 ? (
+                                <p className="px-4 py-8 text-center text-white/50">Aucune avance en historique.</p>
+                            ) : data?.advances.map((advance) => (
+                                <div key={advance.id} className="rounded-md border border-white/[0.07] bg-white/[0.035] p-3">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <p className="text-xs text-white/42">{advance.given_on ? formatDate(advance.given_on) : '-'}</p>
+                                            <p className="mt-1 truncate text-sm text-white/58">{advance.reason ?? '-'}</p>
+                                        </div>
+                                        <p className="shrink-0 text-sm font-semibold text-[#d5b15d]">{formatCurrency(advance.amount)}</p>
+                                    </div>
+                                    <div className="mt-3">
+                                        {advance.settled_at ? (
+                                            <Badge className="border-emerald-400/25 bg-emerald-400/10 text-emerald-200">
+                                                <CheckCircle2 className="h-3 w-3" />
+                                                Reglee{advance.commission_payout_period ? ` paie ${advance.commission_payout_period}` : ''}
+                                            </Badge>
+                                        ) : (
+                                            <Badge className="border-[#c8a24c]/25 bg-[#c8a24c]/10 text-[#f0d27b]">En cours</Badge>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <table className="hidden w-full min-w-[620px] text-sm sm:table">
                             <thead className="text-left text-xs uppercase tracking-[0.12em] text-white/38">
                                 <tr>
                                     <th className="px-4 py-3">Date</th>
@@ -141,7 +175,28 @@ export default function EmployeeCommissions() {
                 <EmployeePanel>
                     <EmployeePanelTitle title="Historique des paiements" icon={WalletCards} />
                     <div className="max-h-[34rem] overflow-y-auto">
-                        <table className="w-full min-w-[620px] text-sm">
+                        <div className="space-y-2 p-3 sm:hidden">
+                            {isPending ? (
+                                <p className="px-4 py-8 text-center text-white/50">Chargement...</p>
+                            ) : data?.payouts.length === 0 ? (
+                                <p className="px-4 py-8 text-center text-white/50">Aucun paiement de commission.</p>
+                            ) : data?.payouts.map((payout) => (
+                                <div key={payout.id} className="rounded-md border border-white/[0.07] bg-white/[0.035] p-3">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <p className="font-medium text-white">{payout.period}</p>
+                                            {payout.paid_at && <p className="text-xs text-white/42">{formatDate(payout.paid_at)}</p>}
+                                        </div>
+                                        <p className="text-sm font-semibold text-emerald-300">{formatCurrency(payout.net_amount)}</p>
+                                    </div>
+                                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                                        <MobileAmount label="Commission" value={formatCurrency(payout.commission_total)} />
+                                        <MobileAmount label="Avances soldees" value={formatCurrency(payout.advances_deducted)} />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <table className="hidden w-full min-w-[620px] text-sm sm:table">
                             <thead className="text-left text-xs uppercase tracking-[0.12em] text-white/38">
                                 <tr>
                                     <th className="px-4 py-3">Periode</th>
@@ -172,5 +227,43 @@ export default function EmployeeCommissions() {
                 </EmployeePanel>
             </div>
         </EmployeePageShell>
+    );
+}
+
+function CommissionMobileCard({ row }: { row: {
+    id: number;
+    date: string;
+    client_name: string;
+    service_name: string;
+    service_price: number;
+    type: string;
+    amount: number;
+    status: string;
+} }) {
+    return (
+        <div className="rounded-md border border-white/[0.07] bg-white/[0.035] p-3">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <p className="text-xs text-white/42">{formatDate(row.date)}</p>
+                    <p className="mt-1 truncate text-sm font-semibold text-white">{row.client_name}</p>
+                    <p className="mt-1 line-clamp-2 text-sm text-white/58">{row.service_name}</p>
+                </div>
+                <Badge variant="outline" className="shrink-0">{row.status}</Badge>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                <MobileAmount label="Prix" value={formatCurrency(row.service_price)} />
+                <MobileAmount label="Type" value={row.type} />
+                <MobileAmount label="Commission" value={formatCurrency(row.amount)} accent />
+            </div>
+        </div>
+    );
+}
+
+function MobileAmount({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+    return (
+        <div className="min-w-0 rounded-md border border-white/[0.06] bg-white/[0.035] px-2 py-2">
+            <p className="truncate text-[10px] uppercase tracking-[0.08em] text-white/36">{label}</p>
+            <p className={`mt-1 truncate font-semibold ${accent ? 'text-[#d5b15d]' : 'text-white/76'}`}>{value}</p>
+        </div>
     );
 }

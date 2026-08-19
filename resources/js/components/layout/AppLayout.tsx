@@ -70,7 +70,7 @@ export function AppLayout() {
 
     return (
         <TooltipProvider delayDuration={200} skipDelayDuration={300}>
-            <div className="flex h-screen overflow-hidden bg-background">
+            <div className="flex h-[100dvh] max-w-full overflow-hidden bg-background">
                 {/* Desktop sidebar */}
                 <div className="hidden lg:block">
                     <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((v) => !v)} />
@@ -109,16 +109,16 @@ export function AppLayout() {
                 </AnimatePresence>
 
                 {/* Main column */}
-                <div className="flex min-w-0 flex-1 flex-col">
+                <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
                     <Topbar onOpenMobileNav={() => setMobileNavOpen(true)} />
 
-                    <main className="flex-1 overflow-y-auto">
+                    <main className="flex-1 overflow-x-hidden overflow-y-auto">
                         <motion.div
                             key={location.pathname}
                             initial={{ opacity: 0, y: 8 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-                            className="min-h-full px-4 py-6 lg:px-8 lg:py-8"
+                            className="min-h-full max-w-full px-3 py-4 sm:px-4 sm:py-6 lg:px-8 lg:py-8"
                         >
                             <Outlet />
                         </motion.div>

@@ -54,7 +54,7 @@ export default function EmployeeSupport() {
                 <h2 className="text-2xl font-semibold">Support</h2>
                 <p className="text-sm text-white/50">Ouvrez une conversation avec l'administration.</p>
             </div>
-            <div className="grid gap-5 xl:grid-cols-[380px_1fr]">
+            <div className="grid min-w-0 gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
                 <EmployeePanel>
                     <EmployeePanelTitle title="Nouvelle conversation" icon={Headphones} />
                     <form
@@ -86,19 +86,19 @@ export default function EmployeeSupport() {
                     {!detail ? (
                         <p className="p-10 text-center text-white/50">Selectionnez ou creez une conversation.</p>
                     ) : (
-                        <div className="flex h-[620px] flex-col">
+                        <div className="flex h-[min(620px,calc(100dvh-220px))] min-h-[420px] flex-col">
                             <div className="flex-1 space-y-3 overflow-y-auto p-4">
                                 {detail.messages.map((message) => (
                                     <div key={message.id} className={`flex ${message.is_mine ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`max-w-[80%] rounded-md px-4 py-3 text-sm ${message.is_mine ? 'bg-[#c8a24c] text-[#07101d]' : 'bg-white/[0.07] text-white'}`}>
-                                            <p>{message.body}</p>
+                                        <div className={`max-w-[88%] rounded-md px-4 py-3 text-sm sm:max-w-[80%] ${message.is_mine ? 'bg-[#c8a24c] text-[#07101d]' : 'bg-white/[0.07] text-white'}`}>
+                                            <p className="whitespace-pre-wrap break-words">{message.body}</p>
                                             {message.created_at && <p className="mt-1 text-[10px] opacity-65">{formatRelativeTime(message.created_at)}</p>}
                                         </div>
                                     </div>
                                 ))}
                             </div>
                             <form
-                                className="flex gap-2 border-t border-white/[0.07] p-4"
+                                className="flex gap-2 border-t border-white/[0.07] p-3 sm:p-4"
                                 onSubmit={(event) => {
                                     event.preventDefault();
                                     if (selectedId && reply) replyMutation.mutate({ id: selectedId, message: reply });

@@ -98,7 +98,23 @@ export default function EmployeePrestations() {
             <EmployeePanel>
                 <EmployeePanelTitle title="Historique des prestations" icon={TimerReset} />
                 {isError && <p className="p-4 text-sm text-red-300">{getErrorMessage(error)}</p>}
-                <div className="overflow-x-auto">
+                <div className="space-y-2 p-3 sm:hidden">
+                    {isPending ? (
+                        <p className="px-4 py-10 text-center text-white/50">Chargement...</p>
+                    ) : data.length === 0 ? (
+                        <p className="px-4 py-10 text-center text-white/50">Aucune prestation sur cette periode.</p>
+                    ) : data.map((row) => (
+                        <PrestationMobileCard
+                            key={row.id}
+                            row={row}
+                            completing={completeMutation.isPending}
+                            sending={sendMutation.isPending}
+                            onComplete={() => completeMutation.mutate(row.id)}
+                            onSend={() => sendMutation.mutate(row.id)}
+                        />
+                    ))}
+                </div>
+                <div className="hidden overflow-x-auto sm:block">
                     <table className="w-full min-w-[900px] text-sm">
                         <thead className="text-left text-xs uppercase tracking-[0.12em] text-white/38">
                             <tr>
@@ -168,6 +184,57 @@ function PrestationRow({ row, onComplete, onSend, completing, sending }: {
                 )}
             </td>
         </tr>
+    );
+}
+
+function PrestationMobileCard({ row, onComplete, onSend, completing, sending }: {
+    row: EmployeePrestationRow;
+    onComplete: () => void;
+    onSend: () => void;
+    completing: boolean;
+    sending: boolean;
+}) {
+    return (
+        <div className="rounded-md border border-white/[0.07] bg-white/[0.035] p-3">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <p className="text-xs text-white/42">{formatDate(row.date)} - {formatTime(row.date)}</p>
+                    <p className="mt-1 truncate text-sm font-semibold text-white">{row.client_name}</p>
+                    <p className="mt-1 line-clamp-2 text-sm text-white/58">{row.service}</p>
+                </div>
+                <Badge variant="outline" className="shrink-0">{statusLabel(row.status)}</Badge>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                <MobileFact label="Duree" value={`${row.duration_minutes} min`} />
+                <MobileFact label="Montant" value={formatCurrency(row.amount)} />
+                <MobileFact label="Commission" value={formatCurrency(row.commission)} accent />
+            </div>
+            {(row.status === 'in_progress' || row.status === 'services_done') && (
+                <div className="mt-3 flex justify-end">
+                    {row.status === 'in_progress' && (
+                        <Button size="sm" variant="accent" disabled={completing} onClick={onComplete}>
+                            {completing ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
+                            Terminer
+                        </Button>
+                    )}
+                    {row.status === 'services_done' && (
+                        <Button size="sm" variant="outline" disabled={sending} onClick={onSend}>
+                            {sending ? <Loader2 className="animate-spin" /> : <Send />}
+                            Envoyer caisse
+                        </Button>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function MobileFact({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+    return (
+        <div className="min-w-0 rounded-md border border-white/[0.06] bg-white/[0.035] px-2 py-2">
+            <p className="truncate text-[10px] uppercase tracking-[0.08em] text-white/36">{label}</p>
+            <p className={`mt-1 truncate font-semibold ${accent ? 'text-[#d5b15d]' : 'text-white/76'}`}>{value}</p>
+        </div>
     );
 }
 

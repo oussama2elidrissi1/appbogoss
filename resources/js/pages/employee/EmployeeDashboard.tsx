@@ -86,7 +86,12 @@ export default function EmployeeDashboard() {
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(330px,0.75fr)]">
                 <EmployeePanel>
                     <EmployeePanelTitle title="Mes prestations aujourd'hui" icon={ReceiptText} action={<Link to="/employee/prestations" className="text-xs font-semibold text-[#d5b15d]">Voir toutes <ArrowRight className="inline h-3 w-3" /></Link>} />
-                    <div className="overflow-x-auto">
+                    <div className="space-y-2 p-3 sm:hidden">
+                        {data.prestations_today.length === 0 ? (
+                            <p className="py-8 text-center text-sm text-white/48">Aucune prestation creee aujourd'hui.</p>
+                        ) : data.prestations_today.map((row) => <PrestationCard key={row.id} row={row} />)}
+                    </div>
+                    <div className="hidden overflow-x-auto sm:block">
                         <table className="w-full min-w-[720px] text-sm">
                             <thead className="text-left text-xs uppercase tracking-[0.12em] text-white/38">
                                 <tr>
@@ -231,5 +236,25 @@ function PrestationLine({ row }: { row: EmployeePrestationRow }) {
             <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatCurrency(row.amount)}</td>
             <td className="px-4 py-3 text-right"><Badge className={cn('justify-center', meta.className)}>{meta.label}</Badge></td>
         </tr>
+    );
+}
+
+function PrestationCard({ row }: { row: EmployeePrestationRow }) {
+    const meta = statusMeta[row.status] ?? statusMeta.draft;
+
+    return (
+        <div className="rounded-md border border-white/[0.07] bg-white/[0.035] p-3">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-white">{row.client_name}</p>
+                    <p className="mt-1 line-clamp-2 text-sm text-white/58">{row.service}</p>
+                </div>
+                <Badge className={cn('shrink-0 justify-center', meta.className)}>{meta.label}</Badge>
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-3 text-sm">
+                <span className="text-white/48"><Clock3 className="mr-1 inline h-3.5 w-3.5" />{row.time}</span>
+                <span className="font-semibold text-[#d5b15d]">{formatCurrency(row.amount)}</span>
+            </div>
+        </div>
     );
 }

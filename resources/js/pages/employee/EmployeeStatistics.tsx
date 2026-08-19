@@ -30,7 +30,7 @@ export default function EmployeeStatistics() {
                     <h2 className="text-2xl font-semibold">Mes statistiques</h2>
                     <p className="text-sm text-white/50">Performance individuelle sur la periode choisie.</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex w-full flex-wrap gap-2 sm:w-auto">
                     {periods.map((item) => <Button key={item.value} variant={period === item.value ? 'accent' : 'outline'} onClick={() => setPeriod(item.value)}>{item.label}</Button>)}
                 </div>
             </div>
@@ -63,9 +63,9 @@ export default function EmployeeStatistics() {
                     <EmployeePanelTitle title="Top services" icon={Sparkles} />
                     <div className="space-y-2 p-4">
                         {data?.top_services.length === 0 ? <p className="py-8 text-center text-white/50">Aucune donnee.</p> : data?.top_services.map((row) => (
-                            <div key={row.label} className="flex items-center justify-between rounded-md border border-white/[0.06] bg-white/[0.035] px-4 py-3">
-                                <span><strong>{row.label}</strong><span className="ml-2 text-sm text-white/45">{row.count} prestations</span></span>
-                                <span className="font-semibold text-[#d5b15d]">{formatCurrency(row.total)}</span>
+                            <div key={row.label} className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.035] px-4 py-3">
+                                <span className="min-w-0"><strong className="block truncate">{row.label}</strong><span className="text-sm text-white/45">{row.count} prestations</span></span>
+                                <span className="shrink-0 font-semibold text-[#d5b15d]">{formatCurrency(row.total)}</span>
                             </div>
                         ))}
                     </div>
@@ -82,9 +82,9 @@ export default function EmployeeStatistics() {
                     </div>
                     <div className="space-y-2">
                         {data?.service_distribution.map((row, index) => (
-                            <div key={row.label} className="flex justify-between rounded-md border border-white/[0.06] bg-white/[0.035] px-4 py-3">
-                                <span><span style={{ backgroundColor: colors[index % colors.length] }} className="mr-2 inline-block h-2 w-2 rounded-full" />{row.label}</span>
-                                <span className="text-white/55">{row.count} - {row.percent}%</span>
+                            <div key={row.label} className="flex justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.035] px-4 py-3">
+                                <span className="min-w-0 truncate"><span style={{ backgroundColor: colors[index % colors.length] }} className="mr-2 inline-block h-2 w-2 rounded-full" />{row.label}</span>
+                                <span className="shrink-0 text-white/55">{row.count} - {row.percent}%</span>
                             </div>
                         ))}
                     </div>

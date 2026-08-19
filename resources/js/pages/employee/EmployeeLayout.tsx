@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
     BarChart3,
     CalendarDays,
@@ -9,6 +9,7 @@ import {
     Headphones,
     LayoutDashboard,
     LogOut,
+    Menu,
     QrCode,
     ReceiptText,
     ScanLine,
@@ -52,16 +53,33 @@ const mobileNav = [
 export function EmployeeLayout() {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
+    const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     async function handleLogout() {
         await logout();
         navigate('/login', { replace: true });
     }
 
+    useEffect(() => {
+        setMobileMenuOpen(false);
+    }, [location.pathname]);
+
+    useEffect(() => {
+        if (!mobileMenuOpen) return;
+
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setMobileMenuOpen(false);
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, [mobileMenuOpen]);
+
     return (
-        <div className="min-h-screen bg-[#050913] text-white">
+        <div className="min-h-screen max-w-full overflow-x-hidden bg-[#050913] text-white">
             <div className="fixed inset-0 pointer-events-none bg-[radial-gradient(circle_at_20%_0%,rgba(200,162,76,0.12),transparent_28%),radial-gradient(circle_at_84%_8%,rgba(37,99,235,0.13),transparent_32%)]" />
-            <div className="relative flex h-screen overflow-hidden">
+            <div className="relative flex h-[100dvh] max-w-full overflow-hidden">
                 <aside className="hidden w-[280px] shrink-0 border-r border-white/[0.07] bg-[#07101d]/95 lg:flex lg:flex-col">
                     <div className="flex h-20 items-center gap-3 px-6">
                         <span className="flex h-11 w-11 items-center justify-center rounded-md border border-[#c8a24c]/30 bg-[#c8a24c]/15">
@@ -116,9 +134,57 @@ export function EmployeeLayout() {
                     </div>
                 </aside>
 
-                <div className="flex min-w-0 flex-1 flex-col">
-                    <EmployeeHeader />
-                    <main className="flex-1 overflow-y-auto px-4 pb-24 pt-5 sm:px-6 lg:px-8 lg:pb-8">
+                {mobileMenuOpen && (
+                    <button
+                        type="button"
+                        aria-label="Fermer le menu"
+                        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+                        onClick={() => setMobileMenuOpen(false)}
+                    />
+                )}
+                <motion.aside
+                    initial={false}
+                    animate={{ x: mobileMenuOpen ? 0 : '-100%' }}
+                    transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+                    className="fixed inset-y-0 left-0 z-50 flex w-[min(86vw,320px)] flex-col border-r border-white/[0.07] bg-[#07101d] shadow-[0_24px_80px_rgba(0,0,0,0.45)] lg:hidden"
+                >
+                    <div className="flex h-16 items-center gap-3 border-b border-white/[0.07] px-4">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-md border border-[#c8a24c]/30 bg-[#c8a24c]/15">
+                            <QrCode className="h-5 w-5 text-[#d5b15d]" />
+                        </span>
+                        <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold">BOGOSLAND</p>
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#c8a24c]">Manager</p>
+                        </div>
+                    </div>
+                    <nav className="flex-1 overflow-y-auto px-3 py-4">
+                        {employeeNav.map((group) => (
+                            <div key={group.section} className="mb-6">
+                                <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/38">{group.section}</p>
+                                <div className="space-y-1">
+                                    {group.items.map((item) => (
+                                        <EmployeeNavLink key={item.to} item={item} />
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </nav>
+                    <div className="border-t border-white/[0.07] p-3">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            className="w-full justify-start text-white/65 hover:bg-red-500/10 hover:text-red-300"
+                            onClick={() => void handleLogout()}
+                        >
+                            <LogOut />
+                            Deconnexion
+                        </Button>
+                    </div>
+                </motion.aside>
+
+                <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
+                    <EmployeeHeader onOpenMenu={() => setMobileMenuOpen(true)} />
+                    <main className="flex-1 overflow-x-hidden overflow-y-auto px-3 pb-24 pt-4 sm:px-6 lg:px-8 lg:pb-8 lg:pt-5">
                         <Outlet />
                     </main>
                     <MobileBottomNav />
@@ -128,27 +194,35 @@ export function EmployeeLayout() {
     );
 }
 
-function EmployeeHeader() {
+function EmployeeHeader({ onOpenMenu }: { onOpenMenu: () => void }) {
     const { user } = useAuth();
     const now = new Date();
 
     return (
-        <header className="sticky top-0 z-30 border-b border-white/[0.07] bg-[#050913]/86 px-4 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between gap-4">
-                <div className="min-w-0">
-                    <h1 className="truncate text-xl font-semibold tracking-tight">
+        <header className="sticky top-0 z-30 border-b border-white/[0.07] bg-[#050913]/86 px-3 py-3 backdrop-blur-xl sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between gap-2 sm:gap-4">
+                <button
+                    type="button"
+                    aria-label="Ouvrir le menu"
+                    className="rounded-md border border-white/[0.08] bg-white/[0.04] p-2 text-white/72 lg:hidden"
+                    onClick={onOpenMenu}
+                >
+                    <Menu className="h-5 w-5" />
+                </button>
+                <div className="min-w-0 flex-1">
+                    <h1 className="truncate text-base font-semibold tracking-tight sm:text-xl">
                         Bonjour {user?.employee_name ?? user?.name ?? ''}
                     </h1>
                     <p className="mt-0.5 hidden text-sm text-white/52 sm:block">
                         Voici un apercu de votre activite aujourd'hui.
                     </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
                     <div className="hidden rounded-md border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs text-white/68 md:block">
                         {new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' }).format(now)}
                     </div>
                     <NotificationsBell />
-                    <button className="flex items-center gap-2 rounded-md border border-white/[0.08] bg-white/[0.04] p-1.5 pr-2 text-sm">
+                    <button className="flex items-center gap-2 rounded-md border border-white/[0.08] bg-white/[0.04] p-1.5 text-sm sm:pr-2">
                         <Avatar className="h-8 w-8">
                             <AvatarFallback className="bg-[#c8a24c]/20 text-[#f4d37a]">
                                 {user ? getInitials(user.employee_name ?? user.name) : '--'}
@@ -219,7 +293,7 @@ export function EmployeePageShell({ children, className }: { children: ReactNode
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.24 }}
-            className={cn('mx-auto max-w-[1500px] space-y-5', className)}
+            className={cn('mx-auto w-full max-w-[1500px] space-y-4 overflow-x-hidden sm:space-y-5', className)}
         >
             {children}
         </motion.div>
@@ -228,7 +302,7 @@ export function EmployeePageShell({ children, className }: { children: ReactNode
 
 export function EmployeePanel({ children, className }: { children: ReactNode; className?: string }) {
     return (
-        <div className={cn('rounded-md border border-white/[0.07] bg-white/[0.045] shadow-[0_18px_60px_rgba(0,0,0,0.22)]', className)}>
+        <div className={cn('max-w-full overflow-hidden rounded-md border border-white/[0.07] bg-white/[0.045] shadow-[0_18px_60px_rgba(0,0,0,0.22)]', className)}>
             {children}
         </div>
     );
