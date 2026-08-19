@@ -215,8 +215,14 @@ export interface CommissionPayoutRow {
     avatar_color: string;
     commission_total: number;
     advances_outstanding: number;
+    /** Net already paid out this period, summed over its payouts. */
+    paid_net_total: number;
+    /** Advances settled by this period's payouts. */
+    paid_advances_total: number;
+    /** What is STILL owed — a paid employee can earn more in the same month. */
     net_amount: number;
     already_paid: boolean;
+    /** Latest payout of the period. */
     payout: {
         id: number;
         net_amount: number;

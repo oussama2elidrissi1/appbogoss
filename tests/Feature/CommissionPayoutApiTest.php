@@ -173,6 +173,45 @@ class CommissionPayoutApiTest extends TestCase
         $this->assertSame(1, \App\Models\CommissionPayout::where('employee_id', $employee->id)->count());
     }
 
+    public function test_employee_paid_mid_month_who_earns_more_can_be_paid_the_remainder(): void
+    {
+        // An employee can leave, be paid, then come back and keep working in
+        // the same month — the new commission must show as still owed and be
+        // payable a second time, covering only the slice not yet paid.
+        $employee = Employee::factory()->create();
+        $admin = $this->admin();
+        $this->makePrestationCommission($employee, $admin, 100, '2026-08-10');
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/commission-payouts', ['employee_id' => $employee->id, 'period' => '2026-08'])
+            ->assertCreated();
+
+        // Back at work: new commission after the payout date.
+        $this->makePrestationCommission($employee, $admin, 60, '2026-08-25');
+
+        $row = collect($this->getJson('/api/commission-payouts?period=2026-08')->json('data'))
+            ->firstWhere('employee_id', $employee->id);
+        $this->assertTrue($row['already_paid']);
+        $this->assertEquals(160, $row['commission_total']);
+        $this->assertEquals(100, $row['paid_net_total']);
+        $this->assertEquals(60, $row['net_amount']);
+
+        $second = $this->postJson('/api/commission-payouts', ['employee_id' => $employee->id, 'period' => '2026-08']);
+        $second->assertCreated();
+        $this->assertEquals(60, $second->json('data.net_amount'));
+        $this->assertEquals(60, $second->json('data.commission_total'));
+
+        $this->assertSame(2, \App\Models\CommissionPayout::where('employee_id', $employee->id)->count());
+
+        // Fully paid now — nothing left, and a third attempt is refused.
+        $row = collect($this->getJson('/api/commission-payouts?period=2026-08')->json('data'))
+            ->firstWhere('employee_id', $employee->id);
+        $this->assertEquals(0, $row['net_amount']);
+        $this->assertEquals(160, $row['paid_net_total']);
+        $this->postJson('/api/commission-payouts', ['employee_id' => $employee->id, 'period' => '2026-08'])
+            ->assertStatus(422);
+    }
+
     public function test_cannot_pay_when_outstanding_advances_exceed_commission_earned(): void
     {
         $employee = Employee::factory()->create();

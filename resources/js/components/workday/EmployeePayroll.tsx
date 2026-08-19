@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, CheckCircle2, HandCoins } from 'lucide-react';
 import { getCommissionPayoutHistory, getCommissionPayouts, getErrorMessage, payCommission } from '@/lib/api';
 import { useActiveWorkDay, workDayKeys } from '@/hooks/useWorkDay';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import type { Employee } from '@/types/workday';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -37,13 +37,18 @@ export function EmployeePayroll({ employee }: { employee: Employee }) {
         queryFn: () => getCommissionPayoutHistory(employee.id),
     });
 
-    // Commission fully handed over as advances — net is 0 but the month still
-    // must be markable as paid so those advances get settled instead of
-    // rolling into next month's payout. Mirrors the "Paie" page.
+    // Commission not yet covered by this period's payouts — an employee paid
+    // mid-month can earn more afterwards. Mirrors the "Paie" page.
+    const commissionRemaining =
+        row != null ? row.commission_total - row.paid_net_total - row.paid_advances_total : 0;
+    // Remaining commission fully handed over as advances — net is 0 but the
+    // month still must be markable as paid so those advances get settled
+    // instead of rolling into next month's payout.
     const fullyAdvanced =
         row != null &&
-        row.commission_total > 0 &&
-        Math.abs(row.advances_outstanding - row.commission_total) < 0.005;
+        commissionRemaining > 0 &&
+        Math.abs(row.advances_outstanding - commissionRemaining) < 0.005;
+    const payable = row != null && (row.net_amount > 0 || fullyAdvanced);
 
     const payMutation = useMutation({
         mutationFn: () =>
@@ -97,35 +102,52 @@ export function EmployeePayroll({ employee }: { employee: Employee }) {
                         </div>
                         <div>
                             <p className="text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
-                                Net à payer
+                                {row.already_paid && row.net_amount <= 0 ? 'Payé ce mois' : 'Net à payer'}
                             </p>
-                            <p className="mt-1 text-sm font-semibold tabular-nums">
-                                {formatCurrency(row.already_paid ? (row.payout?.net_amount ?? 0) : row.net_amount)}
+                            <p
+                                className={cn(
+                                    'mt-1 text-sm font-semibold tabular-nums',
+                                    row.already_paid && row.net_amount <= 0 && 'text-success',
+                                )}
+                            >
+                                {formatCurrency(
+                                    row.already_paid && row.net_amount <= 0
+                                        ? row.paid_net_total + row.paid_advances_total
+                                        : row.net_amount,
+                                )}
                             </p>
                         </div>
                     </div>
 
-                    <div className="mt-3 flex justify-center">
-                        {row.already_paid ? (
+                    <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                        {payable ? (
+                            <>
+                                {row.already_paid && (
+                                    <Badge variant="success">
+                                        <CheckCircle2 className="mr-1 h-3 w-3" />
+                                        Payé{row.payout ? ` le ${formatDate(row.payout.paid_at)}` : ''}
+                                    </Badge>
+                                )}
+                                <Button
+                                    type="button"
+                                    variant="accent"
+                                    size="sm"
+                                    onClick={() => {
+                                        setDeductFromCaisse(true);
+                                        setConfirmOpen(true);
+                                    }}
+                                >
+                                    <HandCoins className="h-3.5 w-3.5" />
+                                    {row.already_paid ? 'Payer le reste' : 'Marquer comme payé'}
+                                </Button>
+                            </>
+                        ) : row.already_paid ? (
                             <Badge variant="success">
                                 <CheckCircle2 className="mr-1 h-3 w-3" />
                                 Payé{row.payout ? ` le ${formatDate(row.payout.paid_at)}` : ''}
                             </Badge>
-                        ) : row.net_amount <= 0 && !fullyAdvanced ? (
-                            <Badge variant="outline">Rien à payer</Badge>
                         ) : (
-                            <Button
-                                type="button"
-                                variant="accent"
-                                size="sm"
-                                onClick={() => {
-                                    setDeductFromCaisse(true);
-                                    setConfirmOpen(true);
-                                }}
-                            >
-                                <HandCoins className="h-3.5 w-3.5" />
-                                Marquer comme payé
-                            </Button>
+                            <Badge variant="outline">Rien à payer</Badge>
                         )}
                     </div>
 
@@ -169,7 +191,7 @@ export function EmployeePayroll({ employee }: { employee: Employee }) {
                 description={
                     row
                         ? (row.net_amount <= 0
-                              ? `La commission de ${employee.name} (${formatCurrency(row.commission_total)}) a déjà été entièrement versée en avances — les ${formatCurrency(row.advances_outstanding)} d'avances seront soldées et ${period} sera marqué payé (0 MAD à verser).`
+                              ? `La commission restante de ${employee.name} (${formatCurrency(commissionRemaining)}) a déjà été entièrement versée en avances — les ${formatCurrency(row.advances_outstanding)} d'avances seront soldées et ${period} sera marqué payé (0 MAD à verser).`
                               : `${formatCurrency(row.net_amount)} seront enregistrés comme payés à ${employee.name} pour ${period}` +
                                 (row.advances_outstanding > 0
                                     ? `, et ${formatCurrency(row.advances_outstanding)} d'avances en cours seront soldées automatiquement.`

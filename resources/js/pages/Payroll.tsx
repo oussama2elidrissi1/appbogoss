@@ -106,8 +106,13 @@ export default function Payroll() {
         (acc, row) => ({
             commission: acc.commission + row.commission_total,
             advances: acc.advances + row.advances_outstanding,
-            net: acc.net + (row.already_paid ? 0 : row.net_amount),
-            paidOut: acc.paidOut + (row.already_paid ? (row.payout?.net_amount ?? 0) : 0),
+            // net_amount is already "what's still owed" (payouts deducted
+            // server-side), so paid rows naturally contribute 0.
+            net: acc.net + row.net_amount,
+            // Everything already handed to employees: payout nets, advances
+            // those payouts settled, and advances still outstanding — an
+            // avance IS money already paid, just not yet settled by a payout.
+            paidOut: acc.paidOut + row.paid_net_total + row.paid_advances_total + row.advances_outstanding,
         }),
         { commission: 0, advances: 0, net: 0, paidOut: 0 },
     );
@@ -190,14 +195,19 @@ export default function Payroll() {
                         {rows.map((row) => {
                             const isExpanded = expandedEmployeeId === row.employee_id;
                             const employee = employees?.find((candidate) => candidate.id === row.employee_id);
-                            // Whole commission already handed over as advances
-                            // ("Payer" logs payments that way) — net is 0 but the
-                            // month still needs to be marked paid so those
+                            // Commission not yet covered by this period's payouts —
+                            // an employee paid mid-month can earn more afterwards.
+                            const commissionRemaining =
+                                row.commission_total - row.paid_net_total - row.paid_advances_total;
+                            // Whole remaining commission already handed over as
+                            // advances ("Payer" logs payments that way) — net is 0
+                            // but the month still needs to be marked paid so those
                             // advances get settled instead of rolling into (and
                             // wrongly reducing) next month's payout.
                             const fullyAdvanced =
-                                row.commission_total > 0 &&
-                                Math.abs(row.advances_outstanding - row.commission_total) < 0.005;
+                                commissionRemaining > 0 &&
+                                Math.abs(row.advances_outstanding - commissionRemaining) < 0.005;
+                            const payable = row.net_amount > 0 || fullyAdvanced;
 
                             return (
                                 <Card
@@ -218,13 +228,24 @@ export default function Payroll() {
                                         </div>
 
                                         <div className="text-right">
-                                            <p className="text-sm font-semibold tabular-nums text-foreground">
-                                                {formatCurrency(row.already_paid ? (row.payout?.net_amount ?? 0) : row.net_amount)}
-                                            </p>
-                                            <p className="text-xs text-muted-foreground">net à payer</p>
+                                            {row.already_paid && row.net_amount <= 0 ? (
+                                                <>
+                                                    <p className="text-sm font-semibold tabular-nums text-success">
+                                                        {formatCurrency(row.paid_net_total + row.paid_advances_total)}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground">payé ce mois</p>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <p className="text-sm font-semibold tabular-nums text-foreground">
+                                                        {formatCurrency(row.net_amount)}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground">net à payer</p>
+                                                </>
+                                            )}
                                         </div>
 
-                                        {!row.already_paid && (
+                                        {(!row.already_paid || row.net_amount > 0) && (
                                             <div className="flex shrink-0 flex-col gap-1">
                                                 <div className="flex items-center gap-1.5">
                                                     <Input
@@ -310,29 +331,37 @@ export default function Payroll() {
                                             />
                                         </Button>
 
-                                        {row.already_paid ? (
+                                        {payable ? (
+                                            <>
+                                                {row.already_paid && (
+                                                    <Badge variant="success" className="shrink-0">
+                                                        <CheckCircle2 className="mr-1 h-3 w-3" />
+                                                        Payé{row.payout ? ` le ${formatDate(row.payout.paid_at)}` : ''}
+                                                    </Badge>
+                                                )}
+                                                <Button
+                                                    type="button"
+                                                    variant="accent"
+                                                    size="sm"
+                                                    className="shrink-0"
+                                                    onClick={() => {
+                                                        setDeductFromCaisse(true);
+                                                        setConfirming(row);
+                                                    }}
+                                                >
+                                                    <HandCoins className="h-3.5 w-3.5" />
+                                                    {row.already_paid ? 'Payer le reste' : 'Marquer comme payé'}
+                                                </Button>
+                                            </>
+                                        ) : row.already_paid ? (
                                             <Badge variant="success" className="shrink-0">
                                                 <CheckCircle2 className="mr-1 h-3 w-3" />
                                                 Payé{row.payout ? ` le ${formatDate(row.payout.paid_at)}` : ''}
                                             </Badge>
-                                        ) : row.net_amount <= 0 && !fullyAdvanced ? (
+                                        ) : (
                                             <Badge variant="outline" className="shrink-0">
                                                 Rien à payer
                                             </Badge>
-                                        ) : (
-                                            <Button
-                                                type="button"
-                                                variant="accent"
-                                                size="sm"
-                                                className="shrink-0"
-                                                onClick={() => {
-                                                    setDeductFromCaisse(true);
-                                                    setConfirming(row);
-                                                }}
-                                            >
-                                                <HandCoins className="h-3.5 w-3.5" />
-                                                Marquer comme payé
-                                            </Button>
                                         )}
                                     </div>
 
@@ -361,7 +390,7 @@ export default function Payroll() {
                 description={
                     confirming
                         ? (confirming.net_amount <= 0
-                              ? `La commission de ${confirming.employee_name} (${formatCurrency(confirming.commission_total)}) a déjà été entièrement versée en avances — les ${formatCurrency(confirming.advances_outstanding)} d'avances seront soldées et ${period} sera marqué payé (0 MAD à verser).`
+                              ? `La commission restante de ${confirming.employee_name} (${formatCurrency(confirming.commission_total - confirming.paid_net_total - confirming.paid_advances_total)}) a déjà été entièrement versée en avances — les ${formatCurrency(confirming.advances_outstanding)} d'avances seront soldées et ${period} sera marqué payé (0 MAD à verser).`
                               : `${formatCurrency(confirming.net_amount)} seront enregistrés comme payés à ${confirming.employee_name} pour ${period}` +
                                 (confirming.advances_outstanding > 0
                                     ? `, et ${formatCurrency(confirming.advances_outstanding)} d'avances en cours seront soldées automatiquement.`

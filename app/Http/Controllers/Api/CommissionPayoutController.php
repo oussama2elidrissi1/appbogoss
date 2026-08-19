@@ -49,7 +49,7 @@ class CommissionPayoutController extends Controller
      */
     public function history(Request $request, Employee $employee): JsonResponse
     {
-        $payouts = $employee->commissionPayouts()->with('paidBy')->orderByDesc('period')->get();
+        $payouts = $employee->commissionPayouts()->with('paidBy')->orderByDesc('period')->orderByDesc('paid_at')->get();
 
         return response()->json(['data' => $payouts->map(fn ($payout) => [
             'id' => $payout->id,

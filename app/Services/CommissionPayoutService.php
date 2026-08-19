@@ -31,12 +31,20 @@ class CommissionPayoutService
     }
 
     /**
+     * A period can hold several payouts (an employee can leave mid-month, be
+     * paid, then come back and earn more): net_amount is therefore what is
+     * STILL owed — commission earned minus everything already covered by
+     * previous payouts (their net + the advances they settled) minus the
+     * advances currently outstanding.
+     *
      * @return array{
      *     employee_id: int,
      *     employee_name: string,
      *     avatar_color: string,
      *     commission_total: float,
      *     advances_outstanding: float,
+     *     paid_net_total: float,
+     *     paid_advances_total: float,
      *     net_amount: float,
      *     already_paid: bool,
      *     payout: array{id: int, net_amount: float, paid_at: string, paid_by: string|null}|null,
@@ -52,10 +60,14 @@ class CommissionPayoutService
             ->where('given_on', '<=', $to->toDateString())
             ->sum('amount');
 
-        $existing = CommissionPayout::where('employee_id', $employee->id)
+        $payouts = CommissionPayout::where('employee_id', $employee->id)
             ->where('period', $period)
             ->with('paidBy')
-            ->first();
+            ->orderBy('paid_at')
+            ->get();
+        $paidNetTotal = (float) $payouts->sum('net_amount');
+        $paidAdvancesTotal = (float) $payouts->sum('advances_deducted');
+        $latest = $payouts->last();
 
         return [
             'employee_id' => $employee->id,
@@ -63,23 +75,26 @@ class CommissionPayoutService
             'avatar_color' => $employee->avatar_color,
             'commission_total' => $commissionTotal,
             'advances_outstanding' => round($advancesOutstanding, 2),
-            'net_amount' => round(max(0, $commissionTotal - $advancesOutstanding), 2),
-            'already_paid' => $existing !== null,
-            'payout' => $existing === null ? null : [
-                'id' => $existing->id,
-                'net_amount' => (float) $existing->net_amount,
-                'paid_at' => $existing->paid_at->toIso8601String(),
-                'paid_by' => $existing->paidBy?->name,
+            'paid_net_total' => round($paidNetTotal, 2),
+            'paid_advances_total' => round($paidAdvancesTotal, 2),
+            'net_amount' => round(max(0, $commissionTotal - $paidNetTotal - $paidAdvancesTotal - $advancesOutstanding), 2),
+            'already_paid' => $latest !== null,
+            'payout' => $latest === null ? null : [
+                'id' => $latest->id,
+                'net_amount' => (float) $latest->net_amount,
+                'paid_at' => $latest->paid_at->toIso8601String(),
+                'paid_by' => $latest->paidBy?->name,
             ],
         ];
     }
 
     /**
      * Records the payout and settles every advance it covers, in one
-     * transaction. Throws if this employee was already paid for this exact
-     * period (the unique constraint is the hard backstop; this check gives a
-     * clean error message instead of a raw DB exception) or if there's
-     * nothing owed (advances already cover or exceed commission earned).
+     * transaction. A period can already hold payouts (employee paid, then
+     * came back and earned more): this pays only the commission not yet
+     * covered by them. Throws when nothing new is owed, or when outstanding
+     * advances exceed the remaining commission (that surplus rolls into the
+     * next month instead).
      *
      * With $deductFromCaisse, the net amount handed over is also recorded as
      * a cash-out on the open register day — stored as an advance that is born
@@ -90,14 +105,20 @@ class CommissionPayoutService
      */
     public function pay(Employee $employee, string $period, User $actor, ?string $notes = null, bool $deductFromCaisse = false): CommissionPayout
     {
-        if (CommissionPayout::where('employee_id', $employee->id)->where('period', $period)->exists()) {
-            throw ValidationException::withMessages([
-                'period' => 'Cet employé a déjà été payé pour cette période.',
-            ]);
-        }
-
         [$from, $to] = $this->periodBounds($period);
         $commissionTotal = $this->earnings->commissionEarnedTotal($employee, $from, $to);
+
+        $alreadyCovered = (float) CommissionPayout::where('employee_id', $employee->id)
+            ->where('period', $period)
+            ->get()
+            ->sum(fn (CommissionPayout $payout) => (float) $payout->net_amount + (float) $payout->advances_deducted);
+        $commissionRemaining = round($commissionTotal - $alreadyCovered, 2);
+
+        if ($commissionRemaining <= 0) {
+            throw ValidationException::withMessages([
+                'period' => 'La commission de cette période a déjà été entièrement payée.',
+            ]);
+        }
 
         $outstandingAdvances = Advance::where('employee_id', $employee->id)
             ->outstanding()
@@ -105,13 +126,17 @@ class CommissionPayoutService
             ->get();
         $advancesTotal = (float) $outstandingAdvances->sum('amount');
 
-        if ($commissionTotal < $advancesTotal) {
+        if ($commissionRemaining < $advancesTotal) {
             throw ValidationException::withMessages([
-                'net_amount' => 'Les avances en cours dépassent la commission de cette période — rien à payer pour le moment.',
+                'net_amount' => 'Les avances en cours dépassent la commission restante de cette période — rien à payer pour le moment.',
             ]);
         }
 
-        $netAmount = round($commissionTotal - $advancesTotal, 2);
+        $netAmount = round($commissionRemaining - $advancesTotal, 2);
+        // The record stores only the commission slice THIS payout covers, so
+        // summing net + advances_deducted across a period's payouts always
+        // equals the commission already paid for.
+        $commissionTotal = $commissionRemaining;
 
         $openDay = null;
         if ($deductFromCaisse && $netAmount > 0) {
