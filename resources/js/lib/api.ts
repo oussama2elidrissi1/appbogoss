@@ -58,6 +58,9 @@ import type {
     PartnerDetail,
     PartnerProfile,
     PartnerProfilePayload,
+    SupportConversationDetail,
+    SupportConversationStatus,
+    SupportConversationSummary,
 } from '@/types/partner-portal';
 import type {
     AdminSubscription,
@@ -708,6 +711,67 @@ export async function uploadPartnerPortalLogo(file: File): Promise<PartnerProfil
 
 export async function removePartnerPortalLogo(): Promise<PartnerProfile> {
     const { data } = await api.delete<{ data: PartnerProfile }>('/api/partner/profile/logo');
+    return data.data;
+}
+
+/* ------------------------------------------------------------------ *
+ * Partner — support chat, scoped to their own conversations (§24).
+ * ------------------------------------------------------------------ */
+
+export async function getPartnerSupportConversations(): Promise<SupportConversationSummary[]> {
+    const { data } = await api.get<{ data: SupportConversationSummary[] }>('/api/partner/support/conversations');
+    return data.data;
+}
+
+export async function createPartnerSupportConversation(payload: {
+    subject: string;
+    body: string;
+}): Promise<SupportConversationDetail> {
+    const { data } = await api.post<{ data: SupportConversationDetail }>('/api/partner/support/conversations', payload);
+    return data.data;
+}
+
+export async function getPartnerSupportConversation(id: number): Promise<SupportConversationDetail> {
+    const { data } = await api.get<{ data: SupportConversationDetail }>(`/api/partner/support/conversations/${id}`);
+    return data.data;
+}
+
+export async function sendPartnerSupportMessage(id: number, body: string): Promise<SupportConversationDetail> {
+    const { data } = await api.post<{ data: SupportConversationDetail }>(
+        `/api/partner/support/conversations/${id}/messages`,
+        { body },
+    );
+    return data.data;
+}
+
+/* ------------------------------------------------------------------ *
+ * Admin — support inbox, every partner's conversations (§25).
+ * ------------------------------------------------------------------ */
+
+export async function getAdminSupportConversations(): Promise<SupportConversationSummary[]> {
+    const { data } = await api.get<{ data: SupportConversationSummary[] }>('/api/support/conversations');
+    return data.data;
+}
+
+export async function getAdminSupportConversation(id: number): Promise<SupportConversationDetail> {
+    const { data } = await api.get<{ data: SupportConversationDetail }>(`/api/support/conversations/${id}`);
+    return data.data;
+}
+
+export async function sendAdminSupportMessage(id: number, body: string): Promise<SupportConversationDetail> {
+    const { data } = await api.post<{ data: SupportConversationDetail }>(`/api/support/conversations/${id}/messages`, {
+        body,
+    });
+    return data.data;
+}
+
+export async function setSupportConversationStatus(
+    id: number,
+    status: SupportConversationStatus,
+): Promise<SupportConversationDetail> {
+    const { data } = await api.patch<{ data: SupportConversationDetail }>(`/api/support/conversations/${id}/status`, {
+        status,
+    });
     return data.data;
 }
 

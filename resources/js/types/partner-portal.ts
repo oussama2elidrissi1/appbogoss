@@ -154,3 +154,34 @@ export interface PartnerCommissionPayoutResult {
     notes: string | null;
     commissions_count: number;
 }
+
+/** §23-25 — support chat, shared shape between the partner side and the admin inbox. */
+export type SupportConversationStatus = 'nouveau' | 'en_cours' | 'en_attente_partenaire' | 'resolu' | 'ferme';
+
+export interface SupportConversationSummary {
+    id: number;
+    partner_id: number;
+    partner_name: string | null;
+    subject: string | null;
+    status: SupportConversationStatus;
+    last_message_preview: string | null;
+    last_message_at: string | null;
+    unread: boolean;
+}
+
+export interface SupportMessageRow {
+    id: number;
+    body: string;
+    author: string | null;
+    is_staff: boolean;
+    created_at: string | null;
+}
+
+export interface SupportConversationDetail {
+    id: number;
+    partner_id: number;
+    partner_name: string | null;
+    subject: string | null;
+    status: SupportConversationStatus;
+    messages: SupportMessageRow[];
+}

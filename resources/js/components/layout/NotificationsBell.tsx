@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Bell, CalendarCheck, CalendarPlus, CalendarX, CheckCheck, type LucideIcon } from 'lucide-react';
+import { Bell, CalendarCheck, CalendarPlus, CalendarX, CheckCheck, MessageCircle, type LucideIcon } from 'lucide-react';
 import { getNotifications, markAllNotificationsRead, markNotificationRead } from '@/lib/api';
 import { cn, formatRelativeTime } from '@/lib/utils';
 import {
@@ -11,23 +11,40 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
-/** §34 — appointment-review notification types, each pointing at where the reader should land. */
-const APPOINTMENT_NOTIFICATION_ROUTES: Partial<Record<string, (appointmentId: unknown) => string>> = {
+function idOf(data: Record<string, unknown>, key: string): number | undefined {
+    return typeof data[key] === 'number' ? (data[key] as number) : undefined;
+}
+
+/** §34/§25 — booking-review and support-chat notification types, each pointing at where the reader should land. */
+const NOTIFICATION_ROUTES: Partial<Record<string, (data: Record<string, unknown>) => string>> = {
     partner_booking_created: () => '/partner-reservations',
     proposal_accepted: () => '/partner-reservations',
     proposal_declined: () => '/partner-reservations',
-    booking_confirmed: (id) => (typeof id === 'number' ? `/partner/reservations/${id}` : '/partner/reservations'),
-    booking_refused: (id) => (typeof id === 'number' ? `/partner/reservations/${id}` : '/partner/reservations'),
-    alternate_proposed: (id) => (typeof id === 'number' ? `/partner/reservations/${id}` : '/partner/reservations'),
+    booking_confirmed: (d) => {
+        const id = idOf(d, 'appointment_id');
+        return id ? `/partner/reservations/${id}` : '/partner/reservations';
+    },
+    booking_refused: (d) => {
+        const id = idOf(d, 'appointment_id');
+        return id ? `/partner/reservations/${id}` : '/partner/reservations';
+    },
+    alternate_proposed: (d) => {
+        const id = idOf(d, 'appointment_id');
+        return id ? `/partner/reservations/${id}` : '/partner/reservations';
+    },
+    support_message_from_partner: () => '/support-inbox',
+    support_message_from_staff: () => '/partner/support',
 };
 
-const APPOINTMENT_NOTIFICATION_ICONS: Record<string, LucideIcon> = {
+const NOTIFICATION_ICONS: Record<string, LucideIcon> = {
     partner_booking_created: CalendarPlus,
     proposal_accepted: CalendarCheck,
     proposal_declined: CalendarX,
     booking_confirmed: CalendarCheck,
     booking_refused: CalendarX,
     alternate_proposed: CalendarPlus,
+    support_message_from_partner: MessageCircle,
+    support_message_from_staff: MessageCircle,
 };
 
 export function NotificationsBell() {
@@ -85,8 +102,8 @@ export function NotificationsBell() {
                 ) : (
                     <div className="max-h-80 overflow-y-auto">
                         {notifications.map((notification) => {
-                            const Icon = APPOINTMENT_NOTIFICATION_ICONS[notification.data.type] ?? Bell;
-                            const buildRoute = APPOINTMENT_NOTIFICATION_ROUTES[notification.data.type];
+                            const Icon = NOTIFICATION_ICONS[notification.data.type] ?? Bell;
+                            const buildRoute = NOTIFICATION_ROUTES[notification.data.type];
 
                             return (
                                 <button
@@ -97,7 +114,7 @@ export function NotificationsBell() {
                                             void markNotificationRead(notification.id).then(invalidate);
                                         }
                                         if (buildRoute) {
-                                            navigate(buildRoute(notification.data.appointment_id));
+                                            navigate(buildRoute(notification.data));
                                         }
                                     }}
                                     className={cn(

@@ -30,6 +30,7 @@ import Partenaires from '@/pages/Partenaires';
 import PartnerDetail from '@/pages/PartnerDetail';
 import PartnerCommissionsAdmin from '@/pages/PartnerCommissionsAdmin';
 import PartnerReservationsReview from '@/pages/PartnerReservationsReview';
+import SupportInbox from '@/pages/SupportInbox';
 import PartnerLayout, { PartnerProtectedRoute } from '@/pages/partner/PartnerLayout';
 import PartnerDashboard from '@/pages/partner/PartnerDashboard';
 import PartnerAgenda from '@/pages/partner/PartnerAgenda';
@@ -60,6 +61,7 @@ const realRoutes = new Set([
     '/partenaires',
     '/partner-commissions',
     '/partner-reservations',
+    '/support-inbox',
     '/employees',
     '/clients',
     '/services',
@@ -149,6 +151,7 @@ export default function App() {
                         <Route path="/partenaires/:id" element={<PartnerDetail />} />
                         <Route path="/partner-commissions" element={<PartnerCommissionsAdmin />} />
                         <Route path="/partner-reservations" element={<PartnerReservationsReview />} />
+                        <Route path="/support-inbox" element={<SupportInbox />} />
                     </Route>
 
                     <Route element={<ProtectedRoute permission="caisse.manage" />}>

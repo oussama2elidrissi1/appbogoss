@@ -40,6 +40,7 @@ use App\Http\Controllers\Api\Partner\PartnerCommissionController as PartnerPorta
 use App\Http\Controllers\Api\Partner\PartnerDashboardController;
 use App\Http\Controllers\Api\Partner\PartnerProfileController;
 use App\Http\Controllers\Api\Partner\PartnerServiceController as PartnerPortalServiceController;
+use App\Http\Controllers\Api\Partner\PartnerSupportController;
 use App\Http\Controllers\Api\PartnerCommissionPayoutController;
 use App\Http\Controllers\Api\PartnerController;
 use App\Http\Controllers\Api\PrestationController;
@@ -47,6 +48,7 @@ use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\SettingsController;
+use App\Http\Controllers\Api\SupportInboxController;
 use App\Http\Controllers\Api\TransactionController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\WorkDayController;
@@ -148,6 +150,12 @@ Route::middleware('auth:sanctum')->group(function () {
         // them paid (mode/référence/notes recorded on the payout header).
         Route::get('/partner-commissions', [PartnerCommissionPayoutController::class, 'index']);
         Route::post('/partner-commission-payouts', [PartnerCommissionPayoutController::class, 'store']);
+
+        // §25 — admin inbox: every partner's support conversations.
+        Route::get('/support/conversations', [SupportInboxController::class, 'index']);
+        Route::get('/support/conversations/{conversation}', [SupportInboxController::class, 'show']);
+        Route::post('/support/conversations/{conversation}/messages', [SupportInboxController::class, 'storeMessage']);
+        Route::patch('/support/conversations/{conversation}/status', [SupportInboxController::class, 'updateStatus']);
     });
 
     // Partner portal self-service surface — no `permission:` gate: any
@@ -166,6 +174,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/profile/password', [PartnerProfileController::class, 'updatePassword']);
         Route::post('/profile/logo', [PartnerProfileController::class, 'updateLogo']);
         Route::delete('/profile/logo', [PartnerProfileController::class, 'destroyLogo']);
+
+        // §24 — the partner's own support chat, scoped to their own conversations.
+        Route::get('/support/conversations', [PartnerSupportController::class, 'index']);
+        Route::post('/support/conversations', [PartnerSupportController::class, 'store']);
+        Route::get('/support/conversations/{conversation}', [PartnerSupportController::class, 'show']);
+        Route::post('/support/conversations/{conversation}/messages', [PartnerSupportController::class, 'storeMessage']);
     });
 
     Route::middleware('permission:caisse.manage')->group(function () {

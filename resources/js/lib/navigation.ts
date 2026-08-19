@@ -10,6 +10,7 @@ import {
     History,
     LayoutDashboard,
     Megaphone,
+    MessageCircle,
     Package,
     QrCode,
     Receipt,
@@ -112,6 +113,13 @@ export const navSections: NavSection[] = [
                 to: '/partner-commissions',
                 icon: HandCoins,
                 description: 'Commissions dues aux partenaires et paiements effectués.',
+                permission: 'partners.manage',
+            },
+            {
+                label: 'Support partenaires',
+                to: '/support-inbox',
+                icon: MessageCircle,
+                description: 'Conversations de support avec les partenaires.',
                 permission: 'partners.manage',
             },
             {
