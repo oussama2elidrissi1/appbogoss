@@ -6,6 +6,7 @@ use App\Models\Appointment;
 use App\Models\Client;
 use App\Models\Employee;
 use App\Models\Prestation;
+use App\Models\Sale;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -72,5 +73,32 @@ class EmployeeWorkspaceApiTest extends TestCase
 
         $this->getJson('/api/me/workspace/agenda/'.$yassineAppointment->id)
             ->assertForbidden();
+    }
+
+    public function test_employee_workspace_monthly_commission_matches_payroll_source_of_truth(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        $user = User::factory()->create(['role' => 'employee']);
+        $user->assignRole('employee');
+        $employee = Employee::factory()->create(['user_id' => $user->id]);
+
+        Sale::create([
+            'employee_id' => $employee->id,
+            'category' => 'coiffure',
+            'label' => 'Vente caisse legacy',
+            'total' => 1000,
+            'commission_amount' => 350,
+            'payment_method' => 'especes',
+            'print_count' => 0,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/me/workspace/dashboard')
+            ->assertOk()
+            ->assertJsonPath('data.today.monthly_commission', 350);
     }
 }

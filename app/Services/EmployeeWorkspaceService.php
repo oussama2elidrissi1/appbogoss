@@ -19,6 +19,12 @@ use Illuminate\Support\Collection;
 
 class EmployeeWorkspaceService
 {
+    public function __construct(
+        private readonly EmployeeEarningsService $earnings,
+        private readonly CommissionPayoutService $payouts,
+    ) {
+    }
+
     public function dashboard(Employee $employee): array
     {
         $today = Carbon::today();
@@ -40,10 +46,7 @@ class EmployeeWorkspaceService
             ->values();
 
         $commissionsToday = $this->commissionSum($employee, $today->copy()->startOfDay(), $today->copy()->endOfDay());
-        $commissionsMonth = $this->commissionSum($employee, $monthStart, Carbon::now()->endOfDay());
-        $paidCommissionMonth = CommissionPayout::where('employee_id', $employee->id)
-            ->where('period', Carbon::now()->format('Y-m'))
-            ->sum('net_amount');
+        $monthPreview = $this->payouts->preview($employee, Carbon::now()->format('Y-m'));
 
         $distribution = $this->serviceDistribution($employee, $monthStart, Carbon::now()->endOfDay());
         $reviews = $this->reviewSummary($employee);
@@ -56,8 +59,8 @@ class EmployeeWorkspaceService
                 'prestations_delta' => $todayPrestations->count() - $yesterdayPrestations,
                 'revenue' => round((float) $paidToday->sum('total'), 2),
                 'commission' => round($commissionsToday, 2),
-                'monthly_commission' => round($commissionsMonth, 2),
-                'paid_commission' => round((float) $paidCommissionMonth, 2),
+                'monthly_commission' => $monthPreview['commission_total'],
+                'paid_commission' => $monthPreview['paid_net_total'],
             ],
             'prestations_today' => $todayPrestations
                 ->sortBy('created_at')
@@ -136,19 +139,16 @@ class EmployeeWorkspaceService
         $today = Carbon::today();
         $weekStart = Carbon::now()->startOfWeek();
         $monthStart = Carbon::now()->startOfMonth();
-        $validatedMonth = $this->commissionSum($employee, $monthStart, Carbon::now()->endOfDay(), Commission::STATUS_VALIDATED);
-        $paidMonth = (float) CommissionPayout::where('employee_id', $employee->id)
-            ->where('period', Carbon::now()->format('Y-m'))
-            ->sum('net_amount');
+        $monthPreview = $this->payouts->preview($employee, Carbon::now()->format('Y-m'));
 
         return [
             'summary' => [
                 'today' => round($this->commissionSum($employee, $today->copy()->startOfDay(), $today->copy()->endOfDay()), 2),
                 'week' => round($this->commissionSum($employee, $weekStart, Carbon::now()->endOfDay()), 2),
-                'month' => round($validatedMonth, 2),
-                'validated' => round($validatedMonth, 2),
-                'paid' => round($paidMonth, 2),
-                'pending' => round(max(0, $validatedMonth - $paidMonth), 2),
+                'month' => $monthPreview['commission_total'],
+                'validated' => $monthPreview['commission_total'],
+                'paid' => $monthPreview['paid_net_total'],
+                'pending' => $monthPreview['net_amount'],
             ],
             'evolution' => $this->commissionEvolution($employee, $filters['range'] ?? 'month'),
             'rows' => $rows,
@@ -351,6 +351,10 @@ class EmployeeWorkspaceService
 
     private function commissionSum(Employee $employee, Carbon $from, Carbon $to, ?string $status = null): float
     {
+        if ($status === null || $status === Commission::STATUS_VALIDATED) {
+            return $this->earnings->commissionEarnedTotal($employee, $from, $to);
+        }
+
         return (float) Commission::where('employee_id', $employee->id)
             ->when($status, fn (Builder $query) => $query->where('status', $status))
             ->whereBetween('created_at', [$from, $to])
