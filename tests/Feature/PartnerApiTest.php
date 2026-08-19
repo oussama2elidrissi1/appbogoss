@@ -97,7 +97,7 @@ class PartnerApiTest extends TestCase
         $partner = $this->createPartnerWithAccount();
         Sanctum::actingAs($partner->user);
 
-        $client = Client::factory()->create(['name' => 'Client Groupe']);
+        $client = Client::factory()->create(['name' => 'Client Groupe', 'partner_id' => $partner->id]);
         $service = Service::factory()->create(['duration_minutes' => 30, 'price' => 100]);
 
         $created = $this->postJson('/api/appointments', [
@@ -122,6 +122,60 @@ class PartnerApiTest extends TestCase
 
         // Both persons run in parallel → 30 min, not 60.
         $this->assertSame(30, $created['duration_minutes']);
+    }
+
+    public function test_partner_cannot_book_using_another_partners_client(): void
+    {
+        $partner = $this->createPartnerWithAccount();
+        $otherPartner = $this->createPartnerWithAccount([
+            'email' => 'other@test.com',
+            'partner' => ['name' => 'Autre Hotel'],
+        ]);
+        $foreignClient = Client::factory()->create(['partner_id' => $otherPartner->id]);
+        $bogoslandClient = Client::factory()->create(['partner_id' => null]);
+        $service = Service::factory()->create();
+
+        Sanctum::actingAs($partner->user);
+
+        $this->postJson('/api/appointments', [
+            'client_id' => $foreignClient->id,
+            'service_id' => $service->id,
+            'starts_at' => '2026-08-10 15:00:00',
+        ])->assertForbidden();
+
+        $this->postJson('/api/appointments', [
+            'client_id' => $bogoslandClient->id,
+            'service_id' => $service->id,
+            'starts_at' => '2026-08-10 15:00:00',
+        ])->assertForbidden();
+
+        $this->assertDatabaseCount('appointments', 0);
+    }
+
+    public function test_suspended_partner_can_still_view_but_not_create_reservations(): void
+    {
+        $partner = $this->createPartnerWithAccount(['partner' => ['status' => 'suspended', 'is_active' => false]]);
+        $ownClient = Client::factory()->create(['partner_id' => $partner->id]);
+        $service = Service::factory()->create();
+        $appointment = Appointment::factory()->create([
+            'partner_id' => $partner->id,
+            'starts_at' => '2026-08-10 10:00:00',
+            'ends_at' => '2026-08-10 10:30:00',
+        ]);
+
+        Sanctum::actingAs($partner->user);
+
+        $this->getJson('/api/appointments?date=2026-08-10')
+            ->assertOk()
+            ->assertJsonCount(1, 'data');
+
+        $this->getJson('/api/appointments/'.$appointment->id)->assertOk();
+
+        $this->postJson('/api/appointments', [
+            'client_id' => $ownClient->id,
+            'service_id' => $service->id,
+            'starts_at' => '2026-08-10 16:00:00',
+        ])->assertForbidden();
     }
 
     public function test_partner_only_sees_their_own_reservations(): void

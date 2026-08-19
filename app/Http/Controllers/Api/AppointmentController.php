@@ -32,7 +32,7 @@ class AppointmentController extends Controller
         $query = Appointment::with(['client', 'employee', 'service', 'partner'])
             ->orderBy('starts_at');
 
-        if ($partner = $this->restrictedPartner($request)) {
+        if ($partner = $this->restrictedPartner($request, requireActive: false)) {
             $query->where('partner_id', $partner->id);
         } elseif (! empty($validated['partner_id'])) {
             $query->where('partner_id', $validated['partner_id']);
@@ -66,6 +66,7 @@ class AppointmentController extends Controller
             // as "pending" so the salon confirms them explicitly.
             $data['partner_id'] = $partner->id;
             $data['status'] = 'pending';
+            $this->assertClientsBelongToPartner($data, $partner);
         }
 
         $appointment = Appointment::create($this->payloadWithEnd($data));
@@ -76,7 +77,7 @@ class AppointmentController extends Controller
 
     public function show(Request $request, Appointment $appointment): JsonResponse
     {
-        $this->assertCanAccess($request, $appointment);
+        $this->assertCanAccess($request, $appointment, requireActive: false);
         $appointment->load(['client', 'employee', 'service', 'partner']);
 
         return response()->json(['data' => new AppointmentResource($appointment)]);
@@ -87,13 +88,14 @@ class AppointmentController extends Controller
         $this->assertCanAccess($request, $appointment);
         $data = $request->validated();
 
-        if ($this->restrictedPartner($request)) {
+        if ($partner = $this->restrictedPartner($request)) {
             // A partner may cancel their own reservation but never grant it a
             // salon-side status (confirmed/completed/no_show), nor reassign it.
             if (($data['status'] ?? null) !== 'cancelled') {
                 unset($data['status']);
             }
             unset($data['partner_id']);
+            $this->assertClientsBelongToPartner($data, $partner);
         }
 
         $appointment->update($this->payloadWithEnd($data, $appointment));
@@ -113,9 +115,11 @@ class AppointmentController extends Controller
     /**
      * Partner-restricted context: the user reaches this controller through
      * `agenda.partner` only (no `agenda.manage`), so every operation must be
-     * scoped to their own partner record.
+     * scoped to their own partner record. A suspended/pending partner can
+     * still sign in and consult their own history — only creating or
+     * mutating a reservation requires an active account.
      */
-    private function restrictedPartner(Request $request): ?Partner
+    private function restrictedPartner(Request $request, bool $requireActive = true): ?Partner
     {
         $user = $request->user();
         if (! $user || $user->can('agenda.manage')) {
@@ -123,18 +127,42 @@ class AppointmentController extends Controller
         }
 
         $partner = $user->partner;
-        if (! $partner || ! $partner->is_active) {
-            abort(403, 'Aucun compte partenaire actif n’est associé à cet utilisateur.');
+        if (! $partner) {
+            abort(403, 'Aucun compte partenaire n’est associé à cet utilisateur.');
+        }
+        if ($requireActive && ! $partner->is_active) {
+            abort(403, 'Votre compte partenaire est suspendu ou inactif.');
         }
 
         return $partner;
     }
 
-    private function assertCanAccess(Request $request, Appointment $appointment): void
+    private function assertCanAccess(Request $request, Appointment $appointment, bool $requireActive = true): void
     {
-        $partner = $this->restrictedPartner($request);
+        $partner = $this->restrictedPartner($request, $requireActive);
         if ($partner && $appointment->partner_id !== $partner->id) {
             abort(403, 'Cette réservation n’appartient pas à votre compte partenaire.');
+        }
+    }
+
+    /**
+     * Prevents a partner from attributing a booking to a client they don't
+     * own by supplying another partner's (or BOGOSLAND's own) client_id.
+     */
+    private function assertClientsBelongToPartner(array $data, Partner $partner): void
+    {
+        $ids = collect($data['client_ids'] ?? [])
+            ->merge([$data['client_id'] ?? null])
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique();
+
+        if ($ids->isEmpty()) {
+            return;
+        }
+
+        if (Client::query()->whereIn('id', $ids)->where('partner_id', $partner->id)->count() !== $ids->count()) {
+            abort(403, 'Un client sélectionné n’appartient pas à votre portefeuille.');
         }
     }
 
