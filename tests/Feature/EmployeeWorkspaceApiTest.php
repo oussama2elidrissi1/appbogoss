@@ -9,6 +9,7 @@ use App\Models\CommissionPayout;
 use App\Models\Employee;
 use App\Models\Prestation;
 use App\Models\Sale;
+use App\Models\SaleItem;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -102,6 +103,94 @@ class EmployeeWorkspaceApiTest extends TestCase
         $this->getJson('/api/me/workspace/dashboard')
             ->assertOk()
             ->assertJsonPath('data.today.monthly_commission', 350);
+    }
+
+    public function test_employee_dashboard_and_prestation_history_include_today_caisse_sales(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        $user = User::factory()->create(['role' => 'employee']);
+        $user->assignRole('employee');
+        $employee = Employee::factory()->create(['user_id' => $user->id, 'name' => 'brahim']);
+        $otherEmployee = Employee::factory()->create();
+        $client = Client::factory()->create(['name' => 'Client caisse']);
+
+        $saleA = Sale::factory()->create([
+            'employee_id' => $employee->id,
+            'client_id' => $client->id,
+            'total' => 300,
+            'commission_amount' => 150,
+        ]);
+        SaleItem::create(['sale_id' => $saleA->id, 'label' => 'Hammam turc', 'quantity' => 2, 'unit_price' => 150]);
+
+        $saleB = Sale::factory()->create([
+            'employee_id' => $employee->id,
+            'client_id' => null,
+            'client_label' => 'Client de passage',
+            'total' => 400,
+            'commission_amount' => 200,
+        ]);
+        SaleItem::create(['sale_id' => $saleB->id, 'label' => 'Massage sportif', 'quantity' => 2, 'unit_price' => 200]);
+
+        Sale::factory()->create([
+            'employee_id' => $otherEmployee->id,
+            'total' => 999,
+            'commission_amount' => 999,
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $today = now()->toDateString();
+
+        $this->getJson('/api/me/workspace/dashboard')
+            ->assertOk()
+            ->assertJsonPath('data.today.prestations_count', 2)
+            ->assertJsonPath('data.today.revenue', 700)
+            ->assertJsonPath('data.today.commission', 350)
+            ->assertJsonFragment(['reference' => 'CAISSE-'.$saleA->id])
+            ->assertJsonFragment(['service' => 'Massage sportif']);
+
+        $this->getJson("/api/me/workspace/prestations?from={$today}&to={$today}")
+            ->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonFragment(['reference' => 'CAISSE-'.$saleB->id]);
+    }
+
+    public function test_paid_commission_counts_net_paid_and_settled_advances(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        $user = User::factory()->create(['role' => 'employee']);
+        $user->assignRole('employee');
+        $employee = Employee::factory()->create(['user_id' => $user->id]);
+
+        Sale::factory()->create([
+            'employee_id' => $employee->id,
+            'total' => 5000,
+            'commission_amount' => 4193,
+        ]);
+
+        CommissionPayout::create([
+            'employee_id' => $employee->id,
+            'period' => now()->format('Y-m'),
+            'commission_total' => 4193,
+            'advances_deducted' => 1365,
+            'net_amount' => 2828,
+            'paid_by_user_id' => $user->id,
+            'paid_at' => now(),
+        ]);
+
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/me/workspace/dashboard')
+            ->assertOk()
+            ->assertJsonPath('data.today.monthly_commission', 4193)
+            ->assertJsonPath('data.today.paid_commission', 4193);
+
+        $this->getJson('/api/me/workspace/commissions')
+            ->assertOk()
+            ->assertJsonPath('data.summary.paid', 4193)
+            ->assertJsonPath('data.summary.pending', 0);
     }
 
     public function test_employee_commissions_endpoint_includes_full_advance_and_payout_history(): void

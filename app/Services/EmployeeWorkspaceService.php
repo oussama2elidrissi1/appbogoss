@@ -13,6 +13,7 @@ use App\Models\Employee;
 use App\Models\Prestation;
 use App\Models\PrestationItem;
 use App\Models\Sale;
+use App\Models\SaleItem;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Database\Eloquent\Builder;
@@ -39,9 +40,12 @@ class EmployeeWorkspaceService
         $yesterdayPrestations = $this->prestations($employee)
             ->whereDate('created_at', $yesterday)
             ->count();
+        $legacySalesToday = $this->legacySales($employee, $today->copy()->startOfDay(), $today->copy()->endOfDay());
+        $legacySalesYesterday = $this->legacySales($employee, $yesterday->copy()->startOfDay(), $yesterday->copy()->endOfDay());
 
         $paidToday = $todayPrestations->where('status', Prestation::STATUS_PAID);
         $appointmentsToday = $this->appointmentRows($employee, $today->copy()->startOfDay(), $today->copy()->endOfDay());
+        $appointmentsYesterday = $this->appointmentRows($employee, $yesterday->copy()->startOfDay(), $yesterday->copy()->endOfDay());
         $upcomingAppointments = $appointmentsToday
             ->filter(fn (array $row) => Carbon::parse($row['starts_at'])->gte(now()) && ! in_array($row['status'], ['cancelled', 'refused', 'no_show'], true))
             ->values();
@@ -56,17 +60,19 @@ class EmployeeWorkspaceService
             'employee' => $this->employeeCard($employee),
             'today' => [
                 'date' => now()->toIso8601String(),
-                'prestations_count' => $todayPrestations->count() + $appointmentsToday->count(),
-                'prestations_delta' => $todayPrestations->count() - $yesterdayPrestations,
-                'revenue' => round((float) $paidToday->sum('total'), 2),
+                'prestations_count' => $todayPrestations->count() + $legacySalesToday->count() + $appointmentsToday->count(),
+                'prestations_delta' => ($todayPrestations->count() + $legacySalesToday->count() + $appointmentsToday->count())
+                    - ($yesterdayPrestations + $legacySalesYesterday->count() + $appointmentsYesterday->count()),
+                'revenue' => round((float) $paidToday->sum('total') + (float) $legacySalesToday->sum('total'), 2),
                 'commission' => round($commissionsToday, 2),
                 'monthly_commission' => $monthPreview['commission_total'],
-                'paid_commission' => $monthPreview['paid_net_total'],
+                'paid_commission' => round($monthPreview['paid_net_total'] + $monthPreview['paid_advances_total'], 2),
             ],
             'prestations_today' => $todayPrestations
-                ->sortBy('created_at')
-                ->values()
                 ->map(fn (Prestation $prestation) => $this->prestationRow($prestation))
+                ->concat($legacySalesToday->map(fn (Sale $sale) => $this->legacySalePrestationRow($sale)))
+                ->sortBy('date')
+                ->values()
                 ->all(),
             'agenda_today' => $appointmentsToday->values()->all(),
             'next_appointment' => $upcomingAppointments->first(),
@@ -103,10 +109,17 @@ class EmployeeWorkspaceService
             });
         }
 
-        return $query->orderByDesc('created_at')
+        $prestationRows = $query->orderByDesc('created_at')
             ->limit(250)
             ->get()
-            ->map(fn (Prestation $prestation) => $this->prestationRow($prestation))
+            ->map(fn (Prestation $prestation) => $this->prestationRow($prestation));
+        $legacyRows = $this->legacySalePrestationRows($employee, $filters);
+
+        return $prestationRows
+            ->concat($legacyRows)
+            ->sortByDesc('date')
+            ->take(250)
+            ->values()
             ->all();
     }
 
@@ -126,7 +139,7 @@ class EmployeeWorkspaceService
             $query->where('status', $filters['status']);
         }
 
-        $rows = $query->limit(300)->get()->map(fn (Commission $commission) => [
+        $commissionRows = $query->limit(300)->get()->map(fn (Commission $commission) => [
             'id' => $commission->id,
             'date' => $commission->created_at?->toIso8601String(),
             'client_name' => $commission->prestation?->client?->name ?? $commission->prestation?->client_label ?? 'Client de passage',
@@ -135,7 +148,14 @@ class EmployeeWorkspaceService
             'type' => $commission->type,
             'amount' => (float) $commission->amount,
             'status' => $commission->status,
-        ])->all();
+        ]);
+        $legacyCommissionRows = $this->legacySaleCommissionRows($employee, $filters);
+        $rows = $commissionRows
+            ->concat($legacyCommissionRows)
+            ->sortByDesc('date')
+            ->take(300)
+            ->values()
+            ->all();
 
         $today = Carbon::today();
         $weekStart = Carbon::now()->startOfWeek();
@@ -148,7 +168,7 @@ class EmployeeWorkspaceService
                 'week' => round($this->commissionSum($employee, $weekStart, Carbon::now()->endOfDay()), 2),
                 'month' => $monthPreview['commission_total'],
                 'validated' => $monthPreview['commission_total'],
-                'paid' => $monthPreview['paid_net_total'],
+                'paid' => round($monthPreview['paid_net_total'] + $monthPreview['paid_advances_total'], 2),
                 'pending' => $monthPreview['net_amount'],
             ],
             'evolution' => $this->commissionEvolution($employee, $filters['range'] ?? 'month'),
@@ -192,25 +212,30 @@ class EmployeeWorkspaceService
             ->whereBetween('created_at', [$from, $to])
             ->with(['items', 'client'])
             ->get();
+        $legacySales = $this->legacySales($employee, $from, $to);
         $paid = $prestations->where('status', Prestation::STATUS_PAID);
         $reviews = AppointmentReview::where('employee_id', $employee->id)->whereBetween('reviewed_at', [$from, $to])->get();
+        $activeDays = $prestations
+            ->map(fn (Prestation $prestation) => $prestation->created_at)
+            ->concat($legacySales->map(fn (Sale $sale) => $sale->created_at))
+            ->filter();
 
         return [
             'period' => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
             'kpis' => [
-                'prestations' => $prestations->count(),
-                'revenue' => round((float) $paid->sum('total'), 2),
+                'prestations' => $prestations->count() + $legacySales->count(),
+                'revenue' => round((float) $paid->sum('total') + (float) $legacySales->sum('total'), 2),
                 'commission_generated' => round($this->commissionSum($employee, $from, $to), 2),
-                'commission_paid' => round((float) CommissionPayout::where('employee_id', $employee->id)->whereBetween('paid_at', [$from, $to])->sum('net_amount'), 2),
+                'commission_paid' => round((float) CommissionPayout::where('employee_id', $employee->id)->whereBetween('paid_at', [$from, $to])->get()->sum(fn (CommissionPayout $payout) => (float) $payout->net_amount + (float) $payout->advances_deducted), 2),
                 'average_rating' => $reviews->count() > 0 ? round((float) $reviews->avg('rating'), 1) : null,
-                'clients_served' => $paid->pluck('client_id')->filter()->unique()->count(),
+                'clients_served' => $paid->pluck('client_id')->concat($legacySales->pluck('client_id'))->filter()->unique()->count(),
                 'average_duration' => round((float) $prestations->flatMap->items->avg('duration_minutes'), 0),
             ],
             'commission_evolution' => $this->commissionEvolution($employee, $filters['range'] ?? 'month', $from, $to),
             'service_distribution' => $this->serviceDistribution($employee, $from, $to),
             'top_services' => $this->topServices($employee, $from, $to)->values()->all(),
-            'active_days' => $prestations
-                ->groupBy(fn (Prestation $prestation) => $prestation->created_at?->locale('fr')->isoFormat('dddd') ?? '')
+            'active_days' => $activeDays
+                ->groupBy(fn (Carbon $date) => $date->locale('fr')->isoFormat('dddd'))
                 ->map(fn (Collection $group, string $day) => ['day' => ucfirst($day), 'count' => $group->count()])
                 ->values()
                 ->all(),
@@ -327,6 +352,141 @@ class EmployeeWorkspaceService
         ];
     }
 
+    private function legacySales(Employee $employee, Carbon $from, Carbon $to): Collection
+    {
+        return $this->earnings->legacySales($employee)
+            ->with(['items', 'client', 'service'])
+            ->whereBetween('created_at', [$from, $to])
+            ->orderByDesc('created_at')
+            ->get()
+            ->reject(fn (Sale $sale) => $sale->trashed())
+            ->values();
+    }
+
+    private function legacySalePrestationRows(Employee $employee, array $filters): Collection
+    {
+        if (! empty($filters['status']) && $filters['status'] !== Prestation::STATUS_PAID) {
+            return collect();
+        }
+
+        $query = $this->earnings->legacySales($employee)->with(['items', 'client', 'service']);
+
+        if (! empty($filters['from'])) {
+            $query->whereDate('created_at', '>=', $filters['from']);
+        }
+        if (! empty($filters['to'])) {
+            $query->whereDate('created_at', '<=', $filters['to']);
+        }
+        if (! empty($filters['service_id'])) {
+            $serviceId = (int) $filters['service_id'];
+            $query->where(function (Builder $builder) use ($serviceId) {
+                $builder->where('service_id', $serviceId)
+                    ->orWhereHas('items', fn (Builder $item) => $item->where('itemable_id', $serviceId));
+            });
+        }
+        if (! empty($filters['search'])) {
+            $search = trim((string) $filters['search']);
+            $query->where(function (Builder $builder) use ($search) {
+                $builder->where('client_label', 'like', "%{$search}%")
+                    ->orWhere('category', 'like', "%{$search}%")
+                    ->orWhereHas('client', fn (Builder $client) => $client->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('items', fn (Builder $item) => $item->where('label', 'like', "%{$search}%"));
+            });
+        }
+
+        return $query->orderByDesc('created_at')
+            ->limit(250)
+            ->get()
+            ->reject(fn (Sale $sale) => $sale->trashed())
+            ->map(fn (Sale $sale) => $this->legacySalePrestationRow($sale))
+            ->values();
+    }
+
+    private function legacySalePrestationRow(Sale $sale): array
+    {
+        $sale->loadMissing(['items', 'client', 'service']);
+
+        return [
+            'id' => -1 * $sale->id,
+            'reference' => 'CAISSE-'.$sale->id,
+            'date' => $sale->created_at?->toIso8601String(),
+            'time' => $sale->created_at?->format('H:i'),
+            'client_id' => $sale->client_id,
+            'client_name' => $sale->client?->name ?? $sale->client_label ?? 'Client de passage',
+            'client_phone' => $sale->client?->phone,
+            'service' => $this->legacySaleServiceLabel($sale),
+            'duration_minutes' => 0,
+            'amount' => (float) $sale->total,
+            'commission' => round((float) $sale->commission_amount, 2),
+            'status' => Prestation::STATUS_PAID,
+        ];
+    }
+
+    private function legacySaleCommissionRows(Employee $employee, array $filters): Collection
+    {
+        if (! empty($filters['status']) && $filters['status'] !== Commission::STATUS_VALIDATED) {
+            return collect();
+        }
+
+        $query = $this->earnings->legacySales($employee)->with(['items', 'client', 'service']);
+
+        if (! empty($filters['from'])) {
+            $query->whereDate('created_at', '>=', $filters['from']);
+        }
+        if (! empty($filters['to'])) {
+            $query->whereDate('created_at', '<=', $filters['to']);
+        }
+
+        return $query->orderByDesc('created_at')
+            ->limit(300)
+            ->get()
+            ->reject(fn (Sale $sale) => $sale->trashed())
+            ->filter(fn (Sale $sale) => (float) $sale->commission_amount !== 0.0)
+            ->map(fn (Sale $sale) => [
+                'id' => -1 * $sale->id,
+                'date' => $sale->created_at?->toIso8601String(),
+                'client_name' => $sale->client?->name ?? $sale->client_label ?? 'Client de passage',
+                'service_name' => $this->legacySaleServiceLabel($sale),
+                'service_price' => (float) $sale->total,
+                'type' => 'caisse',
+                'amount' => (float) $sale->commission_amount,
+                'status' => Commission::STATUS_VALIDATED,
+            ])
+            ->values();
+    }
+
+    private function legacySaleServiceLabel(Sale $sale): string
+    {
+        $labels = $sale->items->pluck('label')->filter()->values();
+
+        if ($labels->isNotEmpty()) {
+            return $labels->join(' + ');
+        }
+
+        return $sale->service?->name ?? $sale->category ?? 'Encaissement caisse';
+    }
+
+    private function legacySaleServiceRows(Collection $sales): Collection
+    {
+        return $sales->flatMap(function (Sale $sale) {
+            $sale->loadMissing(['items', 'service']);
+
+            if ($sale->items->isEmpty()) {
+                return [[
+                    'label' => $this->legacySaleServiceLabel($sale),
+                    'quantity' => 1,
+                    'total' => (float) $sale->total,
+                ]];
+            }
+
+            return $sale->items->map(fn (SaleItem $item) => [
+                'label' => $item->label,
+                'quantity' => (int) $item->quantity,
+                'total' => round((float) $item->quantity * (float) $item->unit_price, 2),
+            ]);
+        })->values();
+    }
+
     private function appointmentRows(Employee $employee, Carbon $from, Carbon $to): Collection
     {
         return Appointment::query()
@@ -394,11 +554,17 @@ class EmployeeWorkspaceService
     private function commissionEvolution(Employee $employee, string $range, ?Carbon $from = null, ?Carbon $to = null): array
     {
         [$from, $to] = $from && $to ? [$from, $to] : $this->period($range);
-        $rows = Commission::where('employee_id', $employee->id)
-            ->where('status', Commission::STATUS_VALIDATED)
-            ->whereBetween('created_at', [$from, $to])
-            ->get(['amount', 'created_at'])
-            ->groupBy(fn (Commission $commission) => $commission->created_at?->toDateString());
+        $commissionRows = $this->earnings->activeValidatedCommissions($employee->id, $from, $to)
+            ->map(fn (Commission $commission) => [
+                'date' => $commission->created_at?->toDateString(),
+                'amount' => (float) $commission->amount,
+            ]);
+        $legacyRows = $this->legacySales($employee, $from, $to)
+            ->map(fn (Sale $sale) => [
+                'date' => $sale->created_at?->toDateString(),
+                'amount' => (float) $sale->commission_amount,
+            ]);
+        $rows = $commissionRows->concat($legacyRows)->groupBy('date');
 
         return collect(CarbonPeriod::create($from->toDateString(), $to->toDateString()))
             ->map(fn (Carbon $date) => [
@@ -415,7 +581,12 @@ class EmployeeWorkspaceService
             ->where('employee_id', $employee->id)
             ->whereBetween('created_at', [$from, $to])
             ->whereNotIn('status', [Prestation::STATUS_CANCELLED, Prestation::STATUS_REFUNDED]))
-            ->get(['label', 'quantity']);
+            ->get(['label', 'quantity'])
+            ->map(fn (PrestationItem $item) => [
+                'label' => $item->label,
+                'quantity' => (int) $item->quantity,
+            ])
+            ->concat($this->legacySaleServiceRows($this->legacySales($employee, $from, $to)));
 
         $total = max(1, (int) $items->sum('quantity'));
 
@@ -433,16 +604,24 @@ class EmployeeWorkspaceService
 
     private function topServices(Employee $employee, Carbon $from, Carbon $to): Collection
     {
-        return PrestationItem::whereHas('prestation', fn (Builder $query) => $query
+        $items = PrestationItem::whereHas('prestation', fn (Builder $query) => $query
             ->where('employee_id', $employee->id)
             ->whereBetween('created_at', [$from, $to])
             ->whereNotIn('status', [Prestation::STATUS_CANCELLED, Prestation::STATUS_REFUNDED]))
             ->get()
+            ->map(fn (PrestationItem $item) => [
+                'label' => $item->label,
+                'quantity' => (int) $item->quantity,
+                'total' => (float) $item->lineTotal(),
+            ])
+            ->concat($this->legacySaleServiceRows($this->legacySales($employee, $from, $to)));
+
+        return $items
             ->groupBy('label')
             ->map(fn (Collection $group, string $label) => [
                 'label' => $label,
                 'count' => (int) $group->sum('quantity'),
-                'total' => round((float) $group->sum(fn (PrestationItem $item) => $item->lineTotal()), 2),
+                'total' => round((float) $group->sum('total'), 2),
             ])
             ->sortByDesc('count');
     }
