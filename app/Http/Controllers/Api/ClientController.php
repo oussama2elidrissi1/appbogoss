@@ -17,6 +17,14 @@ class ClientController extends Controller
         ]);
         $query = Client::withCount(['sales', 'appointments'])->orderBy('name');
 
+        // A partner-only account (no Employee record, no caisse.manage/
+        // agenda.manage) never sees BOGOSLAND's shared pool or another
+        // partner's clients — only their own private portfolio (§3).
+        $partner = $request->user()->partner;
+        if ($partner !== null && ! $this->isInternalStaff($request)) {
+            $query->where('partner_id', $partner->id);
+        }
+
         if (! empty($validated['search'])) {
             $search = $validated['search'];
             $query->where(function ($subQuery) use ($search): void {
@@ -32,13 +40,24 @@ class ClientController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $client = Client::create($this->validated($request));
+        $this->authorize('create', Client::class);
+
+        $client = new Client($this->validated($request));
+        $partner = $request->user()->partner;
+        // Ownership is always stamped server-side from the authenticated
+        // account — never trusts (or even accepts) a client-supplied
+        // partner_id, so a partner can never attach a client to someone
+        // else's portfolio or to BOGOSLAND's own pool.
+        $client->partner_id = $partner?->id;
+        $client->created_by_user_id = $request->user()->id;
+        $client->save();
 
         return response()->json(['data' => new ClientResource($client)], 201);
     }
 
-    public function show(Client $client): JsonResponse
+    public function show(Request $request, Client $client): JsonResponse
     {
+        $this->authorize('view', $client);
         $client->loadCount(['sales', 'appointments']);
 
         return response()->json(['data' => new ClientResource($client)]);
@@ -46,16 +65,25 @@ class ClientController extends Controller
 
     public function update(Request $request, Client $client): JsonResponse
     {
+        $this->authorize('update', $client);
         $client->update($this->validated($request, true));
 
         return response()->json(['data' => new ClientResource($client->refresh()->loadCount(['sales', 'appointments']))]);
     }
 
-    public function destroy(Client $client): JsonResponse
+    public function destroy(Request $request, Client $client): JsonResponse
     {
+        $this->authorize('delete', $client);
         $client->delete();
 
         return response()->json(status: 204);
+    }
+
+    private function isInternalStaff(Request $request): bool
+    {
+        $user = $request->user();
+
+        return $user->can('caisse.manage') || $user->can('agenda.manage') || $user->employee !== null;
     }
 
     /** @return array<string, mixed> */

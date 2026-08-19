@@ -278,14 +278,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/prestations/{prestation}/refund', [PrestationController::class, 'refund']);
     Route::post('/prestations/{prestation}/print', [PrestationController::class, 'print']);
 
+    // index/show carry no permission middleware — visibility is enforced
+    // inside ClientController/ClientPolicy (partner accounts scoped to their
+    // own portfolio, see §3/§22), not by a route-level gate.
     Route::apiResource('/clients', ClientController::class)->only(['index', 'show']);
-    // Partners must be able to register the booking contact of a reservation
-    // (name + phone), hence store is also open to `agenda.partner`.
+    // Partners must be able to register/edit the booking contact of a
+    // reservation (name + phone) within their own portfolio, hence store and
+    // update are also open to `agenda.partner` — ClientPolicy still blocks a
+    // partner from touching another partner's or BOGOSLAND's clients.
     Route::middleware('permission:caisse.manage|agenda.partner')->group(function () {
-        Route::apiResource('/clients', ClientController::class)->only(['store']);
+        Route::apiResource('/clients', ClientController::class)->only(['store', 'update']);
     });
     Route::middleware('permission:caisse.manage')->group(function () {
-        Route::apiResource('/clients', ClientController::class)->only(['update', 'destroy']);
+        Route::apiResource('/clients', ClientController::class)->only(['destroy']);
         // Fiche client 360° + gestion de l'accès portail (téléphone + mot de passe).
         Route::get('/clients/{client}/overview', [ClientAccountController::class, 'overview']);
         Route::post('/clients/{client}/portal-password', [ClientAccountController::class, 'setPortalPassword']);

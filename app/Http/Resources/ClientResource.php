@@ -20,6 +20,8 @@ class ClientResource extends JsonResource
             'last_visit_at' => $this->last_visit_at,
             'sales_count' => (int) ($this->sales_count ?? 0),
             'appointments_count' => (int) ($this->appointments_count ?? 0),
+            'partner_id' => $this->partner_id,
+            'partner_name' => $this->whenLoaded('partner', fn () => $this->partner?->name),
         ];
     }
 }

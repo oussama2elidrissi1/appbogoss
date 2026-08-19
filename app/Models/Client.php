@@ -6,6 +6,7 @@ use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Notifications\Notifiable;
@@ -24,6 +25,8 @@ class Client extends Model implements Authenticatable
     use Notifiable;
 
     protected $fillable = [
+        'partner_id',
+        'created_by_user_id',
         'name',
         'email',
         'phone',
@@ -55,6 +58,17 @@ class Client extends Model implements Authenticatable
         'consent_terms_at' => 'datetime',
         'consent_marketing_at' => 'datetime',
     ];
+
+    /** Null when the client belongs to BOGOSLAND's own shared pool. */
+    public function partner(): BelongsTo
+    {
+        return $this->belongsTo(Partner::class);
+    }
+
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by_user_id');
+    }
 
     public function appointments(): HasMany
     {
