@@ -28,7 +28,8 @@ import type {
     Employee,
     Service,
 } from '@/types/workday';
-import { itemsOf, UNASSIGNED_RESOURCE_ID } from './agendaEvents';
+import { UNASSIGNED_RESOURCE_ID } from './agendaEvents';
+import { useReservationCart } from './useReservationCart';
 import { type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -74,9 +75,6 @@ interface ReservationDialogProps {
     partnerMode?: boolean;
 }
 
-type PersonDraft = { name: string | null };
-type ItemDraft = { service_id: number; employee_id: number | null; person_index: number };
-
 /**
  * Professional reservation flow:
  * 1. one booking contact (the only person whose coordinates are captured),
@@ -100,29 +98,36 @@ export function ReservationDialog({
     const [serviceCategory, setServiceCategory] = useState<CategoryConfig>(CATEGORIES[0]);
     const [serviceSearch, setServiceSearch] = useState('');
     const [payload, setPayload] = useState<AppointmentPayload>({});
-    const [people, setPeople] = useState<PersonDraft[]>([{ name: null }]);
-    const [items, setItems] = useState<ItemDraft[]>([]);
-    const [activePerson, setActivePerson] = useState(0);
     const [selectedClient, setSelectedClient] = useState<{ id: number; name: string; phone: string | null } | null>(null);
     const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+    const cart = useReservationCart(services);
+    const {
+        people,
+        items,
+        activePerson,
+        setActivePerson,
+        setPeople,
+        serviceById,
+        totalPrice,
+        totalDuration,
+        personLabel,
+        itemsOfPerson,
+        addPerson,
+        removePerson,
+        renamePerson,
+        removeItemAt,
+        assignEmployeeAt,
+        personsWithoutService,
+        hydrateFromAppointment,
+        reset: resetCart,
+    } = cart;
 
     useEffect(() => {
         if (!open) return;
 
         if (mode === 'edit' && appointment) {
-            setItems(
-                itemsOf(appointment).map((item) => ({
-                    service_id: item.service_id,
-                    employee_id: item.employee_id,
-                    person_index: item.person_index ?? 0,
-                })),
-            );
-            const hydratedPeople: PersonDraft[] = appointment.people?.length
-                ? appointment.people.map((person) => ({ name: person.name ?? null }))
-                : appointment.clients?.length
-                  ? appointment.clients.map((client) => ({ name: client.name }))
-                  : [{ name: appointment.client?.name ?? null }];
-            setPeople(hydratedPeople);
+            hydrateFromAppointment(appointment);
             setSelectedClient(
                 appointment.client ??
                     appointment.clients?.find((client) => client.id === appointment.client_id) ??
@@ -135,8 +140,7 @@ export function ReservationDialog({
                 client_id: appointment.client_id,
             });
         } else {
-            setItems([]);
-            setPeople([{ name: null }]);
+            resetCart();
             setSelectedClient(null);
             setPayload({
                 starts_at: toDateTimeLocal(initialStart ?? roundedNow()),
@@ -146,9 +150,9 @@ export function ReservationDialog({
             setServiceCategory(CATEGORIES[0]);
             setServiceSearch('');
         }
-        setActivePerson(0);
         setClientSearch('');
         setClientPhone('');
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, mode, appointment, initialStart, initialResourceId, partnerMode]);
 
     const { data: clients, isPending: clientsPending } = useQuery({
@@ -158,39 +162,12 @@ export function ReservationDialog({
         enabled: open,
     });
 
-    const serviceById = useMemo(() => new Map(services.map((service) => [service.id, service])), [services]);
-
-    const totalPrice = items.reduce((total, item) => total + (serviceById.get(item.service_id)?.price ?? 0), 0);
-
-    /** Mirrors the server rule: parallel chains per employee, per person for unassigned lines. */
-    const totalDuration = useMemo(() => {
-        const chains = new Map<string, number>();
-        items.forEach((item) => {
-            const service = serviceById.get(item.service_id);
-            if (!service) return;
-            const key = item.employee_id ? `e${item.employee_id}` : `p${item.person_index}`;
-            chains.set(key, (chains.get(key) ?? 0) + service.duration_minutes);
-        });
-        return Math.max(0, ...chains.values());
-    }, [items, serviceById]);
-
     const filteredServices = useMemo(() => {
         const term = serviceSearch.trim().toLowerCase();
         const categoryServices = services.filter((service) => service.category === serviceCategory.value);
         if (!term) return categoryServices;
         return categoryServices.filter((service) => service.name.toLowerCase().includes(term));
     }, [services, serviceCategory.value, serviceSearch]);
-
-    function personLabel(index: number): string {
-        const name = people[index]?.name?.trim();
-        return name || `Personne ${index + 1}`;
-    }
-
-    function itemsOfPerson(index: number): Array<{ item: ItemDraft; itemIndex: number }> {
-        return items
-            .map((item, itemIndex) => ({ item, itemIndex }))
-            .filter(({ item }) => item.person_index === index);
-    }
 
     function selectClient(client: { id: number; name: string; phone: string | null }) {
         if (selectedClient?.id === client.id) {
@@ -203,53 +180,13 @@ export function ReservationDialog({
         setPeople((current) => current.map((person, index) => (index === 0 ? { name: client.name } : person)));
     }
 
-    function addPerson() {
-        setPeople((current) => {
-            setActivePerson(current.length);
-            return [...current, { name: null }];
-        });
-    }
-
-    function removePerson(index: number) {
-        if (index === 0) return;
-        setPeople((current) => current.filter((_, personIndex) => personIndex !== index));
-        setItems((current) =>
-            current
-                .filter((item) => item.person_index !== index)
-                .map((item) => ({
-                    ...item,
-                    person_index: item.person_index > index ? item.person_index - 1 : item.person_index,
-                })),
-        );
-        setActivePerson((current) => (current >= index ? Math.max(0, current - 1) : current));
-    }
-
-    function renamePerson(index: number, name: string) {
-        setPeople((current) =>
-            current.map((person, personIndex) => (personIndex === index ? { name: name || null } : person)),
-        );
-    }
-
-    /** Cart-style: every click adds a new line for the active person. */
+    /** Cart-style: every click adds a new line for the active person, preferring the dropped-on calendar column's employee. */
     function addService(service: Service) {
         const preferredEmployee =
             !partnerMode && initialResourceId && initialResourceId !== UNASSIGNED_RESOURCE_ID
                 ? initialResourceId
                 : null;
-        setItems((current) => [
-            ...current,
-            { service_id: service.id, employee_id: preferredEmployee, person_index: activePerson },
-        ]);
-    }
-
-    function removeItemAt(itemIndex: number) {
-        setItems((current) => current.filter((_, index) => index !== itemIndex));
-    }
-
-    function assignEmployeeAt(itemIndex: number, employeeId: number | null) {
-        setItems((current) =>
-            current.map((item, index) => (index === itemIndex ? { ...item, employee_id: employeeId } : item)),
-        );
+        cart.addService(service, activePerson, preferredEmployee);
     }
 
     function invalidateAppointments() {
@@ -295,9 +232,6 @@ export function ReservationDialog({
     const saving = createMutation.isPending || updateMutation.isPending;
     const mutationError = createMutation.error ?? updateMutation.error;
 
-    const personsWithoutService = people
-        .map((_, index) => index)
-        .filter((index) => itemsOfPerson(index).length === 0);
     const canSubmit =
         Boolean(payload.client_id) &&
         Boolean(payload.starts_at) &&

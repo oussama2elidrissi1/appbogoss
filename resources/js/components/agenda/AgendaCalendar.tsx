@@ -7,6 +7,7 @@ import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 import { agendaLocalizer, AGENDA_MESSAGES } from './agendaLocalizer';
 import { buildAgendaEvents, UNASSIGNED_RESOURCE_ID, type AgendaEvent, type AgendaResource } from './agendaEvents';
 import { cn, formatTime } from '@/lib/utils';
+import { AGENDA_CLOSE_HOUR, AGENDA_OPEN_HOUR, AGENDA_STEP_MINUTES } from '@/lib/agendaHours';
 import { Button } from '@/components/ui/button';
 import type { Appointment, Employee } from '@/types/workday';
 
@@ -75,10 +76,10 @@ export function AgendaCalendar({
                 date={date}
                 onNavigate={onDateChange}
                 views={[Views.DAY, Views.WEEK, Views.MONTH]}
-                step={15}
+                step={AGENDA_STEP_MINUTES}
                 timeslots={4}
-                min={new Date(1970, 0, 1, 8, 0)}
-                max={new Date(1970, 0, 1, 21, 0)}
+                min={new Date(1970, 0, 1, AGENDA_OPEN_HOUR, 0)}
+                max={new Date(1970, 0, 1, AGENDA_CLOSE_HOUR, 0)}
                 selectable
                 popup
                 resizable
