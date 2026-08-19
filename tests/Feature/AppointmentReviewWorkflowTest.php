@@ -251,6 +251,32 @@ class AppointmentReviewWorkflowTest extends TestCase
         $this->postJson("/api/appointments/{$appointment->id}/proposal/accept")->assertStatus(422);
     }
 
+    public function test_partner_booking_workflow_notifies_the_right_people(): void
+    {
+        $admin = $this->actingAsAdmin();
+        $partner = $this->createPartnerWithAccount();
+        $service = Service::factory()->create();
+
+        $created = $this->postJson('/api/appointments', [
+            'client_id' => Client::factory()->create(['partner_id' => $partner->id])->id,
+            'service_id' => $service->id,
+            'starts_at' => '2026-08-25 10:00:00',
+            'partner_id' => $partner->id,
+            'status' => 'pending',
+        ])->assertCreated()->json('data');
+
+        $this->assertDatabaseHas('notifications', [
+            'notifiable_id' => $admin->id,
+            'type' => \App\Notifications\AppointmentNotification::class,
+        ]);
+
+        $this->postJson("/api/appointments/{$created['id']}/confirm")->assertOk();
+        $this->assertDatabaseHas('notifications', [
+            'notifiable_id' => $partner->user_id,
+            'type' => \App\Notifications\AppointmentNotification::class,
+        ]);
+    }
+
     public function test_has_partner_filter_lists_bookings_across_every_partner(): void
     {
         $this->actingAsAdmin();

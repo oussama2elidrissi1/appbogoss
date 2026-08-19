@@ -12,6 +12,7 @@ use App\Models\Client;
 use App\Models\Employee;
 use App\Models\Partner;
 use App\Models\Service;
+use App\Services\AppointmentNotifier;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -20,6 +21,10 @@ use Illuminate\Validation\Rule;
 
 class AppointmentController extends Controller
 {
+    public function __construct(private readonly AppointmentNotifier $notifier)
+    {
+    }
+
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -88,6 +93,10 @@ class AppointmentController extends Controller
 
         $appointment->load(['client', 'employee', 'service', 'partner']);
 
+        if ($appointment->partner_id !== null) {
+            $this->notifier->partnerBookingCreated($appointment);
+        }
+
         return response()->json(['data' => new AppointmentResource($appointment)], 201);
     }
 
@@ -152,6 +161,7 @@ class AppointmentController extends Controller
         $this->logStatusChange($appointment, $appointment->status, $data, $request);
         $appointment->update($this->payloadWithEnd($data, $appointment));
         $appointment->load(['client', 'employee', 'service', 'partner']);
+        $this->notifier->bookingConfirmed($appointment);
 
         return response()->json(['data' => new AppointmentResource($appointment)]);
     }
@@ -168,6 +178,7 @@ class AppointmentController extends Controller
         $this->logStatusChange($appointment, $appointment->status, $data, $request);
         $appointment->update($data);
         $appointment->load(['client', 'employee', 'service', 'partner']);
+        $this->notifier->bookingRefused($appointment);
 
         return response()->json(['data' => new AppointmentResource($appointment)]);
     }
@@ -195,6 +206,7 @@ class AppointmentController extends Controller
             'proposal_status' => 'proposed',
         ]);
         $appointment->load(['client', 'employee', 'service', 'partner']);
+        $this->notifier->alternateProposed($appointment);
 
         return response()->json(['data' => new AppointmentResource($appointment)]);
     }
@@ -220,6 +232,7 @@ class AppointmentController extends Controller
         $this->logStatusChange($appointment, $appointment->status, $data, $request);
         $appointment->update($data);
         $appointment->load(['client', 'employee', 'service', 'partner']);
+        $this->notifier->proposalAccepted($appointment);
 
         return response()->json(['data' => new AppointmentResource($appointment)]);
     }
@@ -232,6 +245,7 @@ class AppointmentController extends Controller
 
         $appointment->update(['proposal_status' => 'declined']);
         $appointment->load(['client', 'employee', 'service', 'partner']);
+        $this->notifier->proposalDeclined($appointment);
 
         return response()->json(['data' => new AppointmentResource($appointment)]);
     }

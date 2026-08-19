@@ -20,6 +20,7 @@ import {
 import { getPartnerPortalProfile } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { cn, getInitials } from '@/lib/utils';
+import { NotificationsBell } from '@/components/layout/NotificationsBell';
 
 interface PartnerNavItem {
     label: string;
@@ -181,7 +182,14 @@ export default function PartnerLayout() {
                             BOGOS<span className="text-accent">LAND</span>{' '}
                             <span className="text-muted-foreground">Partner</span>
                         </div>
+                        <div className="ml-auto">
+                            <NotificationsBell />
+                        </div>
                     </header>
+
+                    <div className="sticky top-0 z-20 hidden items-center justify-end border-b border-tint/[0.07] bg-background/80 px-6 py-2.5 backdrop-blur lg:flex">
+                        <NotificationsBell />
+                    </div>
 
                     <main className="relative flex-1">
                         <motion.div
