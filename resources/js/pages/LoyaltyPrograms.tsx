@@ -398,11 +398,20 @@ function ProgramProgressDialog({ program, onClose }: { program: LoyaltyProgram |
                         {getErrorMessage(error)}
                     </div>
                 ) : !data || data.data.length === 0 ? (
-                    <EmptyState
-                        icon={Users}
-                        title="Aucun client engagé"
-                        description="Dès qu'un client cumule sur ce programme, il apparaît ici."
-                    />
+                    <div className="space-y-3">
+                        <EmptyState
+                            icon={Users}
+                            title="Aucun client engagé"
+                            description="Dès qu'un client cumule sur ce programme, il apparaît ici."
+                        />
+                        <p className="rounded-md border border-accent/20 bg-accent/[0.05] px-3.5 py-2.5 text-xs text-muted-foreground">
+                            Le cumul se fait automatiquement à l'encaissement, à trois conditions : le ticket est
+                            lié à un <span className="font-medium text-foreground">client fiché</span> (un client
+                            de passage ne cumule jamais), la vente correspond aux{' '}
+                            <span className="font-medium text-foreground">services/catégorie du programme</span>,
+                            et la vente est postérieure à la création du programme.
+                        </p>
+                    </div>
                 ) : (
                     <div className="space-y-3">
                         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
