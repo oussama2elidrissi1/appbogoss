@@ -35,7 +35,7 @@ class EmployeeWorkspaceService
 
         $todayPrestations = $this->prestations($employee)
             ->whereDate('created_at', $today)
-            ->with(['items', 'client'])
+            ->with(['items', 'client', 'commissions'])
             ->get();
         $yesterdayPrestations = $this->prestations($employee)
             ->whereDate('created_at', $yesterday)
@@ -63,7 +63,7 @@ class EmployeeWorkspaceService
                 'prestations_count' => $todayPrestations->count() + $legacySalesToday->count() + $appointmentsToday->count(),
                 'prestations_delta' => ($todayPrestations->count() + $legacySalesToday->count() + $appointmentsToday->count())
                     - ($yesterdayPrestations + $legacySalesYesterday->count() + $appointmentsYesterday->count()),
-                'revenue' => round((float) $paidToday->sum('total') + (float) $legacySalesToday->sum('total'), 2),
+                'revenue' => round((float) $paidToday->sum(fn (Prestation $prestation) => $this->revenueShare($prestation, $employee)) + (float) $legacySalesToday->sum('total'), 2),
                 'commission' => round($commissionsToday, 2),
                 'monthly_commission' => $monthPreview['commission_total'],
                 'paid_commission' => round($monthPreview['paid_net_total'] + $monthPreview['paid_advances_total'], 2),
@@ -210,7 +210,7 @@ class EmployeeWorkspaceService
         [$from, $to] = $this->period($filters['period'] ?? 'month', $filters['from'] ?? null, $filters['to'] ?? null);
         $prestations = $this->prestations($employee)
             ->whereBetween('created_at', [$from, $to])
-            ->with(['items', 'client'])
+            ->with(['items', 'client', 'commissions'])
             ->get();
         $legacySales = $this->legacySales($employee, $from, $to);
         $paid = $prestations->where('status', Prestation::STATUS_PAID);
@@ -224,7 +224,7 @@ class EmployeeWorkspaceService
             'period' => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
             'kpis' => [
                 'prestations' => $prestations->count() + $legacySales->count(),
-                'revenue' => round((float) $paid->sum('total') + (float) $legacySales->sum('total'), 2),
+                'revenue' => round((float) $paid->sum(fn (Prestation $prestation) => $this->revenueShare($prestation, $employee)) + (float) $legacySales->sum('total'), 2),
                 'commission_generated' => round($this->commissionSum($employee, $from, $to), 2),
                 'commission_paid' => round((float) CommissionPayout::where('employee_id', $employee->id)->whereBetween('paid_at', [$from, $to])->get()->sum(fn (CommissionPayout $payout) => (float) $payout->net_amount + (float) $payout->advances_deducted), 2),
                 'average_rating' => $reviews->count() > 0 ? round((float) $reviews->avg('rating'), 1) : null,
@@ -330,6 +330,33 @@ class EmployeeWorkspaceService
             'avatar_color' => $employee->avatar_color,
             'specialties' => $employee->specialties ?? [],
         ];
+    }
+
+    /**
+     * The slice of a prestation's total that is THIS employee's own work.
+     * A multi-service ticket can carry items done by colleagues — identified
+     * by their validated commission rows — whose line totals must not inflate
+     * this employee's CA the way they inflated the commission column. Items
+     * with no commission row (tips, free lines) stay with the ticket owner.
+     */
+    private function revenueShare(Prestation $prestation, Employee $employee): float
+    {
+        $othersItemIds = $prestation->commissions
+            ->where('status', Commission::STATUS_VALIDATED)
+            ->where('employee_id', '!=', $employee->id)
+            ->pluck('prestation_item_id')
+            ->filter()
+            ->unique();
+
+        if ($othersItemIds->isEmpty()) {
+            return (float) $prestation->total;
+        }
+
+        $othersTotal = (float) $prestation->items
+            ->whereIn('id', $othersItemIds)
+            ->sum(fn (PrestationItem $item) => $item->lineTotal());
+
+        return round(max(0.0, (float) $prestation->total - $othersTotal), 2);
     }
 
     private function prestationRow(Prestation $prestation, Employee $employee): array

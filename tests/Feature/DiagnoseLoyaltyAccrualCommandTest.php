@@ -24,10 +24,16 @@ class DiagnoseLoyaltyAccrualCommandTest extends TestCase
         $this->seed(RolesAndPermissionsSeeder::class);
     }
 
+    private ?WorkDay $workDay = null;
+
     private function makeSale(array $overrides = []): Sale
     {
+        // One shared day: work_days.date is UNIQUE and the factory draws a
+        // random date — several draws in one test can collide.
+        $this->workDay ??= WorkDay::factory()->create(['date' => now()->toDateString()]);
+
         return Sale::create(array_merge([
-            'work_day_id' => WorkDay::factory()->create()->id,
+            'work_day_id' => $this->workDay->id,
             'employee_id' => Employee::factory()->create()->id,
             'category' => 'coiffure',
             'total' => 100,

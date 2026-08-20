@@ -142,10 +142,17 @@ class EmployeeWorkspaceApiTest extends TestCase
         $this->assertEquals(40.0, $row['commission']);
 
         // The dashboard's per-prestation list applies the same rule.
-        $dashboardRows = $this->getJson('/api/me/workspace/dashboard')->assertOk()->json('data.prestations_today');
-        $dashboardRow = collect($dashboardRows)->firstWhere('id', $prestation->id);
+        $dashboard = $this->getJson('/api/me/workspace/dashboard')->assertOk()->json('data');
+        $dashboardRow = collect($dashboard['prestations_today'])->firstWhere('id', $prestation->id);
         $this->assertNotNull($dashboardRow);
         $this->assertEquals(40.0, $dashboardRow['commission']);
+
+        // Same for the CA: the colleague's 80 MAD item must not count in
+        // omar's revenue — 160 (ticket) − 80 (colleague's item) = 80.
+        $this->assertEquals(80.0, $dashboard['today']['revenue']);
+
+        $statistics = $this->getJson('/api/me/workspace/statistics')->assertOk()->json('data');
+        $this->assertEquals(80.0, $statistics['kpis']['revenue']);
     }
 
     public function test_employee_workspace_monthly_commission_matches_payroll_source_of_truth(): void
