@@ -152,19 +152,23 @@ export default function Payroll() {
                             <p className="mt-1 text-lg font-semibold tabular-nums">{formatCurrency(totals.commission)}</p>
                         </Card>
                         <Card className="p-4">
-                            <p className="text-xs text-muted-foreground">Avances en cours</p>
-                            <p className="mt-1 text-lg font-semibold tabular-nums text-accent">
-                                {formatCurrency(totals.advances)}
-                            </p>
-                        </Card>
-                        <Card className="p-4">
                             <p className="text-xs text-muted-foreground">Reste à payer</p>
                             <p className="mt-1 text-lg font-semibold tabular-nums text-accent">{formatCurrency(totals.net)}</p>
                         </Card>
                         <Card className="p-4">
-                            <p className="text-xs text-muted-foreground">Déjà payé ce mois</p>
+                            <p className="text-xs text-muted-foreground">Déjà versé (paiements + avances)</p>
                             <p className="mt-1 text-lg font-semibold tabular-nums text-success">
                                 {formatCurrency(totals.paidOut)}
+                            </p>
+                        </Card>
+                        {/* Subset of the card before it, not a total of its own — an
+                            advance is money already handed over, so it is counted in
+                            "déjà versé". Sits last and reads "dont…" so the two are
+                            never mistaken for separate amounts to add up. */}
+                        <Card className="p-4">
+                            <p className="text-xs text-muted-foreground">dont avances en cours</p>
+                            <p className="mt-1 text-lg font-semibold tabular-nums text-muted-foreground">
+                                {formatCurrency(totals.advances)}
                             </p>
                         </Card>
                     </div>
