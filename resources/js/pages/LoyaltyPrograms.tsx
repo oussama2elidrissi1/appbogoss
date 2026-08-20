@@ -1,16 +1,17 @@
 import { useMemo, useState, type Dispatch, type FormEvent, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { AlertCircle, Gift, Loader2, Pencil, Plus, Power } from 'lucide-react';
+import { AlertCircle, Gift, Loader2, Pencil, Phone, Plus, Power, Search, Trophy, Users } from 'lucide-react';
 import {
     createLoyaltyProgram,
     deactivateLoyaltyProgram,
     getErrorMessage,
+    getLoyaltyProgramProgress,
     getLoyaltyPrograms,
     getServices,
     updateLoyaltyProgram,
 } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { cn, formatCurrency, formatRelativeTime, getInitials } from '@/lib/utils';
 import type { CommissionBasis, LoyaltyProgram, LoyaltyProgramPayload, LoyaltyProgramType } from '@/types/loyalty';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -159,6 +160,7 @@ export default function LoyaltyPrograms() {
     const [editing, setEditing] = useState<LoyaltyProgram | null>(null);
     const [form, setForm] = useState<FormState>(emptyForm);
     const [formError, setFormError] = useState<string | null>(null);
+    const [progressProgram, setProgressProgram] = useState<LoyaltyProgram | null>(null);
 
     const programsQuery = useQuery({ queryKey: ['loyalty-programs'], queryFn: getLoyaltyPrograms });
     const servicesQuery = useQuery({ queryKey: ['services', 'all-for-loyalty'], queryFn: () => getServices() });
@@ -298,7 +300,17 @@ export default function LoyaltyPrograms() {
                                         </Badge>
                                     </div>
 
-                                    <div className="mt-5 flex items-center justify-end gap-1">
+                                    <div className="mt-5 flex items-center justify-between gap-1">
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => setProgressProgram(program)}
+                                        >
+                                            <Users className="h-3.5 w-3.5" />
+                                            Avancement
+                                        </Button>
+                                        <div className="flex items-center gap-1">
                                         <Button type="button" size="icon" variant="ghost" aria-label="Modifier" onClick={() => openEditDialog(program)}>
                                             <Pencil />
                                         </Button>
@@ -312,6 +324,7 @@ export default function LoyaltyPrograms() {
                                         >
                                             <Power />
                                         </Button>
+                                        </div>
                                     </div>
                                 </Card>
                             </motion.div>
@@ -331,7 +344,166 @@ export default function LoyaltyPrograms() {
                 onClose={closeDialog}
                 onSubmit={submit}
             />
+
+            <ProgramProgressDialog
+                program={progressProgram}
+                onClose={() => setProgressProgram(null)}
+            />
         </>
+    );
+}
+
+/** §avancement — where every client stands on one program (7/10, 3/10…). */
+function ProgramProgressDialog({ program, onClose }: { program: LoyaltyProgram | null; onClose: () => void }) {
+    const [search, setSearch] = useState('');
+    const isAmount = program?.type === 'amount_spent';
+
+    const { data, isPending, isError, error } = useQuery({
+        queryKey: ['loyalty-programs', program?.id, 'progress'],
+        queryFn: () => getLoyaltyProgramProgress(program!.id),
+        enabled: program !== null,
+    });
+
+    const rows = useMemo(() => {
+        const all = data?.data ?? [];
+        const term = search.trim().toLowerCase();
+        if (!term) return all;
+        return all.filter(
+            (row) =>
+                (row.client_name ?? '').toLowerCase().includes(term) ||
+                (row.client_phone ?? '').replace(/\D/g, '').includes(term.replace(/\D/g, '') || ' '),
+        );
+    }, [data, search]);
+
+    const formatValue = (value: number) =>
+        isAmount ? formatCurrency(value, { maximumFractionDigits: 0 }) : String(value);
+
+    return (
+        <Dialog open={program !== null} onOpenChange={(open) => !open && onClose()}>
+            <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>Avancement des clients</DialogTitle>
+                    <DialogDescription>{program?.name}</DialogDescription>
+                </DialogHeader>
+
+                {isPending ? (
+                    <div className="space-y-2">
+                        {Array.from({ length: 4 }).map((_, index) => (
+                            <Skeleton key={index} className="h-14 w-full rounded-md" />
+                        ))}
+                    </div>
+                ) : isError ? (
+                    <div className="flex items-center gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                        <AlertCircle className="h-4 w-4 shrink-0" />
+                        {getErrorMessage(error)}
+                    </div>
+                ) : !data || data.data.length === 0 ? (
+                    <EmptyState
+                        icon={Users}
+                        title="Aucun client engagé"
+                        description="Dès qu'un client cumule sur ce programme, il apparaît ici."
+                    />
+                ) : (
+                    <div className="space-y-3">
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1.5">
+                                <Users className="h-3.5 w-3.5" />
+                                {data.meta.participants} client{data.meta.participants > 1 ? 's' : ''}
+                            </span>
+                            <span className="flex items-center gap-1.5">
+                                <Trophy className="h-3.5 w-3.5 text-accent" />
+                                {data.meta.rewards_total} récompense{data.meta.rewards_total > 1 ? 's' : ''} gagnée
+                                {data.meta.rewards_total > 1 ? 's' : ''}
+                            </span>
+                        </div>
+
+                        {data.data.length > 5 && (
+                            <div className="relative">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
+                                <Input
+                                    value={search}
+                                    onChange={(event) => setSearch(event.target.value)}
+                                    placeholder="Filtrer par nom ou téléphone..."
+                                    className="h-9 pl-9"
+                                />
+                            </div>
+                        )}
+
+                        <ul className="space-y-2">
+                            {rows.map((row) => (
+                                <li
+                                    key={row.client_id}
+                                    className="rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3.5 py-2.5"
+                                >
+                                    <div className="flex items-center justify-between gap-3">
+                                        <span className="flex min-w-0 items-center gap-2.5">
+                                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tint/[0.06] text-xs font-semibold text-accent ring-1 ring-tint/10">
+                                                {getInitials(row.client_name ?? '?')}
+                                            </span>
+                                            <span className="min-w-0">
+                                                <span className="block truncate text-sm font-medium text-foreground">
+                                                    {row.client_name ?? 'Client supprimé'}
+                                                </span>
+                                                {row.client_phone && (
+                                                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                                        <Phone className="h-3 w-3" />
+                                                        {row.client_phone}
+                                                    </span>
+                                                )}
+                                            </span>
+                                        </span>
+                                        <span className="shrink-0 text-right">
+                                            <span className="block text-sm font-semibold tabular-nums text-foreground">
+                                                {formatValue(row.current)}
+                                                {row.threshold !== null && (
+                                                    <span className="text-muted-foreground"> / {formatValue(row.threshold)}</span>
+                                                )}
+                                            </span>
+                                            {row.rewards_earned > 0 && (
+                                                <span className="flex items-center justify-end gap-1 text-[11px] text-accent">
+                                                    <Trophy className="h-3 w-3" />
+                                                    {row.rewards_earned} gagnée{row.rewards_earned > 1 ? 's' : ''}
+                                                </span>
+                                            )}
+                                        </span>
+                                    </div>
+
+                                    {row.percent !== null && (
+                                        <div className="mt-2">
+                                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-tint/[0.08]">
+                                                <div
+                                                    className={cn(
+                                                        'h-full rounded-full transition-all',
+                                                        row.percent >= 100 ? 'bg-success' : 'bg-accent',
+                                                    )}
+                                                    style={{ width: `${Math.max(4, row.percent)}%` }}
+                                                />
+                                            </div>
+                                            <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                                                <span>{row.percent}%</span>
+                                                <span>
+                                                    {row.percent >= 100
+                                                        ? 'Objectif atteint'
+                                                        : `Encore ${formatValue(row.remaining ?? 0)}`}
+                                                    {row.last_activity_at
+                                                        ? ` · ${formatRelativeTime(row.last_activity_at)}`
+                                                        : ''}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </li>
+                            ))}
+                            {rows.length === 0 && (
+                                <p className="rounded-md border border-dashed border-tint/[0.1] px-3 py-5 text-center text-xs text-muted-foreground">
+                                    Aucun client ne correspond à ce filtre.
+                                </p>
+                            )}
+                        </ul>
+                    </div>
+                )}
+            </DialogContent>
+        </Dialog>
     );
 }
 

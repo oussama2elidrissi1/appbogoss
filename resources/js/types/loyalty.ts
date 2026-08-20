@@ -53,6 +53,25 @@ export interface LoyaltyProgramPayload {
     notes?: string | null;
 }
 
+/** One client's standing on a program — the admin "état d'avancement" view. */
+export interface LoyaltyProgramClientProgress {
+    client_id: number;
+    client_name: string | null;
+    client_phone: string | null;
+    avatar_color: string | null;
+    current: number;
+    threshold: number | null;
+    percent: number | null;
+    remaining: number | null;
+    rewards_earned: number;
+    last_activity_at: string | null;
+}
+
+export interface LoyaltyProgramProgressResponse {
+    data: LoyaltyProgramClientProgress[];
+    meta: { participants: number; threshold: number | null; rewards_total: number };
+}
+
 export interface SubscriptionPlanServiceRow {
     id: number;
     service_id: number;

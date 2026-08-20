@@ -68,6 +68,7 @@ import type {
     ClientSubscription,
     LoyaltyProgram,
     LoyaltyProgramPayload,
+    LoyaltyProgramProgressResponse,
     LoyaltyQrSettings,
     LoyaltySettings,
     PurchaseSubscriptionPayload,
@@ -1176,6 +1177,12 @@ export async function resetUserPassword(id: number): Promise<{ temporary_passwor
 export async function getLoyaltyPrograms(): Promise<LoyaltyProgram[]> {
     const { data } = await api.get<{ data: LoyaltyProgram[] }>('/api/loyalty-programs');
     return data.data;
+}
+
+/** Where every client stands on one program (7/10, 3/10…), most advanced first. */
+export async function getLoyaltyProgramProgress(id: number): Promise<LoyaltyProgramProgressResponse> {
+    const { data } = await api.get<LoyaltyProgramProgressResponse>(`/api/loyalty-programs/${id}/progress`);
+    return data;
 }
 
 export async function createLoyaltyProgram(payload: LoyaltyProgramPayload): Promise<LoyaltyProgram> {

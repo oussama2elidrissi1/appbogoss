@@ -238,6 +238,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Loyalty & Subscriptions
     Route::middleware('permission:loyalty.manage')->group(function () {
+        // Where every client stands on a program (7/10, 3/10…) — declared
+        // before the apiResource so it isn't swallowed by its {id} routes.
+        Route::get('/loyalty-programs/{loyalty_program}/progress', [LoyaltyProgramController::class, 'progress']);
         Route::apiResource('/loyalty-programs', LoyaltyProgramController::class);
         Route::apiResource('/subscription-plans', SubscriptionPlanController::class);
     });
