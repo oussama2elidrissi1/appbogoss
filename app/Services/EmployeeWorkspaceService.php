@@ -69,7 +69,7 @@ class EmployeeWorkspaceService
                 'paid_commission' => round($monthPreview['paid_net_total'] + $monthPreview['paid_advances_total'], 2),
             ],
             'prestations_today' => $todayPrestations
-                ->map(fn (Prestation $prestation) => $this->prestationRow($prestation))
+                ->map(fn (Prestation $prestation) => $this->prestationRow($prestation, $employee))
                 ->concat($legacySalesToday->map(fn (Sale $sale) => $this->legacySalePrestationRow($sale)))
                 ->sortBy('date')
                 ->values()
@@ -112,7 +112,7 @@ class EmployeeWorkspaceService
         $prestationRows = $query->orderByDesc('created_at')
             ->limit(250)
             ->get()
-            ->map(fn (Prestation $prestation) => $this->prestationRow($prestation));
+            ->map(fn (Prestation $prestation) => $this->prestationRow($prestation, $employee));
         $legacyRows = $this->legacySalePrestationRows($employee, $filters);
 
         return $prestationRows
@@ -332,7 +332,7 @@ class EmployeeWorkspaceService
         ];
     }
 
-    private function prestationRow(Prestation $prestation): array
+    private function prestationRow(Prestation $prestation, Employee $employee): array
     {
         $prestation->loadMissing(['items', 'client', 'commissions']);
 
@@ -347,7 +347,14 @@ class EmployeeWorkspaceService
             'service' => $prestation->items->pluck('label')->join(' + '),
             'duration_minutes' => (int) $prestation->items->sum('duration_minutes'),
             'amount' => (float) $prestation->total,
-            'commission' => round((float) $prestation->commissions->sum('amount'), 2),
+            // THIS employee's validated commission only — a multi-service
+            // prestation can carry colleagues' commission rows too, and
+            // summing them all made the history column disagree with the
+            // day/month KPIs (which have always filtered by employee+status).
+            'commission' => round((float) $prestation->commissions
+                ->where('employee_id', $employee->id)
+                ->where('status', Commission::STATUS_VALIDATED)
+                ->sum('amount'), 2),
             'status' => $prestation->status,
         ];
     }

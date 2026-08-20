@@ -78,6 +78,76 @@ class EmployeeWorkspaceApiTest extends TestCase
             ->assertForbidden();
     }
 
+    /**
+     * A multi-service prestation can carry commission rows for SEVERAL
+     * employees. The history's "Commission" column must show only the
+     * logged-in employee's validated share — summing every row made the
+     * history disagree with the day/month KPIs (440 vs 400 on production).
+     */
+    public function test_prestation_history_shows_only_this_employees_validated_commission(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        $omarUser = User::factory()->create(['role' => 'employee']);
+        $omarUser->assignRole('employee');
+        $omar = Employee::factory()->create(['user_id' => $omarUser->id, 'name' => 'Omar']);
+        $colleague = Employee::factory()->create(['name' => 'Collègue']);
+
+        $prestation = Prestation::create([
+            'reference' => 'PRE-2026-000010',
+            'client_id' => Client::factory()->create()->id,
+            'employee_id' => $omar->id,
+            'created_by_user_id' => $omarUser->id,
+            'status' => Prestation::STATUS_PAID,
+            'subtotal' => 160,
+            'total' => 160,
+        ]);
+
+        $service = \App\Models\Service::factory()->create();
+        $makeItem = fn () => \App\Models\PrestationItem::create([
+            'prestation_id' => $prestation->id,
+            'service_id' => $service->id,
+            'label' => $service->name,
+            'quantity' => 1,
+            'unit_price' => 80,
+        ]);
+        $makeCommission = fn (Employee $employee, float $amount, string $status) => \App\Models\Commission::create([
+            'prestation_id' => $prestation->id,
+            'prestation_item_id' => $makeItem()->id,
+            'employee_id' => $employee->id,
+            'service_id' => $service->id,
+            'type' => 'percentage',
+            'rate_or_amount' => 50,
+            'base_amount' => $amount * 2,
+            'amount' => $amount,
+            'status' => $status,
+        ]);
+
+        // Omar's validated share.
+        $makeCommission($omar, 40, \App\Models\Commission::STATUS_VALIDATED);
+        // A colleague's share on the same prestation — must NOT appear in omar's column.
+        $makeCommission($colleague, 40, \App\Models\Commission::STATUS_VALIDATED);
+        // A cancelled row for omar — must not count either.
+        $makeCommission($omar, 10, \App\Models\Commission::STATUS_CANCELLED);
+
+        Sanctum::actingAs($omarUser);
+
+        $today = now()->toDateString();
+        $rows = $this->getJson("/api/me/workspace/prestations?from={$today}&to={$today}")
+            ->assertOk()
+            ->json('data');
+
+        $row = collect($rows)->firstWhere('id', $prestation->id);
+        $this->assertNotNull($row);
+        $this->assertEquals(40.0, $row['commission']);
+
+        // The dashboard's per-prestation list applies the same rule.
+        $dashboardRows = $this->getJson('/api/me/workspace/dashboard')->assertOk()->json('data.prestations_today');
+        $dashboardRow = collect($dashboardRows)->firstWhere('id', $prestation->id);
+        $this->assertNotNull($dashboardRow);
+        $this->assertEquals(40.0, $dashboardRow['commission']);
+    }
+
     public function test_employee_workspace_monthly_commission_matches_payroll_source_of_truth(): void
     {
         $this->seed(RolesAndPermissionsSeeder::class);
