@@ -53,6 +53,12 @@ class EmployeeWorkspaceService
         $commissionsToday = $this->commissionSum($employee, $today->copy()->startOfDay(), $today->copy()->endOfDay());
         $monthPreview = $this->payouts->preview($employee, Carbon::now()->format('Y-m'));
 
+        // Prestations whose caisse ticket was voided ("supprimé"): their
+        // commissions are already excluded from the KPI (deletedSaleIds in
+        // EmployeeEarningsService) — CA and the per-row column must follow,
+        // or the cards contradict the list they sit above.
+        $voidedSaleIds = $this->earnings->deletedSaleIds($todayPrestations->pluck('sale_id')->filter()->values());
+
         $distribution = $this->serviceDistribution($employee, $monthStart, Carbon::now()->endOfDay());
         $reviews = $this->reviewSummary($employee);
 
@@ -63,13 +69,15 @@ class EmployeeWorkspaceService
                 'prestations_count' => $todayPrestations->count() + $legacySalesToday->count() + $appointmentsToday->count(),
                 'prestations_delta' => ($todayPrestations->count() + $legacySalesToday->count() + $appointmentsToday->count())
                     - ($yesterdayPrestations + $legacySalesYesterday->count() + $appointmentsYesterday->count()),
-                'revenue' => round((float) $paidToday->sum(fn (Prestation $prestation) => $this->revenueShare($prestation, $employee)) + (float) $legacySalesToday->sum('total'), 2),
+                'revenue' => round((float) $paidToday
+                    ->reject(fn (Prestation $prestation) => $prestation->sale_id !== null && $voidedSaleIds->has($prestation->sale_id))
+                    ->sum(fn (Prestation $prestation) => $this->revenueShare($prestation, $employee)) + (float) $legacySalesToday->sum('total'), 2),
                 'commission' => round($commissionsToday, 2),
                 'monthly_commission' => $monthPreview['commission_total'],
                 'paid_commission' => round($monthPreview['paid_net_total'] + $monthPreview['paid_advances_total'], 2),
             ],
             'prestations_today' => $todayPrestations
-                ->map(fn (Prestation $prestation) => $this->prestationRow($prestation, $employee))
+                ->map(fn (Prestation $prestation) => $this->prestationRow($prestation, $employee, $voidedSaleIds))
                 ->concat($legacySalesToday->map(fn (Sale $sale) => $this->legacySalePrestationRow($sale)))
                 ->sortBy('date')
                 ->values()
@@ -109,10 +117,12 @@ class EmployeeWorkspaceService
             });
         }
 
-        $prestationRows = $query->orderByDesc('created_at')
+        $prestations = $query->orderByDesc('created_at')
             ->limit(250)
-            ->get()
-            ->map(fn (Prestation $prestation) => $this->prestationRow($prestation, $employee));
+            ->get();
+        $voidedSaleIds = $this->earnings->deletedSaleIds($prestations->pluck('sale_id')->filter()->values());
+        $prestationRows = $prestations
+            ->map(fn (Prestation $prestation) => $this->prestationRow($prestation, $employee, $voidedSaleIds));
         $legacyRows = $this->legacySalePrestationRows($employee, $filters);
 
         return $prestationRows
@@ -214,6 +224,7 @@ class EmployeeWorkspaceService
             ->get();
         $legacySales = $this->legacySales($employee, $from, $to);
         $paid = $prestations->where('status', Prestation::STATUS_PAID);
+        $statsVoidedSaleIds = $this->earnings->deletedSaleIds($prestations->pluck('sale_id')->filter()->values());
         $reviews = AppointmentReview::where('employee_id', $employee->id)->whereBetween('reviewed_at', [$from, $to])->get();
         $activeDays = $prestations
             ->map(fn (Prestation $prestation) => $prestation->created_at)
@@ -224,7 +235,9 @@ class EmployeeWorkspaceService
             'period' => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
             'kpis' => [
                 'prestations' => $prestations->count() + $legacySales->count(),
-                'revenue' => round((float) $paid->sum(fn (Prestation $prestation) => $this->revenueShare($prestation, $employee)) + (float) $legacySales->sum('total'), 2),
+                'revenue' => round((float) $paid
+                    ->reject(fn (Prestation $prestation) => $prestation->sale_id !== null && $statsVoidedSaleIds->has($prestation->sale_id))
+                    ->sum(fn (Prestation $prestation) => $this->revenueShare($prestation, $employee)) + (float) $legacySales->sum('total'), 2),
                 'commission_generated' => round($this->commissionSum($employee, $from, $to), 2),
                 'commission_paid' => round((float) CommissionPayout::where('employee_id', $employee->id)->whereBetween('paid_at', [$from, $to])->get()->sum(fn (CommissionPayout $payout) => (float) $payout->net_amount + (float) $payout->advances_deducted), 2),
                 'average_rating' => $reviews->count() > 0 ? round((float) $reviews->avg('rating'), 1) : null,
@@ -359,9 +372,13 @@ class EmployeeWorkspaceService
         return round(max(0.0, (float) $prestation->total - $othersTotal), 2);
     }
 
-    private function prestationRow(Prestation $prestation, Employee $employee): array
+    private function prestationRow(Prestation $prestation, Employee $employee, ?Collection $voidedSaleIds = null): array
     {
         $prestation->loadMissing(['items', 'client', 'commissions']);
+
+        $saleVoided = $voidedSaleIds !== null
+            && $prestation->sale_id !== null
+            && $voidedSaleIds->has($prestation->sale_id);
 
         return [
             'id' => $prestation->id,
@@ -378,11 +395,14 @@ class EmployeeWorkspaceService
             // prestation can carry colleagues' commission rows too, and
             // summing them all made the history column disagree with the
             // day/month KPIs (which have always filtered by employee+status).
-            'commission' => round((float) $prestation->commissions
+            // A prestation whose caisse ticket was voided earns nothing, same
+            // rule the KPI has always applied (deletedSaleIds).
+            'commission' => $saleVoided ? 0.0 : round((float) $prestation->commissions
                 ->where('employee_id', $employee->id)
                 ->where('status', Commission::STATUS_VALIDATED)
                 ->sum('amount'), 2),
             'status' => $prestation->status,
+            'sale_deleted' => $saleVoided,
         ];
     }
 

@@ -155,6 +155,71 @@ class EmployeeWorkspaceApiTest extends TestCase
         $this->assertEquals(80.0, $statistics['kpis']['revenue']);
     }
 
+    /**
+     * Deleting a caisse ticket never touched the linked prestation: it kept
+     * showing "Terminée" with its commission in the history while the KPIs
+     * (rightly) excluded it — cards contradicting the list they sit above.
+     */
+    public function test_a_prestation_whose_caisse_ticket_was_deleted_earns_nothing(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        $user = User::factory()->create(['role' => 'employee']);
+        $user->assignRole('employee');
+        $employee = Employee::factory()->create(['user_id' => $user->id]);
+        $service = \App\Models\Service::factory()->create();
+
+        $sale = Sale::create([
+            'employee_id' => $employee->id,
+            'category' => 'coiffure',
+            'total' => 80,
+            'payment_method' => 'especes',
+        ]);
+        $prestation = Prestation::create([
+            'reference' => 'PRE-2026-000020',
+            'client_id' => Client::factory()->create()->id,
+            'employee_id' => $employee->id,
+            'created_by_user_id' => $user->id,
+            'status' => Prestation::STATUS_PAID,
+            'sale_id' => $sale->id,
+            'subtotal' => 80,
+            'total' => 80,
+        ]);
+        $item = \App\Models\PrestationItem::create([
+            'prestation_id' => $prestation->id,
+            'service_id' => $service->id,
+            'label' => $service->name,
+            'quantity' => 1,
+            'unit_price' => 80,
+        ]);
+        \App\Models\Commission::create([
+            'prestation_id' => $prestation->id,
+            'prestation_item_id' => $item->id,
+            'employee_id' => $employee->id,
+            'service_id' => $service->id,
+            'type' => 'percentage',
+            'rate_or_amount' => 50,
+            'base_amount' => 80,
+            'amount' => 40,
+            'status' => \App\Models\Commission::STATUS_VALIDATED,
+        ]);
+
+        // Ticket voided at the caisse — the sale is soft-deleted, the
+        // prestation untouched (exactly what TransactionController::destroy does).
+        $sale->delete();
+
+        Sanctum::actingAs($user);
+        $dashboard = $this->getJson('/api/me/workspace/dashboard')->assertOk()->json('data');
+
+        $this->assertEquals(0.0, $dashboard['today']['revenue'], 'Un ticket supprimé ne compte pas dans le CA.');
+        $this->assertEquals(0.0, $dashboard['today']['commission']);
+
+        $row = collect($dashboard['prestations_today'])->firstWhere('id', $prestation->id);
+        $this->assertNotNull($row);
+        $this->assertEquals(0.0, $row['commission']);
+        $this->assertTrue($row['sale_deleted']);
+    }
+
     public function test_employee_workspace_monthly_commission_matches_payroll_source_of_truth(): void
     {
         $this->seed(RolesAndPermissionsSeeder::class);
