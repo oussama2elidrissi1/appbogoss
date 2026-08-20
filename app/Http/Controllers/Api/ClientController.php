@@ -33,13 +33,9 @@ class ClientController extends Controller
         }
 
         if (! empty($validated['search'])) {
-            $search = $validated['search'];
-            $query->where(function ($subQuery) use ($search): void {
-                $subQuery
-                    ->where('name', 'like', '%'.$search.'%')
-                    ->orWhere('email', 'like', '%'.$search.'%')
-                    ->orWhere('phone', 'like', '%'.$search.'%');
-            });
+            // Format-blind on the phone — "0668…" finds "+212 668…" (see
+            // Client::scopeSearchTerm).
+            $query->searchTerm($validated['search']);
         }
 
         return response()->json(['data' => ClientResource::collection($query->get())]);

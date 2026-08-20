@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Services\PhoneNumberNormalizer;
 use Illuminate\Auth\Authenticatable as AuthenticatableTrait;
 use Illuminate\Contracts\Auth\Authenticatable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -61,6 +63,29 @@ class Client extends Model implements Authenticatable
         'consent_terms_at' => 'datetime',
         'consent_marketing_at' => 'datetime',
     ];
+
+    /**
+     * Name/email/phone search, format-blind on the phone: numbers were typed
+     * in over months as "0668...", "+212 668...", "06-68…" — so on top of the
+     * plain LIKE, the term's digits are matched against the stored phone with
+     * its separators stripped in SQL. Nested REPLACE() rather than
+     * REGEXP_REPLACE so the same query runs on MySQL (prod) and SQLite (tests).
+     */
+    public function scopeSearchTerm(Builder $query, string $search): Builder
+    {
+        return $query->where(function (Builder $sub) use ($search): void {
+            $sub->where('name', 'like', '%'.$search.'%')
+                ->orWhere('email', 'like', '%'.$search.'%')
+                ->orWhere('phone', 'like', '%'.$search.'%');
+
+            $digits = PhoneNumberNormalizer::searchDigits($search);
+            if ($digits !== null) {
+                $strippedPhone = "REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone, ''), ' ', ''), '-', ''), '.', ''), '(', ''), ')', ''), '+', '')";
+                $sub->orWhereRaw($strippedPhone.' LIKE ?', ['%'.$digits.'%'])
+                    ->orWhere('phone_e164', 'like', '%'.$digits.'%');
+            }
+        });
+    }
 
     /** Null when the client belongs to BOGOSLAND's own shared pool. */
     public function partner(): BelongsTo

@@ -40,12 +40,8 @@ class PartnerClientController extends Controller
             default => $query->whereNull('archived_at'),
         };
         if (! empty($validated['search'])) {
-            $search = $validated['search'];
-            $query->where(function ($sub) use ($search): void {
-                $sub->where('name', 'like', '%'.$search.'%')
-                    ->orWhere('email', 'like', '%'.$search.'%')
-                    ->orWhere('phone', 'like', '%'.$search.'%');
-            });
+            // Same format-blind phone matching as the staff client search.
+            $query->searchTerm($validated['search']);
         }
         $clients = $query->get();
 
