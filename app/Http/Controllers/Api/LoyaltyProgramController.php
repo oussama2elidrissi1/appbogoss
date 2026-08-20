@@ -7,11 +7,13 @@ use App\Http\Resources\LoyaltyProgramResource;
 use App\Models\LoyaltyProgram;
 use App\Models\LoyaltyProgramProgress;
 use App\Models\LoyaltyReward;
+use App\Models\Service;
 use App\Services\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Admin CRUD scaffolding for loyalty programs — no consuming UI yet (Phase
@@ -129,6 +131,42 @@ class LoyaltyProgramController extends Controller
      * @return array<string, mixed>
      */
     private function validated(Request $request, ?LoyaltyProgram $existing = null): array
+    {
+        $validated = $this->rules($request);
+
+        // A program that targets BOTH a category and specific service(s) can
+        // silently contradict itself (service #24 is a coiffure but category
+        // says hammam → no sale can ever match, the program is dead on
+        // arrival). Caught on a real production config — refuse it outright.
+        $config = $validated['config'] ?? [];
+        $serviceIds = ! empty($config['service_ids']) && is_array($config['service_ids'])
+            ? array_map('intval', $config['service_ids'])
+            : (! empty($config['service_id']) ? [(int) $config['service_id']] : []);
+
+        if (! empty($config['category']) && ! empty($serviceIds)) {
+            $mismatch = Service::whereIn('id', $serviceIds)
+                ->where('category', '!=', $config['category'])
+                ->first();
+
+            if ($mismatch !== null) {
+                throw ValidationException::withMessages([
+                    'config' => sprintf(
+                        'Le service « %s » appartient à la catégorie « %s », pas « %s » — aucune vente ne pourrait jamais correspondre. Retirez l\'un des deux filtres.',
+                        $mismatch->name,
+                        $mismatch->category,
+                        $config['category'],
+                    ),
+                ]);
+            }
+        }
+
+        return $validated;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function rules(Request $request): array
     {
         return $request->validate([
             'name' => ['required', 'string', 'max:255'],

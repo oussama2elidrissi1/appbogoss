@@ -114,6 +114,27 @@ class LoyaltyProgramProgressApiTest extends TestCase
             ->assertJsonPath('data.0.percent', 45);
     }
 
+    public function test_a_program_targeting_a_service_outside_its_category_is_refused(): void
+    {
+        $this->actingAsAdmin();
+        $coupe = \App\Models\Service::factory()->create(['name' => 'Coupe cheveux + barbe', 'category' => 'coiffure']);
+
+        // service is a coiffure but the category filter says hammam — no sale
+        // could ever match both, the program would be dead on arrival.
+        $this->postJson('/api/loyalty-programs', [
+            'name' => '10 coupes = hammam gratuit',
+            'type' => 'service_count',
+            'config' => ['threshold' => 10, 'category' => 'hammam', 'service_id' => $coupe->id],
+        ])->assertUnprocessable();
+
+        // Coherent config passes.
+        $this->postJson('/api/loyalty-programs', [
+            'name' => '10 coupes = hammam gratuit',
+            'type' => 'service_count',
+            'config' => ['threshold' => 10, 'category' => 'coiffure', 'service_id' => $coupe->id],
+        ])->assertCreated();
+    }
+
     public function test_progress_requires_the_loyalty_manage_permission(): void
     {
         $user = User::factory()->create(['role' => 'employee']);

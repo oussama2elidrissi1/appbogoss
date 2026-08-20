@@ -12,6 +12,7 @@ import {
     updateLoyaltyProgram,
 } from '@/lib/api';
 import { cn, formatCurrency, formatRelativeTime, getInitials } from '@/lib/utils';
+import { CATEGORIES } from '@/components/workday/categories';
 import type { CommissionBasis, LoyaltyProgram, LoyaltyProgramPayload, LoyaltyProgramType } from '@/types/loyalty';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -533,7 +534,7 @@ function ProgramDialog({
     setForm: Dispatch<SetStateAction<FormState>>;
     error: string | null;
     saving: boolean;
-    services: Array<{ id: number; name: string }>;
+    services: Array<{ id: number; name: string; category?: string }>;
     onClose: () => void;
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
@@ -593,16 +594,29 @@ function ProgramDialog({
 
                     {isRuleType && (
                         <div className="space-y-4 rounded-md border border-tint/[0.08] bg-tint/[0.02] p-4">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Règle d'accumulation</p>
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Règle d'accumulation</p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    Quelles ventes encaissées font avancer le compteur du client — à ne pas
+                                    confondre avec la récompense offerte, définie plus bas.
+                                </p>
+                            </div>
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div className="space-y-2">
                                     <Label htmlFor="program-category">Catégorie ciblée (optionnel)</Label>
-                                    <Input
+                                    <select
                                         id="program-category"
                                         value={form.category}
                                         onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
-                                        placeholder="hammam"
-                                    />
+                                        className="flex h-10 w-full rounded-md border border-input bg-tint/[0.03] px-3 text-sm text-foreground outline-none focus:border-accent/60"
+                                    >
+                                        <option value="">Toutes les catégories</option>
+                                        {CATEGORIES.map((category) => (
+                                            <option key={category.value} value={category.value}>
+                                                {category.label}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="program-service">Service ciblé (optionnel)</Label>
@@ -620,6 +634,22 @@ function ProgramDialog({
                                         ))}
                                     </select>
                                 </div>
+                                {(() => {
+                                    const targeted = services.find((service) => String(service.id) === form.service_id);
+                                    if (!form.category || !targeted?.category || targeted.category === form.category) {
+                                        return null;
+                                    }
+                                    return (
+                                        <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-xs text-destructive sm:col-span-2">
+                                            <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" />
+                                            <span>
+                                                Le service « {targeted.name} » appartient à la catégorie «{' '}
+                                                {targeted.category} », pas « {form.category} » — aucune vente ne
+                                                pourrait jamais correspondre. Retirez l'un des deux filtres.
+                                            </span>
+                                        </div>
+                                    );
+                                })()}
                                 {form.type === 'points' && (
                                     <Field
                                         id="program-points-per-mad"
