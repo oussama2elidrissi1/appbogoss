@@ -306,8 +306,14 @@ export async function getMyAdvances(): Promise<AdvancesResponse> {
     return data;
 }
 
-export async function settleAdvance(id: number): Promise<Advance> {
-    const { data } = await api.post<{ data: Advance }>(`/api/advances/${id}/settle`);
+/**
+ * Marks one advance as reimbursed OUTSIDE the payroll (the employee handed the
+ * cash back). It then stops being deducted from the commission — so it is
+ * patron-password gated like every other money-affecting advance operation.
+ * The normal way to clear an advance is to pay the month, which deducts it.
+ */
+export async function settleAdvance(id: number, password: string): Promise<Advance> {
+    const { data } = await api.post<{ data: Advance }>(`/api/advances/${id}/settle`, { password });
     return data.data;
 }
 

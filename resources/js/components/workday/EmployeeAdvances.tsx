@@ -7,7 +7,6 @@ import {
     getAdvances,
     getErrorMessage,
     getWorkDays,
-    settleAdvance,
     settleAdvancesBefore,
     updateAdvance,
 } from '@/lib/api';
@@ -83,11 +82,6 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
             setGivenOn(today());
             setSelectedWorkDayId('');
         },
-    });
-
-    const settleMutation = useMutation({
-        mutationFn: settleAdvance,
-        onSuccess: invalidate,
     });
 
     const updateMutation = useMutation({
@@ -391,14 +385,13 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
                                                 : 'Réglée'}
                                         </span>
                                     ) : (
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            disabled={settleMutation.isPending}
-                                            onClick={() => settleMutation.mutate(advance.id)}
+                                        <span
+                                            className="inline-flex items-center gap-1 text-xs text-muted-foreground"
+                                            title="Elle sera automatiquement déduite quand vous marquerez la commission du mois comme payée."
                                         >
-                                            Solder
-                                        </Button>
+                                            <HandCoins className="h-3.5 w-3.5" />
+                                            Déduite à la paie
+                                        </span>
                                     )}
                                     <Button
                                         type="button"

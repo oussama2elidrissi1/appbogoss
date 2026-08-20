@@ -166,6 +166,43 @@ class AdvanceApiTest extends TestCase
         $this->assertNull($old->fresh()->settled_at);
     }
 
+    /**
+     * Settling an advance by hand stops it counting against the commission, so
+     * the next payout hands over the full amount — the money is paid twice.
+     * It is money-affecting and must carry the same gate as edit/delete.
+     */
+    public function test_admin_needs_the_patron_password_to_settle_a_single_advance(): void
+    {
+        $employee = Employee::factory()->create();
+        $advance = Advance::create(['employee_id' => $employee->id, 'amount' => 300, 'given_on' => '2026-08-07']);
+
+        Sanctum::actingAs($this->admin());
+
+        $this->postJson("/api/advances/{$advance->id}/settle")->assertUnprocessable();
+        $this->assertNull($advance->fresh()->settled_at, "L'avance ne doit pas être réglée sans mot de passe patron.");
+
+        $this->postJson("/api/advances/{$advance->id}/settle", ['password' => 'mauvais'])->assertUnprocessable();
+        $this->assertNull($advance->fresh()->settled_at);
+
+        config()->set('services.patron_password', 'le-bon-mot-de-passe');
+        $this->postJson("/api/advances/{$advance->id}/settle", ['password' => 'le-bon-mot-de-passe'])->assertOk();
+        $this->assertNotNull($advance->fresh()->settled_at);
+    }
+
+    public function test_a_settled_advance_cannot_be_settled_again(): void
+    {
+        $employee = Employee::factory()->create();
+        $advance = Advance::create([
+            'employee_id' => $employee->id,
+            'amount' => 100,
+            'given_on' => '2026-08-07',
+            'settled_at' => now(),
+        ]);
+
+        Sanctum::actingAs($this->superAdmin());
+        $this->postJson("/api/advances/{$advance->id}/settle")->assertUnprocessable();
+    }
+
     public function test_employee_can_see_their_own_advances_via_me_endpoint(): void
     {
         $user = User::factory()->create(['role' => 'employee']);

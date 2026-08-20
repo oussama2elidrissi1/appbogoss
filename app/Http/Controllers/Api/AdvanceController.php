@@ -57,10 +57,37 @@ class AdvanceController extends Controller
         ]);
     }
 
-    public function settle(Advance $advance): JsonResponse
+    /**
+     * Marks a single advance as reimbursed OUTSIDE the payroll — i.e. the
+     * employee physically handed the cash back. This is NOT how an advance is
+     * normally cleared: an advance is a draw against commission, and paying
+     * the month ("Marquer comme payé") already deducts every outstanding
+     * advance and settles it (see CommissionPayoutService::pay()).
+     *
+     * Settling here makes the advance stop counting against the commission,
+     * so the next payout hands over the FULL amount. Used by mistake on an
+     * advance the employee never repaid, the salon pays that money twice.
+     * Hence the patron password — the same gate every other money-affecting
+     * advance operation already carries — plus an audit entry.
+     */
+    public function settle(Request $request, Advance $advance): JsonResponse
     {
+        $this->assertPatronPassword($request);
+
+        if ($advance->settled_at !== null) {
+            throw ValidationException::withMessages([
+                'advance' => 'Cette avance est déjà réglée.',
+            ]);
+        }
+
         $advance->update(['settled_at' => now()]);
         $advance->load('employee');
+
+        $this->activityLogger->log('advance.settled_manually', $advance, [], [
+            'employee_id' => $advance->employee_id,
+            'amount' => round((float) $advance->amount, 2),
+            'given_on' => $advance->given_on->toDateString(),
+        ]);
 
         return response()->json(['data' => new AdvanceResource($advance)]);
     }
