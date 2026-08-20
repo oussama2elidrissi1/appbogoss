@@ -73,6 +73,26 @@ class DiagnoseLoyaltyAccrual extends Command
                 ! empty($serviceIds) ? ', service(s) #'.implode(', #', $serviceIds) : '',
             ));
 
+            // A category filter AND a service filter that point at different
+            // categories can never both match — the program is dead on
+            // arrival. New configs are refused at save time; this flags the
+            // ones already stored so nobody chases phantom accrual issues.
+            if ($category !== null && ! empty($serviceIds)) {
+                $mismatch = \App\Models\Service::whereIn('id', $serviceIds)
+                    ->where('category', '!=', $category)
+                    ->first();
+                if ($mismatch !== null) {
+                    $this->error(sprintf(
+                        '  ✗ CONFIGURATION CONTRADICTOIRE : le service « %s » (#%d) est de catégorie « %s », pas « %s » — ce programme ne peut JAMAIS cumuler.',
+                        $mismatch->name,
+                        $mismatch->id,
+                        $mismatch->category,
+                        $category,
+                    ));
+                    $this->line('    → Corrigez-le dans Programmes de fidélité (Modifier), retirez la catégorie ou le service, puis relancez avec --reprocess.');
+                }
+            }
+
             $counts = ['counted' => 0, 'no_client' => 0, 'category' => 0, 'service' => 0, 'missing' => 0];
             $missingRows = [];
 

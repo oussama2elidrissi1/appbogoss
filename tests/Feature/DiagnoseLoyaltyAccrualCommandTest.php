@@ -70,6 +70,22 @@ class DiagnoseLoyaltyAccrualCommandTest extends TestCase
         $this->assertSame(1, LoyaltyLedgerEntry::where('sourceable_id', $missed->id)->count());
     }
 
+    public function test_contradictory_config_is_flagged_loudly(): void
+    {
+        $coupe = Service::factory()->create(['name' => 'Coupe cheveux + barbe', 'category' => 'coiffure']);
+        LoyaltyProgram::create([
+            'name' => '10 coupes = hammam gratuit',
+            'type' => LoyaltyProgram::TYPE_SERVICE_COUNT,
+            'is_active' => true,
+            // Legacy contradictory row: category hammam + a coiffure service.
+            'config' => ['threshold' => 10, 'category' => 'hammam', 'service_id' => $coupe->id],
+        ]);
+
+        $this->artisan('loyalty:diagnose', ['--days' => 7])
+            ->expectsOutputToContain('CONFIGURATION CONTRADICTOIRE')
+            ->assertSuccessful();
+    }
+
     public function test_without_reprocess_nothing_is_modified(): void
     {
         $service = Service::factory()->create(['category' => 'coiffure']);
