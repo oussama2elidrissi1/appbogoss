@@ -14,6 +14,7 @@ import {
     Package,
     Receipt,
     ShoppingBasket,
+    Trash2,
     Wrench,
     type LucideIcon,
 } from 'lucide-react';
@@ -23,12 +24,14 @@ import { z } from 'zod';
 import {
     convertExpenseToAdvance,
     createExpense,
+    deleteExpense,
     getEmployees,
     getErrorMessage,
     getExpenses,
     getWorkDays,
     updateExpense,
 } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import { useActiveWorkDay, useRefreshDay, workDayKeys } from '@/hooks/useWorkDay';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import type { Expense } from '@/types/workday';
@@ -39,6 +42,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { EmptyState } from '@/components/dashboard/EmptyState';
 
 interface ExpenseCategory {
@@ -146,11 +150,16 @@ function NoDayNotice() {
 export default function Depenses() {
     const queryClient = useQueryClient();
     const refreshDay = useRefreshDay();
+    const { hasRole } = useAuth();
+    // Moving/converting/deleting an expense rewrites a caisse day's net
+    // result after the fact — Super Admin only (enforced server-side too).
+    const isSuperAdmin = hasRole('super-admin');
     const [justSaved, setJustSaved] = useState(false);
     const [convertingExpense, setConvertingExpense] = useState<Expense | null>(null);
     const [convertEmployeeId, setConvertEmployeeId] = useState('');
     const [movingExpense, setMovingExpense] = useState<Expense | null>(null);
     const [moveWorkDayId, setMoveWorkDayId] = useState('');
+    const [deletingExpense, setDeletingExpense] = useState<Expense | null>(null);
     const [newExpenseWorkDayId, setNewExpenseWorkDayId] = useState('');
     const [historyRange, setHistoryRange] = useState<HistoryRange>('month');
 
@@ -240,6 +249,18 @@ export default function Depenses() {
         },
     });
 
+    const deleteMutation = useMutation({
+        mutationFn: (expenseId: number) => deleteExpense(expenseId),
+        onSuccess: () => {
+            void queryClient.invalidateQueries({
+                queryKey: workDayKeys.expenses(workDay?.id ?? null),
+            });
+            void queryClient.invalidateQueries({ queryKey: ['expenses-history'] });
+            refreshDay();
+            setDeletingExpense(null);
+        },
+    });
+
     if (dayPending) {
         return (
             <div className="space-y-6">
@@ -297,46 +318,63 @@ export default function Depenses() {
                         </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                        <button
-                            type="button"
-                            title="Déplacer vers une autre journée de caisse"
-                            aria-label="Déplacer vers une autre journée de caisse"
-                            onClick={() => {
-                                if (isMoving) {
-                                    setMovingExpense(null);
-                                } else {
-                                    setMovingExpense(expense);
-                                    setMoveWorkDayId('');
-                                    setConvertingExpense(null);
-                                }
-                            }}
-                            className={cn(
-                                'rounded-sm p-1 text-muted-foreground transition-colors hover:text-accent',
-                                isMoving && 'text-accent',
-                            )}
-                        >
-                            <CalendarClock className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                            type="button"
-                            title="Convertir en avance sur salaire"
-                            aria-label="Convertir en avance sur salaire"
-                            onClick={() => {
-                                if (isConverting) {
-                                    setConvertingExpense(null);
-                                } else {
-                                    setConvertingExpense(expense);
-                                    setConvertEmployeeId('');
-                                    setMovingExpense(null);
-                                }
-                            }}
-                            className={cn(
-                                'rounded-sm p-1 text-muted-foreground transition-colors hover:text-accent',
-                                isConverting && 'text-accent',
-                            )}
-                        >
-                            <HandCoins className="h-3.5 w-3.5" />
-                        </button>
+                        {isSuperAdmin && (
+                            <>
+                                <button
+                                    type="button"
+                                    title="Déplacer vers une autre journée de caisse"
+                                    aria-label="Déplacer vers une autre journée de caisse"
+                                    onClick={() => {
+                                        if (isMoving) {
+                                            setMovingExpense(null);
+                                        } else {
+                                            setMovingExpense(expense);
+                                            setMoveWorkDayId('');
+                                            setConvertingExpense(null);
+                                        }
+                                    }}
+                                    className={cn(
+                                        'rounded-sm p-1 text-muted-foreground transition-colors hover:text-accent',
+                                        isMoving && 'text-accent',
+                                    )}
+                                >
+                                    <CalendarClock className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    title="Convertir en avance sur salaire"
+                                    aria-label="Convertir en avance sur salaire"
+                                    onClick={() => {
+                                        if (isConverting) {
+                                            setConvertingExpense(null);
+                                        } else {
+                                            setConvertingExpense(expense);
+                                            setConvertEmployeeId('');
+                                            setMovingExpense(null);
+                                        }
+                                    }}
+                                    className={cn(
+                                        'rounded-sm p-1 text-muted-foreground transition-colors hover:text-accent',
+                                        isConverting && 'text-accent',
+                                    )}
+                                >
+                                    <HandCoins className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    title="Supprimer cette dépense"
+                                    aria-label="Supprimer cette dépense"
+                                    onClick={() => {
+                                        setDeletingExpense(expense);
+                                        setMovingExpense(null);
+                                        setConvertingExpense(null);
+                                    }}
+                                    className="rounded-sm p-1 text-muted-foreground transition-colors hover:text-destructive"
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                            </>
+                        )}
                         <span className="text-sm font-semibold tabular-nums text-destructive">
                             −{formatCurrency(expense.amount, { maximumFractionDigits: 2 })}
                         </span>
@@ -689,6 +727,22 @@ export default function Depenses() {
                     </CardContent>
                 </Card>
             </motion.div>
+
+            <ConfirmDialog
+                open={deletingExpense !== null}
+                onOpenChange={(open) => {
+                    if (!open) setDeletingExpense(null);
+                }}
+                title="Supprimer cette dépense ?"
+                description={
+                    deletingExpense
+                        ? `« ${deletingExpense.label} » (−${formatCurrency(deletingExpense.amount, { maximumFractionDigits: 2 })}) sera définitivement supprimée — le résultat de sa journée de caisse sera recalculé sans elle.`
+                        : undefined
+                }
+                confirmLabel="Supprimer"
+                loading={deleteMutation.isPending}
+                onConfirm={() => deletingExpense && deleteMutation.mutate(deletingExpense.id)}
+            />
         </motion.div>
     );
 }

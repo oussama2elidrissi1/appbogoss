@@ -64,9 +64,14 @@ class ExpenseController extends Controller
      * form only ever attached new expenses to whichever day was open at the
      * time, ignoring a backdated `spent_on`, so anything entered for a past
      * date silently landed in today's report instead of its own.
+     *
+     * Super Admin only: moving an expense between days (or editing its
+     * amount) rewrites the days' net results after the fact.
      */
     public function update(Request $request, Expense $expense): JsonResponse
     {
+        $this->assertSuperAdmin($request);
+
         $validated = $request->validate([
             'label' => ['sometimes', 'string', 'max:255'],
             'category' => ['sometimes', 'string', 'max:255'],
@@ -93,6 +98,8 @@ class ExpenseController extends Controller
      */
     public function convertToAdvance(Request $request, Expense $expense): JsonResponse
     {
+        $this->assertSuperAdmin($request);
+
         $validated = $request->validate([
             'employee_id' => ['required', 'integer', 'exists:employees,id'],
         ]);
@@ -120,5 +127,38 @@ class ExpenseController extends Controller
         $advance->load(['employee', 'workDay']);
 
         return response()->json(['data' => new AdvanceResource($advance)], 201);
+    }
+
+    /**
+     * Erases an expense entered by mistake. Super Admin only — it rewrites
+     * the day's net result after the fact, and unlike an advance there is
+     * no patron-password fallback wired for expenses; the full audit trail
+     * of what was removed goes to the activity log first.
+     */
+    public function destroy(Request $request, Expense $expense): JsonResponse
+    {
+        $this->assertSuperAdmin($request);
+
+        $this->activityLogger->log('expense.deleted', $expense, [
+            'label' => $expense->label,
+            'category' => $expense->category,
+            'amount' => round((float) $expense->amount, 2),
+            'spent_on' => (string) $expense->spent_on,
+            'work_day_id' => $expense->work_day_id,
+        ], []);
+
+        $expense->delete();
+
+        return response()->json(status: 204);
+    }
+
+    /**
+     * Moving, converting or deleting an expense rewrites a caisse day's net
+     * result after the fact — reserved to the Super Admin, same authority
+     * rule the rest of the app applies to that role.
+     */
+    private function assertSuperAdmin(Request $request): void
+    {
+        abort_unless((bool) $request->user()?->hasRole('super-admin'), 403, 'Action réservée au Super Admin.');
     }
 }

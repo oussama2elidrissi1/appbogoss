@@ -25,8 +25,55 @@ class ExpenseApiTest extends TestCase
         Sanctum::actingAs($admin);
     }
 
+    private function actingAsSuperAdmin(): void
+    {
+        $user = User::factory()->create(['role' => 'super-admin']);
+        $user->assignRole('super-admin');
+        Sanctum::actingAs($user);
+    }
+
+    private function makeExpense(array $overrides = []): Expense
+    {
+        return Expense::create(array_merge([
+            'label' => 'dépense test',
+            'category' => 'achats',
+            'amount' => 100,
+            'spent_on' => '2026-08-03',
+        ], $overrides));
+    }
+
+    public function test_only_super_admin_can_delete_an_expense(): void
+    {
+        $expense = $this->makeExpense();
+
+        // Plain admin (from setUp) is refused.
+        $this->deleteJson("/api/expenses/{$expense->id}")->assertForbidden();
+        $this->assertDatabaseHas('expenses', ['id' => $expense->id]);
+
+        $this->actingAsSuperAdmin();
+        $this->deleteJson("/api/expenses/{$expense->id}")->assertNoContent();
+        $this->assertDatabaseMissing('expenses', ['id' => $expense->id]);
+    }
+
+    public function test_plain_admin_can_no_longer_move_or_convert_an_expense(): void
+    {
+        $employee = Employee::factory()->create();
+        $workDay = WorkDay::factory()->create(['status' => 'open']);
+        $expense = $this->makeExpense(['work_day_id' => $workDay->id]);
+
+        $this->putJson("/api/expenses/{$expense->id}", ['work_day_id' => $workDay->id])
+            ->assertForbidden();
+        $this->postJson("/api/expenses/{$expense->id}/convert-to-advance", ['employee_id' => $employee->id])
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('expenses', ['id' => $expense->id]);
+        $this->assertDatabaseCount('advances', 0);
+    }
+
     public function test_convert_to_advance_moves_the_amount_and_removes_the_expense(): void
     {
+        $this->actingAsSuperAdmin();
+
         $employee = Employee::factory()->create();
         $workDay = WorkDay::factory()->create(['status' => 'open']);
         $expense = Expense::create([
@@ -58,6 +105,8 @@ class ExpenseApiTest extends TestCase
 
     public function test_converting_an_expense_removes_it_from_the_days_expense_total(): void
     {
+        $this->actingAsSuperAdmin();
+
         $employee = Employee::factory()->create();
         $workDay = WorkDay::factory()->create(['status' => 'open']);
         $expense = Expense::create([
@@ -121,6 +170,8 @@ class ExpenseApiTest extends TestCase
 
     public function test_update_can_re_attribute_an_existing_expense_to_the_correct_day(): void
     {
+        $this->actingAsSuperAdmin();
+
         $wrongDay = WorkDay::factory()->create(['status' => 'open', 'date' => now()->toDateString()]);
         $correctDay = WorkDay::factory()->create(['status' => 'closed', 'date' => now()->subDays(4)->toDateString()]);
         $expense = Expense::create([

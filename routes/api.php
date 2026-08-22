@@ -204,6 +204,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/expenses', [ExpenseController::class, 'store']);
         Route::put('/expenses/{expense}', [ExpenseController::class, 'update']);
         Route::post('/expenses/{expense}/convert-to-advance', [ExpenseController::class, 'convertToAdvance']);
+        // Super-admin only (checked in-controller — no dedicated spatie
+        // permission, same pattern as AdvanceController's patron gate).
+        Route::delete('/expenses/{expense}', [ExpenseController::class, 'destroy']);
 
         Route::apiResource('/products', ProductController::class);
     });

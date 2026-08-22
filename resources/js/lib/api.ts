@@ -340,6 +340,11 @@ export async function settleAdvancesBefore(
     return data;
 }
 
+/** Super-admin only — erases an expense entered by mistake (audit-logged server-side). */
+export async function deleteExpense(id: number): Promise<void> {
+    await api.delete(`/api/expenses/${id}`);
+}
+
 export async function createExpense(payload: CreateExpensePayload): Promise<Expense> {
     const { data } = await api.post<{ data: Expense }>('/api/expenses', payload);
     return data.data;
