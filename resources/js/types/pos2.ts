@@ -65,6 +65,7 @@ export interface Pos2Tip {
 export interface Pos2Commission {
     id: number;
     prestation_item_id: number;
+    tip_id: number | null;
     employee_id: number;
     employee_name: string | null;
     service_id: number | null;

@@ -817,7 +817,7 @@ class PosService
             Notification::send($paid->employee->user, new PrestationPaid($paid, (float) ($paid->sale?->commission_amount ?? 0)));
         }
 
-        return $paid->fresh(['items.employee', 'items.service', 'commissions', 'sale', 'client', 'tips.employee']);
+        return $paid->fresh(['items.employee', 'items.service', 'commissions.employee', 'sale', 'client', 'tips.employee']);
     }
 
     public function refund(Prestation $prestation, string $reason, User $actor): Prestation
@@ -1322,6 +1322,7 @@ class PosService
                     'prestation_item_id' => $line->id,
                     'employee_id' => $employeeId,
                     'service_id' => $line->service_id,
+                    'tip_id' => $created->id,
                     'rule_id' => null,
                     'type' => 'tip_percentage',
                     'rate_or_amount' => self::COIFFURE_TIP_COMMISSION_RATE,

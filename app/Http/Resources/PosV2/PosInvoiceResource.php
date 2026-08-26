@@ -103,6 +103,7 @@ class PosInvoiceResource extends JsonResource
             'commissions' => $this->whenLoaded('commissions', fn () => $this->commissions->map(fn ($commission) => [
                 'id' => $commission->id,
                 'prestation_item_id' => $commission->prestation_item_id,
+                'tip_id' => $commission->tip_id,
                 'employee_id' => $commission->employee_id,
                 'employee_name' => $commission->employee?->name,
                 'service_id' => $commission->service_id,

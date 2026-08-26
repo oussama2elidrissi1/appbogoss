@@ -15,6 +15,7 @@ class Commission extends Model
         'prestation_item_id',
         'employee_id',
         'service_id',
+        'tip_id',
         'rule_id',
         'type',
         'rate_or_amount',
@@ -47,6 +48,11 @@ class Commission extends Model
     public function service(): BelongsTo
     {
         return $this->belongsTo(Service::class);
+    }
+
+    public function tip(): BelongsTo
+    {
+        return $this->belongsTo(Tip::class);
     }
 
     public function rule(): BelongsTo
