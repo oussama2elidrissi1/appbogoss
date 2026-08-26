@@ -38,12 +38,19 @@ class PosInvoiceLineResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $category = $this->service?->category
+            ?? ($this->product_id !== null
+                ? ($this->product?->stock_area === 'refrigerateur' ? 'boisson' : 'vitrine')
+                : null);
         $employee = $this->employee;
 
         if (
             $employee === null
             && $this->resource->relationLoaded('prestation')
-            && $this->prestation?->channel !== Prestation::CHANNEL_CAISSE_V2
+            && (
+                $this->prestation?->channel !== Prestation::CHANNEL_CAISSE_V2
+                || in_array($category, ['boisson', 'vente', 'vitrine'], true)
+            )
         ) {
             $employee = $this->prestation?->employee ?? $this->prestation?->sale?->employee;
         }
@@ -53,10 +60,7 @@ class PosInvoiceLineResource extends JsonResource
             'service_id' => $this->service_id,
             'service_name' => $this->service?->name,
             'product_id' => $this->product_id,
-            'category' => $this->service?->category
-                ?? ($this->product_id !== null
-                    ? ($this->product?->stock_area === 'refrigerateur' ? 'boisson' : 'vitrine')
-                    : null),
+            'category' => $category,
             'requires_employee' => $this->service_id !== null ? (bool) ($this->service?->requires_employee ?? true) : false,
             'label' => $this->label,
             'quantity' => (int) $this->quantity,

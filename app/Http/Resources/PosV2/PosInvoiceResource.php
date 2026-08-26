@@ -15,11 +15,7 @@ class PosInvoiceResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        if (
-            $this->resource->relationLoaded('items')
-            && $this->channel !== Prestation::CHANNEL_CAISSE_V2
-            && $this->resource->relationLoaded('employee')
-        ) {
+        if ($this->resource->relationLoaded('items')) {
             $this->items->each(fn ($item) => $item->setRelation('prestation', $this->resource));
         }
 
