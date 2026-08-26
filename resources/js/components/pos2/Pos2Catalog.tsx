@@ -1,13 +1,21 @@
 import { useMemo, useState } from 'react';
-import { Clock3, PenLine, Plus, Search, Sparkles, Users } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Clock3, Coffee, Package, PenLine, Plus, Search, ShoppingBag, Sparkles, Users } from 'lucide-react';
 import { CATEGORIES, getCategory } from '@/components/workday/categories';
+import { getProducts } from '@/lib/api';
 import { canPerform, eligibleEmployees } from '@/lib/pos2Eligibility';
 import { cn, formatCurrency } from '@/lib/utils';
-import type { Employee, Service } from '@/types/workday';
+import type { Employee, Product, Service } from '@/types/workday';
 import { Button } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+
+/** Onglets produits — ventes de stock, sans employé ni commission. */
+const PRODUCT_TABS = [
+    { value: 'produits:vitrine', area: 'vitrine' as const, label: 'Vente', icon: ShoppingBag },
+    { value: 'produits:refrigerateur', area: 'refrigerateur' as const, label: 'Boisson', icon: Coffee },
+];
 
 interface Pos2CatalogProps {
     services: Service[];
@@ -16,7 +24,9 @@ interface Pos2CatalogProps {
     onActiveEmployeeChange: (id: number | null) => void;
     /** Adds the tapped service as an invoice line (assigned to the active employee). */
     onPickService: (service: Service) => void;
-    /** Free-text line (produit vitrine, supplément…). */
+    /** Adds a stock product line (vente vitrine / réfrigérateur) — no employee. */
+    onPickProduct: (product: Product) => void;
+    /** Free-text line (supplément, exception…). */
     onAddFreeLine: (label: string, price: number) => void;
     /** service_id -> subscription coverage badge. */
     coveredServiceIds?: Set<number>;
@@ -34,6 +44,7 @@ export function Pos2Catalog({
     activeEmployeeId,
     onActiveEmployeeChange,
     onPickService,
+    onPickProduct,
     onAddFreeLine,
     coveredServiceIds,
     busy,
@@ -53,6 +64,21 @@ export function Pos2Catalog({
         () => employees.find((employee) => employee.id === activeEmployeeId) ?? null,
         [employees, activeEmployeeId],
     );
+
+    const productTab = PRODUCT_TABS.find((tab) => tab.value === category) ?? null;
+    const { data: products } = useQuery({
+        queryKey: ['products', 'pos2', productTab?.area],
+        queryFn: () => getProducts({ stockArea: productTab?.area }),
+        enabled: productTab !== null,
+        staleTime: 60_000,
+    });
+
+    const filteredProducts = useMemo(() => {
+        const term = search.trim().toLowerCase();
+        const list = products ?? [];
+        if (!term) return list;
+        return list.filter((product) => product.name.toLowerCase().includes(term));
+    }, [products, search]);
 
     const filtered = useMemo(() => {
         const term = search.trim().toLowerCase();
@@ -131,6 +157,21 @@ export function Pos2Catalog({
                         </Chip>
                     );
                 })}
+                <span className="mx-0.5 h-5 w-px self-center bg-tint/[0.12]" />
+                {PRODUCT_TABS.map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                        <Chip
+                            key={tab.value}
+                            size="sm"
+                            selected={category === tab.value}
+                            onClick={() => setCategory(tab.value)}
+                        >
+                            <Icon className={tab.area === 'refrigerateur' ? 'text-success' : 'text-rose-600 dark:text-rose-300'} />
+                            {tab.label}
+                        </Chip>
+                    );
+                })}
             </div>
 
             {/* Recherche (§9) */}
@@ -144,7 +185,65 @@ export function Pos2Catalog({
                 />
             </div>
 
-            {/* Grille de services (§10) */}
+            {/* Grille de produits — vente vitrine / réfrigérateur (stock réel). */}
+            {productTab !== null ? (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 2xl:grid-cols-4">
+                    {filteredProducts.map((product) => {
+                        const outOfStock = product.stock_quantity <= 0;
+                        const lowStock = !outOfStock && product.stock_quantity <= product.low_stock_threshold;
+                        return (
+                            <button
+                                key={product.id}
+                                type="button"
+                                disabled={busy || outOfStock}
+                                onClick={() => onPickProduct(product)}
+                                className={cn(
+                                    'group relative flex min-h-[86px] flex-col justify-between rounded-md border p-3 text-left',
+                                    'transition-all duration-200 ease-out active:scale-[0.97]',
+                                    'border-tint/[0.08] bg-tint/[0.03] hover:border-accent/40 hover:bg-tint/[0.06] hover:shadow-glow',
+                                    'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70',
+                                    'disabled:pointer-events-none disabled:opacity-45',
+                                )}
+                            >
+                                <div className="min-w-0">
+                                    <p className="line-clamp-2 text-sm font-medium leading-snug text-foreground">
+                                        {product.name}
+                                    </p>
+                                    <p className={cn(
+                                        'mt-1 text-[11px] font-medium',
+                                        productTab.area === 'refrigerateur' ? 'text-success' : 'text-rose-600 dark:text-rose-300',
+                                    )}>
+                                        {productTab.label}
+                                    </p>
+                                </div>
+                                <div className="mt-2 flex items-end justify-between gap-2">
+                                    <span className="text-sm font-semibold tabular-nums text-foreground">
+                                        {formatCurrency(product.price)}
+                                    </span>
+                                    <span
+                                        className={cn(
+                                            'inline-flex items-center gap-1 text-[11px] tabular-nums',
+                                            outOfStock
+                                                ? 'font-semibold text-destructive'
+                                                : lowStock
+                                                  ? 'font-medium text-accent'
+                                                  : 'text-muted-foreground',
+                                        )}
+                                    >
+                                        <Package className="h-3 w-3" />
+                                        {outOfStock ? 'Rupture' : `Stock ${product.stock_quantity}`}
+                                    </span>
+                                </div>
+                            </button>
+                        );
+                    })}
+                    {filteredProducts.length === 0 && (
+                        <p className="col-span-full rounded-md border border-tint/[0.07] bg-tint/[0.02] px-4 py-6 text-center text-sm text-muted-foreground">
+                            Aucun produit dans cette zone de stock.
+                        </p>
+                    )}
+                </div>
+            ) : (
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 2xl:grid-cols-4">
                 {filtered.map((service) => {
                     const config = getCategory(service.category);
@@ -212,7 +311,7 @@ export function Pos2Catalog({
                     );
                 })}
 
-                {/* Ligne libre — produits/vitrine, suppléments, exceptions. */}
+                {/* Ligne libre — suppléments, exceptions. */}
                 <button
                     type="button"
                     onClick={() => setFreeLineOpen((value) => !value)}
@@ -227,8 +326,9 @@ export function Pos2Catalog({
                     <span className="text-xs font-medium">Ligne libre</span>
                 </button>
             </div>
+            )}
 
-            {filtered.length === 0 && (
+            {productTab === null && filtered.length === 0 && (
                 <p className="rounded-md border border-tint/[0.07] bg-tint/[0.02] px-4 py-6 text-center text-sm text-muted-foreground">
                     Aucun service ne correspond à cette recherche.
                 </p>

@@ -38,7 +38,7 @@ import { printInvoiceA4, printInvoiceReceipt } from '@/lib/receiptV2';
 import { pageFade } from '@/lib/motion';
 import { cn, formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
-import type { Client, Service } from '@/types/workday';
+import type { Client, Product, Service } from '@/types/workday';
 import type {
     Pos2CheckoutPayload,
     Pos2Invoice,
@@ -244,6 +244,17 @@ export default function PosV2() {
             service_id: service.id,
             employee_id: employeeId,
         };
+        if (currentInvoice) {
+            addLineMutation.mutate({ invoiceId: currentInvoice.id, payload });
+        } else {
+            openMutation.mutate({ items: [payload] });
+        }
+    }
+
+    function pickProduct(product: Product) {
+        // Ligne produit : prix/label du produit, pas d'employé, stock
+        // décrémenté à l'encaissement côté serveur.
+        const payload: Pos2LinePayload = { product_id: product.id };
         if (currentInvoice) {
             addLineMutation.mutate({ invoiceId: currentInvoice.id, payload });
         } else {
@@ -553,6 +564,7 @@ export default function PosV2() {
                             activeEmployeeId={activeEmployeeId}
                             onActiveEmployeeChange={setActiveEmployeeId}
                             onPickService={pickService}
+                            onPickProduct={pickProduct}
                             onAddFreeLine={addFreeLine}
                             coveredServiceIds={coveredServiceIds}
                             busy={busy}

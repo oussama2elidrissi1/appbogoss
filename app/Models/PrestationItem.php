@@ -10,6 +10,7 @@ class PrestationItem extends Model
     protected $fillable = [
         'prestation_id',
         'service_id',
+        'product_id',
         'employee_id',
         'label',
         'quantity',
@@ -51,6 +52,11 @@ class PrestationItem extends Model
     public function service(): BelongsTo
     {
         return $this->belongsTo(Service::class);
+    }
+
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
     }
 
     public function commissionRule(): BelongsTo

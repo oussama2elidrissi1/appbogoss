@@ -43,7 +43,8 @@ export function Pos2LineRow({ line, employees, editable, canDiscount, busy, onUp
     const discount = Math.min(line.discount_amount ?? 0, line.line_total);
     const displayTotal = line.is_free ? 0 : line.line_total - discount;
 
-    const requiresEmployee = line.requires_employee ?? line.service_id !== null;
+    const isProduct = (line.product_id ?? null) !== null;
+    const requiresEmployee = !isProduct && (line.requires_employee ?? line.service_id !== null);
     const eligible = eligibleEmployeesForLine(employees, line);
     // The assigned employee stays visible even if no longer eligible, so the
     // cashier sees the anomaly instead of a silently empty dropdown.
@@ -100,6 +101,11 @@ export function Pos2LineRow({ line, employees, editable, canDiscount, busy, onUp
                             {line.quantity > 1 && <span className="text-muted-foreground"> ×{line.quantity}</span>}
                         </p>
                         <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                            {isProduct && (
+                                <span className="font-medium text-rose-600 dark:text-rose-300">
+                                    Produit · {line.category === 'boisson' ? 'Réfrigérateur' : 'Vitrine'}
+                                </span>
+                            )}
                             {line.duration_minutes ? <span>{line.duration_minutes} min</span> : null}
                             {line.beneficiary_name && <span>· {line.beneficiary_name}</span>}
                             {line.is_free && (
@@ -141,8 +147,9 @@ export function Pos2LineRow({ line, employees, editable, canDiscount, busy, onUp
                     </div>
                 </button>
 
-                {/* Employé responsable — dropdown compact dans la ligne (§3, §5). */}
-                {(requiresEmployee || line.employee_id !== null || eligible.length > 0) && (
+                {/* Employé responsable — dropdown compact dans la ligne (§3, §5).
+                    Jamais pour une ligne produit (pas d'employé, pas de commission). */}
+                {!isProduct && (requiresEmployee || line.employee_id !== null || eligible.length > 0) && (
                     <div className="mt-2 flex items-center gap-2">
                         <UserRound
                             className={cn('h-3.5 w-3.5 shrink-0', missingEmployee ? 'text-destructive' : 'text-muted-foreground')}

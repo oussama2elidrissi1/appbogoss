@@ -154,6 +154,7 @@ class PosInvoiceController extends Controller
     {
         return [
             $prefix.'service_id' => ['nullable', 'integer', 'exists:services,id'],
+            $prefix.'product_id' => ['nullable', 'integer', 'exists:products,id'],
             $prefix.'label' => [$prefix === '' ? 'required_without:service_id' : 'nullable', 'nullable', 'string', 'max:255'],
             $prefix.'quantity' => ['nullable', 'integer', 'min:1', 'max:99'],
             $prefix.'unit_price' => ['nullable', 'numeric', 'min:0', 'max:99999'],

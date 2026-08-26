@@ -25,8 +25,10 @@ export interface Pos2InvoiceLine {
     id: number;
     service_id: number | null;
     service_name: string | null;
+    /** Ligne produit (vente vitrine/réfrigérateur) — stock décrémenté à l'encaissement. */
+    product_id?: number | null;
     category: string | null;
-    /** Does this line's service require a responsible employee? false for free-text lines. */
+    /** Does this line's service require a responsible employee? false for free-text and product lines. */
     requires_employee?: boolean;
     label: string;
     quantity: number;
@@ -251,6 +253,7 @@ export interface Pos2TodayAppointment {
 
 export interface Pos2LinePayload {
     service_id?: number | null;
+    product_id?: number | null;
     label?: string | null;
     quantity?: number;
     unit_price?: number | null;

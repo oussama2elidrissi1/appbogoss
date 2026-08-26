@@ -171,6 +171,35 @@ class PosService
     {
         $this->assertV2($prestation);
 
+        // Product line (vente vitrine / réfrigérateur): label + price come
+        // from the product, no employee, no commission. Stock is only
+        // guarded softly here — the real lock + decrement happen at checkout.
+        $product = null;
+        if (! empty($data['product_id'])) {
+            if (! empty($data['service_id'])) {
+                throw ValidationException::withMessages([
+                    'product_id' => 'Une ligne est soit un service, soit un produit.',
+                ]);
+            }
+            if (! empty($data['client_subscription_id']) || ! empty($data['loyalty_reward_id'])) {
+                throw ValidationException::withMessages([
+                    'product_id' => 'Un produit ne peut pas être couvert par un abonnement ou une récompense.',
+                ]);
+            }
+            $product = \App\Models\Product::find($data['product_id']);
+            if ($product === null) {
+                throw ValidationException::withMessages(['product_id' => 'Produit introuvable.']);
+            }
+            if ((int) $product->stock_quantity < max(1, (int) ($data['quantity'] ?? 1))) {
+                throw ValidationException::withMessages([
+                    'product_id' => sprintf('Stock insuffisant pour « %s » (%d restant).', $product->name, (int) $product->stock_quantity),
+                ]);
+            }
+            $data['label'] = $product->name;
+            $data['unit_price'] = (float) $product->price;
+            $data['employee_id'] = null;
+        }
+
         // §2 + §14 — the skills relation is enforced at line creation, not
         // just at checkout: an employee can only be put on a service they
         // actually perform (employees.service_categories / allowed_service_ids).
@@ -198,6 +227,7 @@ class PosService
         $extra = array_filter([
             'employee_id' => $data['employee_id'] ?? null,
             'beneficiary_name' => $data['beneficiary_name'] ?? null,
+            'product_id' => $product?->id,
         ], fn ($value) => $value !== null);
         if ($extra !== []) {
             $item->update($extra);
@@ -234,6 +264,11 @@ class PosService
         }
         if (array_key_exists('employee_id', $data)) {
             if ($data['employee_id'] !== null) {
+                if ($item->product_id !== null) {
+                    throw ValidationException::withMessages([
+                        'employee_id' => 'Une ligne produit n’a pas d’employé responsable.',
+                    ]);
+                }
                 $lineService = $item->service_id !== null ? Service::find($item->service_id) : null;
                 $this->assertEmployeeCanPerform((int) $data['employee_id'], $lineService);
             }
@@ -536,10 +571,34 @@ class PosService
                 ]);
             }
 
-            $locked->load(['items.service', 'items.employee']);
+            $locked->load(['items.service', 'items.employee', 'items.product']);
 
             if ($locked->items->isEmpty()) {
                 throw ValidationException::withMessages(['items' => 'Ajoutez au moins un service avant d’encaisser.']);
+            }
+
+            // Product lines: lock + guard + decrement stock inside THIS
+            // transaction — same guarantees as V1's quick-sale path, but
+            // supporting quantities. A failure rolls everything back.
+            foreach ($locked->items as $item) {
+                if ($item->product_id === null) {
+                    continue;
+                }
+                $lockedProduct = \App\Models\Product::query()->whereKey($item->product_id)->lockForUpdate()->first();
+                if ($lockedProduct === null) {
+                    continue; // product deleted since — the line stays a plain labeled line
+                }
+                if ((int) $lockedProduct->stock_quantity < (int) $item->quantity) {
+                    throw ValidationException::withMessages([
+                        'items' => sprintf(
+                            'Stock insuffisant pour « %s » (%d restant, %d demandé).',
+                            $lockedProduct->name,
+                            (int) $lockedProduct->stock_quantity,
+                            (int) $item->quantity,
+                        ),
+                    ]);
+                }
+                $lockedProduct->decrement('stock_quantity', (int) $item->quantity);
             }
 
             // §1 + §14 — UNE LIGNE = UN SERVICE = UN EMPLOYÉ RESPONSABLE.
@@ -574,6 +633,26 @@ class PosService
             $headerEmployeeId = $locked->items->first(fn (PrestationItem $item) => $item->employee_id !== null)?->employee_id
                 ?? $locked->employee_id;
             $headerEmployee = $headerEmployeeId !== null ? Employee::find($headerEmployeeId) : null;
+
+            // Pure-product ticket: attribute it to the company pseudo-employee
+            // of the dominant stock area, exactly like V1's quick-sale does —
+            // so Vitrine/Réfrigérateur revenue keeps its bucket in the
+            // closing report. (No commission is ever created for it.)
+            if ($headerEmployee === null) {
+                $area = $locked->items
+                    ->map(fn (PrestationItem $item) => $item->product?->stock_area)
+                    ->filter()
+                    ->countBy()
+                    ->sortDesc()
+                    ->keys()
+                    ->first();
+                if ($area !== null) {
+                    $headerEmployee = Employee::query()
+                        ->where('is_company', true)
+                        ->where('company_area', $area)
+                        ->first();
+                }
+            }
 
             $sale = Sale::create([
                 'work_day_id' => $activeDay->id,
@@ -618,8 +697,13 @@ class PosService
 
                 SaleItem::create([
                     'sale_id' => $sale->id,
-                    'itemable_type' => $service ? Service::class : null,
-                    'itemable_id' => $service?->id,
+                    // Product::class matters: V1's void-restore path
+                    // (TransactionController::destroy) re-increments stock
+                    // from exactly this polymorphic type.
+                    'itemable_type' => $item->product_id !== null
+                        ? \App\Models\Product::class
+                        : ($service ? Service::class : null),
+                    'itemable_id' => $item->product_id ?? $service?->id,
                     'label' => $item->label,
                     'quantity' => $item->quantity,
                     'unit_price' => $effective['unit_price'],
@@ -736,6 +820,18 @@ class PosService
 
         return DB::transaction(function () use ($prestation, $reason, $actor) {
             $refunded = $this->prestations->refund($prestation, $reason, $actor);
+
+            // Product lines: put the stock back (mirror of the checkout
+            // decrement, under lock) — V1's refund path never dealt with
+            // products, so this lives here.
+            $prestation->loadMissing('items');
+            foreach ($prestation->items as $item) {
+                if ($item->product_id === null) {
+                    continue;
+                }
+                \App\Models\Product::query()->whereKey($item->product_id)->lockForUpdate()->first()
+                    ?->increment('stock_quantity', (int) $item->quantity);
+            }
 
             // Tips ride along: refunding the invoice voids its tips (soft
             // delete — history stays visible) so the day's tip totals match
@@ -1098,7 +1194,9 @@ class PosService
     private function dominantCategory(Prestation $prestation): string
     {
         $categories = $prestation->items
-            ->map(fn (PrestationItem $item) => $item->service?->category)
+            ->map(fn (PrestationItem $item) => $item->product_id !== null
+                ? ($item->product?->stock_area === 'refrigerateur' ? 'boisson' : 'vitrine')
+                : $item->service?->category)
             ->filter()
             ->unique()
             ->values();
