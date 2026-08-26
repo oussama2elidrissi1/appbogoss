@@ -308,6 +308,13 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                                     accent
                                                 />
                                             )}
+                                            {tipsTotal > 0 && (
+                                                <TotalRow
+                                                    label={t('Pourboires')}
+                                                    value={`+${formatCurrency(tipsTotal)}`}
+                                                    accent
+                                                />
+                                            )}
                                             <div className="flex items-baseline justify-between pt-1">
                                                 <span className="font-semibold text-foreground">{t('TOTAL ENCAISSÉ')}</span>
                                                 <span className={cn(
