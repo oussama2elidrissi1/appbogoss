@@ -2,6 +2,8 @@
 
 namespace App\Http\Resources;
 
+use App\Models\Commission;
+use App\Models\PrestationItem;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -40,6 +42,7 @@ class SaleResource extends JsonResource
                 'name' => 'Société',
                 'avatar_color' => '#C8A24C',
             ],
+            'employee_breakdown' => $this->employeeBreakdown(),
             'items' => $this->items->map(fn ($item) => [
                 'id' => $item->id,
                 'label' => $item->label,
@@ -47,5 +50,139 @@ class SaleResource extends JsonResource
                 'unit_price' => (float) $item->unit_price,
             ])->all(),
         ];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function employeeBreakdown(): array
+    {
+        if ($this->resource->relationLoaded('prestation') && $this->prestation !== null) {
+            return $this->prestationEmployeeBreakdown();
+        }
+
+        return [[
+            'employee_id' => $this->employee?->id ?? 0,
+            'employee_name' => $this->employee?->name ?? 'Société',
+            'employee_avatar_color' => $this->employee?->avatar_color ?? '#C8A24C',
+            'tickets_count' => 1,
+            'performed_count' => max(1, (int) $this->items->sum(fn ($item) => (int) $item->quantity)),
+            'total' => (float) $this->total,
+            'commission' => (float) ($this->commission_amount ?? 0),
+        ]];
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function prestationEmployeeBreakdown(): array
+    {
+        $prestation = $this->prestation;
+        $rows = [];
+        $saleItems = $this->resource->relationLoaded('items') ? $this->items->values() : collect();
+        $prestationItems = $prestation->relationLoaded('items') ? $prestation->items->values() : collect();
+
+        foreach ($prestationItems as $index => $item) {
+            /** @var PrestationItem $item */
+            $employee = $item->employee ?? $prestation->employee ?? $this->employee;
+            if ($employee === null) {
+                continue;
+            }
+
+            $saleItem = $saleItems->get($index);
+            $total = $saleItem !== null
+                ? (float) $saleItem->quantity * (float) $saleItem->unit_price
+                : (float) $item->effectiveLineTotal();
+
+            $this->addEmployeeBreakdownRow(
+                $rows,
+                (int) $employee->id,
+                $employee->name,
+                $employee->avatar_color,
+                $total,
+                0.0,
+                max(1, (int) $item->quantity),
+            );
+        }
+
+        $allocatedTotal = collect($rows)->sum('total');
+        $difference = round((float) $this->total - (float) $allocatedTotal, 2);
+        if (abs($difference) >= 0.01 && count($rows) > 0) {
+            $firstKey = array_key_first($rows);
+            $rows[$firstKey]['total'] = round((float) $rows[$firstKey]['total'] + $difference, 2);
+        }
+
+        if ($prestation->relationLoaded('commissions') && $prestation->commissions->isNotEmpty()) {
+            foreach ($prestation->commissions->where('status', Commission::STATUS_VALIDATED) as $commission) {
+                $employee = $commission->employee;
+                if ($employee === null) {
+                    continue;
+                }
+
+                $this->addEmployeeBreakdownRow(
+                    $rows,
+                    (int) $employee->id,
+                    $employee->name,
+                    $employee->avatar_color,
+                    0.0,
+                    (float) $commission->amount,
+                    0,
+                );
+            }
+        } else {
+            foreach ($prestationItems as $item) {
+                /** @var PrestationItem $item */
+                $employee = $item->employee ?? $prestation->employee ?? $this->employee;
+                if ($employee === null) {
+                    continue;
+                }
+
+                $this->addEmployeeBreakdownRow(
+                    $rows,
+                    (int) $employee->id,
+                    $employee->name,
+                    $employee->avatar_color,
+                    0.0,
+                    (float) ($item->commission_amount ?? 0),
+                    0,
+                );
+            }
+        }
+
+        return collect($rows)
+            ->map(function (array $row) {
+                $row['total'] = round((float) $row['total'], 2);
+                $row['commission'] = round((float) $row['commission'], 2);
+
+                return $row;
+            })
+            ->sortByDesc('total')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $rows
+     */
+    private function addEmployeeBreakdownRow(
+        array &$rows,
+        int $employeeId,
+        string $employeeName,
+        ?string $avatarColor,
+        float $total,
+        float $commission,
+        int $performedCount,
+    ): void {
+        $rows[$employeeId] ??= [
+            'employee_id' => $employeeId,
+            'employee_name' => $employeeName,
+            'employee_avatar_color' => $avatarColor,
+            'tickets_count' => 1,
+            'performed_count' => 0,
+            'total' => 0.0,
+            'commission' => 0.0,
+        ];
+
+        $rows[$employeeId]['performed_count'] += $performedCount;
+        $rows[$employeeId]['total'] += $total;
+        $rows[$employeeId]['commission'] += $commission;
     }
 }

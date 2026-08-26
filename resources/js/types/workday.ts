@@ -168,6 +168,16 @@ export interface SaleItem {
     unit_price: number;
 }
 
+export interface SaleEmployeeBreakdown {
+    employee_id: number;
+    employee_name: string;
+    employee_avatar_color: string | null;
+    tickets_count: number;
+    performed_count: number;
+    total: number;
+    commission: number;
+}
+
 export interface Sale {
     id: number;
     work_day_id: number;
@@ -185,6 +195,7 @@ export interface Sale {
     client: { id: number; name: string } | null;
     client_label: string | null;
     employee: { id: number; name: string; avatar_color: string };
+    employee_breakdown?: SaleEmployeeBreakdown[];
     items: SaleItem[];
 }
 

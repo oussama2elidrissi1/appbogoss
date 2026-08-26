@@ -27,6 +27,7 @@ interface EmployeeSalesSummary {
     name: string;
     avatarColor: string;
     salesCount: number;
+    performedCount: number;
     total: number;
     commissionTotal: number;
 }
@@ -84,19 +85,35 @@ export function DayLedger({ workDayId, date }: DayLedgerProps) {
     const salesByEmployee = Array.from(
         activeSales
             .reduce((summaries, sale) => {
-                const current = summaries.get(sale.employee.id) ?? {
-                    id: sale.employee.id,
-                    name: sale.employee.name,
-                    avatarColor: sale.employee.avatar_color,
-                    salesCount: 0,
-                    total: 0,
-                    commissionTotal: 0,
-                };
+                const breakdown = sale.employee_breakdown?.length
+                    ? sale.employee_breakdown
+                    : [{
+                        employee_id: sale.employee.id,
+                        employee_name: sale.employee.name,
+                        employee_avatar_color: sale.employee.avatar_color,
+                        tickets_count: 1,
+                        performed_count: Math.max(1, sale.items.reduce((sum, item) => sum + item.quantity, 0)),
+                        total: sale.total,
+                        commission: sale.commission_amount ?? 0,
+                    }];
 
-                current.salesCount += 1;
-                current.total += sale.total;
-                current.commissionTotal += sale.commission_amount ?? 0;
-                summaries.set(sale.employee.id, current);
+                for (const row of breakdown) {
+                    const current = summaries.get(row.employee_id) ?? {
+                        id: row.employee_id,
+                        name: row.employee_name,
+                        avatarColor: row.employee_avatar_color ?? '#C8A24C',
+                        salesCount: 0,
+                        performedCount: 0,
+                        total: 0,
+                        commissionTotal: 0,
+                    };
+
+                    current.salesCount += row.tickets_count;
+                    current.performedCount += row.performed_count;
+                    current.total += row.total;
+                    current.commissionTotal += row.commission;
+                    summaries.set(row.employee_id, current);
+                }
 
                 return summaries;
             }, new Map<number, EmployeeSalesSummary>())
@@ -121,7 +138,7 @@ export function DayLedger({ workDayId, date }: DayLedgerProps) {
         printEmployeeDailySummary({
             employeeName: employee.name,
             date,
-            salesCount: employee.salesCount,
+            salesCount: employee.performedCount,
             total: employee.total,
             commissionTotal: employee.commissionTotal,
         });
@@ -198,8 +215,8 @@ export function DayLedger({ workDayId, date }: DayLedgerProps) {
                                                     {employee.name}
                                                 </p>
                                                 <p className="text-xs text-muted-foreground">
-                                                    {employee.salesCount} ticket
-                                                    {employee.salesCount > 1 ? 's' : ''}
+                                                    {employee.performedCount} prestation
+                                                    {employee.performedCount > 1 ? 's' : ''}
                                                 </p>
                                             </div>
 

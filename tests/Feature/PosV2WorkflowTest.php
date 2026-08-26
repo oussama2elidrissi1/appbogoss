@@ -827,17 +827,28 @@ class PosV2WorkflowTest extends TestCase
     public function test_v2_sales_appear_in_the_v1_day_ledger(): void
     {
         Sanctum::actingAs($this->superAdmin());
-        $employee = Employee::factory()->create();
-        $service = Service::factory()->create(['price' => 100]);
+        $kamal = Employee::factory()->create(['name' => 'Kamal', 'default_commission_rate' => 50]);
+        $zouhir = Employee::factory()->create(['name' => 'Zouhir', 'default_commission_rate' => 30]);
+        $coupe = Service::factory()->create(['name' => 'Coupe', 'price' => 70]);
+        $hammam = Service::factory()->create(['name' => 'Hammam', 'price' => 250]);
         $workDay = WorkDay::query()->where('status', 'open')->first();
 
         $invoice = $this->postJson('/api/pos-v2/invoices', [
-            'items' => [['service_id' => $service->id, 'employee_id' => $employee->id]],
+            'items' => [
+                ['service_id' => $coupe->id, 'employee_id' => $kamal->id],
+                ['service_id' => $hammam->id, 'employee_id' => $zouhir->id],
+            ],
         ])->json('data');
         $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", ['payment_method' => 'carte'])->assertOk();
 
         $ledger = $this->getJson("/api/transactions?work_day_id={$workDay->id}")->assertOk()->json('data');
         $this->assertCount(1, $ledger);
-        $this->assertEquals(100, $ledger[0]['total']);
+        $this->assertEquals(320, $ledger[0]['total']);
+
+        $breakdown = collect($ledger[0]['employee_breakdown'])->keyBy('employee_name');
+        $this->assertEquals(70, $breakdown['Kamal']['total']);
+        $this->assertEquals(35, $breakdown['Kamal']['commission']);
+        $this->assertEquals(250, $breakdown['Zouhir']['total']);
+        $this->assertEquals(75, $breakdown['Zouhir']['commission']);
     }
 }

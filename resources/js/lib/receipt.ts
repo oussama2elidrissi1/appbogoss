@@ -225,7 +225,7 @@ function employeeSummaryHtml(summary: EmployeeDailySummary, format: TicketFormat
     </section>
     <div class="line"></div>
     <section class="row">
-        <span>Tickets</span>
+        <span>Prestations</span>
         <span class="amount">${summary.salesCount}</span>
     </section>
     <section class="row total">

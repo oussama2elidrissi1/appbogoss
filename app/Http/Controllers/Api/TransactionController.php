@@ -114,7 +114,7 @@ class TransactionController extends Controller
             return $sale;
         });
 
-        $sale->load(['client', 'employee', 'items']);
+        $sale->load($this->saleRelations());
 
         return response()->json(['data' => new SaleResource($sale)], 201);
     }
@@ -126,7 +126,7 @@ class TransactionController extends Controller
         ]);
 
         $sales = Sale::withTrashed()
-            ->with(['client', 'employee', 'items'])
+            ->with($this->saleRelations())
             ->where('work_day_id', $validated['work_day_id'])
             ->orderByDesc('created_at')
             ->get();
@@ -137,7 +137,7 @@ class TransactionController extends Controller
     public function recordPrint(Sale $sale): JsonResponse
     {
         $sale->increment('print_count');
-        $sale->refresh()->load(['client', 'employee', 'items']);
+        $sale->refresh()->load($this->saleRelations());
 
         return response()->json(['data' => new SaleResource($sale)]);
     }
@@ -160,8 +160,22 @@ class TransactionController extends Controller
 
             $sale->delete();
         });
-        $sale->load(['client', 'employee', 'items']);
+        $sale->load($this->saleRelations());
 
         return response()->json(['data' => new SaleResource($sale)]);
+    }
+
+    /** @return array<int, string> */
+    private function saleRelations(): array
+    {
+        return [
+            'client',
+            'employee',
+            'items',
+            'prestation.employee',
+            'prestation.items.employee',
+            'prestation.items.service',
+            'prestation.commissions.employee',
+        ];
     }
 }
