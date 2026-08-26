@@ -6,6 +6,7 @@ import { getErrorMessage, getSettings } from '@/lib/api';
 import { getCategoryLabel } from '@/components/workday/categories';
 import { getPos2Invoice, pos2Keys, recordPos2Print, refundPos2Invoice } from '@/lib/pos2Api';
 import { paymentMethodLabel, printInvoiceA4, printInvoiceReceipt } from '@/lib/receiptV2';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatTime } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import type { Pos2InvoiceStatus } from '@/types/pos2';
@@ -37,6 +38,7 @@ interface Pos2InvoiceDetailDrawerProps {
 export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetailDrawerProps) {
     const queryClient = useQueryClient();
     const { hasPermission } = useAuth();
+    const { t } = useI18n();
     const canRefund = hasPermission('caisse_v2.refund');
     const [refunding, setRefunding] = useState(false);
     const [refundReason, setRefundReason] = useState('');
@@ -91,7 +93,10 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
     );
     const activeTips = (invoice?.tips ?? []).filter((tip) => !tip.voided);
     const tipsTotal = activeTips.reduce((sum, tip) => sum + tip.amount, 0);
-    const activeCommissions = (invoice?.commissions ?? []).filter((commission) => commission.status === 'validated');
+    const saleDeleted = invoice?.sale_deleted === true;
+    const activeCommissions = saleDeleted
+        ? []
+        : (invoice?.commissions ?? []).filter((commission) => commission.status === 'validated');
     const commissionByLine = activeCommissions.reduce((map, commission) => {
         map.set(commission.prestation_item_id, (map.get(commission.prestation_item_id) ?? 0) + commission.amount);
         return map;
@@ -101,6 +106,10 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
     // backend : réelles une fois payée, estimées avant).
     const commissionRecap = (() => {
         const byEmployee = new Map<number, { name: string; amount: number }>();
+        if (saleDeleted) {
+            return [];
+        }
+
         if (activeCommissions.length > 0) {
             for (const commission of activeCommissions) {
                 const entry = byEmployee.get(commission.employee_id) ?? {
@@ -127,7 +136,7 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
         return [...byEmployee.values()];
     })();
     const commissionTotal = commissionRecap.reduce((sum, entry) => sum + entry.amount, 0);
-    const canRefundInvoice = invoice?.status === 'paid' && invoice.channel === 'caisse_v2' && canRefund;
+    const canRefundInvoice = invoice?.status === 'paid' && invoice.channel === 'caisse_v2' && !saleDeleted && canRefund;
 
     return (
         <AnimatePresence>
@@ -135,7 +144,7 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                 <div className="fixed inset-0 z-40 flex justify-end">
                     <motion.button
                         type="button"
-                        aria-label="Fermer"
+                        aria-label={t('Fermer')}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
@@ -156,14 +165,14 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                 </p>
                                 {invoice && (
                                     <p className="text-[11px] text-muted-foreground">
-                                        {invoice.client_name ?? 'Client de passage'}
+                                        {invoice.client_name ?? t('Client de passage')}
                                     </p>
                                 )}
                             </div>
                             <div className="flex shrink-0 items-center gap-2">
                                 {invoice && (
-                                    <Badge variant={STATUS_META[invoice.status]?.variant ?? 'outline'}>
-                                        {STATUS_META[invoice.status]?.label ?? invoice.status}
+                                    <Badge variant={invoice.sale_deleted ? 'destructive' : STATUS_META[invoice.status]?.variant ?? 'outline'}>
+                                        {invoice.sale_deleted ? t('Supprimée') : t(STATUS_META[invoice.status]?.label ?? invoice.status)}
                                     </Badge>
                                 )}
                                 <button
@@ -186,15 +195,15 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                 <>
                                     {/* Métadonnées */}
                                     <div className="grid grid-cols-2 gap-2 text-xs">
-                                        <MetaRow label="Ouverte" value={formatTime(invoice.created_at)} />
+                                        <MetaRow label={t('Ouverte')} value={formatTime(invoice.created_at)} />
                                         <MetaRow
-                                            label="Encaissée"
+                                            label={t('Encaissée')}
                                             value={invoice.confirmed_at ? formatTime(invoice.confirmed_at) : '—'}
                                         />
-                                        <MetaRow label="Caissier" value={invoice.confirmed_by ?? invoice.created_by ?? '—'} />
+                                        <MetaRow label={t('Caissier')} value={invoice.confirmed_by ?? invoice.created_by ?? '—'} />
                                         <MetaRow
-                                            label="Paiement"
-                                            value={paymentMethodLabel(invoice.payment_method)}
+                                            label={t('Paiement')}
+                                            value={t(paymentMethodLabel(invoice.payment_method))}
                                         />
                                     </div>
 
@@ -204,14 +213,16 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                         catégorie, durée, employé, prix, commission, pourboire. */}
                                     <div>
                                         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                            Services
+                                            {t('Services')}
                                         </p>
                                         <ul className="space-y-2">
                                             {(invoice.items ?? []).map((item) => {
                                                 const discount = Math.min(item.discount_amount ?? 0, item.line_total);
-                                                const commission = commissionByLine.get(item.id)
-                                                    ?? item.commission_amount
-                                                    ?? item.estimated_commission;
+                                                const commission = saleDeleted
+                                                    ? null
+                                                    : commissionByLine.get(item.id)
+                                                        ?? item.commission_amount
+                                                        ?? item.estimated_commission;
                                                 const lineTips = activeTips.filter(
                                                     (tip) => tip.prestation_item_id === item.id,
                                                 );
@@ -229,10 +240,10 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                                                 </p>
                                                                 <p className="mt-0.5 text-[11px] text-muted-foreground">
                                                                     {[
-                                                                        item.category ? getCategoryLabel(item.category) : null,
-                                                                        item.duration_minutes ? `${item.duration_minutes} min` : null,
-                                                                        item.beneficiary_name ? `Pour ${item.beneficiary_name}` : null,
-                                                                        item.is_free ? 'Couvert par abonnement' : null,
+                                                                        item.category ? t(getCategoryLabel(item.category)) : null,
+                                                                        item.duration_minutes ? `${item.duration_minutes} ${t('min')}` : null,
+                                                                        item.beneficiary_name ? t('Pour {name}', { name: item.beneficiary_name }) : null,
+                                                                        item.is_free ? t('Couvert par abonnement') : null,
                                                                     ]
                                                                         .filter(Boolean)
                                                                         .join(' · ')}
@@ -251,25 +262,25 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                                         </div>
                                                         <div className="mt-2 grid grid-cols-2 gap-1.5 border-t border-tint/[0.06] pt-2 text-[11px] sm:grid-cols-3">
                                                             <span className="text-muted-foreground">
-                                                                Employé{' '}
+                                                                {t('Employé')}{' '}
                                                                 <span className="font-medium text-foreground">
                                                                     {item.employee_name ?? '—'}
                                                                 </span>
                                                             </span>
                                                             <span className="text-muted-foreground">
-                                                                Commission{' '}
+                                                                {t('Commission')}{' '}
                                                                 <span className="font-medium text-accent">
                                                                     {commission != null ? formatCurrency(commission) : '—'}
                                                                 </span>
                                                             </span>
                                                             <span className="text-muted-foreground">
-                                                                Pourboire{' '}
+                                                                {t('Pourboire')}{' '}
                                                                 <span className={cn('font-medium', lineTipTotal > 0 ? 'text-success' : 'text-foreground')}>
                                                                     {lineTipTotal > 0 ? formatCurrency(lineTipTotal) : '—'}
                                                                 </span>
                                                             </span>
                                                             {discount > 0 && (
-                                                                <span className="text-accent">Remise −{formatCurrency(discount)}</span>
+                                                                <span className="text-accent">{t('Remise −{x}', { x: formatCurrency(discount) })}</span>
                                                             )}
                                                         </div>
                                                     </li>
@@ -283,30 +294,39 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                     {/* Finances (§25) */}
                                     <div>
                                         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                            Finances
+                                            {t('Finances')}
                                         </p>
                                         <div className="space-y-1 text-sm">
-                                            <TotalRow label="Sous-total services" value={formatCurrency(invoice.subtotal)} muted />
+                                            <TotalRow label={t('Sous-total services')} value={formatCurrency(invoice.subtotal)} muted />
                                             {lineDiscounts > 0 && (
-                                                <TotalRow label="Remises lignes" value={`−${formatCurrency(lineDiscounts)}`} accent />
+                                                <TotalRow label={t('Remises lignes')} value={`−${formatCurrency(lineDiscounts)}`} accent />
                                             )}
                                             {(invoice.discount_amount ?? 0) > 0 && (
                                                 <TotalRow
-                                                    label={`Remise${invoice.discount_reason ? ` (${invoice.discount_reason})` : ''}`}
+                                                    label={`${t('Remise')}${invoice.discount_reason ? ` (${invoice.discount_reason})` : ''}`}
                                                     value={`−${formatCurrency(invoice.discount_amount ?? 0)}`}
                                                     accent
                                                 />
                                             )}
                                             <div className="flex items-baseline justify-between pt-1">
-                                                <span className="font-semibold text-foreground">TOTAL ENCAISSÉ</span>
-                                                <span className="font-display text-xl font-bold tabular-nums text-accent">
+                                                <span className="font-semibold text-foreground">{t('TOTAL ENCAISSÉ')}</span>
+                                                <span className={cn(
+                                                    'font-display text-xl font-bold tabular-nums text-accent',
+                                                    saleDeleted && 'line-through opacity-60',
+                                                )}>
                                                     {formatCurrency(invoice.total)}
                                                 </span>
                                             </div>
+                                            {saleDeleted && (
+                                                <p className="pt-0.5 text-[11px] text-destructive">
+                                                    {t('Ticket supprimé - non calculé dans le CA ni les commissions.')}
+                                                </p>
+                                            )}
                                             {tipsTotal > 0 && (
                                                 <p className="pt-0.5 text-[11px] text-muted-foreground">
-                                                    + {formatCurrency(tipsTotal)} de pourboires — hors total facture ;
-                                                    coiffure commissionnée à 50%.
+                                                    {t('+ {x} de pourboires — hors total facture ; coiffure commissionnée à 50%.', {
+                                                        x: formatCurrency(tipsTotal),
+                                                    })}
                                                 </p>
                                             )}
                                         </div>
@@ -314,7 +334,7 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                             <div className="mt-2 rounded-md border border-tint/[0.07] bg-tint/[0.02] p-2.5 text-xs">
                                                 {(invoice.payment_breakdown ?? []).map((row, index) => (
                                                     <div key={index} className="flex justify-between text-muted-foreground">
-                                                        <span>{paymentMethodLabel(row.method)}</span>
+                                                        <span>{t(paymentMethodLabel(row.method))}</span>
                                                         <span className="tabular-nums">{formatCurrency(row.amount)}</span>
                                                     </div>
                                                 ))}
@@ -322,8 +342,10 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                         )}
                                         {invoice.amount_received !== null && (
                                             <p className="mt-1.5 text-xs text-muted-foreground">
-                                                Reçu {formatCurrency(invoice.amount_received)} — rendu{' '}
-                                                {formatCurrency(invoice.change_given ?? 0)}
+                                                {t('Reçu {a} — rendu {b}', {
+                                                    a: formatCurrency(invoice.amount_received),
+                                                    b: formatCurrency(invoice.change_given ?? 0),
+                                                })}
                                             </p>
                                         )}
                                     </div>
@@ -332,8 +354,8 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                     {commissionRecap.length > 0 && (
                                         <div className="rounded-md border border-tint/[0.07] bg-tint/[0.02] p-3 text-sm">
                                             <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                                Commissions employés
-                                                {invoice.status !== 'paid' && invoice.status !== 'refunded' && ' (estimation)'}
+                                                {t('Commissions employés')}
+                                                {invoice.status !== 'paid' && invoice.status !== 'refunded' && ` ${t('(estimation)')}`}
                                             </p>
                                             {commissionRecap.map((entry) => (
                                                 <div key={entry.name} className="flex justify-between text-muted-foreground">
@@ -343,7 +365,7 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                             ))}
                                             {commissionRecap.length > 1 && (
                                                 <div className="mt-1.5 flex justify-between border-t border-tint/[0.06] pt-1.5 font-semibold text-foreground">
-                                                    <span>Total</span>
+                                                    <span>{t('Total')}</span>
                                                     <span className="tabular-nums text-accent">{formatCurrency(commissionTotal)}</span>
                                                 </div>
                                             )}
@@ -354,7 +376,7 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                     {(invoice.tips ?? []).length > 0 && (
                                         <div className="rounded-md border border-tint/[0.07] bg-tint/[0.02] p-3 text-sm">
                                             <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                                Pourboires
+                                                {t('Pourboires')}
                                             </p>
                                             {(invoice.tips ?? []).map((tip) => (
                                                 <div
@@ -370,7 +392,7 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                             ))}
                                             {activeTips.length > 1 && (
                                                 <div className="mt-1.5 flex justify-between border-t border-tint/[0.06] pt-1.5 font-semibold text-foreground">
-                                                    <span>Total</span>
+                                                    <span>{t('Total')}</span>
                                                     <span className="tabular-nums text-success">{formatCurrency(tipsTotal)}</span>
                                                 </div>
                                             )}
@@ -388,7 +410,7 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                     {(invoice.status_logs ?? []).length > 0 && (
                                         <div>
                                             <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                                Historique
+                                                {t('Historique')}
                                             </p>
                                             <ul className="space-y-1.5">
                                                 {(invoice.status_logs ?? []).map((log, index) => (
@@ -396,7 +418,7 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                                         <Clock3 className="h-3 w-3 shrink-0 text-accent/70" />
                                                         <span className="tabular-nums">{formatTime(log.created_at)}</span>
                                                         <span>
-                                                            {STATUS_META[log.to_status as Pos2InvoiceStatus]?.label ?? log.to_status}
+                                                            {t(STATUS_META[log.to_status as Pos2InvoiceStatus]?.label ?? log.to_status)}
                                                             {log.user_name && ` — ${log.user_name}`}
                                                         </span>
                                                     </li>
@@ -416,7 +438,7 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                         <Input
                                             value={refundReason}
                                             onChange={(event) => setRefundReason(event.target.value)}
-                                            placeholder="Motif du remboursement (obligatoire)"
+                                            placeholder={t('Motif du remboursement (obligatoire)')}
                                             className="h-9"
                                             autoFocus
                                         />
@@ -427,7 +449,7 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                         )}
                                         <div className="flex justify-end gap-2">
                                             <Button type="button" variant="ghost" size="sm" onClick={() => setRefunding(false)}>
-                                                Retour
+                                                {t('Retour')}
                                             </Button>
                                             <Button
                                                 type="button"
@@ -437,7 +459,7 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                                 onClick={() => refundMutation.mutate()}
                                             >
                                                 {refundMutation.isPending && <Loader2 className="animate-spin" />}
-                                                Confirmer le remboursement
+                                                {t('Confirmer le remboursement')}
                                             </Button>
                                         </div>
                                     </div>
@@ -447,11 +469,11 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                             <>
                                                 <Button type="button" variant="accent" className="flex-1" onClick={print}>
                                                     <Printer />
-                                                    Ticket 58 mm
+                                                    {t('Ticket 58 mm')}
                                                 </Button>
                                                 <Button type="button" variant="outline" className="flex-1" onClick={printA4}>
                                                     <FileText />
-                                                    Facture A4
+                                                    {t('Facture A4')}
                                                 </Button>
                                             </>
                                         )}
@@ -463,7 +485,7 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                                 onClick={() => setRefunding(true)}
                                             >
                                                 <RotateCcw />
-                                                Rembourser
+                                                {t('Rembourser')}
                                             </Button>
                                         )}
                                     </div>

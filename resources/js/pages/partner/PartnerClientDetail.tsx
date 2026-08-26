@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { AlertCircle, Archive, ArchiveRestore, ArrowLeft, CalendarPlus, History, Receipt } from 'lucide-react';
 import { archivePartnerClient, getErrorMessage, getPartnerPortalClient, unarchivePartnerClient } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { formatCurrency, formatDate, getInitials } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function PartnerClientDetail() {
+    const { t } = useI18n();
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
@@ -57,9 +59,9 @@ export default function PartnerClientDetail() {
         return (
             <Card className="mx-auto flex max-w-lg flex-col items-center justify-center px-6 py-12 text-center">
                 <AlertCircle className="h-5 w-5 text-destructive" />
-                <p className="mt-2 text-sm text-destructive">{error ? getErrorMessage(error) : 'Client introuvable.'}</p>
+                <p className="mt-2 text-sm text-destructive">{error ? getErrorMessage(error) : t('Client introuvable.')}</p>
                 <Button variant="outline" className="mt-4" onClick={() => navigate('/partner/clients')}>
-                    Retour à mes clients
+                    {t('Retour à mes clients')}
                 </Button>
             </Card>
         );
@@ -68,11 +70,11 @@ export default function PartnerClientDetail() {
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="mx-auto max-w-2xl space-y-6">
             <div className="flex items-center gap-3">
-                <Button variant="ghost" size="icon" onClick={() => navigate('/partner/clients')} aria-label="Retour">
+                <Button variant="ghost" size="icon" onClick={() => navigate('/partner/clients')} aria-label={t('Retour')}>
                     <ArrowLeft className="h-4 w-4" />
                 </Button>
-                <h1 className="flex-1 text-xl font-semibold tracking-tight">Fiche client</h1>
-                {client.archived_at && <Badge variant="outline">Archivé</Badge>}
+                <h1 className="flex-1 text-xl font-semibold tracking-tight">{t('Fiche client')}</h1>
+                {client.archived_at && <Badge variant="outline">{t('Archivé')}</Badge>}
             </div>
 
             <Card className="p-5 sm:p-6">
@@ -83,12 +85,12 @@ export default function PartnerClientDetail() {
                     <div className="min-w-0">
                         <p className="truncate text-lg font-semibold">{client.name}</p>
                         <p className="mt-0.5 truncate text-sm text-muted-foreground">
-                            {client.phone ?? 'Aucun téléphone'}
+                            {client.phone ?? t('Aucun téléphone')}
                             {client.email ? ` · ${client.email}` : ''}
                         </p>
                         {client.created_at && (
                             <p className="mt-0.5 text-xs text-muted-foreground">
-                                Client depuis le {formatDate(client.created_at)}
+                                {t('Client depuis le {date}', { date: formatDate(client.created_at) })}
                             </p>
                         )}
                     </div>
@@ -99,44 +101,44 @@ export default function PartnerClientDetail() {
                         <Button variant="accent" asChild>
                             <Link to="/partner/reservations/new">
                                 <CalendarPlus className="h-4 w-4" />
-                                Nouvelle réservation
+                                {t('Nouvelle réservation')}
                             </Link>
                         </Button>
                     )}
                     <Button variant="outline" onClick={() => setConfirmingArchive(true)}>
                         {client.archived_at ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
-                        {client.archived_at ? 'Désarchiver' : 'Archiver'}
+                        {client.archived_at ? t('Désarchiver') : t('Archiver')}
                     </Button>
                 </div>
             </Card>
 
             <Card className="p-5 sm:p-6">
                 <h2 className="text-sm font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                    Activité avec vous
+                    {t('Activité avec vous')}
                 </h2>
                 <div className="mt-4 grid grid-cols-3 gap-3">
                     <div className="rounded-md border border-tint/[0.06] bg-tint/[0.02] p-3 text-center">
                         <p className="text-lg font-semibold tabular-nums">{client.reservations_count}</p>
                         <p className="mt-0.5 text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
-                            Réservations
+                            {t('Réservations')}
                         </p>
                     </div>
                     <div className="rounded-md border border-tint/[0.06] bg-tint/[0.02] p-3 text-center">
                         <p className="text-lg font-semibold tabular-nums">{formatCurrency(client.revenue_generated)}</p>
-                        <p className="mt-0.5 text-[10px] uppercase tracking-[0.06em] text-muted-foreground">CA généré</p>
+                        <p className="mt-0.5 text-[10px] uppercase tracking-[0.06em] text-muted-foreground">{t('CA généré')}</p>
                     </div>
                     <div className="rounded-md border border-tint/[0.06] bg-tint/[0.02] p-3 text-center">
                         <p className="text-lg font-semibold tabular-nums text-accent">
                             {formatCurrency(client.commission_generated, { maximumFractionDigits: 2 })}
                         </p>
                         <p className="mt-0.5 text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
-                            Commission générée
+                            {t('Commission générée')}
                         </p>
                     </div>
                 </div>
                 {client.last_reservation_at && (
                     <p className="mt-3 text-xs text-muted-foreground">
-                        Dernière réservation le {formatDate(client.last_reservation_at)}
+                        {t('Dernière réservation le {date}', { date: formatDate(client.last_reservation_at) })}
                     </p>
                 )}
             </Card>
@@ -144,11 +146,11 @@ export default function PartnerClientDetail() {
             <Card className="p-5 sm:p-6">
                 <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                     <History className="h-3.5 w-3.5" />
-                    Historique des réservations
+                    {t('Historique des réservations')}
                 </h2>
                 {client.reservations.length === 0 ? (
                     <p className="mt-4 rounded-md border border-dashed border-tint/[0.1] px-3 py-6 text-center text-xs text-muted-foreground">
-                        Aucune réservation avec ce client pour le moment.
+                        {t('Aucune réservation avec ce client pour le moment.')}
                     </p>
                 ) : (
                     <ul className="mt-3 space-y-1.5">
@@ -159,7 +161,7 @@ export default function PartnerClientDetail() {
                             >
                                 <span className="flex items-center gap-2 text-muted-foreground">
                                     <Receipt className="h-3.5 w-3.5" />
-                                    {reservation.service_name ?? 'Service'}
+                                    {reservation.service_name ?? t('Service')}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
                                     {reservation.starts_at ? formatDate(reservation.starts_at) : ''}
@@ -175,7 +177,7 @@ export default function PartnerClientDetail() {
                                               : 'outline'
                                     }
                                 >
-                                    {STATUS_LABEL[reservation.status] ?? reservation.status}
+                                    {t(STATUS_LABEL[reservation.status] ?? reservation.status)}
                                 </Badge>
                             </li>
                         ))}
@@ -186,13 +188,13 @@ export default function PartnerClientDetail() {
             <ConfirmDialog
                 open={confirmingArchive}
                 onOpenChange={setConfirmingArchive}
-                title={client.archived_at ? 'Désarchiver ce client ?' : 'Archiver ce client ?'}
+                title={client.archived_at ? t('Désarchiver ce client ?') : t('Archiver ce client ?')}
                 description={
                     client.archived_at
-                        ? `${client.name} réapparaîtra dans votre liste active.`
-                        : `${client.name} n'apparaîtra plus dans votre liste active — son historique est conservé.`
+                        ? t('{name} réapparaîtra dans votre liste active.', { name: client.name })
+                        : t("{name} n'apparaîtra plus dans votre liste active — son historique est conservé.", { name: client.name })
                 }
-                confirmLabel={client.archived_at ? 'Désarchiver' : 'Archiver'}
+                confirmLabel={client.archived_at ? t('Désarchiver') : t('Archiver')}
                 variant={client.archived_at ? 'accent' : 'destructive'}
                 loading={archiveMutation.isPending}
                 onConfirm={() => archiveMutation.mutate()}

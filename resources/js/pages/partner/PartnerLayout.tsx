@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { getPartnerPortalProfile } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useI18n } from '@/lib/i18n';
 import { cn, getInitials } from '@/lib/utils';
 import { NotificationsBell } from '@/components/layout/NotificationsBell';
 
@@ -70,6 +71,7 @@ const NAV_SECTIONS: PartnerNavSection[] = [
 /** Gates the whole /partner/* tree to an authenticated account with a Partner record. */
 export function PartnerProtectedRoute() {
     const { user, isLoading } = useAuth();
+    const { t } = useI18n();
     const location = useLocation();
 
     if (isLoading) {
@@ -79,7 +81,7 @@ export function PartnerProtectedRoute() {
                     <span className="flex h-12 w-12 animate-pulse items-center justify-center rounded-md bg-accent/[0.14] ring-1 ring-accent/25">
                         <Scissors className="h-5 w-5 text-accent" />
                     </span>
-                    <p className="text-sm text-muted-foreground">Chargement de votre espace…</p>
+                    <p className="text-sm text-muted-foreground">{t('Chargement de votre espace…')}</p>
                 </div>
             </div>
         );
@@ -93,6 +95,7 @@ export function PartnerProtectedRoute() {
 
 export default function PartnerLayout() {
     const { user, logout } = useAuth();
+    const { t } = useI18n();
     const location = useLocation();
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -122,7 +125,7 @@ export default function PartnerLayout() {
         };
     }, []);
 
-    const displayName = profile?.trade_name || profile?.name || user?.partner_name || 'Partenaire';
+    const displayName = profile?.trade_name || profile?.name || user?.partner_name || t('Partenaire');
 
     return (
         // Locked to the dark navy+gold palette regardless of the app's global
@@ -166,7 +169,7 @@ export default function PartnerLayout() {
                                     <button
                                         type="button"
                                         onClick={() => setMobileNavOpen(false)}
-                                        aria-label="Fermer le menu"
+                                        aria-label={t('Fermer le menu')}
                                         className="mr-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-tint/[0.06] hover:text-foreground"
                                     >
                                         <X className="h-4 w-4" />
@@ -189,14 +192,14 @@ export default function PartnerLayout() {
                         <button
                             type="button"
                             onClick={() => setMobileNavOpen(true)}
-                            aria-label="Ouvrir le menu"
+                            aria-label={t('Ouvrir le menu')}
                             className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-tint/[0.06] hover:text-foreground"
                         >
                             <Menu className="h-5 w-5" />
                         </button>
                         <div className="text-sm font-semibold tracking-tight">
                             BOGOS<span className="text-accent">LAND</span>{' '}
-                            <span className="text-muted-foreground">Partner</span>
+                            <span className="text-muted-foreground">{t('Partner')}</span>
                         </div>
                         <div className="ml-auto">
                             <NotificationsBell />
@@ -225,6 +228,7 @@ export default function PartnerLayout() {
 }
 
 function PortalBrand() {
+    const { t } = useI18n();
     return (
         <div className="flex h-20 items-center gap-3 px-6">
             <span className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-accent/[0.14] ring-1 ring-accent/30">
@@ -235,7 +239,7 @@ function PortalBrand() {
                     BOGOS<span className="text-accent">LAND</span>
                 </div>
                 <div className="mt-1.5 text-[10px] font-medium uppercase leading-none tracking-[0.18em] text-muted-foreground">
-                    Espace Partenaire
+                    {t('Espace Partenaire')}
                 </div>
             </div>
         </div>
@@ -243,6 +247,7 @@ function PortalBrand() {
 }
 
 function PortalNav() {
+    const { t } = useI18n();
     const { pathname } = useLocation();
 
     return (
@@ -251,7 +256,7 @@ function PortalNav() {
                 <div key={section.heading ?? sectionIndex} className="space-y-1">
                     {section.heading && (
                         <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
-                            {section.heading}
+                            {t(section.heading)}
                         </p>
                     )}
                     {section.items.map((item) => {
@@ -265,7 +270,7 @@ function PortalNav() {
                                     className="group relative mb-1 flex items-center gap-3 overflow-hidden rounded-md bg-gradient-to-r from-accent/90 to-accent px-3 py-2.5 text-sm font-semibold text-accent-foreground shadow-[0_0_0_1px_rgba(200,162,76,0.35),0_8px_24px_-8px_rgba(200,162,76,0.55)] transition-transform duration-200 hover:scale-[1.015]"
                                 >
                                     <Icon className="h-[18px] w-[18px] shrink-0" />
-                                    <span className="truncate">{item.label}</span>
+                                    <span className="truncate">{t(item.label)}</span>
                                 </NavLink>
                             );
                         }
@@ -300,7 +305,7 @@ function PortalNav() {
                                         isActive ? 'text-accent' : 'text-muted-foreground group-hover:text-foreground',
                                     )}
                                 />
-                                <span className="truncate">{item.label}</span>
+                                <span className="truncate">{t(item.label)}</span>
                             </NavLink>
                         );
                     })}
@@ -319,6 +324,7 @@ function PortalFooter({
     logoUrl: string | null;
     onLogout: () => void;
 }) {
+    const { t } = useI18n();
     return (
         <div className="border-t border-tint/[0.07] p-3">
             <div className="flex items-center gap-3 rounded-md px-2 py-2">
@@ -331,12 +337,12 @@ function PortalFooter({
                 </span>
                 <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium leading-tight text-foreground">{displayName}</p>
-                    <p className="truncate text-xs leading-tight text-muted-foreground">Compte partenaire</p>
+                    <p className="truncate text-xs leading-tight text-muted-foreground">{t('Compte partenaire')}</p>
                 </div>
                 <button
                     type="button"
                     onClick={onLogout}
-                    aria-label="Déconnexion"
+                    aria-label={t('Déconnexion')}
                     className="shrink-0 rounded-sm p-2 text-muted-foreground transition-colors duration-200 hover:bg-destructive/[0.12] hover:text-destructive"
                 >
                     <LogOut className="h-4 w-4" />

@@ -178,6 +178,30 @@ const pos2: Record<string, string> = {
     'Pourboires remis directement aux employés : {x} (hors total facture).': 'إكراميات سُلِّمت مباشرة للموظفين: {x} (خارج مجموع الفاتورة).',
     'Merci pour votre visite': 'شكرًا لزيارتكم',
     'Merci pour votre confiance': 'شكرًا لثقتكم',
+    'TOTAL': 'المجموع',
+
+    // Ajouts V2.1 / historique enrichi
+    'Abos {x}': 'اشتراكات {x}',
+    'article': 'عنصر',
+    'articles': 'عناصر',
+    'Fermer le panier': 'إغلاق السلة',
+    'Journée active': 'اليومية النشطة',
+    'Par date': 'حسب التاريخ',
+    'Statistiques filtrées': 'إحصائيات مرشَّحة',
+    'Calculées sur toutes les factures du filtre, pas seulement la page affichée.': 'محسوبة على جميع فواتير المرشح، وليس فقط الصفحة المعروضة.',
+    'CA encaissé': 'المداخيل المحصَّلة',
+    'Prestations effectuées': 'الخدمات المنجزة',
+    'Employés avec CA': 'موظفون لهم مداخيل',
+    'Moyenne facture': 'متوسط الفاتورة',
+    'CA par employé': 'المداخيل حسب الموظف',
+    'prestation': 'خدمة',
+    'prestations': 'خدمات',
+    'Factures': 'الفواتير',
+    'Comm.': 'عمولة',
+    '+ {x} de pourboires — hors total facture ; coiffure commissionnée à 50%.': '+ {x} إكراميات — خارج مجموع الفاتورة؛ عمولة الحلاقة 50%.',
+    'Employé': 'الموظف',
+    'Pourboire': 'الإكرامية',
+    'Commission': 'العمولة',
 };
 
 export default pos2;

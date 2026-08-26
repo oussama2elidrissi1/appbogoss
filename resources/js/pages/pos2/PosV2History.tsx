@@ -4,6 +4,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { ArrowLeft, BarChart3, ChevronLeft, ChevronRight, Clock3, Filter, type LucideIcon, ReceiptText, Search, Users, WalletCards } from 'lucide-react';
 import { getEmployees, getServices } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { getPos2History, pos2Keys } from '@/lib/pos2Api';
 import { paymentMethodLabel } from '@/lib/receiptV2';
 import { pageFade } from '@/lib/motion';
@@ -63,6 +64,7 @@ export default function PosV2History() {
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
     const [detailId, setDetailId] = useState<number | null>(null);
+    const { t } = useI18n();
 
     const { data: activeWorkDay } = useActiveWorkDay();
     const { data: employees } = useQuery({ queryKey: ['employees'], queryFn: () => getEmployees(), staleTime: 5 * 60_000 });
@@ -97,20 +99,21 @@ export default function PosV2History() {
     const invoices = data?.data ?? [];
     const meta = data?.meta;
     const stats = meta?.stats;
+    const performedTotal = stats?.employees.reduce((sum, employee) => sum + employee.performed_count, 0) ?? 0;
 
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h2 className="font-display text-2xl font-semibold tracking-tight">Historique caisse</h2>
+                    <h2 className="font-display text-2xl font-semibold tracking-tight">{t('Historique caisse')}</h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                        Factures Caisse V2 — filtrez par heure, service, employé ou moyen de paiement.
+                        {t('Factures Caisse V2 — filtrez par heure, service, employé ou moyen de paiement.')}
                     </p>
                 </div>
                 <Button type="button" variant="outline" asChild>
                     <Link to="/pos-v2">
                         <ArrowLeft />
-                        Retour à la caisse
+                        {t('Retour à la caisse')}
                     </Link>
                 </Button>
             </div>
@@ -124,20 +127,20 @@ export default function PosV2History() {
                             selected={historyScope === ACTIVE_DAY}
                             onClick={() => { setHistoryScope(ACTIVE_DAY); setPage(1); }}
                         >
-                            Journée active{activeWorkDay?.date ? ` · ${activeWorkDay.date}` : ''}
+                            {t('Journée active')}{activeWorkDay?.date ? ` · ${activeWorkDay.date}` : ''}
                         </Chip>
                         <Chip
                             size="sm"
                             selected={historyScope === DATE_RANGE}
                             onClick={() => { setHistoryScope(DATE_RANGE); setPage(1); }}
                         >
-                            Par date
+                            {t('Par date')}
                         </Chip>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-6">
                         <div className="space-y-1.5">
-                            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Du</Label>
+                            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">{t('Du')}</Label>
                             <Input
                                 type="date"
                                 value={from}
@@ -147,7 +150,7 @@ export default function PosV2History() {
                             />
                         </div>
                         <div className="space-y-1.5">
-                            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Au</Label>
+                            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">{t('Au')}</Label>
                             <Input
                                 type="date"
                                 value={to}
@@ -157,7 +160,7 @@ export default function PosV2History() {
                             />
                         </div>
                         <FilterSelect
-                            label="Statut"
+                            label={t('Statut')}
                             value={status}
                             onChange={(value) => { setStatus(value); setPage(1); }}
                             options={[
@@ -170,7 +173,7 @@ export default function PosV2History() {
                             ]}
                         />
                         <FilterSelect
-                            label="Paiement"
+                            label={t('Paiement')}
                             value={paymentMethod}
                             onChange={(value) => { setPaymentMethod(value); setPage(1); }}
                             options={[
@@ -183,7 +186,7 @@ export default function PosV2History() {
                             ]}
                         />
                         <FilterSelect
-                            label="Service"
+                            label={t('Service')}
                             value={serviceId}
                             onChange={(value) => { setServiceId(value); setPage(1); }}
                             options={[
@@ -192,7 +195,7 @@ export default function PosV2History() {
                             ]}
                         />
                         <FilterSelect
-                            label="Employé"
+                            label={t('Employé')}
                             value={employeeId}
                             onChange={(value) => { setEmployeeId(value); setPage(1); }}
                             options={[
@@ -212,16 +215,16 @@ export default function PosV2History() {
                                 selected={!customHours && hourPreset === index}
                                 onClick={() => { setCustomHours(false); setHourPreset(index); setPage(1); }}
                             >
-                                {preset.label}
+                                {t(preset.label)}
                             </Chip>
                         ))}
                         <Chip size="sm" selected={customHours} onClick={() => { setCustomHours(true); setPage(1); }}>
-                            Personnalisé
+                            {t('Personnalisé')}
                         </Chip>
                         {customHours && (
                             <span className="flex items-center gap-1.5">
                                 <Input type="time" value={timeFrom} onChange={(event) => { setTimeFrom(event.target.value); setPage(1); }} className="h-9 w-28" />
-                                <span className="text-xs text-muted-foreground">à</span>
+                                <span className="text-xs text-muted-foreground">{t('à')}</span>
                                 <Input type="time" value={timeTo} onChange={(event) => { setTimeTo(event.target.value); setPage(1); }} className="h-9 w-28" />
                             </span>
                         )}
@@ -230,7 +233,7 @@ export default function PosV2History() {
                     <div className="flex flex-wrap items-center gap-1.5">
                         <Filter className="h-4 w-4 text-muted-foreground" />
                         <Chip size="sm" selected={category === ALL} onClick={() => { setCategory(ALL); setPage(1); }}>
-                            Toutes catégories
+                            {t('Toutes catégories')}
                         </Chip>
                         {CATEGORIES.map((config) => (
                             <Chip
@@ -239,18 +242,18 @@ export default function PosV2History() {
                                 selected={category === config.value}
                                 onClick={() => { setCategory(config.value); setPage(1); }}
                             >
-                                {config.label}
+                                {t(config.label)}
                             </Chip>
                         ))}
                         <span className="mx-1 h-4 w-px bg-tint/[0.12]" />
                         <Chip size="sm" selected={subscription === ALL} onClick={() => { setSubscription(ALL); setPage(1); }}>
-                            Tout
+                            {t('Tout')}
                         </Chip>
                         <Chip size="sm" selected={subscription === 'yes'} onClick={() => { setSubscription('yes'); setPage(1); }}>
-                            Abonnement
+                            {t('Abonnement')}
                         </Chip>
                         <Chip size="sm" selected={subscription === 'no'} onClick={() => { setSubscription('no'); setPage(1); }}>
-                            Normal
+                            {t('Normal')}
                         </Chip>
                     </div>
 
@@ -259,7 +262,7 @@ export default function PosV2History() {
                         <Input
                             value={search}
                             onChange={(event) => { setSearch(event.target.value); setPage(1); }}
-                            placeholder="Rechercher une facture (référence, client)…"
+                            placeholder={t('Rechercher une facture (référence, client)…')}
                             className="pl-10"
                         />
                     </div>
@@ -272,9 +275,9 @@ export default function PosV2History() {
                     <CardContent className="space-y-4 p-4">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                             <div>
-                                <p className="text-sm font-semibold text-foreground">Statistiques filtrées</p>
+                                <p className="text-sm font-semibold text-foreground">{t('Statistiques filtrées')}</p>
                                 <p className="text-xs text-muted-foreground">
-                                    Calculées sur toutes les factures du filtre, pas seulement la page affichée.
+                                    {t('Calculées sur toutes les factures du filtre, pas seulement la page affichée.')}
                                 </p>
                             </div>
                             <Badge variant="outline">
@@ -283,12 +286,12 @@ export default function PosV2History() {
                         </div>
 
                         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                            <StatTile icon={WalletCards} label="CA encaissé" value={formatCurrency(stats.paid_total)} />
-                            <StatTile icon={ReceiptText} label="Factures payées" value={String(stats.paid_count)} />
-                            <StatTile icon={Users} label="Employés avec CA" value={String(stats.employees.length)} />
+                            <StatTile icon={WalletCards} label={t('CA encaissé')} value={formatCurrency(stats.paid_total)} />
+                            <StatTile icon={ReceiptText} label={t('Prestations effectuées')} value={String(performedTotal)} />
+                            <StatTile icon={Users} label={t('Employés avec CA')} value={String(stats.employees.length)} />
                             <StatTile
                                 icon={BarChart3}
-                                label="Moyenne facture"
+                                label={t('Moyenne facture')}
                                 value={formatCurrency(stats.paid_count > 0 ? stats.paid_total / stats.paid_count : 0)}
                             />
                         </div>
@@ -296,7 +299,7 @@ export default function PosV2History() {
                         {stats.employees.length > 0 && (
                             <div className="space-y-2">
                                 <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                    CA par employé
+                                    {t('CA par employé')}
                                 </p>
                                 <div className="grid gap-2 lg:grid-cols-2 xl:grid-cols-3">
                                     {stats.employees.map((employee, index) => (
@@ -310,7 +313,7 @@ export default function PosV2History() {
                                                         #{index + 1} {employee.employee_name}
                                                     </p>
                                                     <p className="text-[11px] text-muted-foreground">
-                                                        {employee.invoices_count} facture{employee.invoices_count > 1 ? 's' : ''}
+                                                        {employee.performed_count} {t(employee.performed_count > 1 ? 'prestations' : 'prestation')}
                                                     </p>
                                                 </div>
                                                 <p className="shrink-0 text-sm font-bold tabular-nums text-accent">
@@ -319,13 +322,13 @@ export default function PosV2History() {
                                             </div>
                                             <div className="mt-2 grid grid-cols-2 gap-2 border-t border-tint/[0.06] pt-2 text-[11px]">
                                                 <span className="text-muted-foreground">
-                                                    Effectué{' '}
+                                                    {t('Factures')}{' '}
                                                     <span className="font-medium text-foreground">
-                                                        {employee.performed_count}
+                                                        {employee.invoices_count}
                                                     </span>
                                                 </span>
                                                 <span className="text-right text-muted-foreground">
-                                                    Comm.{' '}
+                                                    {t('Comm.')}{' '}
                                                     <span className="font-medium text-foreground">
                                                         {formatCurrency(employee.commission_total)}
                                                     </span>
@@ -351,7 +354,7 @@ export default function PosV2History() {
                         </div>
                     ) : invoices.length === 0 ? (
                         <p className="px-4 py-10 text-center text-sm text-muted-foreground">
-                            Aucune facture ne correspond à ces filtres.
+                            {t('Aucune facture ne correspond à ces filtres.')}
                         </p>
                     ) : (
                         <ul className="divide-y divide-tint/[0.05]">
@@ -377,7 +380,7 @@ export default function PosV2History() {
                                                     {invoice.opened_time}
                                                 </span>
                                                 <span className="truncate text-foreground">
-                                                    {invoice.client_name ?? 'Client de passage'}
+                                                    {invoice.client_name ?? t('Client de passage')}
                                                 </span>
                                             </p>
                                             <p className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -390,13 +393,16 @@ export default function PosV2History() {
                                             <div className="text-right">
                                                 <p className={cn(
                                                     'text-sm font-semibold tabular-nums text-foreground',
-                                                    invoice.status === 'refunded' && 'line-through opacity-60',
+                                                    (invoice.status === 'refunded' || invoice.sale_deleted) && 'line-through opacity-60',
                                                 )}>
                                                     {formatCurrency(invoice.total)}
                                                 </p>
                                                 <p className="text-[11px] text-muted-foreground">
-                                                    {paymentMethodLabel(invoice.payment_method)}
+                                                    {t(paymentMethodLabel(invoice.payment_method))}
                                                     {(() => {
+                                                        if (invoice.sale_deleted) {
+                                                            return '';
+                                                        }
                                                         const commission = (invoice.commissions ?? []).length > 0
                                                             ? (invoice.commissions ?? [])
                                                                 .filter((row) => row.status === 'validated')
@@ -411,8 +417,14 @@ export default function PosV2History() {
                                                     })()}
                                                 </p>
                                             </div>
-                                            <Badge variant={STATUS_META[invoice.status as Pos2InvoiceStatus]?.variant ?? 'outline'}>
-                                                {STATUS_META[invoice.status as Pos2InvoiceStatus]?.label ?? invoice.status}
+                                            <Badge
+                                                variant={invoice.sale_deleted
+                                                    ? 'destructive'
+                                                    : STATUS_META[invoice.status as Pos2InvoiceStatus]?.variant ?? 'outline'}
+                                            >
+                                                {invoice.sale_deleted
+                                                    ? 'Supprimée'
+                                                    : STATUS_META[invoice.status as Pos2InvoiceStatus]?.label ?? invoice.status}
                                             </Badge>
                                         </div>
                                     </button>
@@ -427,9 +439,11 @@ export default function PosV2History() {
             {meta && (
                 <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                     <p>
-                        {meta.total} facture{meta.total > 1 ? 's' : ''} — page {meta.current_page}/{meta.last_page} ·{' '}
-                        {meta.page_paid_count} payée{meta.page_paid_count > 1 ? 's' : ''} sur cette page (
-                        {formatCurrency(meta.page_paid_total)})
+                        {t('{n} facture(s) — page {a}/{b}', { n: meta.total, a: meta.current_page, b: meta.last_page })} ·{' '}
+                        {t('{c} payée(s) sur cette page ({x})', {
+                            c: meta.page_paid_count,
+                            x: formatCurrency(meta.page_paid_total),
+                        })}
                     </p>
                     <div className="flex items-center gap-2">
                         <Button
@@ -440,7 +454,7 @@ export default function PosV2History() {
                             onClick={() => setPage((value) => Math.max(1, value - 1))}
                         >
                             <ChevronLeft />
-                            Précédent
+                            {t('Précédent')}
                         </Button>
                         <Button
                             type="button"
@@ -449,7 +463,7 @@ export default function PosV2History() {
                             disabled={meta.current_page >= meta.last_page}
                             onClick={() => setPage((value) => value + 1)}
                         >
-                            Suivant
+                            {t('Suivant')}
                             <ChevronRight />
                         </Button>
                     </div>
@@ -472,6 +486,8 @@ function FilterSelect({
     onChange: (value: string) => void;
     options: Array<{ value: string; label: string }>;
 }) {
+    const { t } = useI18n();
+
     return (
         <div className="space-y-1.5">
             <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</Label>
@@ -482,7 +498,7 @@ function FilterSelect({
                 <SelectContent>
                     {options.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
-                            {option.label}
+                            {t(option.label)}
                         </SelectItem>
                     ))}
                 </SelectContent>

@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import { TrendingUp } from 'lucide-react';
 import type { RevenuePoint } from '@/types/dashboard';
+import { useI18n } from '@/lib/i18n';
 import { formatCurrency, formatDayLabel } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -24,6 +25,7 @@ const REVENUE_COLOR = '#C8A24C';
 const EXPENSES_COLOR = '#E5484D';
 
 function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) {
+    const { t } = useI18n();
     if (!active || !payload?.length) return null;
 
     return (
@@ -39,7 +41,7 @@ function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) 
                             style={{ backgroundColor: entry.color }}
                         />
                         <span className="text-xs text-muted-foreground">
-                            {entry.dataKey === 'revenue' ? 'Recettes' : 'Dépenses'}
+                            {entry.dataKey === 'revenue' ? t('Recettes') : t('Dépenses')}
                         </span>
                         <span className="ml-auto text-xs font-semibold tabular-nums text-foreground">
                             {formatCurrency(Number(entry.value ?? 0))}
@@ -52,6 +54,7 @@ function ChartTooltip({ active, payload, label }: TooltipProps<number, string>) 
 }
 
 export function RevenueChart({ data }: { data: RevenuePoint[] }) {
+    const { t } = useI18n();
     const [period, setPeriod] = useState('14');
 
     // The API always returns the widest window (30 days); the selected tab
@@ -63,26 +66,26 @@ export function RevenueChart({ data }: { data: RevenuePoint[] }) {
         <Card className="flex h-full flex-col">
             <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
                 <div>
-                    <CardTitle>Évolution du chiffre d’affaires</CardTitle>
+                    <CardTitle>{t('Évolution du chiffre d’affaires')}</CardTitle>
                     <p className="mt-1.5 text-sm text-muted-foreground">
                         {visible.length > 0 ? (
                             <>
                                 <span className="font-semibold text-foreground">
                                     {formatCurrency(total)}
                                 </span>{' '}
-                                sur les {visible.length} derniers jours
+                                {t('sur les {n} derniers jours', { n: visible.length })}
                             </>
                         ) : (
-                            'Aucune donnée sur la période'
+                            t('Aucune donnée sur la période')
                         )}
                     </p>
                 </div>
 
                 <Tabs value={period} onValueChange={setPeriod}>
                     <TabsList>
-                        <TabsTrigger value="7">7j</TabsTrigger>
-                        <TabsTrigger value="14">14j</TabsTrigger>
-                        <TabsTrigger value="30">30j</TabsTrigger>
+                        <TabsTrigger value="7">{t('7j')}</TabsTrigger>
+                        <TabsTrigger value="14">{t('14j')}</TabsTrigger>
+                        <TabsTrigger value="30">{t('30j')}</TabsTrigger>
                     </TabsList>
                 </Tabs>
             </CardHeader>
@@ -91,16 +94,16 @@ export function RevenueChart({ data }: { data: RevenuePoint[] }) {
                 {visible.length === 0 ? (
                     <EmptyState
                         icon={TrendingUp}
-                        title="Pas encore de données"
-                        description="Les recettes apparaîtront ici dès le premier encaissement."
+                        title={t('Pas encore de données')}
+                        description={t('Les recettes apparaîtront ici dès le premier encaissement.')}
                         className="h-[280px]"
                     />
                 ) : (
                     <>
                         {/* Legend — always present for 2+ series, so identity is never color-alone */}
                         <div className="mb-4 flex items-center gap-5">
-                            <LegendKey color={REVENUE_COLOR} label="Recettes" />
-                            <LegendKey color={EXPENSES_COLOR} label="Dépenses" />
+                            <LegendKey color={REVENUE_COLOR} label={t('Recettes')} />
+                            <LegendKey color={EXPENSES_COLOR} label={t('Dépenses')} />
                         </div>
 
                         <div className="h-[280px] w-full">

@@ -7,6 +7,7 @@ import { fr } from 'date-fns/locale';
 import { CalendarDays, List } from 'lucide-react';
 import { Views, type View } from 'react-big-calendar';
 import { getAppointments } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { pageFade } from '@/lib/motion';
 import type { Appointment } from '@/types/workday';
@@ -30,6 +31,7 @@ function rangeFor(view: View, date: Date): { from: Date; to: Date } {
 
 /** §3 — the partner's own calendar, reusing the same engine the staff Agenda uses. Read-only: viewing only, no drag/resize. */
 export default function PartnerAgenda() {
+    const { t } = useI18n();
     const navigate = useNavigate();
     const [view, setView] = useState<View>(Views.WEEK);
     const [date, setDate] = useState(() => new Date());
@@ -56,9 +58,9 @@ export default function PartnerAgenda() {
         <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                    <h1 className="text-2xl font-semibold tracking-tight">Mon agenda</h1>
+                    <h1 className="text-2xl font-semibold tracking-tight">{t('Mon agenda')}</h1>
                     <p className="mt-1.5 text-sm text-muted-foreground">
-                        Toutes vos réservations, jour par jour — consultation uniquement.
+                        {t('Toutes vos réservations, jour par jour — consultation uniquement.')}
                     </p>
                 </div>
 
@@ -83,7 +85,7 @@ export default function PartnerAgenda() {
                                 )}
                             >
                                 <Icon className="h-3.5 w-3.5" />
-                                {option.label}
+                                {t(option.label)}
                             </button>
                         );
                     })}

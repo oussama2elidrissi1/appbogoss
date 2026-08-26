@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, ChevronDown, HandCoins, Trash2 } from 'lucide-react';
 import { deleteAdvance, getAdvancesReport, getEmployees, getErrorMessage } from '@/lib/api';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
+import { useI18n } from '@/lib/i18n';
 import type { AdvancesReportDetail } from '@/types/workday';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,7 @@ function today(): string {
 
 /** "Gestion des avances" — filtrable par employé et par période, groupé par employé. */
 export function AdvancesReportPanel() {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const [from, setFrom] = useState(firstOfMonth());
     const [to, setTo] = useState(today());
@@ -72,10 +74,10 @@ export function AdvancesReportPanel() {
         return (
             <Card className="flex flex-col items-center justify-center px-6 py-16 text-center">
                 <AlertCircle className="h-6 w-6 text-destructive" />
-                <h3 className="mt-4 font-semibold">Impossible de charger les avances</h3>
+                <h3 className="mt-4 font-semibold">{t('Impossible de charger les avances')}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{getErrorMessage(error)}</p>
                 <Button className="mt-5" variant="accent" onClick={() => void refetch()}>
-                    Réessayer
+                    {t('Réessayer')}
                 </Button>
             </Card>
         );
@@ -86,7 +88,7 @@ export function AdvancesReportPanel() {
             <Card>
                 <CardContent className="flex flex-wrap items-end gap-4 p-4">
                     <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                        Du
+                        {t('Du')}
                         <input
                             type="date"
                             value={from}
@@ -95,7 +97,7 @@ export function AdvancesReportPanel() {
                         />
                     </label>
                     <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                        Au
+                        {t('Au')}
                         <input
                             type="date"
                             value={to}
@@ -104,7 +106,7 @@ export function AdvancesReportPanel() {
                         />
                     </label>
                     <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                        Employé
+                        {t('Employé')}
                         <select
                             value={employeeId}
                             onChange={(event) =>
@@ -112,7 +114,7 @@ export function AdvancesReportPanel() {
                             }
                             className="block h-10 min-w-[200px] rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 text-sm font-normal normal-case tracking-normal text-foreground outline-none transition-colors focus:border-accent/60"
                         >
-                            <option value="all">Tous les employés</option>
+                            <option value="all">{t('Tous les employés')}</option>
                             {employees.map((employee) => (
                                 <option key={employee.id} value={employee.id}>
                                     {employee.name}
@@ -152,8 +154,8 @@ export function AdvancesReportPanel() {
             ) : (report?.by_employee ?? []).length === 0 ? (
                 <EmptyState
                     icon={HandCoins}
-                    title="Aucune avance sur cette période"
-                    description="Ajustez les dates ou l'employé sélectionné pour élargir la recherche."
+                    title={t('Aucune avance sur cette période')}
+                    description={t("Ajustez les dates ou l'employé sélectionné pour élargir la recherche.")}
                 />
             ) : (
                 <div className="space-y-3">
@@ -171,9 +173,9 @@ export function AdvancesReportPanel() {
                                     <div className="min-w-0">
                                         <p className="truncate text-sm font-semibold">{group.employee_name}</p>
                                         <p className="mt-0.5 text-xs text-muted-foreground">
-                                            {group.count} avance{group.count > 1 ? 's' : ''}
+                                            {group.count} {t(group.count > 1 ? 'avances' : 'avance')}
                                             {group.outstanding_total > 0 && (
-                                                <> · {formatCurrency(group.outstanding_total, { maximumFractionDigits: 2 })} en cours</>
+                                                <> · {formatCurrency(group.outstanding_total, { maximumFractionDigits: 2 })} {t('en cours')}</>
                                             )}
                                         </p>
                                     </div>
@@ -209,14 +211,14 @@ export function AdvancesReportPanel() {
                                                     </div>
                                                     <div className="flex shrink-0 items-center gap-2">
                                                         <Badge variant={detail.settled_at ? 'success' : 'outline'}>
-                                                            {detail.settled_at ? 'Réglée' : 'En cours'}
+                                                            {t(detail.settled_at ? 'Réglée' : 'En cours')}
                                                         </Badge>
                                                         <Button
                                                             type="button"
                                                             variant="ghost"
                                                             size="icon"
                                                             className="h-8 w-8"
-                                                            aria-label="Supprimer l'avance"
+                                                            aria-label={t("Supprimer l'avance")}
                                                             onClick={() => {
                                                                 setPasswordError(null);
                                                                 setDeletingAdvance(detail);
@@ -244,10 +246,14 @@ export function AdvancesReportPanel() {
                         setPasswordError(null);
                     }
                 }}
-                title="Supprimer cette avance ?"
+                title={t('Supprimer cette avance ?')}
                 description={
                     deletingAdvance
-                        ? `L'avance de ${formatCurrency(deletingAdvance.amount, { maximumFractionDigits: 2 })} (${deletingAdvance.employee_name}, ${formatDate(deletingAdvance.given_on)}) sera définitivement supprimée.`
+                        ? t("L'avance de {amount} ({name}, {date}) sera définitivement supprimée.", {
+                              amount: formatCurrency(deletingAdvance.amount, { maximumFractionDigits: 2 }),
+                              name: deletingAdvance.employee_name,
+                              date: formatDate(deletingAdvance.given_on),
+                          })
                         : undefined
                 }
                 loading={deleteMutation.isPending}
@@ -262,9 +268,10 @@ export function AdvancesReportPanel() {
 }
 
 function ReportStat({ label, value }: { label: string; value: string }) {
+    const { t } = useI18n();
     return (
         <Card className="px-4 py-3">
-            <p className="text-xs text-muted-foreground">{label}</p>
+            <p className="text-xs text-muted-foreground">{t(label)}</p>
             <p className="mt-1 text-xl font-semibold tabular-nums">{value}</p>
         </Card>
     );

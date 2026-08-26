@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Advance;
 use App\Models\Commission;
 use App\Models\Prestation;
+use App\Models\Sale;
 use App\Services\WorkDayService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
@@ -87,7 +88,7 @@ class ReportController extends Controller
         $to = isset($validated['to']) ? Carbon::parse($validated['to'])->endOfDay() : now();
         $from = isset($validated['from']) ? Carbon::parse($validated['from'])->startOfDay() : $to->copy()->startOfMonth();
 
-        $commissions = Commission::with(['employee', 'service', 'prestation'])
+        $commissions = Commission::with(['employee', 'service', 'prestation:id,reference,sale_id'])
             ->whereBetween('created_at', [$from, $to])
             ->when(
                 ! empty($validated['employee_id']),
@@ -96,9 +97,18 @@ class ReportController extends Controller
             ->orderByDesc('created_at')
             ->get();
 
-        $validatedRows = $commissions->where('status', Commission::STATUS_VALIDATED);
+        $deletedSaleIds = Sale::onlyTrashed()
+            ->whereIn('id', $commissions->pluck('prestation.sale_id')->filter()->unique()->values())
+            ->pluck('id')
+            ->flip();
 
-        $byEmployee = $commissions->groupBy('employee_id')
+        $isLinkedToDeletedSale = fn (Commission $commission): bool => $commission->prestation?->sale_id !== null
+            && $deletedSaleIds->has($commission->prestation->sale_id);
+
+        $activeCommissions = $commissions->reject($isLinkedToDeletedSale);
+        $validatedRows = $activeCommissions->where('status', Commission::STATUS_VALIDATED);
+
+        $byEmployee = $activeCommissions->groupBy('employee_id')
             ->map(function ($group, $employeeId) {
                 $validated = $group->where('status', Commission::STATUS_VALIDATED);
 
@@ -127,6 +137,7 @@ class ReportController extends Controller
                 'base_amount' => (float) $commission->base_amount,
                 'amount' => (float) $commission->amount,
                 'status' => $commission->status,
+                'is_deleted' => $isLinkedToDeletedSale($commission),
             ])->values()->all(),
         ]]);
     }

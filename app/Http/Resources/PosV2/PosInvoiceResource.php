@@ -67,7 +67,10 @@ class PosInvoiceResource extends JsonResource
             'refunded_at' => $this->refunded_at?->toIso8601String(),
             'refund_reason' => $this->refund_reason,
             'sale_id' => $this->sale_id,
-            'sale_deleted' => $this->whenLoaded('sale', fn () => $this->sale_id !== null && $this->sale === null),
+            'sale_deleted' => $this->whenLoaded(
+                'sale',
+                fn () => $this->sale_id !== null && ($this->sale === null || $this->sale->trashed()),
+            ),
             'print_count' => (int) $this->print_count,
             'items_count' => $this->whenLoaded('items', fn () => $this->items->count()),
             'items' => PosInvoiceLineResource::collection($this->whenLoaded('items')),

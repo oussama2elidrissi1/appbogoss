@@ -3,6 +3,7 @@ import { Views, type View } from 'react-big-calendar';
 import { addDays, addMonths, addWeeks, format, isSameDay, isToday } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { CalendarX2, ChevronLeft, ChevronRight, Handshake, Phone, Users } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatTime } from '@/lib/utils';
 import type { Appointment, AppointmentStatus } from '@/types/workday';
 import { itemsOf } from './agendaEvents';
@@ -69,6 +70,7 @@ export function ReservationList({
     onSelect,
     partnerMode = false,
 }: ReservationListProps) {
+    const { t } = useI18n();
     const [statusFilter, setStatusFilter] = useState<AppointmentStatus | 'all'>('all');
 
     const days = useMemo(() => {
@@ -96,19 +98,19 @@ export function ReservationList({
                         variant="outline"
                         size="icon"
                         onClick={() => onDateChange(shiftDate(view, date, -1))}
-                        aria-label="Période précédente"
+                        aria-label={t('Période précédente')}
                     >
                         <ChevronLeft />
                     </Button>
                     <Button type="button" variant="outline" size="sm" onClick={() => onDateChange(new Date())}>
-                        Aujourd'hui
+                        {t("Aujourd'hui")}
                     </Button>
                     <Button
                         type="button"
                         variant="outline"
                         size="icon"
                         onClick={() => onDateChange(shiftDate(view, date, 1))}
-                        aria-label="Période suivante"
+                        aria-label={t('Période suivante')}
                     >
                         <ChevronRight />
                     </Button>
@@ -130,7 +132,7 @@ export function ReservationList({
                                     : 'text-muted-foreground hover:text-foreground',
                             )}
                         >
-                            {option.label}
+                            {t(option.label)}
                         </button>
                     ))}
                 </div>
@@ -150,7 +152,7 @@ export function ReservationList({
                                 : 'border-tint/[0.08] bg-tint/[0.02] text-muted-foreground hover:border-accent/30 hover:text-foreground',
                         )}
                     >
-                        {filter.label}
+                        {t(filter.label)}
                     </button>
                 ))}
             </div>
@@ -158,9 +160,11 @@ export function ReservationList({
             {days.length === 0 ? (
                 <div className="flex flex-col items-center justify-center rounded-md border border-dashed border-tint/[0.08] px-6 py-16 text-center">
                     <CalendarX2 className="h-6 w-6 text-muted-foreground/60" />
-                    <p className="mt-3 text-sm font-medium text-foreground">Aucune réservation</p>
+                    <p className="mt-3 text-sm font-medium text-foreground">{t('Aucune réservation')}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                        Aucune réservation{statusFilter !== 'all' ? ' avec ce statut' : ''} sur cette période.
+                        {statusFilter !== 'all'
+                            ? t('Aucune réservation avec ce statut sur cette période.')
+                            : t('Aucune réservation sur cette période.')}
                     </p>
                 </div>
             ) : (
@@ -173,11 +177,11 @@ export function ReservationList({
                                 </p>
                                 {isToday(group.day) && (
                                     <Badge variant="accent" className="px-1.5 py-0 text-[10px]">
-                                        Aujourd'hui
+                                        {t("Aujourd'hui")}
                                     </Badge>
                                 )}
                                 <span className="text-xs text-muted-foreground/60">
-                                    {group.items.length} réservation{group.items.length > 1 ? 's' : ''}
+                                    {group.items.length} {t(group.items.length > 1 ? 'réservations' : 'réservation')}
                                 </span>
                             </div>
 
@@ -232,7 +236,7 @@ export function ReservationList({
                                             {/* Contact + people */}
                                             <div className="min-w-[9rem] flex-1">
                                                 <p className={cn('truncate text-sm font-medium text-foreground', cancelled && 'line-through')}>
-                                                    {contact?.name ?? 'Client'}
+                                                    {contact?.name ?? t('Client')}
                                                 </p>
                                                 <p className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
                                                     {contact?.phone && (
@@ -243,7 +247,7 @@ export function ReservationList({
                                                     )}
                                                     <span className="flex items-center gap-1">
                                                         <Users className="h-3 w-3" />
-                                                        {peopleCount} personne{peopleCount > 1 ? 's' : ''}
+                                                        {peopleCount} {t(peopleCount > 1 ? 'personnes' : 'personne')}
                                                     </span>
                                                 </p>
                                             </div>
@@ -259,7 +263,7 @@ export function ReservationList({
                                                             className="h-1.5 w-1.5 shrink-0 rounded-full"
                                                             style={{ backgroundColor: item.service?.color ?? '#C8A24C' }}
                                                         />
-                                                        <span className="truncate">{item.service?.name ?? 'Prestation'}</span>
+                                                        <span className="truncate">{item.service?.name ?? t('Prestation')}</span>
                                                     </span>
                                                 ))}
                                                 {items.length > 4 && (
@@ -281,7 +285,7 @@ export function ReservationList({
                                                         <p className="truncate text-xs text-muted-foreground">
                                                             {employeeNames.length > 0
                                                                 ? employeeNames.join(', ')
-                                                                : 'Non assigné'}
+                                                                : t('Non assigné')}
                                                         </p>
                                                     )}
                                                 </div>
@@ -296,7 +300,7 @@ export function ReservationList({
                                                     appointment.partner_commission != null &&
                                                     appointment.partner_commission > 0 && (
                                                         <p className="mt-0.5 text-[11px] tabular-nums text-muted-foreground">
-                                                            Commission{' '}
+                                                            {t('Commission')}{' '}
                                                             {formatCurrency(appointment.partner_commission, {
                                                                 maximumFractionDigits: 2,
                                                             })}
@@ -305,7 +309,7 @@ export function ReservationList({
                                             </div>
 
                                             <Badge variant={status.variant} className="shrink-0">
-                                                {status.label}
+                                                {t(status.label)}
                                             </Badge>
                                         </button>
                                     );

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Bell, CalendarCheck, CalendarPlus, CalendarX, CheckCheck, MessageCircle, type LucideIcon } from 'lucide-react';
 import { getNotifications, markAllNotificationsRead, markNotificationRead } from '@/lib/api';
 import { cn, formatRelativeTime } from '@/lib/utils';
+import { useI18n } from '@/lib/i18n';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -48,6 +49,7 @@ const NOTIFICATION_ICONS: Record<string, LucideIcon> = {
 };
 
 export function NotificationsBell() {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const navigate = useNavigate();
 
@@ -69,7 +71,7 @@ export function NotificationsBell() {
             <DropdownMenuTrigger asChild>
                 <button
                     type="button"
-                    aria-label="Notifications"
+                    aria-label={t('Notifications')}
                     className="relative rounded-md p-2.5 text-muted-foreground transition-colors duration-200 hover:bg-tint/[0.05] hover:text-foreground"
                 >
                     <Bell className="h-[18px] w-[18px]" />
@@ -81,7 +83,7 @@ export function NotificationsBell() {
 
             <DropdownMenuContent align="end" className="w-80">
                 <DropdownMenuLabel className="flex items-center justify-between">
-                    <span>Notifications</span>
+                    <span>{t('Notifications')}</span>
                     {unreadCount > 0 && (
                         <button
                             type="button"
@@ -89,7 +91,7 @@ export function NotificationsBell() {
                             onClick={() => void markAllNotificationsRead().then(invalidate)}
                         >
                             <CheckCheck className="h-3 w-3" />
-                            Tout marquer lu
+                            {t('Tout marquer lu')}
                         </button>
                     )}
                 </DropdownMenuLabel>
@@ -97,7 +99,7 @@ export function NotificationsBell() {
 
                 {notifications.length === 0 ? (
                     <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-                        Aucune notification pour le moment.
+                        {t('Aucune notification pour le moment.')}
                     </p>
                 ) : (
                     <div className="max-h-80 overflow-y-auto">

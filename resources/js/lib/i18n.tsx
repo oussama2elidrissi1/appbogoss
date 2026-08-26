@@ -33,6 +33,11 @@ let currentLang: Lang = readInitialLang();
 
 const dictionary = arDictionary as Record<string, string>;
 
+/** Langue courante — pour les modules hors React (documents imprimés : lang/dir). */
+export function currentLanguage(): Lang {
+    return currentLang;
+}
+
 /** Traduction brute d'une chaîne française (fallback : la chaîne elle-même). */
 export function translate(text: string, lang: Lang = currentLang): string {
     if (lang !== 'ar') return text;

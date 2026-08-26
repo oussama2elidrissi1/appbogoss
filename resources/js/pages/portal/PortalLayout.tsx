@@ -1,6 +1,7 @@
 import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { CalendarClock, Gift, LogOut, Scissors, Sparkles } from 'lucide-react';
 import { usePortalAuth } from '@/hooks/usePortalAuth';
+import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 const tabs = [
@@ -11,6 +12,7 @@ const tabs = [
 
 export function PortalProtectedRoute() {
     const { client, isLoading } = usePortalAuth();
+    const { t } = useI18n();
 
     if (isLoading) {
         return (
@@ -19,7 +21,7 @@ export function PortalProtectedRoute() {
                     <span className="flex h-12 w-12 animate-pulse items-center justify-center rounded-md bg-accent/[0.14] ring-1 ring-accent/25">
                         <Scissors className="h-5 w-5 text-accent" />
                     </span>
-                    <p className="text-sm text-muted-foreground">Chargement de votre espace…</p>
+                    <p className="text-sm text-muted-foreground">{t('Chargement de votre espace…')}</p>
                 </div>
             </div>
         );
@@ -32,6 +34,7 @@ export function PortalProtectedRoute() {
 
 export default function PortalLayout() {
     const { client, logout } = usePortalAuth();
+    const { t } = useI18n();
     const navigate = useNavigate();
 
     const onLogout = async () => {
@@ -58,7 +61,7 @@ export default function PortalLayout() {
                         type="button"
                         onClick={() => void onLogout()}
                         className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-tint/[0.05] hover:text-foreground"
-                        aria-label="Déconnexion"
+                        aria-label={t('Déconnexion')}
                     >
                         <LogOut className="h-4 w-4" />
                     </button>
@@ -84,7 +87,7 @@ export default function PortalLayout() {
                             }
                         >
                             <tab.icon className="h-5 w-5" />
-                            {tab.label}
+                            {t(tab.label)}
                         </NavLink>
                     ))}
                 </div>

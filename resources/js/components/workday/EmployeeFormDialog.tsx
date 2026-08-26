@@ -9,6 +9,7 @@ import {
     updateEmployee,
 } from '@/lib/api';
 import { workDayKeys } from '@/hooks/useWorkDay';
+import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { CATEGORIES, getCategoryLabel } from '@/components/workday/categories';
 import type { Employee, EmployeePayload, Service } from '@/types/workday';
@@ -110,6 +111,7 @@ interface EmployeeFormDialogProps {
  */
 export function EmployeeFormDialog({ open, onOpenChange, employee, onSaved }: EmployeeFormDialogProps) {
     const queryClient = useQueryClient();
+    const { t } = useI18n();
     const [form, setForm] = useState<EmployeeFormState>(emptyForm);
     const [formError, setFormError] = useState<string | null>(null);
     const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
@@ -139,8 +141,8 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, onSaved }: Em
 
     const allowedServicesLabel =
         form.allowed_service_ids.length === 0
-            ? 'Tous les services des catégories ci-dessus'
-            : `${form.allowed_service_ids.length} service${form.allowed_service_ids.length > 1 ? 's' : ''} sélectionné${form.allowed_service_ids.length > 1 ? 's' : ''}`;
+            ? t('Tous les services des catégories ci-dessus')
+            : `${form.allowed_service_ids.length} ${t(form.allowed_service_ids.length > 1 ? 'services sélectionnés' : 'service sélectionné')}`;
 
     const servicesByCategory = new Map<string, Service[]>();
     for (const service of allServices ?? []) {
@@ -188,7 +190,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, onSaved }: Em
 
         const payload = formToPayload(form);
         if (!payload.name || !payload.role) {
-            setFormError('Le nom et le poste sont obligatoires.');
+            setFormError(t('Le nom et le poste sont obligatoires.'));
             return;
         }
 
@@ -203,38 +205,38 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, onSaved }: Em
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>{employee ? "Modifier l'employé" : 'Nouvel employé'}</DialogTitle>
+                    <DialogTitle>{t(employee ? "Modifier l'employé" : 'Nouvel employé')}</DialogTitle>
                     <DialogDescription>
-                        Renseignez les informations utilisées dans la caisse, les commissions et les rapports.
+                        {t('Renseignez les informations utilisées dans la caisse, les commissions et les rapports.')}
                     </DialogDescription>
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                            <Label htmlFor="employee-name">Nom</Label>
+                            <Label htmlFor="employee-name">{t('Nom')}</Label>
                             <Input
                                 id="employee-name"
                                 value={form.name}
                                 onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                                placeholder="Amelie Rousseau"
+                                placeholder={t('Amelie Rousseau')}
                                 required
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="employee-role">Poste</Label>
+                            <Label htmlFor="employee-role">{t('Poste')}</Label>
                             <Input
                                 id="employee-role"
                                 value={form.role}
                                 onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))}
-                                placeholder="Coiffeur"
+                                placeholder={t('Coiffeur')}
                                 required
                             />
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="employee-email">Email</Label>
+                            <Label htmlFor="employee-email">{t('Email')}</Label>
                             <Input
                                 id="employee-email"
                                 type="email"
@@ -245,7 +247,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, onSaved }: Em
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="employee-phone">Téléphone</Label>
+                            <Label htmlFor="employee-phone">{t('Téléphone')}</Label>
                             <Input
                                 id="employee-phone"
                                 value={form.phone}
@@ -255,7 +257,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, onSaved }: Em
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="employee-commission">Commission par défaut (%)</Label>
+                            <Label htmlFor="employee-commission">{t('Commission par défaut (%)')}</Label>
                             <Input
                                 id="employee-commission"
                                 type="number"
@@ -272,20 +274,20 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, onSaved }: Em
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="employee-specialties">Spécialités</Label>
+                            <Label htmlFor="employee-specialties">{t('Spécialités')}</Label>
                             <Input
                                 id="employee-specialties"
                                 value={form.specialties}
                                 onChange={(event) =>
                                     setForm((current) => ({ ...current, specialties: event.target.value }))
                                 }
-                                placeholder="Coupe, Barbe, Coloration"
+                                placeholder={t('Coupe, Barbe, Coloration')}
                             />
                         </div>
                     </div>
 
                     <div className="space-y-2.5">
-                        <Label>Catégories de services</Label>
+                        <Label>{t('Catégories de services')}</Label>
                         <div className="flex flex-wrap gap-2">
                             {CATEGORIES.map((option) => {
                                 const Icon = option.icon;
@@ -305,19 +307,18 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, onSaved }: Em
                                         }
                                     >
                                         <Icon className={cn('h-3.5 w-3.5', selected ? option.chip : 'text-muted-foreground')} />
-                                        {option.label}
+                                        {t(option.label)}
                                     </Chip>
                                 );
                             })}
                         </div>
                         <p className="text-[11px] text-muted-foreground">
-                            Détermine ce que l’employé voit dans « Nouvelle prestation » sur son espace.
-                            Aucune sélection = toutes les catégories.
+                            {t('Détermine ce que l’employé voit dans « Nouvelle prestation » sur son espace. Aucune sélection = toutes les catégories.')}
                         </p>
                     </div>
 
                     <div className="space-y-2.5">
-                        <Label>Services autorisés</Label>
+                        <Label>{t('Services autorisés')}</Label>
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <button
@@ -334,12 +335,12 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, onSaved }: Em
                             </DropdownMenuTrigger>
                             <DropdownMenuContent className="max-h-80 w-[--radix-dropdown-menu-trigger-width] overflow-y-auto">
                                 {servicesByCategory.size === 0 ? (
-                                    <p className="px-2 py-1.5 text-xs text-muted-foreground">Aucun service</p>
+                                    <p className="px-2 py-1.5 text-xs text-muted-foreground">{t('Aucun service')}</p>
                                 ) : (
                                     Array.from(servicesByCategory.entries()).map(([category, services], index) => (
                                         <div key={category}>
                                             {index > 0 && <DropdownMenuSeparator />}
-                                            <DropdownMenuLabel>{getCategoryLabel(category)}</DropdownMenuLabel>
+                                            <DropdownMenuLabel>{t(getCategoryLabel(category))}</DropdownMenuLabel>
                                             {services.map((service) => (
                                                 <DropdownMenuCheckboxItem
                                                     key={service.id}
@@ -356,17 +357,16 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, onSaved }: Em
                             </DropdownMenuContent>
                         </DropdownMenu>
                         <p className="text-[11px] text-muted-foreground">
-                            Restreint « Nouvelle prestation » à exactement ces services — plus précis que les
-                            catégories ci-dessus. Aucune sélection = tous les services des catégories autorisées.
+                            {t('Restreint « Nouvelle prestation » à exactement ces services — plus précis que les catégories ci-dessus. Aucune sélection = tous les services des catégories autorisées.')}
                         </p>
                     </div>
 
                     <div className="space-y-4 rounded-md border border-tint/[0.06] bg-tint/[0.02] p-4">
                         <div className="flex items-center justify-between gap-3">
                             <div>
-                                <p className="text-sm font-semibold text-foreground">Compte de connexion</p>
+                                <p className="text-sm font-semibold text-foreground">{t('Compte de connexion')}</p>
                                 <p className="mt-0.5 text-xs text-muted-foreground">
-                                    Permet à l’employé de se connecter avec son propre compte.
+                                    {t('Permet à l’employé de se connecter avec son propre compte.')}
                                 </p>
                             </div>
                             {employee?.account && (
@@ -378,14 +378,14 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, onSaved }: Em
                                     onClick={() => resetPasswordMutation.mutate(employee.id)}
                                 >
                                     <KeyRound className="h-3.5 w-3.5" />
-                                    Réinitialiser le mot de passe
+                                    {t('Réinitialiser le mot de passe')}
                                 </Button>
                             )}
                         </div>
 
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
-                                <Label htmlFor="employee-login-email">Email de connexion</Label>
+                                <Label htmlFor="employee-login-email">{t('Email de connexion')}</Label>
                                 <Input
                                     id="employee-login-email"
                                     type="email"
@@ -399,7 +399,7 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, onSaved }: Em
 
                             <div className="space-y-2">
                                 <Label htmlFor="employee-login-password">
-                                    Mot de passe {employee?.account ? '(laisser vide pour ne pas changer)' : ''}
+                                    {t('Mot de passe')} {employee?.account ? t('(laisser vide pour ne pas changer)') : ''}
                                 </Label>
                                 <Input
                                     id="employee-login-password"
@@ -408,13 +408,13 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, onSaved }: Em
                                     onChange={(event) =>
                                         setForm((current) => ({ ...current, login_password: event.target.value }))
                                     }
-                                    placeholder="8 caractères minimum"
+                                    placeholder={t('8 caractères minimum')}
                                     autoComplete="new-password"
                                 />
                             </div>
 
                             <div className="space-y-2 sm:col-span-2">
-                                <Label htmlFor="employee-system-role">Rôle système</Label>
+                                <Label htmlFor="employee-system-role">{t('Rôle système')}</Label>
                                 <Select
                                     value={form.system_role}
                                     onValueChange={(value) =>
@@ -426,10 +426,10 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, onSaved }: Em
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="employee" className="text-sm">
-                                            Employé — accède uniquement à son propre espace
+                                            {t('Employé — accède uniquement à son propre espace')}
                                         </SelectItem>
                                         <SelectItem value="admin" className="text-sm">
-                                            Administrateur/Caissier — accès de gestion complet
+                                            {t('Administrateur/Caissier — accès de gestion complet')}
                                         </SelectItem>
                                     </SelectContent>
                                 </Select>
@@ -438,13 +438,13 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, onSaved }: Em
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Couleur</Label>
+                        <Label>{t('Couleur')}</Label>
                         <div className="flex flex-wrap items-center gap-2">
                             {colorOptions.map((color) => (
                                 <button
                                     key={color}
                                     type="button"
-                                    aria-label={`Couleur ${color}`}
+                                    aria-label={t('Couleur {x}', { x: color })}
                                     onClick={() => setForm((current) => ({ ...current, avatar_color: color }))}
                                     className={cn(
                                         'h-9 w-9 rounded-full border transition-all duration-200',
@@ -471,16 +471,16 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, onSaved }: Em
                             onChange={(event) => setForm((current) => ({ ...current, is_active: event.target.checked }))}
                             className="h-4 w-4 accent-accent"
                         />
-                        <span className="text-sm font-medium text-foreground">Employé actif</span>
+                        <span className="text-sm font-medium text-foreground">{t('Employé actif')}</span>
                     </label>
 
                     {temporaryPassword && (
                         <div className="rounded-md border border-success/25 bg-success/[0.10] px-3.5 py-3">
                             <p className="text-sm font-medium text-success">
-                                Nouveau mot de passe : <span className="font-mono">{temporaryPassword}</span>
+                                {t('Nouveau mot de passe :')} <span className="font-mono">{temporaryPassword}</span>
                             </p>
                             <p className="mt-1 text-xs text-success/80">
-                                Communiquez-le à l’employé — il ne sera plus affiché ensuite.
+                                {t('Communiquez-le à l’employé — il ne sera plus affiché ensuite.')}
                             </p>
                         </div>
                     )}
@@ -494,11 +494,11 @@ export function EmployeeFormDialog({ open, onOpenChange, employee, onSaved }: Em
 
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                            Annuler
+                            {t('Annuler')}
                         </Button>
                         <Button type="submit" variant="accent" disabled={saving}>
                             {saving && <Loader2 className="animate-spin" />}
-                            {employee ? 'Enregistrer' : 'Créer'}
+                            {t(employee ? 'Enregistrer' : 'Créer')}
                         </Button>
                     </DialogFooter>
                 </form>

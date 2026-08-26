@@ -50,7 +50,8 @@ class PosInvoiceController extends Controller
         $prestation->load([
             'employee', 'items.employee', 'items.service', 'items.product', 'client', 'confirmedBy', 'createdBy',
             'commissions.employee',
-            'sale', 'statusLogs.user',
+            'sale' => fn ($query) => $query->withTrashed(),
+            'statusLogs.user',
             'tips' => fn ($query) => $query->withTrashed()->with('employee'),
         ]);
 

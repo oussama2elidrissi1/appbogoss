@@ -1,4 +1,5 @@
 import type { Appointment, AppointmentStatus, ReservationItem } from '@/types/workday';
+import { t } from '@/lib/i18n';
 
 export const UNASSIGNED_RESOURCE_ID = 'unassigned';
 
@@ -78,7 +79,7 @@ export function buildAgendaEvents(appointments: Appointment[]): AgendaEvent[] {
                 id: `${appointment.id}:${key}`,
                 appointmentId: appointment.id,
                 resourceId: key === UNASSIGNED_RESOURCE_ID ? UNASSIGNED_RESOURCE_ID : Number(key),
-                title: serviceNames || 'Réservation',
+                title: serviceNames || t('Réservation'),
                 start,
                 end,
                 status: appointment.status,

@@ -33,6 +33,7 @@ import {
     updatePos2Invoice,
     updatePos2Line,
 } from '@/lib/pos2Api';
+import { useI18n } from '@/lib/i18n';
 import { canPerform, eligibleEmployees } from '@/lib/pos2Eligibility';
 import { printInvoiceA4, printInvoiceReceipt } from '@/lib/receiptV2';
 import { pageFade } from '@/lib/motion';
@@ -70,6 +71,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 export default function PosV2() {
     const queryClient = useQueryClient();
     const { hasPermission } = useAuth();
+    const { t } = useI18n();
     const canCheckout = hasPermission('caisse_v2.checkout');
     const canDiscount = hasPermission('caisse_v2.discount');
     const canCancel = hasPermission('caisse_v2.cancel');
@@ -423,34 +425,34 @@ export default function PosV2() {
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h2 className="flex items-center gap-2.5 font-display text-2xl font-semibold tracking-tight">
-                        Caisse V2
+                        {t('Caisse V2')}
                         <Badge variant="accent" className="translate-y-px">
                             <Sparkles className="mr-1 h-3 w-3" />
-                            Nouveau
+                            {t('Nouveau')}
                         </Badge>
                     </h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                        Factures ouvertes, employé par service, abonnements et pourboires.
+                        {t('Factures ouvertes, employé par service, abonnements et pourboires.')}
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <Button type="button" variant="outline" onClick={() => setReservationsOpen(true)}>
                         <CalendarCheck />
-                        Réservations
+                        {t('Réservations')}
                     </Button>
                     <Button type="button" variant="outline" onClick={() => setQrOpen(true)}>
                         <ScanLine />
-                        Scanner QR
+                        {t('Scanner QR')}
                     </Button>
                     <Button type="button" variant="outline" asChild>
                         <Link to="/pos-v2/historique">
                             <History />
-                            Historique
+                            {t('Historique')}
                         </Link>
                     </Button>
                     <Button type="button" variant="accent" disabled={busy} onClick={() => openMutation.mutate({})}>
                         <Plus />
-                        Nouvelle facture
+                        {t('Nouvelle facture')}
                     </Button>
                 </div>
             </div>
@@ -466,28 +468,28 @@ export default function PosV2() {
                 <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                     <StatCard
                         icon={Wallet}
-                        label="CA aujourd'hui"
+                        label={t("CA aujourd'hui")}
                         value={formatCurrency(dashboard.revenue_total)}
                     />
                     <StatCard
                         icon={ReceiptText}
-                        label="Tickets"
+                        label={t('Tickets')}
                         value={`${dashboard.ticket_count}`}
-                        hint={`${dashboard.v2_ticket_count} via V2`}
+                        hint={t('{n} via V2', { n: dashboard.v2_ticket_count })}
                     />
                     <StatCard
                         icon={ShoppingCart}
-                        label="Factures ouvertes"
+                        label={t('Factures ouvertes')}
                         value={`${dashboard.open_invoices_count}`}
                         hint={formatCurrency(dashboard.open_invoices_total)}
                     />
                     <StatCard
                         icon={HandCoins}
-                        label="Pourboires"
+                        label={t('Pourboires')}
                         value={formatCurrency(dashboard.tips_total)}
                         hint={
                             dashboard.subscription_payments_total > 0
-                                ? `Abos ${formatCurrency(dashboard.subscription_payments_total)}`
+                                ? t('Abos {x}', { x: formatCurrency(dashboard.subscription_payments_total) })
                                 : undefined
                         }
                     />
@@ -499,11 +501,10 @@ export default function PosV2() {
                     <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
                         <p className="flex items-center gap-2 text-sm text-destructive">
                             <AlertCircle className="h-4 w-4 shrink-0" />
-                            Aucune journée ouverte — la caisse utilise le même cycle d'ouverture/clôture que la
-                            Caisse V1.
+                            {t("Aucune journée ouverte — la caisse utilise le même cycle d'ouverture/clôture que la Caisse V1.")}
                         </p>
                         <Button type="button" variant="outline" size="sm" asChild>
-                            <Link to="/pos">Ouvrir la journée</Link>
+                            <Link to="/pos">{t('Ouvrir la journée')}</Link>
                         </Button>
                     </CardContent>
                 </Card>
@@ -536,11 +537,11 @@ export default function PosV2() {
                             {invoice.held && <PauseCircle className="h-4 w-4 shrink-0 text-muted-foreground" />}
                             <div>
                                 <p className="text-xs font-semibold text-foreground">
-                                    {invoice.client_name ?? 'Client de passage'}
+                                    {invoice.client_name ?? t('Client de passage')}
                                 </p>
                                 <p className="text-[11px] tabular-nums text-muted-foreground">
-                                    {invoice.opened_time} · {invoice.items_count ?? 0} service
-                                    {(invoice.items_count ?? 0) > 1 ? 's' : ''} ·{' '}
+                                    {invoice.opened_time} · {invoice.items_count ?? 0}{' '}
+                                    {t((invoice.items_count ?? 0) > 1 ? 'services' : 'service')} ·{' '}
                                     {formatCurrency(invoice.total)}
                                 </p>
                             </div>
@@ -583,7 +584,7 @@ export default function PosV2() {
                 >
                     <span className="flex items-center gap-2">
                         <ShoppingCart />
-                        {itemsCount} article{itemsCount > 1 ? 's' : ''}
+                        {itemsCount} {t(itemsCount > 1 ? 'articles' : 'article')}
                     </span>
                     <span className="tabular-nums">{formatCurrency(currentInvoice?.total ?? 0)}</span>
                 </Button>
@@ -593,7 +594,7 @@ export default function PosV2() {
                 <div className="fixed inset-0 z-40 flex flex-col bg-scrim/70 backdrop-blur-sm xl:hidden">
                     <button
                         type="button"
-                        aria-label="Fermer le panier"
+                        aria-label={t('Fermer le panier')}
                         className="flex-1"
                         onClick={() => setMobileCartOpen(false)}
                     />
@@ -604,7 +605,7 @@ export default function PosV2() {
                             className="absolute right-3 top-3 z-10 rounded-sm p-1.5 text-muted-foreground hover:text-foreground"
                         >
                             <X className="h-5 w-5" />
-                            <span className="sr-only">Fermer</span>
+                            <span className="sr-only">{t('Fermer')}</span>
                         </button>
                         {panel}
                     </div>

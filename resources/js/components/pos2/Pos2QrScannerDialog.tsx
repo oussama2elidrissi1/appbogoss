@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import jsQR from 'jsqr';
 import { AlertCircle, Camera, CameraOff, Loader2, ScanLine } from 'lucide-react';
 import { getErrorMessage } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { pos2QrLookup } from '@/lib/pos2Api';
 import type { Pos2QrLookupResult } from '@/types/pos2';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,7 @@ interface Pos2QrScannerDialogProps {
  * tokens through /api/pos-v2/qr-lookup. Manual entry as fallback.
  */
 export function Pos2QrScannerDialog({ open, onClose, onResolved }: Pos2QrScannerDialogProps) {
+    const { t } = useI18n();
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
     const rafRef = useRef<number | null>(null);
@@ -100,10 +102,10 @@ export function Pos2QrScannerDialog({ open, onClose, onResolved }: Pos2QrScanner
             });
         } catch {
             setCameraError(
-                "Impossible d'accéder à la caméra. Autorisez-la dans le navigateur, ou saisissez le code manuellement.",
+                t("Impossible d'accéder à la caméra. Autorisez-la dans le navigateur, ou saisissez le code manuellement."),
             );
         }
-    }, [handleDetected, lookupMutation]);
+    }, [handleDetected, lookupMutation, t]);
 
     useEffect(() => {
         if (!open) {
@@ -122,7 +124,7 @@ export function Pos2QrScannerDialog({ open, onClose, onResolved }: Pos2QrScanner
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 font-display text-xl">
                         <ScanLine className="h-5 w-5 text-accent" />
-                        Scanner un QR
+                        {t('Scanner un QR')}
                     </DialogTitle>
                 </DialogHeader>
 
@@ -134,18 +136,18 @@ export function Pos2QrScannerDialog({ open, onClose, onResolved }: Pos2QrScanner
                                 <div className="h-40 w-40 rounded-md border-2 border-accent/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
                             </div>
                             <div className="pointer-events-none absolute inset-x-0 top-3 text-center text-xs font-medium text-white/80">
-                                Placez le QR code dans le cadre
+                                {t('Placez le QR code dans le cadre')}
                             </div>
                         </div>
                         <Button type="button" variant="outline" className="w-full" onClick={stopCamera}>
                             <CameraOff />
-                            Fermer la caméra
+                            {t('Fermer la caméra')}
                         </Button>
                     </div>
                 ) : (
                     <Button type="button" variant="accent" className="h-12 w-full" onClick={() => void startCamera()}>
                         <Camera />
-                        Ouvrir la caméra
+                        {t('Ouvrir la caméra')}
                     </Button>
                 )}
 
@@ -163,7 +165,7 @@ export function Pos2QrScannerDialog({ open, onClose, onResolved }: Pos2QrScanner
                         onKeyDown={(event) =>
                             event.key === 'Enter' && manualToken.trim() && lookupMutation.mutate(manualToken.trim())
                         }
-                        placeholder="…ou saisir le code manuellement"
+                        placeholder={t('…ou saisir le code manuellement')}
                         className="h-10"
                     />
                     <Button
@@ -173,12 +175,12 @@ export function Pos2QrScannerDialog({ open, onClose, onResolved }: Pos2QrScanner
                         disabled={!manualToken.trim() || lookupMutation.isPending}
                         onClick={() => lookupMutation.mutate(manualToken.trim())}
                     >
-                        {lookupMutation.isPending ? <Loader2 className="animate-spin" /> : 'Rechercher'}
+                        {lookupMutation.isPending ? <Loader2 className="animate-spin" /> : t('Rechercher')}
                     </Button>
                 </div>
 
                 {lookupMutation.isError && (
-                    <p className="text-xs text-destructive">{getErrorMessage(lookupMutation.error, 'QR non reconnu.')}</p>
+                    <p className="text-xs text-destructive">{getErrorMessage(lookupMutation.error, t('QR non reconnu.'))}</p>
                 )}
             </DialogContent>
         </Dialog>

@@ -219,7 +219,7 @@ function ThreadView({ id, onBack }: { id: number; onBack: () => void }) {
                             ))}
                         </div>
                     ) : !conversation || conversation.messages.length === 0 ? (
-                        <EmptyState icon={MessageCircle} title="Aucun message" description="Répondez pour démarrer l'échange." />
+                        <EmptyState icon={MessageCircle} title={t('Aucun message')} description={t("Répondez pour démarrer l'échange.")} />
                     ) : (
                         conversation.messages.map((message) => (
                             <div key={message.id} className={cn('flex', message.is_staff ? 'justify-end' : 'justify-start')}>
@@ -231,7 +231,7 @@ function ThreadView({ id, onBack }: { id: number; onBack: () => void }) {
                                 >
                                     <p className="whitespace-pre-line">{message.body}</p>
                                     <p className="mt-1 text-[11px] text-muted-foreground">
-                                        {message.is_staff ? message.author ?? 'BOGOSLAND' : conversation.partner_name ?? 'Partenaire'} ·{' '}
+                                        {message.is_staff ? message.author ?? 'BOGOSLAND' : conversation.partner_name ?? t('Partenaire')} ·{' '}
                                         {message.created_at ? formatRelativeTime(message.created_at) : ''}
                                     </p>
                                 </div>
@@ -244,7 +244,7 @@ function ThreadView({ id, onBack }: { id: number; onBack: () => void }) {
                     <Input
                         value={draft}
                         onChange={(event) => setDraft(event.target.value)}
-                        placeholder="Écrire un message..."
+                        placeholder={t('Écrire un message...')}
                         onKeyDown={(event) => {
                             if (event.key === 'Enter' && draft.trim() && !sendMutation.isPending) {
                                 sendMutation.mutate();
@@ -257,7 +257,7 @@ function ThreadView({ id, onBack }: { id: number; onBack: () => void }) {
                         size="icon"
                         disabled={!draft.trim() || sendMutation.isPending}
                         onClick={() => sendMutation.mutate()}
-                        aria-label="Envoyer"
+                        aria-label={t('Envoyer')}
                     >
                         {sendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                     </Button>

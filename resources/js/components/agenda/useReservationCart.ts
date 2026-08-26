@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Appointment, ReservationItem, Service } from '@/types/workday';
+import { t } from '@/lib/i18n';
 import { itemsOf } from './agendaEvents';
 
 export interface PersonDraft {
@@ -45,7 +46,7 @@ export function useReservationCart(services: Service[]) {
 
     function personLabel(index: number): string {
         const name = people[index]?.name?.trim();
-        return name || `Personne ${index + 1}`;
+        return name || t('Personne {n}', { n: index + 1 });
     }
 
     function itemsOfPerson(index: number): Array<{ item: ItemDraft; itemIndex: number }> {

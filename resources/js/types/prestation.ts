@@ -185,6 +185,7 @@ export interface CommissionsReport {
         base_amount: number;
         amount: number;
         status: string;
+        is_deleted: boolean;
     }>;
 }
 

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { AlertCircle, Ban, CheckCircle2, Clock3, Wallet } from 'lucide-react';
 import { getErrorMessage, getPartnerPortalCommissions } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,7 @@ const STATUS_META: Record<PartnerCommissionStatus, { label: string; icon: typeof
 };
 
 export default function PartnerCommissions() {
+    const { t } = useI18n();
     const [status, setStatus] = useState<'all' | PartnerCommissionStatus>('all');
 
     const { data, isPending, isError, error, refetch } = useQuery({
@@ -30,47 +32,47 @@ export default function PartnerCommissions() {
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-6">
             <div>
-                <h1 className="text-2xl font-semibold tracking-tight">Mes commissions</h1>
+                <h1 className="text-2xl font-semibold tracking-tight">{t('Mes commissions')}</h1>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                    Estimées, validées puis payées — le détail de tout ce que BOGOSLAND vous doit.
+                    {t('Estimées, validées puis payées — le détail de tout ce que BOGOSLAND vous doit.')}
                 </p>
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <Card className="p-4">
-                    <p className="text-xs text-muted-foreground">Estimées</p>
+                    <p className="text-xs text-muted-foreground">{t('Estimées')}</p>
                     <p className="mt-1 text-lg font-semibold tabular-nums">
                         {isPending ? <Skeleton className="h-6 w-24" /> : formatCurrency(data?.meta.estimated_total ?? 0)}
                     </p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">Réservations pas encore honorées</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">{t('Réservations pas encore honorées')}</p>
                 </Card>
                 <Card className="p-4">
-                    <p className="text-xs text-muted-foreground">Validées</p>
+                    <p className="text-xs text-muted-foreground">{t('Validées')}</p>
                     <p className="mt-1 text-lg font-semibold tabular-nums text-accent">
                         {isPending ? <Skeleton className="h-6 w-24" /> : formatCurrency(data?.meta.validated_total ?? 0)}
                     </p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">Acquises, en attente de paiement</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">{t('Acquises, en attente de paiement')}</p>
                 </Card>
                 <Card className="p-4">
-                    <p className="text-xs text-muted-foreground">Payées</p>
+                    <p className="text-xs text-muted-foreground">{t('Payées')}</p>
                     <p className="mt-1 text-lg font-semibold tabular-nums text-success">
                         {isPending ? <Skeleton className="h-6 w-24" /> : formatCurrency(data?.meta.paid_total ?? 0)}
                     </p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">Déjà réglées par BOGOSLAND</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">{t('Déjà réglées par BOGOSLAND')}</p>
                 </Card>
             </div>
 
             <div className="flex items-center justify-between gap-3">
-                <h2 className="text-sm font-semibold uppercase tracking-[0.06em] text-muted-foreground">Historique</h2>
+                <h2 className="text-sm font-semibold uppercase tracking-[0.06em] text-muted-foreground">{t('Historique')}</h2>
                 <Select value={status} onValueChange={(value) => setStatus(value as typeof status)}>
                     <SelectTrigger className="h-9 w-44">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="all">Tous les statuts</SelectItem>
-                        <SelectItem value="validated">Validées</SelectItem>
-                        <SelectItem value="paid">Payées</SelectItem>
-                        <SelectItem value="cancelled">Annulées</SelectItem>
+                        <SelectItem value="all">{t('Tous les statuts')}</SelectItem>
+                        <SelectItem value="validated">{t('Validées')}</SelectItem>
+                        <SelectItem value="paid">{t('Payées')}</SelectItem>
+                        <SelectItem value="cancelled">{t('Annulées')}</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
@@ -86,14 +88,14 @@ export default function PartnerCommissions() {
                     <AlertCircle className="h-5 w-5 text-destructive" />
                     <p className="mt-2 text-sm text-destructive">{getErrorMessage(error)}</p>
                     <Button variant="accent" className="mt-4" onClick={() => void refetch()}>
-                        Réessayer
+                        {t('Réessayer')}
                     </Button>
                 </Card>
             ) : !data || data.data.length === 0 ? (
                 <EmptyState
                     icon={Wallet}
-                    title="Aucune commission"
-                    description="Vos commissions validées apparaîtront ici dès qu'un de vos clients aura été servi et payé au salon."
+                    title={t('Aucune commission')}
+                    description={t("Vos commissions validées apparaîtront ici dès qu'un de vos clients aura été servi et payé au salon.")}
                 />
             ) : (
                 <>
@@ -101,14 +103,14 @@ export default function PartnerCommissions() {
                         <table className="w-full text-sm">
                             <thead className="border-b border-tint/[0.06] bg-tint/[0.02] text-left text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
                                 <tr>
-                                    <th className="px-4 py-3 font-medium">Référence</th>
-                                    <th className="px-4 py-3 font-medium">Client</th>
-                                    <th className="px-4 py-3 font-medium">Service</th>
-                                    <th className="px-4 py-3 text-right font-medium">Montant</th>
-                                    <th className="px-4 py-3 text-right font-medium">Taux</th>
-                                    <th className="px-4 py-3 text-right font-medium">Commission</th>
-                                    <th className="px-4 py-3 font-medium">Statut</th>
-                                    <th className="px-4 py-3 font-medium">Date</th>
+                                    <th className="px-4 py-3 font-medium">{t('Référence')}</th>
+                                    <th className="px-4 py-3 font-medium">{t('Client')}</th>
+                                    <th className="px-4 py-3 font-medium">{t('Service')}</th>
+                                    <th className="px-4 py-3 text-right font-medium">{t('Montant')}</th>
+                                    <th className="px-4 py-3 text-right font-medium">{t('Taux')}</th>
+                                    <th className="px-4 py-3 text-right font-medium">{t('Commission')}</th>
+                                    <th className="px-4 py-3 font-medium">{t('Statut')}</th>
+                                    <th className="px-4 py-3 font-medium">{t('Date')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -137,7 +139,7 @@ export default function PartnerCommissions() {
                                             <td className="px-4 py-3">
                                                 <Badge variant={meta.variant} className="gap-1.5">
                                                     <meta.icon className="h-3 w-3" />
-                                                    {meta.label}
+                                                    {t(meta.label)}
                                                 </Badge>
                                             </td>
                                             <td className="px-4 py-3 text-xs text-muted-foreground">
@@ -164,7 +166,7 @@ export default function PartnerCommissions() {
                                         </div>
                                         <Badge variant={meta.variant} className={cn('shrink-0 gap-1.5')}>
                                             <meta.icon className="h-3 w-3" />
-                                            {meta.label}
+                                            {t(meta.label)}
                                         </Badge>
                                     </div>
                                     <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">

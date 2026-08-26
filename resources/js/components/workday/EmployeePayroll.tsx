@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, CheckCircle2, HandCoins } from 'lucide-react';
 import { getCommissionPayoutHistory, getCommissionPayouts, getErrorMessage, payCommission } from '@/lib/api';
 import { useActiveWorkDay, workDayKeys } from '@/hooks/useWorkDay';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import type { Employee } from '@/types/workday';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +19,7 @@ function currentMonth(): string {
 /** This employee's monthly commission payout — earned vs. avances en cours, and history of past payments. */
 export function EmployeePayroll({ employee }: { employee: Employee }) {
     const queryClient = useQueryClient();
+    const { t } = useI18n();
     const [period, setPeriod] = useState(currentMonth());
     const [confirmOpen, setConfirmOpen] = useState(false);
     // Same option as on the "Paie" page — record the net amount as a
@@ -71,7 +73,7 @@ export function EmployeePayroll({ employee }: { employee: Employee }) {
         <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                    Commission &amp; paie
+                    {t('Commission & paie')}
                 </p>
                 <input
                     type="month"
@@ -88,21 +90,21 @@ export function EmployeePayroll({ employee }: { employee: Employee }) {
                     <div className="grid grid-cols-3 gap-3 text-center">
                         <div>
                             <p className="text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
-                                Commission
+                                {t('Commission')}
                             </p>
                             <p className="mt-1 text-sm font-semibold tabular-nums">
                                 {formatCurrency(row.commission_total)}
                             </p>
                         </div>
                         <div>
-                            <p className="text-[10px] uppercase tracking-[0.06em] text-muted-foreground">Avances</p>
+                            <p className="text-[10px] uppercase tracking-[0.06em] text-muted-foreground">{t('Avances')}</p>
                             <p className="mt-1 text-sm font-semibold tabular-nums text-accent">
                                 {formatCurrency(row.advances_outstanding)}
                             </p>
                         </div>
                         <div>
                             <p className="text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
-                                {row.already_paid && row.net_amount <= 0 ? 'Payé ce mois' : 'Net à payer'}
+                                {t(row.already_paid && row.net_amount <= 0 ? 'Payé ce mois' : 'Net à payer')}
                             </p>
                             <p
                                 className={cn(
@@ -125,7 +127,7 @@ export function EmployeePayroll({ employee }: { employee: Employee }) {
                                 {row.already_paid && (
                                     <Badge variant="success">
                                         <CheckCircle2 className="mr-1 h-3 w-3" />
-                                        Payé{row.payout ? ` le ${formatDate(row.payout.paid_at)}` : ''}
+                                        {row.payout ? t('Payé le {date}', { date: formatDate(row.payout.paid_at) }) : t('Payé')}
                                     </Badge>
                                 )}
                                 <Button
@@ -138,16 +140,16 @@ export function EmployeePayroll({ employee }: { employee: Employee }) {
                                     }}
                                 >
                                     <HandCoins className="h-3.5 w-3.5" />
-                                    {row.already_paid ? 'Payer le reste' : 'Marquer comme payé'}
+                                    {t(row.already_paid ? 'Payer le reste' : 'Marquer comme payé')}
                                 </Button>
                             </>
                         ) : row.already_paid ? (
                             <Badge variant="success">
                                 <CheckCircle2 className="mr-1 h-3 w-3" />
-                                Payé{row.payout ? ` le ${formatDate(row.payout.paid_at)}` : ''}
+                                {row.payout ? t('Payé le {date}', { date: formatDate(row.payout.paid_at) }) : t('Payé')}
                             </Badge>
                         ) : (
-                            <Badge variant="outline">Rien à payer</Badge>
+                            <Badge variant="outline">{t('Rien à payer')}</Badge>
                         )}
                     </div>
 
@@ -163,7 +165,7 @@ export function EmployeePayroll({ employee }: { employee: Employee }) {
             {!historyPending && history && history.length > 0 && (
                 <div className="space-y-1.5">
                     <p className="text-[10px] uppercase tracking-[0.06em] text-muted-foreground">
-                        Historique des paiements
+                        {t('Historique des paiements')}
                     </p>
                     <ul className="space-y-1.5">
                         {history.map((payout) => (
@@ -187,19 +189,34 @@ export function EmployeePayroll({ employee }: { employee: Employee }) {
             <ConfirmDialog
                 open={confirmOpen}
                 onOpenChange={setConfirmOpen}
-                title="Marquer cette commission comme payée ?"
+                title={t('Marquer cette commission comme payée ?')}
                 description={
                     row
                         ? (row.net_amount <= 0
-                              ? `La commission restante de ${employee.name} (${formatCurrency(commissionRemaining)}) a déjà été entièrement versée en avances — les ${formatCurrency(row.advances_outstanding)} d'avances seront soldées et ${period} sera marqué payé (0 MAD à verser).`
-                              : `${formatCurrency(row.net_amount)} seront enregistrés comme payés à ${employee.name} pour ${period}` +
+                              ? t(
+                                    "La commission restante de {name} ({remaining}) a déjà été entièrement versée en avances — les {advances} d'avances seront soldées et {period} sera marqué payé (0 MAD à verser).",
+                                    {
+                                        name: employee.name,
+                                        remaining: formatCurrency(commissionRemaining),
+                                        advances: formatCurrency(row.advances_outstanding),
+                                        period,
+                                    },
+                                )
+                              : t('{amount} seront enregistrés comme payés à {name} pour {period}', {
+                                    amount: formatCurrency(row.net_amount),
+                                    name: employee.name,
+                                    period,
+                                }) +
                                 (row.advances_outstanding > 0
-                                    ? `, et ${formatCurrency(row.advances_outstanding)} d'avances en cours seront soldées automatiquement.`
+                                    ? t(", et {advances} d'avances en cours seront soldées automatiquement.", {
+                                          advances: formatCurrency(row.advances_outstanding),
+                                      })
                                     : '.')) +
-                          ' Cette action ne peut pas être annulée depuis cette page.'
+                          ' ' +
+                          t('Cette action ne peut pas être annulée depuis cette page.')
                         : undefined
                 }
-                confirmLabel="Marquer comme payé"
+                confirmLabel={t('Marquer comme payé')}
                 variant="accent"
                 loading={payMutation.isPending}
                 onConfirm={() => payMutation.mutate()}
@@ -213,9 +230,10 @@ export function EmployeePayroll({ employee }: { employee: Employee }) {
                             className="mt-0.5 h-4 w-4 shrink-0 accent-[hsl(var(--accent))]"
                         />
                         <span className="text-xs text-muted-foreground">
-                            Sortir {formatCurrency(row.net_amount)} de la caisse du jour — enregistré comme
-                            une avance déjà soldée, rattachée à cette paie. Décochez si l'argent ne sort pas
-                            de la caisse (virement, autre source).
+                            {t(
+                                "Sortir {amount} de la caisse du jour — enregistré comme une avance déjà soldée, rattachée à cette paie. Décochez si l'argent ne sort pas de la caisse (virement, autre source).",
+                                { amount: formatCurrency(row.net_amount) },
+                            )}
                         </span>
                     </label>
                 )}

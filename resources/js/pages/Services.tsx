@@ -301,15 +301,15 @@ export default function Services() {
 
         const payload = servicePayload(serviceForm);
         if (!payload.name || !payload.category) {
-            setFormError('Le nom et la catégorie sont obligatoires.');
+            setFormError(t('Le nom et la catégorie sont obligatoires.'));
             return;
         }
         if (!Number.isFinite(payload.price) || (payload.price ?? 0) < 0) {
-            setFormError('Le prix doit être valide.');
+            setFormError(t('Le prix doit être valide.'));
             return;
         }
         if (!Number.isInteger(payload.duration_minutes) || (payload.duration_minutes ?? 0) < 1) {
-            setFormError('La durée doit être supérieure à 0 minute.');
+            setFormError(t('La durée doit être supérieure à 0 minute.'));
             return;
         }
 
@@ -326,23 +326,23 @@ export default function Services() {
 
         const payload = productPayload(productForm);
         if (!payload.name || !payload.category) {
-            setFormError('Le nom et la catégorie sont obligatoires.');
+            setFormError(t('Le nom et la catégorie sont obligatoires.'));
             return;
         }
         if (!Number.isFinite(payload.price) || (payload.price ?? 0) < 0) {
-            setFormError('Le prix doit être valide.');
+            setFormError(t('Le prix doit être valide.'));
             return;
         }
         if (!Number.isFinite(payload.cost ?? 0) || (payload.cost ?? 0) < 0) {
-            setFormError('Le coût doit être valide.');
+            setFormError(t('Le coût doit être valide.'));
             return;
         }
         if (!Number.isInteger(payload.stock_quantity) || (payload.stock_quantity ?? 0) < 0) {
-            setFormError('Le stock doit être valide.');
+            setFormError(t('Le stock doit être valide.'));
             return;
         }
         if (!Number.isInteger(payload.low_stock_threshold) || (payload.low_stock_threshold ?? 0) < 0) {
-            setFormError('Le seuil doit être valide.');
+            setFormError(t('Le seuil doit être valide.'));
             return;
         }
 
@@ -384,9 +384,9 @@ export default function Services() {
                     className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"
                 >
                     <div>
-                        <h2 className="text-2xl font-semibold tracking-tight">Services</h2>
+                        <h2 className="text-2xl font-semibold tracking-tight">{t('Services')}</h2>
                         <p className="mt-1.5 text-sm text-muted-foreground">
-                            Prestations et produits disponibles dans la caisse.
+                            {t('Prestations et produits disponibles dans la caisse.')}
                         </p>
                     </div>
 
@@ -398,8 +398,8 @@ export default function Services() {
                                 onChange={(event) => setActiveSearch(event.target.value)}
                                 placeholder={
                                     mode === 'services'
-                                        ? 'Rechercher une prestation...'
-                                        : 'Rechercher un produit...'
+                                        ? t('Rechercher une prestation...')
+                                        : t('Rechercher un produit...')
                                 }
                                 className="pl-10"
                             />
@@ -413,7 +413,7 @@ export default function Services() {
                             }
                         >
                             <Plus />
-                            Ajouter
+                            {t('Ajouter')}
                         </Button>
                     </div>
                 </motion.div>
@@ -430,7 +430,7 @@ export default function Services() {
                         )}
                     >
                         <Sparkles className="h-4 w-4" />
-                        Prestations
+                        {t('Prestations')}
                     </button>
                     <button
                         type="button"
@@ -443,7 +443,7 @@ export default function Services() {
                         )}
                     >
                         <Package className="h-4 w-4" />
-                        Produits
+                        {t('Produits')}
                     </button>
                 </motion.div>
 
@@ -467,21 +467,21 @@ export default function Services() {
                                         )}
                                     >
                                         <Icon className="h-4 w-4" />
-                                        {config.label}
+                                        {t(config.label)}
                                     </button>
                                 );
                             })}
                         </motion.div>
 
                         <motion.div variants={item} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                            <Stat label="Total" value={services.length} />
-                            <Stat label="Actifs" value={activeServicesCount} tone="success" />
-                            <Stat label="Catégorie" text={getCategoryLabel(serviceCategory)} />
+                            <Stat label={t('Total')} value={services.length} />
+                            <Stat label={t('Actifs')} value={activeServicesCount} tone="success" />
+                            <Stat label={t('Catégorie')} text={t(getCategoryLabel(serviceCategory))} />
                         </motion.div>
 
                         {serviceQuery.isError ? (
                             <ErrorCard
-                                title="Impossible de charger les services"
+                                title={t('Impossible de charger les services')}
                                 message={getErrorMessage(serviceQuery.error)}
                                 onRetry={() => void serviceQuery.refetch()}
                             />
@@ -490,8 +490,8 @@ export default function Services() {
                         ) : services.length === 0 ? (
                             <EmptyState
                                 icon={Sparkles}
-                                title="Aucun service"
-                                description="Ajoutez une prestation pour la rendre disponible dans la caisse."
+                                title={t('Aucun service')}
+                                description={t('Ajoutez une prestation pour la rendre disponible dans la caisse.')}
                             />
                         ) : (
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -516,7 +516,7 @@ export default function Services() {
                                                             </h3>
                                                             <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
                                                                 <Clock className="h-3.5 w-3.5" />
-                                                                {service.duration_minutes} min
+                                                                {service.duration_minutes} {t('min')}
                                                             </p>
                                                         </div>
                                                         <p className="shrink-0 text-sm font-semibold tabular-nums text-accent">
@@ -528,14 +528,14 @@ export default function Services() {
 
                                                     <div className="mt-4 flex flex-wrap gap-2">
                                                         <Badge variant="outline">
-                                                            {getCategoryLabel(service.category)}
+                                                            {t(getCategoryLabel(service.category))}
                                                         </Badge>
                                                         <Badge
                                                             variant={
                                                                 service.is_active ? 'success' : 'outline'
                                                             }
                                                         >
-                                                            {service.is_active ? 'Actif' : 'Inactif'}
+                                                            {service.is_active ? t('Actif') : t('Inactif')}
                                                         </Badge>
                                                     </div>
 
@@ -544,7 +544,7 @@ export default function Services() {
                                                             type="button"
                                                             size="icon"
                                                             variant="ghost"
-                                                            aria-label="Modifier"
+                                                            aria-label={t('Modifier')}
                                                             onClick={() => openEditServiceDialog(service)}
                                                         >
                                                             <Pencil />
@@ -555,8 +555,8 @@ export default function Services() {
                                                             variant="ghost"
                                                             aria-label={
                                                                 service.is_active
-                                                                    ? 'Désactiver'
-                                                                    : 'Activer'
+                                                                    ? t('Désactiver')
+                                                                    : t('Activer')
                                                             }
                                                             disabled={statusMutation.isPending}
                                                             onClick={() => statusMutation.mutate(service)}
@@ -567,7 +567,7 @@ export default function Services() {
                                                             type="button"
                                                             size="icon"
                                                             variant="ghost"
-                                                            aria-label="Supprimer"
+                                                            aria-label={t('Supprimer')}
                                                             disabled={deleteServiceMutation.isPending}
                                                             onClick={() => handleDeleteService(service)}
                                                         >
@@ -585,10 +585,10 @@ export default function Services() {
                 ) : (
                     <>
                         <motion.div variants={item} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                            <Stat label="Produits" value={products.length} />
-                            <Stat label="Stock faible" value={lowStockCount} tone="destructive" />
+                            <Stat label={t('Produits')} value={products.length} />
+                            <Stat label={t('Stock faible')} value={lowStockCount} tone="destructive" />
                             <Stat
-                                label="Valeur stock"
+                                label={t('Valeur stock')}
                                 text={formatCurrency(
                                     products.reduce(
                                         (sum, product) =>
@@ -602,7 +602,7 @@ export default function Services() {
 
                         {productQuery.isError ? (
                             <ErrorCard
-                                title="Impossible de charger les produits"
+                                title={t('Impossible de charger les produits')}
                                 message={getErrorMessage(productQuery.error)}
                                 onRetry={() => void productQuery.refetch()}
                             />
@@ -611,8 +611,8 @@ export default function Services() {
                         ) : products.length === 0 ? (
                             <EmptyState
                                 icon={Boxes}
-                                title="Aucun produit"
-                                description="Ajoutez les produits vendus en vitrine pour les retrouver dans la caisse."
+                                title={t('Aucun produit')}
+                                description={t('Ajoutez les produits vendus en vitrine pour les retrouver dans la caisse.')}
                             />
                         ) : (
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -644,15 +644,15 @@ export default function Services() {
                                                         variant={lowStock ? 'destructive' : 'success'}
                                                         className="justify-center"
                                                     >
-                                                        Stock {product.stock_quantity}
+                                                        {t('Stock')} {product.stock_quantity}
                                                     </Badge>
                                                     <Badge variant="outline" className="justify-center">
-                                                        Seuil {product.low_stock_threshold}
+                                                        {t('Seuil')} {product.low_stock_threshold}
                                                     </Badge>
                                                 </div>
 
                                                 <div className="mt-3 text-xs text-muted-foreground">
-                                                    Coût {formatCurrency(product.cost, { maximumFractionDigits: 2 })}
+                                                    {t('Coût')} {formatCurrency(product.cost, { maximumFractionDigits: 2 })}
                                                 </div>
 
                                                 <div className="mt-5 flex items-center justify-end gap-1">
@@ -660,7 +660,7 @@ export default function Services() {
                                                         type="button"
                                                         size="icon"
                                                         variant="ghost"
-                                                        aria-label="Modifier"
+                                                        aria-label={t('Modifier')}
                                                         onClick={() => openEditProductDialog(product)}
                                                     >
                                                         <Pencil />
@@ -669,7 +669,7 @@ export default function Services() {
                                                         type="button"
                                                         size="icon"
                                                         variant="ghost"
-                                                        aria-label="Supprimer"
+                                                        aria-label={t('Supprimer')}
                                                         disabled={deleteProductMutation.isPending}
                                                         onClick={() => handleDeleteProduct(product)}
                                                     >
@@ -711,9 +711,9 @@ export default function Services() {
             <ConfirmDialog
                 open={deletingService !== null}
                 onOpenChange={(open) => { if (!open) setDeletingService(null); }}
-                title="Supprimer cette prestation ?"
-                description={deletingService ? `${deletingService.name} sera définitivement supprimée.` : undefined}
-                confirmLabel="Supprimer"
+                title={t('Supprimer cette prestation ?')}
+                description={deletingService ? t('{name} sera définitivement supprimée.', { name: deletingService.name }) : undefined}
+                confirmLabel={t('Supprimer')}
                 loading={deleteServiceMutation.isPending}
                 onConfirm={confirmDeleteService}
             />
@@ -721,9 +721,9 @@ export default function Services() {
             <ConfirmDialog
                 open={deletingProduct !== null}
                 onOpenChange={(open) => { if (!open) setDeletingProduct(null); }}
-                title="Supprimer cet article ?"
-                description={deletingProduct ? `${deletingProduct.name} sera définitivement supprimé du catalogue.` : undefined}
-                confirmLabel="Supprimer"
+                title={t('Supprimer cet article ?')}
+                description={deletingProduct ? t('{name} sera définitivement supprimé du catalogue.', { name: deletingProduct.name }) : undefined}
+                confirmLabel={t('Supprimer')}
                 loading={deleteProductMutation.isPending}
                 onConfirm={confirmDeleteProduct}
             />
@@ -782,6 +782,8 @@ function ErrorCard({
     message: string;
     onRetry: () => void;
 }) {
+    const { t } = useI18n();
+
     return (
         <Card className="flex flex-col items-center justify-center px-6 py-16 text-center">
             <span className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/[0.12]">
@@ -792,7 +794,7 @@ function ErrorCard({
                 {message}
             </p>
             <Button variant="accent" className="mt-6" onClick={onRetry}>
-                Réessayer
+                {t('Réessayer')}
             </Button>
         </Card>
     );
@@ -817,32 +819,34 @@ function ServiceDialog({
     onClose: () => void;
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+    const { t } = useI18n();
+
     return (
         <Dialog open={open} onOpenChange={(nextOpen) => (nextOpen ? null : onClose())}>
             <DialogContent className="max-w-xl">
                 <DialogHeader>
-                    <DialogTitle>{editing ? 'Modifier le service' : 'Nouveau service'}</DialogTitle>
+                    <DialogTitle>{editing ? t('Modifier le service') : t('Nouveau service')}</DialogTitle>
                     <DialogDescription>
-                        Les services actifs apparaissent dans la caisse selon leur catégorie.
+                        {t('Les services actifs apparaissent dans la caisse selon leur catégorie.')}
                     </DialogDescription>
                 </DialogHeader>
 
                 <form onSubmit={onSubmit} className="space-y-5">
                     <div className="space-y-2">
-                        <Label htmlFor="service-name">Nom</Label>
+                        <Label htmlFor="service-name">{t('Nom')}</Label>
                         <Input
                             id="service-name"
                             value={form.name}
                             onChange={(event) =>
                                 setForm((current) => ({ ...current, name: event.target.value }))
                             }
-                            placeholder="Coupe cheveux + barbe"
+                            placeholder={t('Coupe cheveux + barbe')}
                             required
                         />
                     </div>
 
                     <div className="space-y-2">
-                        <Label>Catégorie</Label>
+                        <Label>{t('Catégorie')}</Label>
                         <div className="grid grid-cols-3 gap-2">
                             {catalogCategories.map((config) => {
                                 const Icon = config.icon;
@@ -867,7 +871,7 @@ function ServiceDialog({
                                         )}
                                     >
                                         <Icon className="h-4 w-4" />
-                                        {config.label}
+                                        {t(config.label)}
                                     </button>
                                 );
                             })}
@@ -877,7 +881,7 @@ function ServiceDialog({
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <Field
                             id="service-price"
-                            label="Prix MAD"
+                            label={t('Prix MAD')}
                             value={form.price}
                             onChange={(value) =>
                                 setForm((current) => ({ ...current, price: value }))
@@ -889,7 +893,7 @@ function ServiceDialog({
                         />
                         <Field
                             id="service-duration"
-                            label="Durée minutes"
+                            label={t('Durée minutes')}
                             value={form.duration_minutes}
                             onChange={(value) =>
                                 setForm((current) => ({ ...current, duration_minutes: value }))
@@ -902,7 +906,7 @@ function ServiceDialog({
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="service-color">Couleur</Label>
+                        <Label htmlFor="service-color">{t('Couleur')}</Label>
                         <div className="flex items-center gap-2">
                             <Input
                                 id="service-color"
@@ -929,18 +933,18 @@ function ServiceDialog({
                             }
                             className="h-4 w-4 accent-accent"
                         />
-                        <span className="text-sm font-medium text-foreground">Service actif</span>
+                        <span className="text-sm font-medium text-foreground">{t('Service actif')}</span>
                     </label>
 
                     <FormError error={error} />
 
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={onClose}>
-                            Annuler
+                            {t('Annuler')}
                         </Button>
                         <Button type="submit" variant="accent" disabled={saving}>
                             {saving && <Loader2 className="animate-spin" />}
-                            {editing ? 'Enregistrer' : 'Créer'}
+                            {editing ? t('Enregistrer') : t('Créer')}
                         </Button>
                     </DialogFooter>
                 </form>
@@ -968,13 +972,15 @@ function ProductDialog({
     onClose: () => void;
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+    const { t } = useI18n();
+
     return (
         <Dialog open={open} onOpenChange={(nextOpen) => (nextOpen ? null : onClose())}>
             <DialogContent className="max-w-xl">
                 <DialogHeader>
-                    <DialogTitle>{editing ? 'Modifier le produit' : 'Nouveau produit'}</DialogTitle>
+                    <DialogTitle>{editing ? t('Modifier le produit') : t('Nouveau produit')}</DialogTitle>
                     <DialogDescription>
-                        Les produits apparaissent dans la catégorie Vente de la caisse.
+                        {t('Les produits apparaissent dans la catégorie Vente de la caisse.')}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -982,26 +988,26 @@ function ProductDialog({
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <Field
                             id="product-name"
-                            label="Nom"
+                            label={t('Nom')}
                             value={form.name}
                             onChange={(value) =>
                                 setForm((current) => ({ ...current, name: value }))
                             }
-                            placeholder="Shampooing argan"
+                            placeholder={t('Shampooing argan')}
                         />
                         <Field
                             id="product-sku"
-                            label="SKU"
+                            label={t('SKU')}
                             value={form.sku}
                             onChange={(value) =>
                                 setForm((current) => ({ ...current, sku: value }))
                             }
-                            placeholder="Auto si vide"
+                            placeholder={t('Auto si vide')}
                             required={false}
                         />
                         <Field
                             id="product-category"
-                            label="Catégorie"
+                            label={t('Catégorie')}
                             value={form.category}
                             onChange={(value) =>
                                 setForm((current) => ({ ...current, category: value }))
@@ -1009,7 +1015,7 @@ function ProductDialog({
                             placeholder="vitrine"
                         />
                         <div className="space-y-2">
-                            <Label htmlFor="product-stock-area">Emplacement du stock</Label>
+                            <Label htmlFor="product-stock-area">{t('Emplacement du stock')}</Label>
                             <select
                                 id="product-stock-area"
                                 value={form.stock_area}
@@ -1021,13 +1027,13 @@ function ProductDialog({
                                 }
                                 className="flex h-10 w-full rounded-md border border-input bg-tint/[0.03] px-3 text-sm text-foreground outline-none focus:border-accent/60"
                             >
-                                <option value="vitrine">Vitrine</option>
-                                <option value="refrigerateur">Réfrigérateur</option>
+                                <option value="vitrine">{t('Vitrine')}</option>
+                                <option value="refrigerateur">{t('Réfrigérateur')}</option>
                             </select>
                         </div>
                         <Field
                             id="product-price"
-                            label="Prix MAD"
+                            label={t('Prix MAD')}
                             value={form.price}
                             onChange={(value) =>
                                 setForm((current) => ({ ...current, price: value }))
@@ -1039,7 +1045,7 @@ function ProductDialog({
                         />
                         <Field
                             id="product-cost"
-                            label="Coût MAD"
+                            label={t('Coût MAD')}
                             value={form.cost}
                             onChange={(value) =>
                                 setForm((current) => ({ ...current, cost: value }))
@@ -1052,7 +1058,7 @@ function ProductDialog({
                         />
                         <Field
                             id="product-stock"
-                            label="Stock"
+                            label={t('Stock')}
                             value={form.stock_quantity}
                             onChange={(value) =>
                                 setForm((current) => ({ ...current, stock_quantity: value }))
@@ -1064,7 +1070,7 @@ function ProductDialog({
                         />
                         <Field
                             id="product-threshold"
-                            label="Seuil alerte"
+                            label={t('Seuil alerte')}
                             value={form.low_stock_threshold}
                             onChange={(value) =>
                                 setForm((current) => ({
@@ -1083,11 +1089,11 @@ function ProductDialog({
 
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={onClose}>
-                            Annuler
+                            {t('Annuler')}
                         </Button>
                         <Button type="submit" variant="accent" disabled={saving}>
                             {saving && <Loader2 className="animate-spin" />}
-                            {editing ? 'Enregistrer' : 'Créer'}
+                            {editing ? t('Enregistrer') : t('Créer')}
                         </Button>
                     </DialogFooter>
                 </form>

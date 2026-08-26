@@ -19,6 +19,7 @@ import {
     getErrorMessage,
     updateAppointment,
 } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency } from '@/lib/utils';
 import type {
     Appointment,
@@ -92,6 +93,7 @@ export function ReservationDialog({
     services,
     partnerMode = false,
 }: ReservationDialogProps) {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const [clientSearch, setClientSearch] = useState('');
     const [clientPhone, setClientPhone] = useState('');
@@ -270,22 +272,21 @@ export function ReservationDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>{mode === 'edit' ? 'Modifier la réservation' : 'Nouvelle réservation'}</DialogTitle>
+                    <DialogTitle>{mode === 'edit' ? t('Modifier la réservation') : t('Nouvelle réservation')}</DialogTitle>
                     <DialogDescription>
-                        Renseignez le client titulaire (ses coordonnées suffisent pour tout le groupe), ajoutez
-                        les personnes, puis les prestations de chacune.
+                        {t('Renseignez le client titulaire (ses coordonnées suffisent pour tout le groupe), ajoutez les personnes, puis les prestations de chacune.')}
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4">
                     {/* ------------------------------------------------ contact */}
-                    <Field label="Client titulaire (coordonnées)">
+                    <Field label={t('Client titulaire (coordonnées)')}>
                         {selectedClient ? (
                             <div className="flex items-center justify-between gap-3 rounded-md border border-accent/50 bg-accent/[0.1] px-3.5 py-2.5">
                                 <div className="min-w-0">
                                     <p className="truncate text-sm font-semibold text-foreground">{selectedClient.name}</p>
                                     <p className="text-xs text-muted-foreground">
-                                        {selectedClient.phone ?? 'Sans téléphone'}
+                                        {selectedClient.phone ?? t('Sans téléphone')}
                                     </p>
                                 </div>
                                 <Button
@@ -294,7 +295,7 @@ export function ReservationDialog({
                                     variant="ghost"
                                     onClick={() => selectClient(selectedClient)}
                                 >
-                                    Changer
+                                    {t('Changer')}
                                 </Button>
                             </div>
                         ) : (
@@ -304,7 +305,7 @@ export function ReservationDialog({
                                     <Input
                                         value={clientSearch}
                                         onChange={(event) => setClientSearch(event.target.value)}
-                                        placeholder="Rechercher ou saisir un nom..."
+                                        placeholder={t('Rechercher ou saisir un nom...')}
                                         className="pl-10"
                                     />
                                 </div>
@@ -312,7 +313,7 @@ export function ReservationDialog({
                                     <Input
                                         value={clientPhone}
                                         onChange={(event) => setClientPhone(event.target.value)}
-                                        placeholder="Téléphone"
+                                        placeholder={t('Téléphone')}
                                     />
                                     <Button
                                         type="button"
@@ -326,7 +327,7 @@ export function ReservationDialog({
                                         }
                                     >
                                         <Plus />
-                                        Client
+                                        {t('Client')}
                                     </Button>
                                 </div>
                                 <div className="mt-2 grid max-h-36 gap-2 overflow-y-auto">
@@ -347,7 +348,7 @@ export function ReservationDialog({
                                             >
                                                 <span className="truncate">{client.name}</span>
                                                 <span className="text-xs text-muted-foreground">
-                                                    {client.phone ?? 'Sans téléphone'}
+                                                    {client.phone ?? t('Sans téléphone')}
                                                 </span>
                                             </PickerButton>
                                         ))
@@ -365,7 +366,7 @@ export function ReservationDialog({
                     )}
 
                     {/* ------------------------------------------------ participants */}
-                    <Field label={`Personnes (${people.length})`}>
+                    <Field label={t('Personnes ({n})', { n: people.length })}>
                         <div className="space-y-2">
                             {people.map((person, index) => (
                                 <div key={index} className="flex items-center gap-2">
@@ -375,10 +376,10 @@ export function ReservationDialog({
                                     {index === 0 ? (
                                         <div className="flex h-11 flex-1 items-center rounded-md border border-tint/[0.08] bg-tint/[0.03] px-3.5 text-sm">
                                             <span className="truncate font-medium">
-                                                {selectedClient?.name ?? 'Client titulaire'}
+                                                {selectedClient?.name ?? t('Client titulaire')}
                                             </span>
                                             <span className="ml-2 shrink-0 rounded-full bg-accent/[0.12] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
-                                                Contact
+                                                {t('Contact')}
                                             </span>
                                         </div>
                                     ) : (
@@ -386,13 +387,13 @@ export function ReservationDialog({
                                             <Input
                                                 value={person.name ?? ''}
                                                 onChange={(event) => renamePerson(index, event.target.value)}
-                                                placeholder={`Nom de la personne ${index + 1} (facultatif)`}
+                                                placeholder={t('Nom de la personne {n} (facultatif)', { n: index + 1 })}
                                             />
                                             <Button
                                                 type="button"
                                                 size="icon"
                                                 variant="ghost"
-                                                aria-label="Retirer cette personne"
+                                                aria-label={t('Retirer cette personne')}
                                                 onClick={() => removePerson(index)}
                                             >
                                                 <XCircle className="text-destructive" />
@@ -409,13 +410,13 @@ export function ReservationDialog({
                                 onClick={addPerson}
                             >
                                 <UserPlus />
-                                Ajouter une personne
+                                {t('Ajouter une personne')}
                             </Button>
                         </div>
                     </Field>
 
                     {/* ------------------------------------------------ services per person */}
-                    <Field label="Prestations — pour qui ?">
+                    <Field label={t('Prestations — pour qui ?')}>
                         <div className="flex flex-wrap gap-2">
                             {people.map((_, index) => {
                                 const count = itemsOfPerson(index).length;
@@ -448,12 +449,12 @@ export function ReservationDialog({
                             })}
                         </div>
                         <p className="mt-1.5 text-xs text-muted-foreground">
-                            Les prestations ajoutées ci-dessous seront affectées à{' '}
+                            {t('Les prestations ajoutées ci-dessous seront affectées à')}{' '}
                             <span className="font-semibold text-foreground">{personLabel(activePerson)}</span>.
                         </p>
                     </Field>
 
-                    <Field label="Catégorie">
+                    <Field label={t('Catégorie')}>
                         <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
                             {CATEGORIES.map((category, index) => {
                                 const Icon = category.icon;
@@ -474,7 +475,7 @@ export function ReservationDialog({
                                         )}
                                     >
                                         <Icon className={cn('h-4 w-4', selected ? category.chip : 'text-muted-foreground')} />
-                                        <span className="truncate text-xs font-medium">{category.label}</span>
+                                        <span className="truncate text-xs font-medium">{t(category.label)}</span>
                                         <span className="absolute right-1.5 top-1.5 text-[10px] font-semibold text-muted-foreground/50">
                                             {index + 1}
                                         </span>
@@ -484,21 +485,23 @@ export function ReservationDialog({
                         </div>
                     </Field>
 
-                    <Field label="Prestations">
+                    <Field label={t('Prestations')}>
                         <div className="space-y-2.5">
                             <div className="relative">
                                 <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
                                 <Input
                                     value={serviceSearch}
                                     onChange={(event) => setServiceSearch(event.target.value)}
-                                    placeholder={`Rechercher une prestation ${serviceCategory.label.toLowerCase()}...`}
+                                    placeholder={t('Rechercher une prestation {category}...', {
+                                        category: t(serviceCategory.label).toLowerCase(),
+                                    })}
                                     className="pl-10"
                                 />
                             </div>
 
                             {filteredServices.length === 0 ? (
                                 <div className="rounded-md border border-dashed border-tint/[0.08] px-4 py-5 text-center text-xs text-muted-foreground">
-                                    Aucun service dans cette catégorie.
+                                    {t('Aucun service dans cette catégorie.')}
                                 </div>
                             ) : (
                                 <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto pr-0.5 sm:grid-cols-2">
@@ -522,10 +525,10 @@ export function ReservationDialog({
                     </Field>
 
                     {/* ------------------------------------------------ cart grouped by person */}
-                    <Field label={partnerMode ? 'Récapitulatif par personne' : 'Récapitulatif & employé (facultatif)'}>
+                    <Field label={partnerMode ? t('Récapitulatif par personne') : t('Récapitulatif & employé (facultatif)')}>
                         {items.length === 0 ? (
                             <div className="rounded-md border border-dashed border-tint/[0.08] px-4 py-5 text-center text-xs text-muted-foreground">
-                                Sélectionnez une ou plusieurs prestations ci-dessus.
+                                {t('Sélectionnez une ou plusieurs prestations ci-dessus.')}
                             </div>
                         ) : (
                             <div className="space-y-3">
@@ -538,7 +541,7 @@ export function ReservationDialog({
                                                 <Check className="h-3.5 w-3.5 text-accent" />
                                                 {personLabel(personIndex)}
                                                 {personIndex === 0 && (
-                                                    <span className="font-normal text-muted-foreground">(contact)</span>
+                                                    <span className="font-normal text-muted-foreground">{t('(contact)')}</span>
                                                 )}
                                             </p>
                                             <div className="space-y-2">
@@ -551,10 +554,10 @@ export function ReservationDialog({
                                                         >
                                                             <div className="min-w-0 flex-1">
                                                                 <p className="truncate text-sm font-medium">
-                                                                    {service?.name ?? 'Prestation'}
+                                                                    {service?.name ?? t('Prestation')}
                                                                 </p>
                                                                 <p className="text-xs text-muted-foreground">
-                                                                    {service?.duration_minutes ?? 0} min ·{' '}
+                                                                    {service?.duration_minutes ?? 0} {t('min')} ·{' '}
                                                                     {formatCurrency(service?.price ?? 0)}
                                                                 </p>
                                                             </div>
@@ -571,7 +574,7 @@ export function ReservationDialog({
                                                                     }
                                                                     className={cn(selectClass, 'h-9 max-w-[180px]')}
                                                                 >
-                                                                    <option value="">Non assigné</option>
+                                                                    <option value="">{t('Non assigné')}</option>
                                                                     {employees.map((employee) => (
                                                                         <option key={employee.id} value={employee.id}>
                                                                             {employee.name}
@@ -583,7 +586,7 @@ export function ReservationDialog({
                                                                 type="button"
                                                                 size="icon"
                                                                 variant="ghost"
-                                                                aria-label="Retirer cette prestation"
+                                                                aria-label={t('Retirer cette prestation')}
                                                                 onClick={() => removeItemAt(itemIndex)}
                                                             >
                                                                 <XCircle className="text-destructive" />
@@ -601,14 +604,14 @@ export function ReservationDialog({
                             <p className="mt-2 flex items-center gap-1.5 text-xs text-destructive">
                                 <AlertCircle className="h-3.5 w-3.5" />
                                 {personsWithoutService.map((index) => personLabel(index)).join(', ')}{' '}
-                                n'a pas encore de prestation.
+                                {t("n'a pas encore de prestation.")}
                             </p>
                         )}
                     </Field>
 
                     {/* ------------------------------------------------ schedule */}
                     <div className={cn('grid grid-cols-1 gap-3', !partnerMode && 'sm:grid-cols-2')}>
-                        <Field label="Date et heure">
+                        <Field label={t('Date et heure')}>
                             <Input
                                 type="datetime-local"
                                 value={payload.starts_at ?? ''}
@@ -616,7 +619,7 @@ export function ReservationDialog({
                             />
                         </Field>
                         {!partnerMode && (
-                            <Field label="Statut">
+                            <Field label={t('Statut')}>
                                 <select
                                     value={payload.status ?? 'confirmed'}
                                     onChange={(event) =>
@@ -626,7 +629,7 @@ export function ReservationDialog({
                                 >
                                     {statuses.map((status) => (
                                         <option key={status.value} value={status.value}>
-                                            {status.label}
+                                            {t(status.label)}
                                         </option>
                                     ))}
                                 </select>
@@ -637,15 +640,15 @@ export function ReservationDialog({
                     {partnerMode && mode === 'create' && (
                         <div className="flex items-center gap-2 rounded-md border border-accent/25 bg-accent/[0.06] px-3 py-2 text-xs text-muted-foreground">
                             <Info className="h-4 w-4 shrink-0 text-accent" />
-                            Votre réservation sera envoyée « En attente » — le salon la confirmera.
+                            {t('Votre réservation sera envoyée « En attente » — le salon la confirmera.')}
                         </div>
                     )}
 
-                    <Field label="Notes">
+                    <Field label={t('Notes')}>
                         <textarea
                             value={payload.notes ?? ''}
                             onChange={(event) => setPayload((current) => ({ ...current, notes: event.target.value }))}
-                            placeholder="Préférence, remarque, acompte..."
+                            placeholder={t('Préférence, remarque, acompte...')}
                             className={cn(selectClass, 'min-h-24 resize-y py-3')}
                         />
                     </Field>
@@ -653,8 +656,9 @@ export function ReservationDialog({
                     {items.length > 0 && (
                         <div className="flex items-center justify-between rounded-md border border-accent/20 bg-accent/[0.06] px-3 py-2 text-xs text-muted-foreground">
                             <span>
-                                {people.length} personne{people.length > 1 ? 's' : ''} · {items.length} prestation
-                                {items.length > 1 ? 's' : ''} · durée estimée {totalDuration} min
+                                {people.length} {t(people.length > 1 ? 'personnes' : 'personne')} · {items.length}{' '}
+                                {t(items.length > 1 ? 'prestations' : 'prestation')} ·{' '}
+                                {t('durée estimée {n} min', { n: totalDuration })}
                             </span>
                             <span className="font-semibold text-accent">{formatCurrency(totalPrice)}</span>
                         </div>
@@ -678,18 +682,18 @@ export function ReservationDialog({
                             onClick={() => setConfirmingDelete(true)}
                         >
                             {deleteMutation.isPending ? <Loader2 className="animate-spin" /> : <Trash2 />}
-                            Supprimer
+                            {t('Supprimer')}
                         </Button>
                     ) : (
                         <span />
                     )}
                     <div className="flex items-center gap-2">
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                            Annuler
+                            {t('Annuler')}
                         </Button>
                         <Button type="button" variant="accent" disabled={!canSubmit || saving} onClick={submit}>
                             {saving && <Loader2 className="animate-spin" />}
-                            {mode === 'edit' ? 'Enregistrer' : 'Créer la réservation'}
+                            {mode === 'edit' ? t('Enregistrer') : t('Créer la réservation')}
                         </Button>
                     </div>
                 </DialogFooter>
@@ -698,13 +702,18 @@ export function ReservationDialog({
             <ConfirmDialog
                 open={confirmingDelete}
                 onOpenChange={setConfirmingDelete}
-                title="Supprimer cette réservation ?"
+                title={t('Supprimer cette réservation ?')}
                 description={
                     appointment
-                        ? `La réservation de ${appointment.client?.name || appointment.clients?.map((c) => c.name).join(', ') || 'ce client'} sera définitivement supprimée.`
+                        ? t('La réservation de {name} sera définitivement supprimée.', {
+                              name:
+                                  appointment.client?.name ||
+                                  appointment.clients?.map((c) => c.name).join(', ') ||
+                                  t('ce client'),
+                          })
                         : undefined
                 }
-                confirmLabel="Supprimer"
+                confirmLabel={t('Supprimer')}
                 loading={deleteMutation.isPending}
                 onConfirm={handleDelete}
             />
@@ -751,6 +760,7 @@ function PickerButton({ selected, onClick, children }: { selected: boolean; onCl
 }
 
 function ServiceCard({ service, count, onClick }: { service: Service; count: number; onClick: () => void }) {
+    const { t } = useI18n();
     const selected = count > 0;
 
     return (
@@ -771,7 +781,7 @@ function ServiceCard({ service, count, onClick }: { service: Service; count: num
             )}
             <span className="min-w-0">
                 <span className="block truncate text-sm font-medium text-foreground">{service.name}</span>
-                <span className="block text-xs text-muted-foreground">{service.duration_minutes} min</span>
+                <span className="block text-xs text-muted-foreground">{service.duration_minutes} {t('min')}</span>
             </span>
             <span className="shrink-0 text-sm font-semibold tabular-nums text-accent">
                 {formatCurrency(service.price, { maximumFractionDigits: 2 })}

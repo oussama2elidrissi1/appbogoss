@@ -38,7 +38,10 @@ class PosHistoryController extends Controller
         $paginator = $query->paginate((int) ($filters['per_page'] ?? 50));
 
         $summarySource = $paginator->getCollection();
-        $paid = $summarySource->where('status', 'paid');
+        $paid = $summarySource
+            ->where('status', 'paid')
+            ->reject(fn ($invoice) => $invoice->sale_id !== null && $invoice->sale?->trashed())
+            ->values();
 
         return response()->json([
             'data' => PosInvoiceResource::collection($summarySource),

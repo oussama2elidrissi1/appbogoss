@@ -1,5 +1,6 @@
 import { CalendarX2 } from 'lucide-react';
 import type { QueuedAppointment } from '@/types/dashboard';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatTime } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -33,12 +34,13 @@ function statusLabel(status: string): string {
 }
 
 export function AppointmentQueueCard({ appointments }: { appointments: QueuedAppointment[] }) {
+    const { t } = useI18n();
     return (
         <Card>
             <CardHeader>
-                <CardTitle>File d’attente</CardTitle>
+                <CardTitle>{t('File d’attente')}</CardTitle>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                    Les rendez-vous d’aujourd’hui
+                    {t('Les rendez-vous d’aujourd’hui')}
                 </p>
             </CardHeader>
 
@@ -46,8 +48,8 @@ export function AppointmentQueueCard({ appointments }: { appointments: QueuedApp
                 {appointments.length === 0 ? (
                     <EmptyState
                         icon={CalendarX2}
-                        title="Journée libre"
-                        description="Aucun rendez-vous n’est programmé pour aujourd’hui."
+                        title={t('Journée libre')}
+                        description={t('Aucun rendez-vous n’est programmé pour aujourd’hui.')}
                     />
                 ) : (
                     <ul className="divide-y divide-tint/[0.06]">
@@ -79,7 +81,7 @@ export function AppointmentQueueCard({ appointments }: { appointments: QueuedApp
                                 </div>
 
                                 <Badge variant={statusVariant(appointment.status)} className="shrink-0">
-                                    {statusLabel(appointment.status)}
+                                    {t(statusLabel(appointment.status))}
                                 </Badge>
                             </li>
                         ))}

@@ -1,3 +1,4 @@
+import { currentLanguage, t } from '@/lib/i18n';
 import { formatCurrency } from '@/lib/utils';
 import type { Pos2Invoice } from '@/types/pos2';
 
@@ -52,11 +53,17 @@ function money(value: number): string {
     return formatCurrency(value, { maximumFractionDigits: 2 });
 }
 
+/** Attributs lang/dir du document imprimé — suit la langue active (RTL en arabe). */
+function documentLangAttributes(): string {
+    const lang = currentLanguage();
+    return `lang="${lang}" dir="${lang === 'ar' ? 'rtl' : 'ltr'}"`;
+}
+
 function documentShell(title: string, format: TicketFormat, bodyHtml: string): string {
     const spec = FORMAT_SPECS[format];
 
     return `<!doctype html>
-<html lang="fr">
+<html ${documentLangAttributes()}>
 <head>
 <meta charset="utf-8">
 <title>${escapeHtml(title)}</title>
@@ -97,7 +104,7 @@ export interface InvoiceReceiptOptions {
 async function invoiceReceiptHtml(invoice: Pos2Invoice, options: InvoiceReceiptOptions = {}): Promise<string> {
     const format = options.format ?? '58mm';
     const salonName = options.salonName?.trim() || 'BOGOSLAND';
-    const footer = options.footer?.trim() || 'Merci pour votre visite';
+    const footer = options.footer?.trim() || t('Merci pour votre visite');
     const date = new Date(invoice.confirmed_at ?? invoice.created_at);
     const dateLabel = Number.isNaN(date.getTime())
         ? ''
@@ -118,7 +125,7 @@ async function invoiceReceiptHtml(invoice: Pos2Invoice, options: InvoiceReceiptO
     const invoiceDiscount = invoice.discount_amount ?? 0;
 
     const body = `
-    ${options.duplicata ? '<div class="duplicata">DUPLICATA</div>' : ''}
+    ${options.duplicata ? `<div class="duplicata">${escapeHtml(t('DUPLICATA'))}</div>` : ''}
     <section class="center">
         <div class="brand">${escapeHtml(salonName)}</div>
         <div class="muted">${escapeHtml(invoice.reference)}</div>
@@ -126,8 +133,8 @@ async function invoiceReceiptHtml(invoice: Pos2Invoice, options: InvoiceReceiptO
     </section>
     <div class="line"></div>
     <section>
-        <div>Client: ${escapeHtml(invoice.client_name ?? 'Client de passage')}</div>
-        ${invoice.payment_method ? `<div>Paiement: ${escapeHtml(paymentMethodLabel(invoice.payment_method))}</div>` : ''}
+        <div>${escapeHtml(t('Client:'))} ${escapeHtml(invoice.client_name ?? t('Client de passage'))}</div>
+        ${invoice.payment_method ? `<div>${escapeHtml(t('Paiement:'))} ${escapeHtml(t(paymentMethodLabel(invoice.payment_method)))}</div>` : ''}
     </section>
     <div class="line"></div>
     <section>
@@ -145,8 +152,8 @@ async function invoiceReceiptHtml(invoice: Pos2Invoice, options: InvoiceReceiptO
                 }</span>
             </div>
             ${item.employee_name ? `<div class="muted">${escapeHtml(item.employee_name)}${item.beneficiary_name ? ` — ${escapeHtml(item.beneficiary_name)}` : ''}</div>` : item.beneficiary_name ? `<div class="muted">${escapeHtml(item.beneficiary_name)}</div>` : ''}
-            ${item.is_free && item.public_price ? `<div class="muted">Abonnement — <span class="strike">${escapeHtml(money(item.public_price))}</span></div>` : ''}
-            ${discount > 0 ? `<div class="muted">Remise ligne: -${escapeHtml(money(discount))}</div>` : ''}
+            ${item.is_free && item.public_price ? `<div class="muted">${escapeHtml(t('Abonnement'))} — <span class="strike">${escapeHtml(money(item.public_price))}</span></div>` : ''}
+            ${discount > 0 ? `<div class="muted">${escapeHtml(t('Remise ligne: -{x}', { x: money(discount) }))}</div>` : ''}
         </div>`;
             })
             .join('')}
@@ -154,31 +161,31 @@ async function invoiceReceiptHtml(invoice: Pos2Invoice, options: InvoiceReceiptO
     <div class="line"></div>
     ${
         lineDiscounts > 0 || invoiceDiscount > 0
-            ? `<section class="row muted"><span>Sous-total</span><span class="amount">${escapeHtml(money(invoice.subtotal))}</span></section>
-    ${lineDiscounts > 0 ? `<section class="row muted"><span>Remises lignes</span><span class="amount">-${escapeHtml(money(lineDiscounts))}</span></section>` : ''}
-    ${invoiceDiscount > 0 ? `<section class="row muted"><span>Remise</span><span class="amount">-${escapeHtml(money(invoiceDiscount))}</span></section>` : ''}`
+            ? `<section class="row muted"><span>${escapeHtml(t('Sous-total'))}</span><span class="amount">${escapeHtml(money(invoice.subtotal))}</span></section>
+    ${lineDiscounts > 0 ? `<section class="row muted"><span>${escapeHtml(t('Remises lignes'))}</span><span class="amount">-${escapeHtml(money(lineDiscounts))}</span></section>` : ''}
+    ${invoiceDiscount > 0 ? `<section class="row muted"><span>${escapeHtml(t('Remise'))}</span><span class="amount">-${escapeHtml(money(invoiceDiscount))}</span></section>` : ''}`
             : ''
     }
     <section class="row total">
-        <span>TOTAL</span>
+        <span>${escapeHtml(t('TOTAL'))}</span>
         <span class="amount">${escapeHtml(money(invoice.total))}</span>
     </section>
     ${(invoice.payment_breakdown ?? [])
         .map(
             (row) =>
-                `<section class="row muted"><span>${escapeHtml(paymentMethodLabel(row.method))}</span><span class="amount">${escapeHtml(money(row.amount))}</span></section>`,
+                `<section class="row muted"><span>${escapeHtml(t(paymentMethodLabel(row.method)))}</span><span class="amount">${escapeHtml(money(row.amount))}</span></section>`,
         )
         .join('')}
     ${
         invoice.amount_received !== null && invoice.amount_received !== undefined
-            ? `<section class="row muted"><span>Reçu</span><span class="amount">${escapeHtml(money(invoice.amount_received))}</span></section>
-    <section class="row muted"><span>Rendu</span><span class="amount">${escapeHtml(money(invoice.change_given ?? 0))}</span></section>`
+            ? `<section class="row muted"><span>${escapeHtml(t('Reçu'))}</span><span class="amount">${escapeHtml(money(invoice.amount_received))}</span></section>
+    <section class="row muted"><span>${escapeHtml(t('Rendu'))}</span><span class="amount">${escapeHtml(money(invoice.change_given ?? 0))}</span></section>`
             : ''
     }
     ${
         tips.length > 0
             ? `<div class="line"></div>
-    <section class="row muted"><span>Pourboires</span><span class="amount">${escapeHtml(money(tips.reduce((sum, tip) => sum + tip.amount, 0)))}</span></section>`
+    <section class="row muted"><span>${escapeHtml(t('Pourboires'))}</span><span class="amount">${escapeHtml(money(tips.reduce((sum, tip) => sum + tip.amount, 0)))}</span></section>`
             : ''
     }
     <div class="line"></div>
@@ -238,7 +245,7 @@ export interface InvoiceA4Settings {
 
 export async function printInvoiceA4(invoice: Pos2Invoice, settings: InvoiceA4Settings = {}): Promise<void> {
     const salonName = settings.salon_name?.trim() || 'BOGOSLAND';
-    const footer = settings.receipt_footer?.trim() || 'Merci pour votre confiance';
+    const footer = settings.receipt_footer?.trim() || t('Merci pour votre confiance');
     const date = new Date(invoice.confirmed_at ?? invoice.created_at);
     const dateLabel = Number.isNaN(date.getTime())
         ? ''
@@ -265,11 +272,11 @@ export async function printInvoiceA4(invoice: Pos2Invoice, settings: InvoiceA4Se
             <td>
                 <div class="svc">${escapeHtml(item.label)}${item.quantity > 1 ? ` ×${item.quantity}` : ''}</div>
                 <div class="sub">${[
-                    item.employee_name ? `Employé : ${escapeHtml(item.employee_name)}` : null,
-                    item.beneficiary_name ? `Pour : ${escapeHtml(item.beneficiary_name)}` : null,
-                    item.duration_minutes ? `${item.duration_minutes} min` : null,
-                    item.is_free ? 'Couvert par abonnement' : null,
-                    discount > 0 ? `Remise ligne : −${escapeHtml(money(discount))}` : null,
+                    item.employee_name ? `${escapeHtml(t('Employé :'))} ${escapeHtml(item.employee_name)}` : null,
+                    item.beneficiary_name ? `${escapeHtml(t('Pour :'))} ${escapeHtml(item.beneficiary_name)}` : null,
+                    item.duration_minutes ? `${item.duration_minutes} ${escapeHtml(t('min'))}` : null,
+                    item.is_free ? escapeHtml(t('Couvert par abonnement')) : null,
+                    discount > 0 ? escapeHtml(t('Remise ligne : −{x}', { x: money(discount) })) : null,
                 ]
                     .filter(Boolean)
                     .join(' · ')}</div>
@@ -280,7 +287,7 @@ export async function printInvoiceA4(invoice: Pos2Invoice, settings: InvoiceA4Se
         .join('');
 
     const html = `<!doctype html>
-<html lang="fr">
+<html ${documentLangAttributes()}>
 <head>
 <meta charset="utf-8">
 <title>${escapeHtml(invoice.reference)}</title>

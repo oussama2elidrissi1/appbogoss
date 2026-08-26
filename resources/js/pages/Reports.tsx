@@ -13,7 +13,7 @@ import {
 } from '@/lib/api';
 import { cn, formatCurrency, formatDayLabel, formatTime } from '@/lib/utils';
 import { pageFade } from '@/lib/motion';
-import { useI18n } from '@/lib/i18n';
+import { t as tr, useI18n } from '@/lib/i18n';
 import { printSaleReceipt, type TicketFormat } from '@/lib/receipt';
 import type { ClosingReport, RevenueByEmployee, Sale, WorkDay } from '@/types/workday';
 import { Badge } from '@/components/ui/badge';
@@ -49,7 +49,7 @@ function dayNet(day: WorkDay): number {
 function clientName(sale: Sale): string {
     if (sale.client) return sale.client.name;
     if (sale.client_label) return sale.client_label;
-    return 'Client de passage';
+    return tr('Client de passage');
 }
 
 function ReportStat({ label, value }: { label: string; value: string }) {
@@ -128,7 +128,7 @@ function MonthlyReportPanel({ month }: { month: string }) {
                                 <div className="min-w-0">
                                     <p className="truncate text-sm font-medium">{row.employee_name}</p>
                                     <p className="mt-0.5 text-xs text-muted-foreground">
-                                        {row.count} ticket{row.count > 1 ? 's' : ''} - {(row.prestations ?? []).map((item) => `${item.label} (${item.count})`).join(', ') || 'Aucune prestation detaillee'}
+                                        {row.count} {t(row.count > 1 ? 'tickets' : 'ticket')} - {(row.prestations ?? []).map((item) => `${item.label} (${item.count})`).join(', ') || t('Aucune prestation detaillee')}
                                     </p>
                                 </div>
                                 <span className="shrink-0 text-sm font-semibold tabular-nums text-accent">{formatCurrency(row.total)}</span>
@@ -142,7 +142,7 @@ function MonthlyReportPanel({ month }: { month: string }) {
                                 <div className="min-w-0">
                                     <p className="truncate text-sm font-medium">{row.label}</p>
                                     <p className="mt-0.5 text-xs text-muted-foreground">
-                                        {row.count} passage{row.count > 1 ? 's' : ''} - {(row.employees ?? []).map((employee) => `${employee.employee_name} (${employee.count})`).join(', ') || 'Employe non detaille'}
+                                        {row.count} {t(row.count > 1 ? 'passages' : 'passage')} - {(row.employees ?? []).map((employee) => `${employee.employee_name} (${employee.count})`).join(', ') || t('Employe non detaille')}
                                     </p>
                                 </div>
                                 <span className="shrink-0 text-sm font-semibold tabular-nums text-accent">{formatCurrency(row.total)}</span>
@@ -159,17 +159,17 @@ function MonthlyReportPanel({ month }: { month: string }) {
                                 <span className="shrink-0 text-sm font-semibold tabular-nums text-destructive">{formatCurrency(expense.amount ?? expense.total)}</span>
                             </div>
                         ))}
-                        {(totals.expense_details ?? []).length === 0 && <p className="py-2 text-sm text-muted-foreground">Aucune depense.</p>}
+                        {(totals.expense_details ?? []).length === 0 && <p className="py-2 text-sm text-muted-foreground">{t('Aucune depense.')}</p>}
                     </ReportTable>
 
                     <ReportTable title="Avances detaillees">
                         {(totals.advance_details ?? []).map((advance) => (
                             <div key={advance.id ?? `${advance.given_on}-${advance.employee_id}`} className="flex items-center justify-between gap-3 border-b border-tint/[0.06] py-2 last:border-0">
-                                <div className="min-w-0"><p className="truncate text-sm">{advance.employee_name}</p><p className="text-xs text-muted-foreground">{advance.given_on} - {advance.reason || 'Sans motif'} - {advance.settled_at ? 'Reglee' : 'Non reglee'}</p></div>
+                                <div className="min-w-0"><p className="truncate text-sm">{advance.employee_name}</p><p className="text-xs text-muted-foreground">{advance.given_on} - {advance.reason || t('Sans motif')} - {t(advance.settled_at ? 'Reglee' : 'Non reglee')}</p></div>
                                 <span className="shrink-0 text-sm font-semibold tabular-nums text-destructive">{formatCurrency(advance.amount ?? advance.total)}</span>
                             </div>
                         ))}
-                        {(totals.advance_details ?? []).length === 0 && <p className="py-2 text-sm text-muted-foreground">Aucune avance.</p>}
+                        {(totals.advance_details ?? []).length === 0 && <p className="py-2 text-sm text-muted-foreground">{t('Aucune avance.')}</p>}
                     </ReportTable>
                 </div>
 
@@ -177,12 +177,12 @@ function MonthlyReportPanel({ month }: { month: string }) {
                     <div className="overflow-x-auto">
                         <table className="w-full min-w-[720px] text-left text-sm">
                             <thead className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
-                                <tr><th className="pb-2">Journee</th><th className="pb-2">Statut</th><th className="pb-2 text-right">Tickets</th><th className="pb-2 text-right">CA</th><th className="pb-2 text-right">Depenses</th><th className="pb-2 text-right">Avances</th><th className="pb-2 text-right">Resultat</th></tr>
+                                <tr><th className="pb-2">{t('Journee')}</th><th className="pb-2">{t('Statut')}</th><th className="pb-2 text-right">{t('Tickets')}</th><th className="pb-2 text-right">{t('CA')}</th><th className="pb-2 text-right">{t('Depenses')}</th><th className="pb-2 text-right">{t('Avances')}</th><th className="pb-2 text-right">{t('Resultat')}</th></tr>
                             </thead>
                             <tbody>
                                 {report.days.map((day) => (
                                     <tr key={day.id} className="border-t border-tint/[0.06]">
-                                        <td className="py-2">{formatDayLabel(day.date)}</td><td className="py-2 text-muted-foreground">{day.status === 'closed' ? 'Cloturee' : 'Ouverte'}</td><td className="py-2 text-right tabular-nums">{day.tickets}{day.deleted_tickets ? ` + ${day.deleted_tickets} suppr.` : ''}</td><td className="py-2 text-right tabular-nums text-accent">{formatCurrency(day.revenue_total)}</td><td className="py-2 text-right tabular-nums">{formatCurrency(day.expenses_total)}</td><td className="py-2 text-right tabular-nums">{formatCurrency(day.advances_total)}</td><td className="py-2 text-right tabular-nums">{formatCurrency(day.net_result)}</td>
+                                        <td className="py-2">{formatDayLabel(day.date)}</td><td className="py-2 text-muted-foreground">{t(day.status === 'closed' ? 'Cloturee' : 'Ouverte')}</td><td className="py-2 text-right tabular-nums">{day.tickets}{day.deleted_tickets ? ` ${t('+ {n} suppr.', { n: day.deleted_tickets })}` : ''}</td><td className="py-2 text-right tabular-nums text-accent">{formatCurrency(day.revenue_total)}</td><td className="py-2 text-right tabular-nums">{formatCurrency(day.expenses_total)}</td><td className="py-2 text-right tabular-nums">{formatCurrency(day.advances_total)}</td><td className="py-2 text-right tabular-nums">{formatCurrency(day.net_result)}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -195,9 +195,10 @@ function MonthlyReportPanel({ month }: { month: string }) {
 }
 
 function ReportTable({ title, children }: { title: string; children: React.ReactNode }) {
+    const { t } = useI18n();
     return (
         <section className="rounded-md border border-tint/[0.06] bg-tint/[0.02] px-4 py-3">
-            <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{title}</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t(title)}</h3>
             <div className="mt-2">{children}</div>
         </section>
     );
@@ -214,6 +215,7 @@ function EmployeeTicketsDialog({
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }) {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const [printFormat, setPrintFormat] = useState<TicketFormat>('58mm');
     const ticketsQueryKey = ['work-day', day.id, 'tickets'] as const;
@@ -248,16 +250,18 @@ function EmployeeTicketsDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-3xl">
                 <DialogHeader>
-                    <DialogTitle>Tickets de {employee?.employee_name ?? 'employé'}</DialogTitle>
+                    <DialogTitle>{t('Tickets de {name}', { name: employee?.employee_name ?? t('employé') })}</DialogTitle>
                     <DialogDescription>
-                        Journée du {formatDayLabel(day.date)} ·{' '}
-                        {formatCurrency(activeTotal, { maximumFractionDigits: 2 })} encaissés
+                        {t('Journée du {date} · {amount} encaissés', {
+                            date: formatDayLabel(day.date),
+                            amount: formatCurrency(activeTotal, { maximumFractionDigits: 2 }),
+                        })}
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                        Format
+                        {t('Format')}
                     </span>
                     {(['58mm', '80mm', 'a4'] as TicketFormat[]).map((format) => (
                         <button
@@ -284,7 +288,7 @@ function EmployeeTicketsDialog({
                     </div>
                 ) : employeeSales.length === 0 ? (
                     <div className="rounded-md border border-dashed border-tint/[0.08] px-4 py-8 text-center text-sm text-muted-foreground">
-                        Aucun ticket pour cet employé sur cette journée.
+                        {t('Aucun ticket pour cet employé sur cette journée.')}
                     </div>
                 ) : (
                     <ScrollArea className="max-h-[520px] pr-3">
@@ -308,7 +312,7 @@ function EmployeeTicketsDialog({
                                                     {getCategoryLabel(sale.category)}
                                                 </Badge>
                                                 {sale.is_deleted && (
-                                                    <Badge variant="destructive">Supprimé</Badge>
+                                                    <Badge variant="destructive">{t('Supprimé')}</Badge>
                                                 )}
                                             </div>
                                             <p className="mt-1 truncate text-sm font-medium text-foreground">
@@ -324,8 +328,8 @@ function EmployeeTicketsDialog({
                                             </p>
                                             <p className="mt-0.5 text-xs text-muted-foreground">
                                                 {clientName(sale)} ·{' '}
-                                                {sale.printed_ticket_count ?? sale.print_count * 2} tickets
-                                                {' '}· {sale.print_count} impr.
+                                                {t('{n} tickets', { n: sale.printed_ticket_count ?? sale.print_count * 2 })}
+                                                {' '}· {t('{n} impr.', { n: sale.print_count })}
                                             </p>
                                         </div>
 
@@ -347,7 +351,7 @@ function EmployeeTicketsDialog({
                                                     size="icon"
                                                     variant="ghost"
                                                     className="h-8 w-8"
-                                                    aria-label="Réimprimer le ticket"
+                                                    aria-label={t('Réimprimer le ticket')}
                                                     disabled={printMutation.isPending}
                                                     onClick={() => printMutation.mutate(sale.id)}
                                                 >
@@ -367,6 +371,7 @@ function EmployeeTicketsDialog({
 }
 
 function WorkDayReportCard({ day }: { day: WorkDay }) {
+    const { t } = useI18n();
     const report = reportFor(day);
     const statusLabel = day.status === 'open' ? 'Ouverte' : 'Clôturée';
     const statusVariant = day.status === 'open' ? 'success' : 'outline';
@@ -378,13 +383,14 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                 <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
                     <div>
                         <div className="flex flex-wrap items-center gap-2">
-                            <CardTitle>Journée du {formatDayLabel(day.date)}</CardTitle>
-                            <Badge variant={statusVariant}>{statusLabel}</Badge>
+                            <CardTitle>{t('Journée du {date}', { date: formatDayLabel(day.date) })}</CardTitle>
+                            <Badge variant={statusVariant}>{t(statusLabel)}</Badge>
                         </div>
                         <p className="mt-1.5 text-sm text-muted-foreground">
-                            {day.employees.length} employé{day.employees.length > 1 ? 's' : ''} en
-                            service · fond de caisse{' '}
-                            {formatCurrency(day.opening_balance, { maximumFractionDigits: 2 })}
+                            {t('{count} en service · fond de caisse {amount}', {
+                                count: `${day.employees.length} ${t(day.employees.length > 1 ? 'employés' : 'employé')}`,
+                                amount: formatCurrency(day.opening_balance, { maximumFractionDigits: 2 }),
+                            })}
                         </p>
                     </div>
 
@@ -431,7 +437,7 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                             <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
                                 <section className="space-y-2">
                                     <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                                        Par catégorie
+                                        {t('Par catégorie')}
                                     </h3>
                                     <div className="space-y-2">
                                         {report.revenue_by_category.map((row) => (
@@ -454,7 +460,7 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
 
                                 <section className="space-y-2">
                                     <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                                        Par employé
+                                        {t('Par employé')}
                                     </h3>
                                     <div className="space-y-2">
                                         {report.revenue_by_employee.map((row) => (
@@ -467,7 +473,7 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                                                         {row.employee_name}
                                                     </span>
                                                     <span className="text-xs text-muted-foreground">
-                                                        {row.count} ticket{row.count > 1 ? 's' : ''}
+                                                        {row.count} {t(row.count > 1 ? 'tickets' : 'ticket')}
                                                     </span>
                                                     {(row.prestations ?? []).length > 0 && (
                                                         <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
@@ -490,7 +496,7 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                                                         onClick={() => setTicketsEmployee(row)}
                                                     >
                                                         <ReceiptText />
-                                                        Tickets
+                                                        {t('Tickets')}
                                                     </Button>
                                                 </div>
                                             </div>
@@ -500,7 +506,7 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
 
                                 <section className="space-y-2">
                                     <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                                        Top prestations
+                                        {t('Top prestations')}
                                     </h3>
                                     <div className="space-y-2">
                                         {report.top_prestations.map((row) => (
@@ -513,8 +519,8 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                                                         {row.label}
                                                     </span>
                                                     <span className="text-xs text-muted-foreground">
-                                                        {row.count} passage
-                                                        {row.count > 1 ? 's' : ''}
+                                                        {row.count}{' '}
+                                                        {t(row.count > 1 ? 'passages' : 'passage')}
                                                     </span>
                                                 </span>
                                                 <span className="text-sm font-semibold tabular-nums text-accent">
@@ -531,17 +537,17 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                             <section className="space-y-2">
                                 <div className="flex items-center justify-between gap-3">
                                     <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                                        Détails avances
+                                        {t('Détails avances')}
                                     </h3>
                                     <span className="text-xs text-muted-foreground">
-                                        {day.advances.length} avance
-                                        {day.advances.length > 1 ? 's' : ''}
+                                        {day.advances.length}{' '}
+                                        {t(day.advances.length > 1 ? 'avances' : 'avance')}
                                     </span>
                                 </div>
 
                                 {day.advances.length === 0 ? (
                                     <div className="rounded-md border border-dashed border-tint/[0.08] px-4 py-4 text-sm text-muted-foreground">
-                                        Aucune avance enregistrée sur cette journée.
+                                        {t('Aucune avance enregistrée sur cette journée.')}
                                     </div>
                                 ) : (
                                     <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
@@ -552,13 +558,13 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                                             >
                                                 <span className="min-w-0">
                                                     <span className="block truncate text-sm font-medium">
-                                                        {advance.employee_name ?? 'Employé'}
+                                                        {advance.employee_name ?? t('Employé')}
                                                     </span>
                                                     <span className="block truncate text-xs text-muted-foreground">
-                                                        {advance.reason || 'Sans motif'} ·{' '}
-                                                        {advance.settled_at
+                                                        {advance.reason || t('Sans motif')} ·{' '}
+                                                        {t(advance.settled_at
                                                             ? 'réglée'
-                                                            : 'non réglée'}
+                                                            : 'non réglée')}
                                                     </span>
                                                 </span>
                                                 <span className="shrink-0 text-sm font-semibold tabular-nums text-destructive">
@@ -575,11 +581,11 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                                 <section className="space-y-2">
                                     <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                                        DÃ©penses dÃ©taillÃ©es
+                                        {t('Dépenses détaillées')}
                                     </h3>
                                     {(report.expense_details ?? []).length === 0 ? (
                                         <div className="rounded-md border border-dashed border-tint/[0.08] px-4 py-4 text-sm text-muted-foreground">
-                                            Aucune dÃ©pense enregistrÃ©e sur cette journÃ©e.
+                                            {t('Aucune dépense enregistrée sur cette journée.')}
                                         </div>
                                     ) : (
                                         <div className="space-y-2">
@@ -595,11 +601,11 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
 
                                 <section className="space-y-2">
                                     <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                                        Moyens de paiement
+                                        {t('Moyens de paiement')}
                                     </h3>
                                     {(report.payment_methods ?? []).length === 0 ? (
                                         <div className="rounded-md border border-dashed border-tint/[0.08] px-4 py-4 text-sm text-muted-foreground">
-                                            Aucun paiement enregistrÃ©.
+                                            {t('Aucun paiement enregistré.')}
                                         </div>
                                     ) : (
                                         <div className="space-y-2">
@@ -616,8 +622,7 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                         </>
                     ) : (
                         <div className="rounded-md border border-dashed border-tint/[0.08] px-4 py-5 text-sm text-muted-foreground">
-                            Les totaux seront disponibles dès les premiers encaissements. Le PDF
-                            sera disponible après clôture.
+                            {t('Les totaux seront disponibles dès les premiers encaissements. Le PDF sera disponible après clôture.')}
                         </div>
                     )}
                 </CardContent>
@@ -635,6 +640,7 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
 }
 
 export default function Reports() {
+    const { t } = useI18n();
     const [month, setMonth] = useState(monthValue);
     const [dailyFrom, setDailyFrom] = useState('');
     const [dailyTo, setDailyTo] = useState('');
@@ -703,12 +709,12 @@ export default function Reports() {
                 <span className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/[0.12]">
                     <AlertCircle className="h-5 w-5 text-destructive" />
                 </span>
-                <h2 className="mt-4 text-base font-semibold">Impossible de charger les rapports</h2>
+                <h2 className="mt-4 text-base font-semibold">{t('Impossible de charger les rapports')}</h2>
                 <p className="mt-1.5 max-w-[42ch] text-sm leading-relaxed text-muted-foreground">
                     {getErrorMessage(error)}
                 </p>
                 <Button variant="accent" className="mt-6" onClick={() => void refetch()}>
-                    Réessayer
+                    {t('Réessayer')}
                 </Button>
             </Card>
         );
@@ -718,23 +724,23 @@ export default function Reports() {
         <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-6">
             <Tabs defaultValue="monthly" className="space-y-5">
                 <TabsList>
-                    <TabsTrigger value="monthly">Rapport mensuel</TabsTrigger>
-                    <TabsTrigger value="daily">Rapports par jour</TabsTrigger>
-                    <TabsTrigger value="advances">Avances</TabsTrigger>
-                    <TabsTrigger value="commissions">Commissions</TabsTrigger>
+                    <TabsTrigger value="monthly">{t('Rapport mensuel')}</TabsTrigger>
+                    <TabsTrigger value="daily">{t('Rapports par jour')}</TabsTrigger>
+                    <TabsTrigger value="advances">{t('Avances')}</TabsTrigger>
+                    <TabsTrigger value="commissions">{t('Commissions')}</TabsTrigger>
                 </TabsList>
                 <TabsContent value="monthly" className="space-y-5">
             <div>
-                <h2 className="text-2xl font-semibold tracking-tight">Rapports</h2>
+                <h2 className="text-2xl font-semibold tracking-tight">{t('Rapports')}</h2>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                    Historique des journées de caisse, totaux et rapports de clôture.
+                    {t('Historique des journées de caisse, totaux et rapports de clôture.')}
                 </p>
             </div>
 
             <Card>
                 <CardContent className="flex flex-wrap items-end justify-between gap-4 p-4">
                     <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                        Periode mensuelle
+                        {t('Periode mensuelle')}
                         <input
                             type="month"
                             value={month}
@@ -742,7 +748,7 @@ export default function Reports() {
                             className="block h-10 rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 text-sm font-normal normal-case tracking-normal text-foreground outline-none transition-colors focus:border-accent/60"
                         />
                     </label>
-                    <span className="text-sm text-muted-foreground">Les totaux utilisent les journees de caisse, pas seulement la date d’encaissement.</span>
+                    <span className="text-sm text-muted-foreground">{t('Les totaux utilisent les journees de caisse, pas seulement la date d’encaissement.')}</span>
                 </CardContent>
             </Card>
 
@@ -752,16 +758,16 @@ export default function Reports() {
                 <TabsContent value="daily" className="space-y-5">
 
             <div>
-                <h2 className="text-2xl font-semibold tracking-tight">Rapports par jour</h2>
-                <p className="mt-1.5 text-sm text-muted-foreground">Filtrez et ouvrez le détail de chaque journée de caisse.</p>
+                <h2 className="text-2xl font-semibold tracking-tight">{t('Rapports par jour')}</h2>
+                <p className="mt-1.5 text-sm text-muted-foreground">{t('Filtrez et ouvrez le détail de chaque journée de caisse.')}</p>
             </div>
 
             <Card>
                 <CardContent className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Du<input type="date" value={dailyFrom} onChange={(event) => setDailyFrom(event.target.value)} className="block h-10 w-full rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 text-sm" /></label>
-                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Au<input type="date" value={dailyTo} onChange={(event) => setDailyTo(event.target.value)} className="block h-10 w-full rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 text-sm" /></label>
-                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Statut<select value={dailyStatus} onChange={(event) => setDailyStatus(event.target.value as 'all' | 'open' | 'closed')} className="block h-10 w-full rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 text-sm"><option value="all">Toutes</option><option value="open">Ouvertes</option><option value="closed">Cloturees</option></select></label>
-                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Employe<select value={dailyEmployee} onChange={(event) => setDailyEmployee(event.target.value)} className="block h-10 w-full rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 text-sm"><option value="all">Tous les employes</option>{employeeOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t('Du')}<input type="date" value={dailyFrom} onChange={(event) => setDailyFrom(event.target.value)} className="block h-10 w-full rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 text-sm" /></label>
+                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t('Au')}<input type="date" value={dailyTo} onChange={(event) => setDailyTo(event.target.value)} className="block h-10 w-full rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 text-sm" /></label>
+                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t('Statut')}<select value={dailyStatus} onChange={(event) => setDailyStatus(event.target.value as 'all' | 'open' | 'closed')} className="block h-10 w-full rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 text-sm"><option value="all">{t('Toutes')}</option><option value="open">{t('Ouvertes')}</option><option value="closed">{t('Cloturees')}</option></select></label>
+                    <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t('Employe')}<select value={dailyEmployee} onChange={(event) => setDailyEmployee(event.target.value)} className="block h-10 w-full rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 text-sm"><option value="all">{t('Tous les employes')}</option>{employeeOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
                 </CardContent>
             </Card>
 
@@ -781,8 +787,8 @@ export default function Reports() {
             {filteredWorkDays.length === 0 ? (
                 <EmptyState
                     icon={BarChart3}
-                    title="Aucune journée de caisse"
-                    description="Les rapports apparaîtront ici après ouverture puis clôture de vos journées."
+                    title={t('Aucune journée de caisse')}
+                    description={t('Les rapports apparaîtront ici après ouverture puis clôture de vos journées.')}
                 />
             ) : (
                 <div className="space-y-4">
@@ -795,9 +801,9 @@ export default function Reports() {
                 <TabsContent value="advances" className="space-y-5">
 
             <div>
-                <h2 className="text-2xl font-semibold tracking-tight">Gestion des avances</h2>
+                <h2 className="text-2xl font-semibold tracking-tight">{t('Gestion des avances')}</h2>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                    Avances sur salaire par employé et par période, avec suppression protégée par mot de passe patron.
+                    {t('Avances sur salaire par employé et par période, avec suppression protégée par mot de passe patron.')}
                 </p>
             </div>
 
@@ -807,9 +813,9 @@ export default function Reports() {
                 <TabsContent value="commissions" className="space-y-5">
 
             <div>
-                <h2 className="text-2xl font-semibold tracking-tight">Commissions</h2>
+                <h2 className="text-2xl font-semibold tracking-tight">{t('Commissions')}</h2>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                    Commissions calculées à la confirmation des paiements, par employé et par période.
+                    {t('Commissions calculées à la confirmation des paiements, par employé et par période.')}
                 </p>
             </div>
 

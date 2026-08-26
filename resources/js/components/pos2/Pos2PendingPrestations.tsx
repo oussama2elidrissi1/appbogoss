@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, ArrowRightCircle, Inbox, Loader2, PlusCircle } from 'lucide-react';
 import { getErrorMessage } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { getPos2PendingPrestations, importPos2Pending, pos2Keys } from '@/lib/pos2Api';
 import { formatCurrency } from '@/lib/utils';
 import type { Pos2Invoice } from '@/types/pos2';
@@ -21,6 +22,7 @@ interface Pos2PendingPrestationsProps {
  * file V1 atomiquement (aucun double encaissement possible).
  */
 export function Pos2PendingPrestations({ currentInvoice, onImported }: Pos2PendingPrestationsProps) {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const [error, setError] = useState<string | null>(null);
 
@@ -52,7 +54,7 @@ export function Pos2PendingPrestations({ currentInvoice, onImported }: Pos2Pendi
             <CardContent className="space-y-2.5 p-4">
                 <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
                     <Inbox className="h-4 w-4 text-accent" />
-                    Prestations envoyées par les employés
+                    {t('Prestations envoyées par les employés')}
                     <span className="rounded-full border border-accent/30 bg-accent/[0.12] px-2 py-0.5 text-[11px] font-bold tabular-nums text-accent">
                         {pending.length}
                     </span>
@@ -106,7 +108,7 @@ export function Pos2PendingPrestations({ currentInvoice, onImported }: Pos2Pendi
                                         }
                                     >
                                         <PlusCircle />
-                                        Ajouter à la facture
+                                        {t('Ajouter à la facture')}
                                     </Button>
                                 )}
                                 <Button
@@ -120,7 +122,7 @@ export function Pos2PendingPrestations({ currentInvoice, onImported }: Pos2Pendi
                                     }
                                 >
                                     {importMutation.isPending ? <Loader2 className="animate-spin" /> : <ArrowRightCircle />}
-                                    Reprendre en V2
+                                    {t('Reprendre en V2')}
                                 </Button>
                             </div>
                         </li>

@@ -39,6 +39,7 @@ import {
     suspendClientSubscription,
 } from '@/lib/api';
 import { cn, formatCurrency, formatDate, formatTime } from '@/lib/utils';
+import { useI18n } from '@/lib/i18n';
 import type { AdminSubscription, AdminSubscriptionStatus } from '@/types/loyalty';
 import { useAuth } from '@/hooks/useAuth';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -82,6 +83,7 @@ const STATUS_FILTERS: Array<{ value: AdminSubscriptionStatus | 'all'; label: str
 type Tab = 'subscriptions' | 'history' | 'reports';
 
 export default function Abonnements() {
+    const { t } = useI18n();
     const { hasPermission } = useAuth();
     const queryClient = useQueryClient();
     const [searchParams] = useSearchParams();
@@ -132,22 +134,22 @@ export default function Abonnements() {
             <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-6">
                 <div className="flex flex-wrap items-end justify-between gap-4">
                     <div>
-                        <h2 className="text-2xl font-semibold tracking-tight">Abonnements clients</h2>
+                        <h2 className="text-2xl font-semibold tracking-tight">{t('Abonnements clients')}</h2>
                         <p className="mt-1.5 text-sm text-muted-foreground">
-                            Suivi des abonnements vendus, historique des visites et performance du programme.
+                            {t('Suivi des abonnements vendus, historique des visites et performance du programme.')}
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
                         <Button asChild variant="outline">
                             <Link to="/scanner-abonnements">
                                 <ScanLine />
-                                Scanner
+                                {t('Scanner')}
                             </Link>
                         </Button>
                         {canSell && (
                             <Button variant="accent" onClick={() => setSellOpen(true)}>
                                 <Plus />
-                                Nouvel abonnement
+                                {t('Nouvel abonnement')}
                             </Button>
                         )}
                     </div>
@@ -176,7 +178,7 @@ export default function Abonnements() {
                                 )}
                             >
                                 <Icon className="h-3.5 w-3.5" />
-                                {option.label}
+                                {t(option.label)}
                             </button>
                         );
                     })}
@@ -190,7 +192,7 @@ export default function Abonnements() {
                                 <Input
                                     value={search}
                                     onChange={(event) => setSearch(event.target.value)}
-                                    placeholder="Client, téléphone..."
+                                    placeholder={t('Client, téléphone...')}
                                     className="pl-10"
                                 />
                             </div>
@@ -207,7 +209,7 @@ export default function Abonnements() {
                                                 : 'border-tint/[0.08] bg-tint/[0.02] text-muted-foreground hover:text-foreground',
                                         )}
                                     >
-                                        {filter.label}
+                                        {t(filter.label)}
                                     </button>
                                 ))}
                             </div>
@@ -227,8 +229,8 @@ export default function Abonnements() {
                         ) : !subscriptions || subscriptions.length === 0 ? (
                             <EmptyState
                                 icon={CalendarClock}
-                                title="Aucun abonnement"
-                                description="Vendez un premier abonnement pour le voir apparaître ici."
+                                title={t('Aucun abonnement')}
+                                description={t('Vendez un premier abonnement pour le voir apparaître ici.')}
                             />
                         ) : (
                             <div className="space-y-2">
@@ -297,6 +299,7 @@ function SubscriptionRow({
     onShowQr: () => void;
     onAction: (type: 'suspend' | 'extend' | 'cancel' | 'renew' | 'regenerate' | 'refund') => void;
 }) {
+    const { t } = useI18n();
     const status = STATUS_META[subscription.status];
     const isActive = subscription.status === 'active';
     const isSuspended = subscription.status === 'suspended';
@@ -314,29 +317,29 @@ function SubscriptionRow({
                 </div>
 
                 <div className="w-32 shrink-0 text-xs text-muted-foreground">
-                    <p>Du {formatDate(subscription.starts_on)}</p>
-                    <p>au {formatDate(subscription.ends_on)}</p>
+                    <p>{t('Du {date}', { date: formatDate(subscription.starts_on) })}</p>
+                    <p>{t('au {date}', { date: formatDate(subscription.ends_on) })}</p>
                 </div>
 
                 <div className="w-28 shrink-0">
                     <p className="text-sm font-bold tabular-nums text-accent">
                         {subscription.total_visits !== null
                             ? `${subscription.used_visits} / ${subscription.total_visits}`
-                            : `${subscription.used_visits} visites`}
+                            : `${subscription.used_visits} ${t('visites')}`}
                     </p>
                     <p className="text-[11px] text-muted-foreground">
                         {subscription.total_visits !== null
-                            ? `${Math.max(0, subscription.total_visits - subscription.used_visits)} restantes`
-                            : 'Illimité'}
+                            ? `${Math.max(0, subscription.total_visits - subscription.used_visits)} ${t('restantes')}`
+                            : t('Illimité')}
                     </p>
                 </div>
 
                 <Badge variant={status.variant} className="shrink-0">
-                    {status.label}
+                    {t(status.label)}
                 </Badge>
                 {subscription.sale_refunded && (
                     <Badge variant="outline" className="shrink-0 text-muted-foreground">
-                        Remboursé
+                        {t('Remboursé')}
                     </Badge>
                 )}
 
@@ -350,15 +353,15 @@ function SubscriptionRow({
                             onClick={() => onAction('refund')}
                         >
                             <Undo2 />
-                            Rembourser
+                            {t('Rembourser')}
                         </Button>
                     )}
-                    <Button type="button" size="icon" variant="ghost" aria-label="Afficher le QR" onClick={onShowQr}>
+                    <Button type="button" size="icon" variant="ghost" aria-label={t('Afficher le QR')} onClick={onShowQr}>
                         <QrCodeIcon />
                     </Button>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button type="button" size="icon" variant="ghost" aria-label="Actions">
+                            <Button type="button" size="icon" variant="ghost" aria-label={t('Actions')}>
                                 <MoreHorizontal />
                             </Button>
                         </DropdownMenuTrigger>
@@ -366,31 +369,31 @@ function SubscriptionRow({
                             {canSell && subscription.plan.allow_renewal && (
                                 <DropdownMenuItem onClick={() => onAction('renew')}>
                                     <RefreshCw className="h-4 w-4" />
-                                    Renouveler
+                                    {t('Renouveler')}
                                 </DropdownMenuItem>
                             )}
                             {canSuspend && isActive && subscription.plan.allow_suspension && (
                                 <DropdownMenuItem onClick={() => onAction('suspend')}>
                                     <Pause className="h-4 w-4" />
-                                    Suspendre
+                                    {t('Suspendre')}
                                 </DropdownMenuItem>
                             )}
                             {canSuspend && isSuspended && (
                                 <DropdownMenuItem onClick={() => onAction('suspend')}>
                                     <Play className="h-4 w-4" />
-                                    Réactiver
+                                    {t('Réactiver')}
                                 </DropdownMenuItem>
                             )}
                             {canExtend && (isActive || isSuspended) && (
                                 <DropdownMenuItem onClick={() => onAction('extend')}>
                                     <CalendarPlus className="h-4 w-4" />
-                                    Prolonger
+                                    {t('Prolonger')}
                                 </DropdownMenuItem>
                             )}
                             {canManage && (
                                 <DropdownMenuItem onClick={() => onAction('regenerate')}>
                                     <QrCodeIcon className="h-4 w-4" />
-                                    Régénérer le QR
+                                    {t('Régénérer le QR')}
                                 </DropdownMenuItem>
                             )}
                             {canManage && (isActive || isSuspended) && (
@@ -399,7 +402,7 @@ function SubscriptionRow({
                                     onClick={() => onAction('cancel')}
                                 >
                                     <Ban className="h-4 w-4" />
-                                    Annuler l'abonnement
+                                    {t("Annuler l'abonnement")}
                                 </DropdownMenuItem>
                             )}
                         </DropdownMenuContent>
@@ -415,6 +418,7 @@ function SubscriptionRow({
 /* ------------------------------------------------------------------ */
 
 function UsageHistory() {
+    const { t } = useI18n();
     const [from, setFrom] = useState('');
     const [to, setTo] = useState('');
     const [status, setStatus] = useState('');
@@ -436,19 +440,19 @@ function UsageHistory() {
             <div className="flex flex-wrap items-end gap-3">
                 <div className="relative max-w-xs flex-1">
                     <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
-                    <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Client..." className="pl-10" />
+                    <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('Client...')} className="pl-10" />
                 </div>
-                <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" aria-label="Du" />
-                <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-40" aria-label="Au" />
+                <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="w-40" aria-label={t('Du')} />
+                <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="w-40" aria-label={t('Au')} />
                 <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value)}
                     className="h-11 rounded-md border border-input bg-tint/[0.03] px-3 text-sm"
                 >
-                    <option value="">Tous statuts</option>
-                    <option value="confirmed">Validées</option>
-                    <option value="reserved">Réservées</option>
-                    <option value="voided">Annulées</option>
+                    <option value="">{t('Tous statuts')}</option>
+                    <option value="confirmed">{t('Validées')}</option>
+                    <option value="reserved">{t('Réservées')}</option>
+                    <option value="voided">{t('Annulées')}</option>
                 </select>
             </div>
 
@@ -459,7 +463,7 @@ function UsageHistory() {
                     ))}
                 </div>
             ) : !usages || usages.length === 0 ? (
-                <EmptyState icon={History} title="Aucune visite" description="Les visites validées apparaîtront ici." />
+                <EmptyState icon={History} title={t('Aucune visite')} description={t('Les visites validées apparaîtront ici.')} />
             ) : (
                 <div className="space-y-1.5">
                     {usages.map((usage) => (
@@ -480,13 +484,13 @@ function UsageHistory() {
                                 {usage.employee_name ?? '—'}
                             </span>
                             <span className="hidden w-16 shrink-0 text-[11px] uppercase tracking-wide text-muted-foreground/70 sm:block">
-                                {usage.channel === 'scanner' ? 'Scanner' : 'Caisse'}
+                                {usage.channel === 'scanner' ? t('Scanner') : t('Caisse')}
                             </span>
                             <Badge
                                 variant={usage.status === 'voided' ? 'destructive' : usage.status === 'confirmed' ? 'success' : 'default'}
                                 className="shrink-0"
                             >
-                                {usage.status === 'confirmed' ? 'Validée' : usage.status === 'reserved' ? 'Réservée' : 'Annulée'}
+                                {usage.status === 'confirmed' ? t('Validée') : usage.status === 'reserved' ? t('Réservée') : t('Annulée')}
                             </Badge>
                         </div>
                     ))}
@@ -501,6 +505,7 @@ function UsageHistory() {
 /* ------------------------------------------------------------------ */
 
 function SubscriptionReports() {
+    const { t } = useI18n();
     const { data, isPending } = useQuery({
         queryKey: ['subscriptions', 'dashboard'],
         queryFn: getSubscriptionsDashboard,
@@ -522,17 +527,17 @@ function SubscriptionReports() {
     return (
         <div className="space-y-5">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <KpiCard icon={Users} label="Abonnements actifs" value={String(data.active_count)} />
+                <KpiCard icon={Users} label={t('Abonnements actifs')} value={String(data.active_count)} />
                 <KpiCard
                     icon={TrendingUp}
-                    label="Vendus ce mois"
+                    label={t('Vendus ce mois')}
                     value={String(data.sold_this_month)}
                     sub={formatCurrency(data.revenue_this_month, { maximumFractionDigits: 0 })}
                 />
-                <KpiCard icon={ScanLine} label="Visites aujourd'hui" value={String(data.visits_today)} sub={`${data.visits_this_month} ce mois`} />
+                <KpiCard icon={ScanLine} label={t("Visites aujourd'hui")} value={String(data.visits_today)} sub={t('{n} ce mois', { n: data.visits_this_month })} />
                 <KpiCard
                     icon={CalendarClock}
-                    label="Expirent sous 7 jours"
+                    label={t('Expirent sous 7 jours')}
                     value={String(data.expiring_soon_count)}
                     tone={data.expiring_soon_count > 0 ? 'warn' : undefined}
                 />
@@ -541,9 +546,9 @@ function SubscriptionReports() {
             <div className="grid gap-4 lg:grid-cols-2">
                 <Card>
                     <CardContent className="p-5">
-                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Plans les plus actifs</p>
+                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t('Plans les plus actifs')}</p>
                         <div className="mt-3 space-y-2.5">
-                            {data.top_plans.length === 0 && <p className="text-xs text-muted-foreground">Aucune donnée.</p>}
+                            {data.top_plans.length === 0 && <p className="text-xs text-muted-foreground">{t('Aucune donnée.')}</p>}
                             {data.top_plans.map((plan) => (
                                 <BarRow key={plan.plan_name} label={plan.plan_name} count={plan.count} max={maxPlan} />
                             ))}
@@ -552,9 +557,9 @@ function SubscriptionReports() {
                 </Card>
                 <Card>
                     <CardContent className="p-5">
-                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Services les plus utilisés (mois)</p>
+                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t('Services les plus utilisés (mois)')}</p>
                         <div className="mt-3 space-y-2.5">
-                            {data.top_services.length === 0 && <p className="text-xs text-muted-foreground">Aucune donnée.</p>}
+                            {data.top_services.length === 0 && <p className="text-xs text-muted-foreground">{t('Aucune donnée.')}</p>}
                             {data.top_services.map((service) => (
                                 <BarRow key={service.service_name} label={service.service_name} count={service.count} max={maxService} />
                             ))}
@@ -566,7 +571,7 @@ function SubscriptionReports() {
             {data.expiring_soon.length > 0 && (
                 <Card>
                     <CardContent className="p-5">
-                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Expirent bientôt</p>
+                        <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t('Expirent bientôt')}</p>
                         <div className="mt-3 space-y-1.5">
                             {data.expiring_soon.map((row) => (
                                 <div key={row.id} className="flex items-center justify-between gap-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3.5 py-2">
@@ -642,6 +647,7 @@ function SellSubscriptionDialog({
     onOpenChange: (open: boolean) => void;
     onSold: () => void;
 }) {
+    const { t } = useI18n();
     const [clientSelection, setClientSelection] = useState<ClientSelection>(EMPTY_CLIENT_SELECTION);
     const [planId, setPlanId] = useState<number | ''>('');
     const [paymentMethod, setPaymentMethod] = useState('especes');
@@ -684,21 +690,20 @@ function SellSubscriptionDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Vendre un abonnement</DialogTitle>
+                    <DialogTitle>{t('Vendre un abonnement')}</DialogTitle>
                     <DialogDescription>
-                        Le paiement est encaissé immédiatement et le QR personnel du client est généré à
-                        l'activation.
+                        {t("Le paiement est encaissé immédiatement et le QR personnel du client est généré à l'activation.")}
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4">
                     <div>
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Client</p>
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t('Client')}</p>
                         <ClientPicker value={clientSelection} onChange={setClientSelection} />
                     </div>
 
                     <div>
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Plan</p>
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t('Plan')}</p>
                         <div className="grid gap-2">
                             {activePlans.map((plan) => (
                                 <button
@@ -716,7 +721,7 @@ function SellSubscriptionDialog({
                                         <span className="block truncate text-sm font-medium">{plan.name}</span>
                                         <span className="block text-xs text-muted-foreground">
                                             {plan.duration_value}{' '}
-                                            {plan.duration_unit === 'days' ? 'jours' : plan.duration_unit === 'weeks' ? 'semaines' : 'mois'}
+                                            {plan.duration_unit === 'days' ? t('jours') : plan.duration_unit === 'weeks' ? t('semaines') : t('mois')}
                                         </span>
                                     </span>
                                     <span className="shrink-0 text-sm font-semibold text-accent">
@@ -729,20 +734,20 @@ function SellSubscriptionDialog({
 
                     <div className="grid grid-cols-2 gap-3">
                         <label className="block">
-                            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Paiement</span>
+                            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t('Paiement')}</span>
                             <select
                                 value={paymentMethod}
                                 onChange={(e) => setPaymentMethod(e.target.value)}
                                 className="mt-2 flex h-11 w-full rounded-md border border-input bg-tint/[0.03] px-3 text-sm"
                             >
-                                <option value="especes">Espèces</option>
-                                <option value="carte">Carte</option>
-                                <option value="virement">Virement</option>
-                                <option value="autre">Autre</option>
+                                <option value="especes">{t('Espèces')}</option>
+                                <option value="carte">{t('Carte')}</option>
+                                <option value="virement">{t('Virement')}</option>
+                                <option value="autre">{t('Autre')}</option>
                             </select>
                         </label>
                         <label className="block">
-                            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Début (optionnel)</span>
+                            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t('Début (optionnel)')}</span>
                             <Input type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} className="mt-2" />
                         </label>
                     </div>
@@ -757,11 +762,11 @@ function SellSubscriptionDialog({
 
                 <DialogFooter>
                     <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                        Annuler
+                        {t('Annuler')}
                     </Button>
                     <Button type="button" variant="accent" disabled={!canSubmit} onClick={() => sellMutation.mutate()}>
                         {sellMutation.isPending && <Loader2 className="animate-spin" />}
-                        Activer l'abonnement
+                        {t("Activer l'abonnement")}
                         {selectedPlan ? ` — ${formatCurrency(selectedPlan.price, { maximumFractionDigits: 0 })}` : ''}
                     </Button>
                 </DialogFooter>
@@ -775,6 +780,7 @@ function SellSubscriptionDialog({
 /* ------------------------------------------------------------------ */
 
 function QrDialog({ subscription, onClose }: { subscription: AdminSubscription | null; onClose: () => void }) {
+    const { t } = useI18n();
     const [dataUrl, setDataUrl] = useState<string | null>(null);
 
     useEffect(() => {
@@ -789,22 +795,22 @@ function QrDialog({ subscription, onClose }: { subscription: AdminSubscription |
         <Dialog open={subscription !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
             <DialogContent className="max-w-sm">
                 <DialogHeader>
-                    <DialogTitle>QR de l'abonnement</DialogTitle>
+                    <DialogTitle>{t("QR de l'abonnement")}</DialogTitle>
                     <DialogDescription>
-                        {subscription?.client.name} — {subscription?.plan.name}. Le client retrouve ce même QR
-                        dans son espace « Mon BOGOSLAND ».
+                        {subscription?.client.name} — {subscription?.plan.name}.{' '}
+                        {t('Le client retrouve ce même QR dans son espace « Mon BOGOSLAND ».')}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex justify-center py-2">
                     {dataUrl ? (
-                        <img src={dataUrl} alt="QR abonnement" className="h-60 w-60 rounded-md bg-white p-3" />
+                        <img src={dataUrl} alt={t('QR abonnement')} className="h-60 w-60 rounded-md bg-white p-3" />
                     ) : (
                         <Skeleton className="h-60 w-60 rounded-md" />
                     )}
                 </div>
                 <DialogFooter>
                     <Button type="button" variant="accent" onClick={onClose}>
-                        Fermer
+                        {t('Fermer')}
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -828,6 +834,7 @@ function LifecycleDialog({
     onClose: () => void;
     onDone: () => void;
 }) {
+    const { t } = useI18n();
     const [reason, setReason] = useState('');
     const [days, setDays] = useState('7');
     const [from, setFrom] = useState('');
@@ -872,12 +879,12 @@ function LifecycleDialog({
     const isResume = type === 'suspend' && subscription.status === 'suspended';
 
     const titles: Record<string, string> = {
-        suspend: isResume ? "Réactiver l'abonnement" : "Suspendre l'abonnement",
-        extend: "Prolonger l'abonnement",
-        cancel: "Annuler l'abonnement",
-        renew: "Renouveler l'abonnement",
-        regenerate: 'Régénérer le QR',
-        refund: "Rembourser l'abonnement",
+        suspend: isResume ? t("Réactiver l'abonnement") : t("Suspendre l'abonnement"),
+        extend: t("Prolonger l'abonnement"),
+        cancel: t("Annuler l'abonnement"),
+        renew: t("Renouveler l'abonnement"),
+        regenerate: t('Régénérer le QR'),
+        refund: t("Rembourser l'abonnement"),
     };
 
     const canSubmit =
@@ -896,10 +903,10 @@ function LifecycleDialog({
                     <DialogTitle>{titles[type]}</DialogTitle>
                     <DialogDescription>
                         {subscription.client.name} — {subscription.plan.name}
-                        {type === 'suspend' && !isResume && " · la date d'expiration sera prolongée d'autant."}
-                        {type === 'renew' && ' · une nouvelle période sera créée, l’historique est conservé.'}
-                        {type === 'regenerate' && " · l'ancien QR ne fonctionnera plus."}
-                        {type === 'cancel' && ' · annulation sans remboursement — utilisez « Rembourser » si l’argent est rendu.'}
+                        {type === 'suspend' && !isResume && ` · ${t("la date d'expiration sera prolongée d'autant.")}`}
+                        {type === 'renew' && ` · ${t('une nouvelle période sera créée, l’historique est conservé.')}`}
+                        {type === 'regenerate' && ` · ${t("l'ancien QR ne fonctionnera plus.")}`}
+                        {type === 'cancel' && ` · ${t('annulation sans remboursement — utilisez « Rembourser » si l’argent est rendu.')}`}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -907,53 +914,52 @@ function LifecycleDialog({
                     {type === 'refund' && (
                         <div className="rounded-md border border-destructive/25 bg-destructive/[0.06] px-4 py-3 text-sm leading-relaxed">
                             <p className="font-semibold text-destructive">
-                                Rembourser {formatCurrency(subscription.price_paid, { maximumFractionDigits: 0 })} ?
+                                {t('Rembourser {amount} ?', { amount: formatCurrency(subscription.price_paid, { maximumFractionDigits: 0 }) })}
                             </p>
                             <p className="mt-1 text-xs text-muted-foreground">
-                                Automatiquement : l'abonnement est annulé, le ticket est retiré de l'encaissé de
-                                la caisse (marqué « supprimé ») et les points fidélité gagnés sont repris.
+                                {t("Automatiquement : l'abonnement est annulé, le ticket est retiré de l'encaissé de la caisse (marqué « supprimé ») et les points fidélité gagnés sont repris.")}
                             </p>
                         </div>
                     )}
                     {type === 'suspend' && !isResume && (
                         <div className="grid grid-cols-2 gap-3">
                             <label className="block">
-                                <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Du</span>
+                                <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t('Du')}</span>
                                 <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-2" />
                             </label>
                             <label className="block">
-                                <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Au</span>
+                                <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t('Au')}</span>
                                 <Input type="date" value={until} onChange={(e) => setUntil(e.target.value)} className="mt-2" />
                             </label>
                         </div>
                     )}
                     {type === 'extend' && (
                         <label className="block">
-                            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Jours ajoutés</span>
+                            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t('Jours ajoutés')}</span>
                             <Input type="number" min={1} value={days} onChange={(e) => setDays(e.target.value)} className="mt-2" />
                         </label>
                     )}
                     {type === 'renew' && (
                         <label className="block">
-                            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Paiement</span>
+                            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t('Paiement')}</span>
                             <select
                                 value={paymentMethod}
                                 onChange={(e) => setPaymentMethod(e.target.value)}
                                 className="mt-2 flex h-11 w-full rounded-md border border-input bg-tint/[0.03] px-3 text-sm"
                             >
-                                <option value="especes">Espèces</option>
-                                <option value="carte">Carte</option>
-                                <option value="virement">Virement</option>
-                                <option value="autre">Autre</option>
+                                <option value="especes">{t('Espèces')}</option>
+                                <option value="carte">{t('Carte')}</option>
+                                <option value="virement">{t('Virement')}</option>
+                                <option value="autre">{t('Autre')}</option>
                             </select>
                         </label>
                     )}
                     {['suspend', 'extend', 'cancel'].includes(type) && !isResume && (
                         <label className="block">
                             <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                                Motif{type === 'cancel' ? ' (optionnel)' : ''}
+                                {type === 'cancel' ? t('Motif (optionnel)') : t('Motif')}
                             </span>
-                            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Raison..." className="mt-2" />
+                            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t('Raison...')} className="mt-2" />
                         </label>
                     )}
 
@@ -967,7 +973,7 @@ function LifecycleDialog({
 
                 <DialogFooter>
                     <Button type="button" variant="outline" onClick={onClose}>
-                        Fermer
+                        {t('Fermer')}
                     </Button>
                     <Button
                         type="button"
@@ -976,7 +982,7 @@ function LifecycleDialog({
                         onClick={() => mutation.mutate()}
                     >
                         {mutation.isPending && <Loader2 className="animate-spin" />}
-                        {type === 'refund' ? 'Rembourser' : 'Confirmer'}
+                        {type === 'refund' ? t('Rembourser') : t('Confirmer')}
                     </Button>
                 </DialogFooter>
             </DialogContent>

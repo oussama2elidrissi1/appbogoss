@@ -735,6 +735,7 @@ function PlanDialog({
 }
 
 function SellSubscriptionDialog({ plan, onClose }: { plan: SubscriptionPlan | null; onClose: () => void }) {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const [clientSelection, setClientSelection] = useState<ClientSelection>(EMPTY_CLIENT_SELECTION);
     const [paymentMethod, setPaymentMethod] = useState('especes');
@@ -742,7 +743,7 @@ function SellSubscriptionDialog({ plan, onClose }: { plan: SubscriptionPlan | nu
 
     const purchaseMutation = useMutation({
         mutationFn: () => {
-            if (!plan || !clientSelection.client) throw new Error('Sélectionnez un client.');
+            if (!plan || !clientSelection.client) throw new Error(t('Sélectionnez un client.'));
             return purchaseSubscription(clientSelection.client.id, {
                 subscription_plan_id: plan.id,
                 payment_method: paymentMethod,
@@ -766,9 +767,9 @@ function SellSubscriptionDialog({ plan, onClose }: { plan: SubscriptionPlan | nu
         <Dialog open={plan !== null} onOpenChange={(nextOpen) => (nextOpen ? null : handleClose())}>
             <DialogContent className="max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>Vendre « {plan?.name} »</DialogTitle>
+                    <DialogTitle>{t('Vendre « {name} »', { name: plan?.name ?? '' })}</DialogTitle>
                     <DialogDescription>
-                        {plan ? `${formatCurrency(plan.price, { maximumFractionDigits: 2 })} — journée de caisse ouverte requise.` : ''}
+                        {plan ? t('{price} — journée de caisse ouverte requise.', { price: formatCurrency(plan.price, { maximumFractionDigits: 2 }) }) : ''}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -776,17 +777,17 @@ function SellSubscriptionDialog({ plan, onClose }: { plan: SubscriptionPlan | nu
                     <ClientPicker value={clientSelection} onChange={setClientSelection} />
 
                     <div className="space-y-2">
-                        <Label htmlFor="sub-payment-method">Mode de paiement</Label>
+                        <Label htmlFor="sub-payment-method">{t('Mode de paiement')}</Label>
                         <select
                             id="sub-payment-method"
                             value={paymentMethod}
                             onChange={(event) => setPaymentMethod(event.target.value)}
                             className="flex h-10 w-full rounded-md border border-input bg-tint/[0.03] px-3 text-sm text-foreground outline-none focus:border-accent/60"
                         >
-                            <option value="especes">Espèces</option>
-                            <option value="carte">Carte</option>
-                            <option value="virement">Virement</option>
-                            <option value="autre">Autre</option>
+                            <option value="especes">{t('Espèces')}</option>
+                            <option value="carte">{t('Carte')}</option>
+                            <option value="virement">{t('Virement')}</option>
+                            <option value="autre">{t('Autre')}</option>
                         </select>
                     </div>
 
@@ -795,7 +796,7 @@ function SellSubscriptionDialog({ plan, onClose }: { plan: SubscriptionPlan | nu
 
                 <DialogFooter>
                     <Button type="button" variant="outline" onClick={handleClose}>
-                        Annuler
+                        {t('Annuler')}
                     </Button>
                     <Button
                         type="button"
@@ -804,7 +805,7 @@ function SellSubscriptionDialog({ plan, onClose }: { plan: SubscriptionPlan | nu
                         onClick={() => purchaseMutation.mutate()}
                     >
                         {purchaseMutation.isPending && <Loader2 className="animate-spin" />}
-                        Confirmer la vente
+                        {t('Confirmer la vente')}
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -836,6 +837,7 @@ function LoadingGrid() {
 }
 
 function ErrorCard({ title, message, onRetry }: { title: string; message: string; onRetry: () => void }) {
+    const { t } = useI18n();
     return (
         <Card className="flex flex-col items-center justify-center px-6 py-16 text-center">
             <span className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/[0.12]">
@@ -844,7 +846,7 @@ function ErrorCard({ title, message, onRetry }: { title: string; message: string
             <h2 className="mt-4 text-base font-semibold">{title}</h2>
             <p className="mt-1.5 max-w-[42ch] text-sm leading-relaxed text-muted-foreground">{message}</p>
             <Button variant="accent" className="mt-6" onClick={onRetry}>
-                Réessayer
+                {t('Réessayer')}
             </Button>
         </Card>
     );

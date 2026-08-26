@@ -15,6 +15,7 @@ import { fr } from 'date-fns/locale';
 import { CalendarDays, CalendarPlus, List } from 'lucide-react';
 import { getAppointments, getEmployees, getServices, updateAppointment } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { pageFade } from '@/lib/motion';
 import type { Appointment } from '@/types/workday';
@@ -56,6 +57,7 @@ function rangeFor(view: View, date: Date): { from: Date; to: Date } {
 }
 
 export default function Agenda() {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const { hasPermission } = useAuth();
     // Partner accounts reach the agenda through `agenda.partner` only: they see
@@ -164,11 +166,11 @@ export default function Agenda() {
         <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-6">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                    <h2 className="text-2xl font-semibold tracking-tight">Agenda</h2>
+                    <h2 className="text-2xl font-semibold tracking-tight">{t('Agenda')}</h2>
                     <p className="mt-1.5 text-sm text-muted-foreground">
                         {partnerMode
-                            ? 'Vos réservations partenaires — créez une réservation, le salon la confirme.'
-                            : 'Planning professionnel du salon — glissez-déposez pour reprogrammer, redimensionnez pour ajuster la durée.'}
+                            ? t('Vos réservations partenaires — créez une réservation, le salon la confirme.')
+                            : t('Planning professionnel du salon — glissez-déposez pour reprogrammer, redimensionnez pour ajuster la durée.')}
                     </p>
                 </div>
 
@@ -194,7 +196,7 @@ export default function Agenda() {
                                     )}
                                 >
                                     <Icon className="h-3.5 w-3.5" />
-                                    {option.label}
+                                    {t(option.label)}
                                 </button>
                             );
                         })}
@@ -202,7 +204,7 @@ export default function Agenda() {
 
                     <Button type="button" variant="accent" onClick={() => openCreateDialog(new Date(), UNASSIGNED_RESOURCE_ID)}>
                         <CalendarPlus />
-                        Nouvelle réservation
+                        {t('Nouvelle réservation')}
                     </Button>
                 </div>
             </div>

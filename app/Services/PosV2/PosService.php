@@ -886,7 +886,11 @@ class PosService
                             });
                     });
             })
-            ->with(['employee', 'items.employee', 'items.service', 'items.product', 'client', 'confirmedBy', 'createdBy', 'tips.employee', 'commissions.employee', 'sale'])
+            ->with([
+                'employee', 'items.employee', 'items.service', 'items.product', 'client', 'confirmedBy', 'createdBy',
+                'tips.employee', 'commissions.employee',
+                'sale' => fn ($sale) => $sale->withTrashed(),
+            ])
             ->orderByDesc('created_at');
 
         if (! empty($filters['work_day_id'])) {
@@ -962,7 +966,14 @@ class PosService
      */
     public function historyStats(Collection $invoices): array
     {
-        $paid = $invoices->where('status', Prestation::STATUS_PAID);
+        $deletedSaleIds = $this->deletedSaleIdsFor($invoices);
+        $activeInvoices = $invoices
+            ->reject(fn (Prestation $invoice) => $this->hasDeletedSale($invoice, $deletedSaleIds))
+            ->values();
+        $paid = $invoices
+            ->where('status', Prestation::STATUS_PAID)
+            ->reject(fn (Prestation $invoice) => $this->hasDeletedSale($invoice, $deletedSaleIds))
+            ->values();
         $byEmployee = [];
 
         foreach ($paid as $invoice) {
@@ -1036,10 +1047,31 @@ class PosService
         return [
             'paid_count' => $paid->count(),
             'paid_total' => round((float) $paid->sum(fn (Prestation $invoice) => (float) $invoice->total), 2),
-            'v1_count' => $invoices->filter(fn (Prestation $invoice) => $invoice->channel === null)->count(),
-            'v2_count' => $invoices->filter(fn (Prestation $invoice) => $invoice->channel === Prestation::CHANNEL_CAISSE_V2)->count(),
+            'v1_count' => $activeInvoices->filter(fn (Prestation $invoice) => $invoice->channel === null)->count(),
+            'v2_count' => $activeInvoices->filter(fn (Prestation $invoice) => $invoice->channel === Prestation::CHANNEL_CAISSE_V2)->count(),
             'employees' => $employees,
         ];
+    }
+
+    /**
+     * @param  Collection<int, Prestation>  $invoices
+     * @return Collection<int, bool>
+     */
+    private function deletedSaleIdsFor(Collection $invoices): Collection
+    {
+        $saleIds = $invoices->pluck('sale_id')->filter()->unique()->values();
+
+        if ($saleIds->isEmpty()) {
+            return collect();
+        }
+
+        return Sale::onlyTrashed()->whereIn('id', $saleIds)->pluck('id')->flip();
+    }
+
+    /** @param Collection<int, bool> $deletedSaleIds */
+    private function hasDeletedSale(Prestation $invoice, Collection $deletedSaleIds): bool
+    {
+        return $invoice->sale_id !== null && $deletedSaleIds->has($invoice->sale_id);
     }
 
     /**

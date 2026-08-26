@@ -16,6 +16,7 @@ import {
 import { confirmAppointment, getErrorMessage, proposeAlternateSlot, refuseAppointment } from '@/lib/api';
 import { cn, formatCurrency, formatDate, formatTime } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+import { useI18n } from '@/lib/i18n';
 import type { Appointment, AppointmentStatus } from '@/types/workday';
 import { itemsOf } from './agendaEvents';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -63,6 +64,7 @@ export function ReservationDetailsDialog({
     appointment,
     onEdit,
 }: ReservationDetailsDialogProps) {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const { hasPermission } = useAuth();
     const [refusing, setRefusing] = useState(false);
@@ -150,8 +152,8 @@ export function ReservationDetailsDialog({
             <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
                 <DialogHeader>
                     <div className="flex items-center justify-between gap-3">
-                        <DialogTitle>Détail de la réservation</DialogTitle>
-                        <Badge variant={status.variant}>{status.label}</Badge>
+                        <DialogTitle>{t('Détail de la réservation')}</DialogTitle>
+                        <Badge variant={status.variant}>{t(status.label)}</Badge>
                     </div>
                     <DialogDescription className="flex items-center gap-1.5">
                         <CalendarClock className="h-3.5 w-3.5" />
@@ -164,12 +166,12 @@ export function ReservationDetailsDialog({
                     {appointment.partner && (
                         <div className="flex items-center justify-between gap-3 rounded-md border border-accent/25 bg-accent/[0.06] px-3.5 py-2.5">
                             <span className="text-sm text-foreground">
-                                Apportée par le partenaire{' '}
+                                {t('Apportée par le partenaire')}{' '}
                                 <span className="font-semibold">{appointment.partner.name}</span>
                             </span>
                             {appointment.partner_commission != null && appointment.partner_commission > 0 && (
                                 <span className="shrink-0 text-xs text-muted-foreground">
-                                    Commission estimée :{' '}
+                                    {t('Commission estimée :')}{' '}
                                     <span className="font-semibold text-accent">
                                         {formatCurrency(appointment.partner_commission, { maximumFractionDigits: 2 })}
                                     </span>
@@ -181,18 +183,20 @@ export function ReservationDetailsDialog({
                     {appointment.proposal_status === 'proposed' && (
                         <div className="flex items-center gap-2 rounded-md border border-sky-500/25 bg-sky-500/[0.06] px-3.5 py-2.5 text-xs text-muted-foreground">
                             <CalendarPlus className="h-3.5 w-3.5 shrink-0 text-sky-500" />
-                            Créneau alternatif proposé le {formatDate(appointment.proposed_starts_at!)} à{' '}
-                            {formatTime(appointment.proposed_starts_at!)} — en attente de la réponse du partenaire.
+                            {t('Créneau alternatif proposé le {date} à {time} — en attente de la réponse du partenaire.', {
+                                date: formatDate(appointment.proposed_starts_at!),
+                                time: formatTime(appointment.proposed_starts_at!),
+                            })}
                         </div>
                     )}
 
                     <div>
                         <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                             <User className="h-3.5 w-3.5" />
-                            Contact
+                            {t('Contact')}
                         </p>
                         {!contact ? (
-                            <p className="text-sm text-muted-foreground">Aucun client renseigné.</p>
+                            <p className="text-sm text-muted-foreground">{t('Aucun client renseigné.')}</p>
                         ) : (
                             <div className="flex items-center justify-between gap-3 rounded-md border border-tint/[0.08] bg-tint/[0.025] px-3.5 py-2.5">
                                 <span className="flex min-w-0 items-center gap-2">
@@ -210,7 +214,7 @@ export function ReservationDetailsDialog({
                                 ) : (
                                     <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
                                         <Mail className="h-3.5 w-3.5" />
-                                        Sans téléphone
+                                        {t('Sans téléphone')}
                                     </span>
                                 )}
                             </div>
@@ -222,7 +226,7 @@ export function ReservationDetailsDialog({
                     <div>
                         <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                             <Users className="h-3.5 w-3.5" />
-                            {people.length} personne{people.length > 1 ? 's' : ''} · Prestations
+                            {people.length} {t(people.length > 1 ? 'personnes' : 'personne')} · {t('Prestations')}
                         </p>
                         <div className="space-y-3">
                             {people.map((person, personIndex) => {
@@ -232,15 +236,15 @@ export function ReservationDetailsDialog({
                                 return (
                                     <div key={personIndex}>
                                         <p className="mb-1.5 text-xs font-semibold text-foreground">
-                                            {person.name?.trim() || `Personne ${personIndex + 1}`}
+                                            {person.name?.trim() || t('Personne {n}', { n: personIndex + 1 })}
                                             {personIndex === 0 && (
                                                 <span className="ml-1.5 font-normal text-muted-foreground">
-                                                    (contact)
+                                                    {t('(contact)')}
                                                 </span>
                                             )}
                                         </p>
                                         {personItems.length === 0 ? (
-                                            <p className="text-xs text-muted-foreground">Aucune prestation.</p>
+                                            <p className="text-xs text-muted-foreground">{t('Aucune prestation.')}</p>
                                         ) : (
                                             <div className="space-y-1.5">
                                                 {personItems.map((item, index) => (
@@ -250,11 +254,11 @@ export function ReservationDetailsDialog({
                                                     >
                                                         <div className="min-w-0">
                                                             <p className="truncate text-sm font-medium text-foreground">
-                                                                {item.service?.name ?? 'Prestation'}
+                                                                {item.service?.name ?? t('Prestation')}
                                                             </p>
                                                             <p className="text-xs text-muted-foreground">
-                                                                {item.service?.duration_minutes ?? 0} min ·{' '}
-                                                                {item.employee?.name ?? 'Non assigné'}
+                                                                {item.service?.duration_minutes ?? 0} {t('min')} ·{' '}
+                                                                {item.employee?.name ?? t('Non assigné')}
                                                             </p>
                                                         </div>
                                                         <span className="shrink-0 text-sm font-semibold tabular-nums text-accent">
@@ -271,15 +275,15 @@ export function ReservationDetailsDialog({
                             })}
                         </div>
                         <div className="mt-2 flex items-center justify-between px-1 text-sm">
-                            <span className="text-muted-foreground">Total</span>
+                            <span className="text-muted-foreground">{t('Total')}</span>
                             <span className="font-semibold text-accent">
                                 {formatCurrency(totalPrice, { maximumFractionDigits: 2 })}
                             </span>
                         </div>
                         {isReviewable && (
                             <div className="mt-1 flex items-center justify-between px-1 text-xs text-muted-foreground">
-                                <span>Durée estimée</span>
-                                <span>{totalDuration} min</span>
+                                <span>{t('Durée estimée')}</span>
+                                <span>{totalDuration} {t('min')}</span>
                             </div>
                         )}
                     </div>
@@ -289,7 +293,7 @@ export function ReservationDetailsDialog({
                             <Separator />
                             <div>
                                 <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                                    Notes
+                                    {t('Notes')}
                                 </p>
                                 <p className="whitespace-pre-line text-sm text-foreground">{appointment.notes}</p>
                             </div>
@@ -316,11 +320,11 @@ export function ReservationDetailsDialog({
                                     onClick={() => confirmMutation.mutate(appointment.id)}
                                 >
                                     {confirmMutation.isPending ? <Loader2 className="animate-spin" /> : <Check />}
-                                    Accepter
+                                    {t('Accepter')}
                                 </Button>
                                 <Button type="button" variant="outline" disabled={anyActionPending} onClick={onEdit}>
                                     <Pencil />
-                                    Modifier avant acceptation
+                                    {t('Modifier avant acceptation')}
                                 </Button>
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
@@ -332,7 +336,7 @@ export function ReservationDetailsDialog({
                                     onClick={openProposeDialog}
                                 >
                                     <CalendarPlus />
-                                    Proposer un autre créneau
+                                    {t('Proposer un autre créneau')}
                                 </Button>
                                 <Button
                                     type="button"
@@ -342,18 +346,18 @@ export function ReservationDetailsDialog({
                                     onClick={() => setRefusing(true)}
                                 >
                                     <X />
-                                    Refuser
+                                    {t('Refuser')}
                                 </Button>
                             </div>
                         </>
                     ) : (
                         <>
                             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                                Fermer
+                                {t('Fermer')}
                             </Button>
                             <Button type="button" variant="accent" onClick={onEdit}>
                                 <Pencil />
-                                Modifier
+                                {t('Modifier')}
                             </Button>
                         </>
                     )}
@@ -363,16 +367,16 @@ export function ReservationDetailsDialog({
             <ConfirmDialog
                 open={refusing}
                 onOpenChange={setRefusing}
-                title="Refuser cette réservation ?"
-                description="Le partenaire verra le motif choisi sur sa fiche de réservation."
-                confirmLabel="Refuser"
+                title={t('Refuser cette réservation ?')}
+                description={t('Le partenaire verra le motif choisi sur sa fiche de réservation.')}
+                confirmLabel={t('Refuser')}
                 variant="destructive"
                 loading={refuseMutation.isPending}
                 onConfirm={() => refuseMutation.mutate(appointment.id)}
             >
                 <div className="space-y-1.5">
                     <label className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                        Motif
+                        {t('Motif')}
                     </label>
                     <select
                         value={refuseReason}
@@ -381,7 +385,7 @@ export function ReservationDetailsDialog({
                     >
                         {REFUSAL_REASONS.map((reason) => (
                             <option key={reason} value={reason}>
-                                {reason}
+                                {t(reason)}
                             </option>
                         ))}
                     </select>
@@ -391,9 +395,9 @@ export function ReservationDetailsDialog({
             <ConfirmDialog
                 open={proposing}
                 onOpenChange={setProposing}
-                title="Proposer un autre créneau"
-                description="Le partenaire recevra cette proposition et pourra l'accepter ou la refuser."
-                confirmLabel="Envoyer la proposition"
+                title={t('Proposer un autre créneau')}
+                description={t("Le partenaire recevra cette proposition et pourra l'accepter ou la refuser.")}
+                confirmLabel={t('Envoyer la proposition')}
                 variant="accent"
                 loading={proposeMutation.isPending}
                 onConfirm={() => proposeMutation.mutate(appointment.id)}
@@ -401,25 +405,25 @@ export function ReservationDetailsDialog({
                 <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                         <label className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                            Date
+                            {t('Date')}
                         </label>
                         <Input type="date" value={proposeDate} onChange={(event) => setProposeDate(event.target.value)} />
                     </div>
                     <div className="space-y-1.5">
                         <label className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                            Heure
+                            {t('Heure')}
                         </label>
                         <Input type="time" value={proposeTime} onChange={(event) => setProposeTime(event.target.value)} />
                     </div>
                 </div>
                 <div className="mt-3 space-y-1.5">
                     <label className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                        Note (facultatif)
+                        {t('Note (facultatif)')}
                     </label>
                     <Input
                         value={proposeNote}
                         onChange={(event) => setProposeNote(event.target.value)}
-                        placeholder="Ex. créneau du matin complet"
+                        placeholder={t('Ex. créneau du matin complet')}
                     />
                 </div>
                 {proposeMutation.isError && (

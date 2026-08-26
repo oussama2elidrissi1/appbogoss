@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { AlertCircle, ArrowRight, Loader2, Lock, Phone, Scissors } from 'lucide-react';
 import { usePortalAuth } from '@/hooks/usePortalAuth';
 import { getErrorMessage, loginClient } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +12,7 @@ import { Label } from '@/components/ui/label';
 /** Returning-customer login — phone + the password chosen at /join. New customers register at /join instead. */
 export default function PortalLogin() {
     const { client, isLoading, setClient } = usePortalAuth();
+    const { t } = useI18n();
     const navigate = useNavigate();
 
     const [phone, setPhone] = useState('');
@@ -29,7 +31,7 @@ export default function PortalLogin() {
             setClient(verifiedClient);
             navigate('/mon-compte', { replace: true });
         } catch (e) {
-            setError(getErrorMessage(e, 'Numéro ou mot de passe incorrect.'));
+            setError(getErrorMessage(e, t('Numéro ou mot de passe incorrect.')));
         } finally {
             setBusy(false);
         }
@@ -51,13 +53,13 @@ export default function PortalLogin() {
                         <div className="text-lg font-semibold tracking-tight">
                             BOGOS<span className="text-accent">LAND</span>
                         </div>
-                        <p className="mt-1 text-xs text-muted-foreground">Mon espace fidélité</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{t('Mon espace fidélité')}</p>
                     </div>
                 </div>
 
                 <form onSubmit={onSubmit} className="space-y-4" noValidate>
                     <div className="space-y-2">
-                        <Label htmlFor="phone">Téléphone</Label>
+                        <Label htmlFor="phone">{t('Téléphone')}</Label>
                         <div className="relative">
                             <Phone className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
                             <Input
@@ -73,7 +75,7 @@ export default function PortalLogin() {
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="password">Mot de passe</Label>
+                        <Label htmlFor="password">{t('Mot de passe')}</Label>
                         <div className="relative">
                             <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
                             <Input
@@ -104,18 +106,18 @@ export default function PortalLogin() {
                         {busy ? (
                             <>
                                 <Loader2 className="animate-spin" />
-                                Connexion…
+                                {t('Connexion…')}
                             </>
                         ) : (
                             <>
-                                Se connecter
+                                {t('Se connecter')}
                                 <ArrowRight className="transition-transform duration-200 group-hover:translate-x-0.5" />
                             </>
                         )}
                     </Button>
 
                     <p className="text-center text-xs text-muted-foreground">
-                        Pas encore inscrit ? Scannez le QR Code affiché au salon.
+                        {t('Pas encore inscrit ? Scannez le QR Code affiché au salon.')}
                     </p>
                 </form>
             </motion.div>

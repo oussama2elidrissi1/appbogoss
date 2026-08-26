@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, ChevronDown, HandCoins } from 'lucide-react';
 import { getCommissionsReport, getEmployees, getErrorMessage } from '@/lib/api';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
+import { useI18n } from '@/lib/i18n';
 import type { CommissionsReport } from '@/types/prestation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,7 @@ function today(): string {
 
 /** Commissions calculées, groupées par employé, sur une période libre. */
 export function CommissionsReportPanel() {
+    const { t } = useI18n();
     const [from, setFrom] = useState(firstOfMonth());
     const [to, setTo] = useState(today());
     const [employeeId, setEmployeeId] = useState<'all' | number>('all');
@@ -52,10 +54,10 @@ export function CommissionsReportPanel() {
         return (
             <Card className="flex flex-col items-center justify-center px-6 py-16 text-center">
                 <AlertCircle className="h-6 w-6 text-destructive" />
-                <h3 className="mt-4 font-semibold">Impossible de charger les commissions</h3>
+                <h3 className="mt-4 font-semibold">{t('Impossible de charger les commissions')}</h3>
                 <p className="mt-2 text-sm text-muted-foreground">{getErrorMessage(error)}</p>
                 <Button className="mt-5" variant="accent" onClick={() => void refetch()}>
-                    Réessayer
+                    {t('Réessayer')}
                 </Button>
             </Card>
         );
@@ -66,7 +68,7 @@ export function CommissionsReportPanel() {
             <Card>
                 <CardContent className="flex flex-wrap items-end gap-4 p-4">
                     <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                        Du
+                        {t('Du')}
                         <input
                             type="date"
                             value={from}
@@ -75,7 +77,7 @@ export function CommissionsReportPanel() {
                         />
                     </label>
                     <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                        Au
+                        {t('Au')}
                         <input
                             type="date"
                             value={to}
@@ -84,7 +86,7 @@ export function CommissionsReportPanel() {
                         />
                     </label>
                     <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                        Employé
+                        {t('Employé')}
                         <select
                             value={employeeId}
                             onChange={(event) =>
@@ -92,7 +94,7 @@ export function CommissionsReportPanel() {
                             }
                             className="block h-10 min-w-[200px] rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 text-sm font-normal normal-case tracking-normal text-foreground outline-none transition-colors focus:border-accent/60"
                         >
-                            <option value="all">Tous les employés</option>
+                            <option value="all">{t('Tous les employés')}</option>
                             {employees.map((employee) => (
                                 <option key={employee.id} value={employee.id}>
                                     {employee.name}
@@ -125,8 +127,8 @@ export function CommissionsReportPanel() {
             ) : (report?.by_employee ?? []).length === 0 ? (
                 <EmptyState
                     icon={HandCoins}
-                    title="Aucune commission sur cette période"
-                    description="Ajustez les dates ou l'employé sélectionné pour élargir la recherche."
+                    title={t('Aucune commission sur cette période')}
+                    description={t("Ajustez les dates ou l'employé sélectionné pour élargir la recherche.")}
                 />
             ) : (
                 <div className="space-y-3">
@@ -144,7 +146,7 @@ export function CommissionsReportPanel() {
                                     <div className="min-w-0">
                                         <p className="truncate text-sm font-semibold">{group.employee_name}</p>
                                         <p className="mt-0.5 text-xs text-muted-foreground">
-                                            {group.count} commission{group.count > 1 ? 's' : ''}
+                                            {group.count} {t(group.count > 1 ? 'commissions' : 'commission')}
                                         </p>
                                     </div>
                                     <div className="flex shrink-0 items-center gap-3">
@@ -166,7 +168,10 @@ export function CommissionsReportPanel() {
                                             {details.map((detail) => (
                                                 <li
                                                     key={detail.id}
-                                                    className="flex items-center justify-between gap-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3 py-2"
+                                                    className={cn(
+                                                        'flex items-center justify-between gap-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3 py-2',
+                                                        detail.is_deleted && 'opacity-70',
+                                                    )}
                                                 >
                                                     <div className="min-w-0">
                                                         <p className="text-sm font-medium text-foreground">
@@ -177,11 +182,13 @@ export function CommissionsReportPanel() {
                                                         </p>
                                                     </div>
                                                     <div className="flex shrink-0 items-center gap-2">
-                                                        <span className="text-sm font-semibold tabular-nums">
+                                                        <span className={cn('text-sm font-semibold tabular-nums', detail.is_deleted && 'line-through')}>
                                                             {formatCurrency(detail.amount)}
                                                         </span>
-                                                        <Badge variant={detail.status === 'validated' ? 'success' : 'outline'}>
-                                                            {detail.status === 'validated' ? 'Validée' : 'Annulée'}
+                                                        <Badge variant={detail.is_deleted ? 'destructive' : detail.status === 'validated' ? 'success' : 'outline'}>
+                                                            {detail.is_deleted
+                                                                ? 'Supprimée'
+                                                                : detail.status === 'validated' ? 'Validée' : 'Annulée'}
                                                         </Badge>
                                                     </div>
                                                 </li>
@@ -199,9 +206,10 @@ export function CommissionsReportPanel() {
 }
 
 function ReportStat({ label, value }: { label: string; value: string }) {
+    const { t } = useI18n();
     return (
         <Card className="px-4 py-3">
-            <p className="text-xs text-muted-foreground">{label}</p>
+            <p className="text-xs text-muted-foreground">{t(label)}</p>
             <p className="mt-1 text-xl font-semibold tabular-nums">{value}</p>
         </Card>
     );

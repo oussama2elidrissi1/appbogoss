@@ -24,6 +24,7 @@ import { useNavigate } from 'react-router-dom';
 import { getEmployees, getErrorMessage, getSubscriptionScanCard, validateSubscriptionVisit } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { cn, formatCurrency, formatDate, formatTime } from '@/lib/utils';
+import { useI18n } from '@/lib/i18n';
 import type { ScanCardService, SubscriptionScanCard, ValidateVisitResponse } from '@/types/loyalty';
 import { useAuth } from '@/hooks/useAuth';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -54,6 +55,7 @@ function extractToken(raw: string): string {
 }
 
 export default function ScannerAbonnements() {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const navigate = useNavigate();
     const { user, hasPermission } = useAuth();
@@ -105,7 +107,7 @@ export default function ScannerAbonnements() {
         onError: (error) => {
             setCard(null);
             setCardToken(null);
-            setLookupError(getErrorMessage(error, 'QR code invalide.'));
+            setLookupError(getErrorMessage(error, t('QR code invalide.')));
         },
     });
 
@@ -179,10 +181,10 @@ export default function ScannerAbonnements() {
             });
         } catch {
             setCameraError(
-                "Impossible d'accéder à la caméra. Autorisez la caméra dans votre navigateur, ou saisissez le code manuellement ci-dessous.",
+                t("Impossible d'accéder à la caméra. Autorisez la caméra dans votre navigateur, ou saisissez le code manuellement ci-dessous."),
             );
         }
-    }, [handleDetected]);
+    }, [handleDetected, t]);
 
     function reset() {
         stopCamera();
@@ -210,10 +212,9 @@ export default function ScannerAbonnements() {
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="mx-auto max-w-3xl space-y-6">
             <div>
-                <h2 className="text-2xl font-semibold tracking-tight">Scanner abonnement</h2>
+                <h2 className="text-2xl font-semibold tracking-tight">{t('Scanner abonnement')}</h2>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                    Scannez le QR personnel du client — le scan affiche sa fiche, la visite n'est validée
-                    qu'après votre confirmation.
+                    {t("Scannez le QR personnel du client — le scan affiche sa fiche, la visite n'est validée qu'après votre confirmation.")}
                 </p>
             </div>
 
@@ -229,12 +230,12 @@ export default function ScannerAbonnements() {
                                         <div className="h-48 w-48 rounded-md border-2 border-accent/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
                                     </div>
                                     <div className="pointer-events-none absolute inset-x-0 top-3 text-center text-xs font-medium text-white/80">
-                                        Placez le QR code dans le cadre
+                                        {t('Placez le QR code dans le cadre')}
                                     </div>
                                 </div>
                                 <Button type="button" variant="outline" className="w-full" onClick={stopCamera}>
                                     <CameraOff />
-                                    Fermer la caméra
+                                    {t('Fermer la caméra')}
                                 </Button>
                             </div>
                         ) : (
@@ -250,7 +251,7 @@ export default function ScannerAbonnements() {
                                     onClick={() => void startCamera()}
                                 >
                                     <Camera />
-                                    Ouvrir la caméra
+                                    {t('Ouvrir la caméra')}
                                 </Button>
                                 {cameraError && (
                                     <p className="mt-4 max-w-sm text-center text-xs text-destructive">{cameraError}</p>
@@ -258,7 +259,7 @@ export default function ScannerAbonnements() {
 
                                 <div className="mt-8 w-full max-w-sm">
                                     <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/70">
-                                        ou saisie manuelle
+                                        {t('ou saisie manuelle')}
                                     </p>
                                     <div className="flex gap-2">
                                         <div className="relative flex-1">
@@ -266,7 +267,7 @@ export default function ScannerAbonnements() {
                                             <Input
                                                 value={manualToken}
                                                 onChange={(event) => setManualToken(event.target.value)}
-                                                placeholder="Code de l'abonnement"
+                                                placeholder={t("Code de l'abonnement")}
                                                 className="pl-10"
                                                 onKeyDown={(event) => {
                                                     if (event.key === 'Enter' && manualToken.trim()) {
@@ -311,7 +312,7 @@ export default function ScannerAbonnements() {
                             >
                                 <CheckCircle2 className="h-9 w-9 text-success" />
                             </motion.span>
-                            <h3 className="mt-4 text-xl font-semibold tracking-tight text-success">VISITE VALIDÉE</h3>
+                            <h3 className="mt-4 text-xl font-semibold tracking-tight text-success">{t('VISITE VALIDÉE')}</h3>
                             <p className="mt-1.5 text-sm text-muted-foreground">
                                 {success.service_name} · {card?.client.name}
                             </p>
@@ -319,24 +320,23 @@ export default function ScannerAbonnements() {
                                 <p className="mt-3 text-2xl font-bold tabular-nums text-foreground">
                                     {success.remaining.total_remaining}{' '}
                                     <span className="text-sm font-medium text-muted-foreground">
-                                        visite{success.remaining.total_remaining > 1 ? 's' : ''} restante
-                                        {success.remaining.total_remaining > 1 ? 's' : ''}
+                                        {success.remaining.total_remaining > 1 ? t('visites restantes') : t('visite restante')}
                                     </span>
                                 </p>
                             )}
                             {success.remaining.period_remaining !== null && (
                                 <p className="mt-1 text-xs text-muted-foreground">
-                                    {success.remaining.period_remaining} restante
-                                    {success.remaining.period_remaining > 1 ? 's' : ''} sur la période en cours
+                                    {success.remaining.period_remaining}{' '}
+                                    {success.remaining.period_remaining > 1 ? t('restantes sur la période en cours') : t('restante sur la période en cours')}
                                 </p>
                             )}
                             <div className="mt-6 flex gap-2">
                                 <Button type="button" variant="outline" onClick={() => setSuccess(null)}>
-                                    Voir la fiche
+                                    {t('Voir la fiche')}
                                 </Button>
                                 <Button type="button" variant="accent" onClick={reset}>
                                     <ScanLine />
-                                    Scanner à nouveau
+                                    {t('Scanner à nouveau')}
                                 </Button>
                             </div>
                         </CardContent>
@@ -369,7 +369,7 @@ export default function ScannerAbonnements() {
                                         </span>
                                     </p>
                                 </div>
-                                {status && <Badge variant={status.variant}>{status.label}</Badge>}
+                                {status && <Badge variant={status.variant}>{t(status.label)}</Badge>}
                             </div>
 
                             {/* Block reason */}
@@ -389,7 +389,7 @@ export default function ScannerAbonnements() {
                                                 onClick={() => navigate(`/abonnements?renew=${card.subscription.id}`)}
                                             >
                                                 <RefreshCw />
-                                                Renouveler
+                                                {t('Renouveler')}
                                             </Button>
                                         )}
                                 </div>
@@ -397,9 +397,9 @@ export default function ScannerAbonnements() {
 
                             {/* Key facts */}
                             <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                                <FactTile label="Valable jusqu'au" value={formatDate(card.subscription.ends_on)} />
+                                <FactTile label={t("Valable jusqu'au")} value={formatDate(card.subscription.ends_on)} />
                                 <FactTile
-                                    label="Visites utilisées"
+                                    label={t('Visites utilisées')}
                                     value={
                                         card.total_visits !== null
                                             ? `${card.used_visits} / ${card.total_visits}`
@@ -407,17 +407,17 @@ export default function ScannerAbonnements() {
                                     }
                                 />
                                 <FactTile
-                                    label="Restantes"
+                                    label={t('Restantes')}
                                     value={
                                         card.total_visits !== null
                                             ? String(Math.max(0, card.total_visits - card.used_visits))
-                                            : 'Illimité'
+                                            : t('Illimité')
                                     }
                                     accent
                                 />
                                 <FactTile
-                                    label="Aujourd'hui"
-                                    value={card.rules.day_allowed ? 'AUTORISÉ' : 'REFUSÉ'}
+                                    label={t("Aujourd'hui")}
+                                    value={card.rules.day_allowed ? t('AUTORISÉ') : t('REFUSÉ')}
                                     tone={card.rules.day_allowed ? 'success' : 'destructive'}
                                 />
                             </div>
@@ -427,13 +427,13 @@ export default function ScannerAbonnements() {
                                 {card.rules.time_start && card.rules.time_end && (
                                     <RuleChip
                                         ok={card.rules.time_allowed}
-                                        label={`Horaire ${card.rules.time_start} → ${card.rules.time_end}`}
+                                        label={t('Horaire {start} → {end}', { start: card.rules.time_start, end: card.rules.time_end })}
                                     />
                                 )}
                                 {card.rules.allowed_days.length > 0 && (
                                     <RuleChip
                                         ok={card.rules.day_allowed}
-                                        label={card.rules.allowed_days.map((day) => DAY_SHORT[day]).join(' · ')}
+                                        label={card.rules.allowed_days.map((day) => t(DAY_SHORT[day])).join(' · ')}
                                     />
                                 )}
                                 {card.rules.min_interval_minutes !== null && (
@@ -441,8 +441,8 @@ export default function ScannerAbonnements() {
                                         ok={card.rules.interval_ok}
                                         label={
                                             card.rules.interval_ok
-                                                ? `Intervalle ${formatInterval(card.rules.min_interval_minutes)}`
-                                                : `Prochaine visite : ${card.rules.next_allowed_at}`
+                                                ? t('Intervalle {x}', { x: formatInterval(card.rules.min_interval_minutes) })
+                                                : t('Prochaine visite : {x}', { x: card.rules.next_allowed_at ?? '' })
                                         }
                                     />
                                 )}
@@ -452,7 +452,7 @@ export default function ScannerAbonnements() {
                                         <RuleChip
                                             key={period}
                                             ok={!cap.reached}
-                                            label={`${cap.count}/${cap.limit} ${period === 'day' ? 'aujourd’hui' : period === 'week' ? 'cette semaine' : 'ce mois'}`}
+                                            label={`${cap.count}/${cap.limit} ${period === 'day' ? t('aujourd’hui') : period === 'week' ? t('cette semaine') : t('ce mois')}`}
                                         />
                                     ))}
                             </div>
@@ -465,7 +465,7 @@ export default function ScannerAbonnements() {
                             <CardContent className="space-y-4 p-5">
                                 <div>
                                     <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                                        Service de la visite
+                                        {t('Service de la visite')}
                                     </p>
                                     <div className="mt-2 grid gap-2 sm:grid-cols-2">
                                         {card.services.map((service) => (
@@ -482,7 +482,7 @@ export default function ScannerAbonnements() {
                                 {canSelectEmployee ? (
                                     <div>
                                         <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                                            Employé qui réalise le service
+                                            {t('Employé qui réalise le service')}
                                         </p>
                                         <select
                                             value={employeeId}
@@ -491,7 +491,7 @@ export default function ScannerAbonnements() {
                                             }
                                             className="mt-2 flex h-11 w-full rounded-md border border-input bg-tint/[0.03] px-3.5 text-sm text-foreground shadow-sm focus-visible:border-accent/60 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/10"
                                         >
-                                            <option value="">Sélectionner un employé…</option>
+                                            <option value="">{t('Sélectionner un employé…')}</option>
                                             {employees
                                                 .filter((employee) => employee.is_active)
                                                 .map((employee) => (
@@ -503,7 +503,7 @@ export default function ScannerAbonnements() {
                                     </div>
                                 ) : (
                                     <div className="rounded-md border border-tint/[0.08] bg-tint/[0.03] px-3.5 py-3 text-sm text-muted-foreground">
-                                        Visite rattachee a votre compte employe.
+                                        {t('Visite rattachee a votre compte employe.')}
                                     </div>
                                 )}
 
@@ -535,7 +535,7 @@ export default function ScannerAbonnements() {
                                     ) : (
                                         <CheckCircle2 />
                                     )}
-                                    Valider la visite
+                                    {t('Valider la visite')}
                                     {selectedService ? ` — ${selectedService.name}` : ''}
                                 </Button>
                             </CardContent>
@@ -548,7 +548,7 @@ export default function ScannerAbonnements() {
                             <CardContent className="p-5">
                                 <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                                     <History className="h-3.5 w-3.5" />
-                                    Dernières visites
+                                    {t('Dernières visites')}
                                 </p>
                                 <div className="mt-3 space-y-1.5">
                                     {card.recent_usages.map((usage, index) => (
@@ -580,7 +580,7 @@ export default function ScannerAbonnements() {
 
                     <Button type="button" variant="outline" className="w-full" onClick={reset}>
                         <ScanLine />
-                        Scanner à nouveau
+                        {t('Scanner à nouveau')}
                     </Button>
                 </motion.div>
             )}
@@ -646,6 +646,7 @@ function ServiceOption({
     selected: boolean;
     onSelect: () => void;
 }) {
+    const { t } = useI18n();
     const exhausted = !service.unlimited && (service.total_remaining ?? 1) <= 0;
 
     return (
@@ -665,11 +666,11 @@ function ServiceOption({
                 <span className="block truncate text-sm font-medium">{service.name}</span>
                 <span className="block text-xs text-muted-foreground">
                     {service.unlimited
-                        ? 'Illimité'
+                        ? t('Illimité')
                         : service.total_remaining !== null
-                          ? `${service.total_remaining} restante${service.total_remaining > 1 ? 's' : ''}`
+                          ? `${service.total_remaining} ${service.total_remaining > 1 ? t('restantes') : t('restante')}`
                           : service.period_remaining !== null
-                            ? `${service.period_remaining} restante${service.period_remaining > 1 ? 's' : ''} cette ${service.quota_period === 'day' ? 'journée' : service.quota_period === 'week' ? 'semaine' : 'période'}`
+                            ? `${service.period_remaining} ${service.period_remaining > 1 ? t('restantes') : t('restante')} ${service.quota_period === 'day' ? t('cette journée') : service.quota_period === 'week' ? t('cette semaine') : t('cette période')}`
                             : ''}
                 </span>
             </span>

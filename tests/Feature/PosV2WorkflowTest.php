@@ -595,6 +595,100 @@ class PosV2WorkflowTest extends TestCase
         $this->assertSame(1, $employees['Yassine']['performed_count']);
     }
 
+    public function test_deleted_v1_and_v2_sales_stay_visible_but_are_excluded_from_pos_history_stats(): void
+    {
+        $admin = $this->superAdmin();
+        $employeeUser = User::factory()->create(['role' => 'employee']);
+        $employeeUser->assignRole('employee');
+        $employee = Employee::factory()->create([
+            'name' => 'Ahmed',
+            'user_id' => $employeeUser->id,
+            'default_commission_rate' => 50,
+        ]);
+        $service = Service::factory()->create(['name' => 'Coupe', 'price' => 100]);
+
+        $prestations = app(PrestationService::class);
+        $v1 = $prestations->create(['items' => [['service_id' => $service->id]]], $employee, $employeeUser);
+        $prestations->markServicesDone($v1->fresh(), $employeeUser);
+        $prestations->sendToCaisse($v1->fresh(), $employeeUser, false);
+        $prestations->confirmPayment($v1->fresh(), ['payment_method' => 'especes'], $admin);
+        $v1 = $v1->fresh();
+
+        Sanctum::actingAs($admin);
+        $v2 = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $service->id, 'employee_id' => $employee->id]],
+        ])->assertCreated()->json('data');
+        $v2Paid = $this->postJson("/api/pos-v2/invoices/{$v2['id']}/checkout", ['payment_method' => 'carte'])
+            ->assertOk()
+            ->json('data');
+
+        $this->deleteJson("/api/transactions/{$v1->sale_id}")->assertOk();
+        $this->deleteJson("/api/transactions/{$v2Paid['sale_id']}")->assertOk();
+
+        $history = $this->getJson('/api/pos-v2/history')->assertOk();
+        $rows = collect($history->json('data'))->keyBy('id');
+
+        $this->assertTrue($rows[$v1->id]['sale_deleted']);
+        $this->assertTrue($rows[$v2['id']]['sale_deleted']);
+        $this->assertSame(0, $history->json('meta.page_paid_count'));
+        $this->assertEquals(0, $history->json('meta.page_paid_total'));
+        $this->assertSame(0, $history->json('meta.stats.paid_count'));
+        $this->assertEquals(0, $history->json('meta.stats.paid_total'));
+        $this->assertSame(0, $history->json('meta.stats.v1_count'));
+        $this->assertSame(0, $history->json('meta.stats.v2_count'));
+        $this->assertSame([], $history->json('meta.stats.employees'));
+    }
+
+    public function test_deleted_v1_and_v2_commissions_are_excluded_from_admin_commission_report_totals(): void
+    {
+        $admin = $this->superAdmin();
+        $employeeUser = User::factory()->create(['role' => 'employee']);
+        $employeeUser->assignRole('employee');
+        $employee = Employee::factory()->create([
+            'name' => 'Ahmed',
+            'user_id' => $employeeUser->id,
+            'default_commission_rate' => 50,
+        ]);
+        $service = Service::factory()->create(['name' => 'Coupe', 'price' => 100]);
+
+        Sanctum::actingAs($admin);
+        $activeV2 = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $service->id, 'employee_id' => $employee->id]],
+        ])->assertCreated()->json('data');
+        $this->postJson("/api/pos-v2/invoices/{$activeV2['id']}/checkout", ['payment_method' => 'carte'])
+            ->assertOk();
+
+        $deletedV2 = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $service->id, 'employee_id' => $employee->id]],
+        ])->assertCreated()->json('data');
+        $deletedV2Paid = $this->postJson("/api/pos-v2/invoices/{$deletedV2['id']}/checkout", ['payment_method' => 'carte'])
+            ->assertOk()
+            ->json('data');
+
+        $prestations = app(PrestationService::class);
+        $deletedV1 = $prestations->create(['items' => [['service_id' => $service->id]]], $employee, $employeeUser);
+        $prestations->markServicesDone($deletedV1->fresh(), $employeeUser);
+        $prestations->sendToCaisse($deletedV1->fresh(), $employeeUser, false);
+        $prestations->confirmPayment($deletedV1->fresh(), ['payment_method' => 'especes'], $admin);
+        $deletedV1 = $deletedV1->fresh();
+
+        $this->deleteJson("/api/transactions/{$deletedV2Paid['sale_id']}")->assertOk();
+        $this->deleteJson("/api/transactions/{$deletedV1->sale_id}")->assertOk();
+
+        $report = $this->getJson('/api/reports/commissions?from='.now()->startOfMonth()->toDateString().'&to='.now()->toDateString())
+            ->assertOk()
+            ->json('data');
+
+        $this->assertEquals(50, $report['total']);
+        $this->assertSame(1, $report['by_employee'][0]['count']);
+        $this->assertEquals(50, $report['by_employee'][0]['total']);
+
+        $deletedDetails = collect($report['details'])->where('is_deleted', true);
+        $this->assertCount(2, $deletedDetails);
+        $this->assertTrue($deletedDetails->pluck('prestation_reference')->contains($deletedV1->reference));
+        $this->assertTrue($deletedDetails->pluck('prestation_reference')->contains($deletedV2Paid['reference']));
+    }
+
     public function test_dashboard_reports_day_totals_open_invoices_and_tips(): void
     {
         Sanctum::actingAs($this->superAdmin());

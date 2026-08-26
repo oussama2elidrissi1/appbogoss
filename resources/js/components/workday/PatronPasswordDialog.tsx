@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, KeyRound, Loader2 } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import {
     Dialog,
@@ -42,6 +43,7 @@ export function PatronPasswordDialog({
     error,
     onConfirm,
 }: PatronPasswordDialogProps) {
+    const { t } = useI18n();
     const [password, setPassword] = useState('');
 
     useEffect(() => {
@@ -63,10 +65,10 @@ export function PatronPasswordDialog({
                                 className={cn('h-5 w-5', tone === 'destructive' ? 'text-destructive' : 'text-accent')}
                             />
                         </span>
-                        <DialogTitle>{title}</DialogTitle>
+                        <DialogTitle>{t(title)}</DialogTitle>
                     </div>
                     <DialogDescription>
-                        {description ?? 'Cette action est irréversible. Le mot de passe patron est requis.'}
+                        {description ?? t('Cette action est irréversible. Le mot de passe patron est requis.')}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -78,7 +80,7 @@ export function PatronPasswordDialog({
                     }}
                 >
                     <div className="space-y-2">
-                        <Label htmlFor="patron-password">Mot de passe patron</Label>
+                        <Label htmlFor="patron-password">{t('Mot de passe patron')}</Label>
                         <Input
                             id="patron-password"
                             type="password"
@@ -98,11 +100,11 @@ export function PatronPasswordDialog({
 
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-                            Annuler
+                            {t('Annuler')}
                         </Button>
                         <Button type="submit" variant={tone} disabled={loading || !password}>
                             {loading && <Loader2 className="animate-spin" />}
-                            {confirmLabel}
+                            {t(confirmLabel)}
                         </Button>
                     </DialogFooter>
                 </form>

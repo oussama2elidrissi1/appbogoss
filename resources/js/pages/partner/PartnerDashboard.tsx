@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { getErrorMessage, getPartnerPortalDashboard } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate, formatRelativeTime, formatTime } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -42,6 +43,7 @@ const STATUS_LABEL: Record<string, { label: string; variant: 'success' | 'outlin
 };
 
 export default function PartnerDashboard() {
+    const { t } = useI18n();
     const { user } = useAuth();
     const navigate = useNavigate();
 
@@ -50,7 +52,7 @@ export default function PartnerDashboard() {
         queryFn: getPartnerPortalDashboard,
     });
 
-    const firstName = (user?.partner_name ?? data?.partner_name ?? 'Partenaire').split(' ')[0];
+    const firstName = (user?.partner_name ?? data?.partner_name ?? t('Partenaire')).split(' ')[0];
     const statusMeta = data ? STATUS_LABEL[data.status] : null;
 
     return (
@@ -58,13 +60,13 @@ export default function PartnerDashboard() {
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-                        Bonjour, {firstName} <span aria-hidden>👋</span>
+                        {t('Bonjour, {name}', { name: firstName })} <span aria-hidden>👋</span>
                     </h1>
-                    <p className="mt-1.5 text-sm text-muted-foreground">Voici un aperçu de votre activité.</p>
+                    <p className="mt-1.5 text-sm text-muted-foreground">{t('Voici un aperçu de votre activité.')}</p>
                 </div>
                 {statusMeta && (
                     <Badge variant={statusMeta.variant} className="shrink-0">
-                        {statusMeta.label}
+                        {t(statusMeta.label)}
                     </Badge>
                 )}
             </div>
@@ -72,10 +74,10 @@ export default function PartnerDashboard() {
             {data && data.status !== 'active' && (
                 <Card className="border-destructive/25 bg-destructive/[0.06] p-4 text-sm text-destructive">
                     {data.status === 'suspended' &&
-                        'Votre compte est suspendu — vous pouvez consulter votre historique mais ne pouvez pas créer de nouvelle réservation. Contactez BOGOSLAND pour en savoir plus.'}
+                        t('Votre compte est suspendu — vous pouvez consulter votre historique mais ne pouvez pas créer de nouvelle réservation. Contactez BOGOSLAND pour en savoir plus.')}
                     {data.status === 'pending' &&
-                        'Votre compte est en attente de validation par BOGOSLAND avant de pouvoir réserver.'}
-                    {data.status === 'disabled' && 'Votre compte est désactivé.'}
+                        t('Votre compte est en attente de validation par BOGOSLAND avant de pouvoir réserver.')}
+                    {data.status === 'disabled' && t('Votre compte est désactivé.')}
                 </Card>
             )}
 
@@ -84,41 +86,41 @@ export default function PartnerDashboard() {
                     <AlertCircle className="h-5 w-5 text-destructive" />
                     <p className="mt-2 text-sm text-destructive">{getErrorMessage(error)}</p>
                     <Button variant="accent" className="mt-4" onClick={() => void refetch()}>
-                        Réessayer
+                        {t('Réessayer')}
                     </Button>
                 </Card>
             ) : (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                     <KpiCard
                         icon={CalendarDays}
-                        label="Réservations aujourd'hui"
+                        label={t("Réservations aujourd'hui")}
                         value={isPending ? null : String(data?.reservations_today ?? 0)}
                     />
                     <KpiCard
                         icon={CalendarCheck}
-                        label="Réservations ce mois"
+                        label={t('Réservations ce mois')}
                         value={isPending ? null : String(data?.reservations_month ?? 0)}
                     />
                     <KpiCard
                         icon={ListChecks}
-                        label="Réservations confirmées"
+                        label={t('Réservations confirmées')}
                         value={isPending ? null : String(data?.reservations_confirmed ?? 0)}
                     />
                     <KpiCard
                         icon={Wallet2}
-                        label="Commission estimée"
+                        label={t('Commission estimée')}
                         value={isPending ? null : formatCurrency(data?.commission_estimated ?? 0)}
                         tone="accent"
                     />
                     <KpiCard
                         icon={HandCoins}
-                        label="Commission validée"
+                        label={t('Commission validée')}
                         value={isPending ? null : formatCurrency(data?.commission_validated ?? 0)}
                         tone="accent"
                     />
                     <KpiCard
                         icon={HandCoins}
-                        label="Commission payée"
+                        label={t('Commission payée')}
                         value={isPending ? null : formatCurrency(data?.commission_paid ?? 0)}
                         tone="success"
                     />
@@ -129,9 +131,9 @@ export default function PartnerDashboard() {
                 <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-accent/[0.10] blur-3xl" />
                 <div className="relative flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-center">
                     <div>
-                        <h2 className="text-xl font-semibold tracking-tight">Créez une nouvelle réservation</h2>
+                        <h2 className="text-xl font-semibold tracking-tight">{t('Créez une nouvelle réservation')}</h2>
                         <p className="mt-1.5 max-w-md text-sm text-muted-foreground">
-                            Réservez pour vos clients en quelques clics.
+                            {t('Réservez pour vos clients en quelques clics.')}
                         </p>
                     </div>
                     <Button
@@ -141,7 +143,7 @@ export default function PartnerDashboard() {
                         onClick={() => navigate('/partner/reservations/new')}
                     >
                         <CalendarPlus className="h-4 w-4" />
-                        Créer une réservation
+                        {t('Créer une réservation')}
                         <ArrowRight className="h-4 w-4" />
                     </Button>
                 </div>
@@ -165,15 +167,16 @@ function UpcomingReservationsCard({
     isPending: boolean;
     reservations: PartnerUpcomingReservation[];
 }) {
+    const { t } = useI18n();
     return (
         <Card className="p-5 sm:p-6">
             <div className="flex items-center justify-between gap-3">
                 <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
                     <CalendarDays className="h-4 w-4 text-accent" />
-                    Prochaines réservations
+                    {t('Prochaines réservations')}
                 </h2>
                 <Link to="/partner/agenda" className="text-xs font-medium text-accent hover:underline">
-                    Voir mon agenda
+                    {t('Voir mon agenda')}
                 </Link>
             </div>
 
@@ -186,8 +189,8 @@ function UpcomingReservationsCard({
             ) : reservations.length === 0 ? (
                 <EmptyState
                     icon={CalendarDays}
-                    title="Aucune réservation à venir"
-                    description="Vos prochaines réservations apparaîtront ici."
+                    title={t('Aucune réservation à venir')}
+                    description={t('Vos prochaines réservations apparaîtront ici.')}
                     className="mt-4"
                 />
             ) : (
@@ -202,7 +205,7 @@ function UpcomingReservationsCard({
                                 >
                                     <div className="min-w-0">
                                         <p className="truncate text-sm font-medium text-foreground">
-                                            {reservation.client_name ?? 'Client'}
+                                            {reservation.client_name ?? t('Client')}
                                         </p>
                                         <p className="mt-0.5 flex items-center gap-2 truncate text-xs text-muted-foreground">
                                             <span>
@@ -216,7 +219,7 @@ function UpcomingReservationsCard({
                                         </p>
                                     </div>
                                     <Badge variant={status.variant} className="shrink-0 text-[10px]">
-                                        {status.label}
+                                        {t(status.label)}
                                     </Badge>
                                 </Link>
                             </li>
@@ -229,6 +232,7 @@ function UpcomingReservationsCard({
 }
 
 function RecentActivityCard({ isPending, events }: { isPending: boolean; events: PartnerActivityEvent[] }) {
+    const { t } = useI18n();
     const iconFor = (type: PartnerActivityEvent['type']) =>
         type === 'client_created' ? Users : type === 'commission_validated' ? HandCoins : Sparkles;
 
@@ -236,7 +240,7 @@ function RecentActivityCard({ isPending, events }: { isPending: boolean; events:
         <Card className="p-5 sm:p-6">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
                 <Activity className="h-4 w-4 text-accent" />
-                Activité récente
+                {t('Activité récente')}
             </h2>
 
             {isPending ? (
@@ -248,8 +252,8 @@ function RecentActivityCard({ isPending, events }: { isPending: boolean; events:
             ) : events.length === 0 ? (
                 <EmptyState
                     icon={Activity}
-                    title="Aucune activité récente"
-                    description="Vos actions récentes apparaîtront ici."
+                    title={t('Aucune activité récente')}
+                    description={t('Vos actions récentes apparaîtront ici.')}
                     className="mt-4"
                 />
             ) : (

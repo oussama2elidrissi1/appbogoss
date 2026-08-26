@@ -40,6 +40,7 @@ import {
     updateClient,
 } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate, formatTime } from '@/lib/utils';
 import type { ClientOverview, ClientPayload } from '@/types/workday';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
@@ -83,6 +84,7 @@ export default function ClientDetail() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const { hasPermission } = useAuth();
+    const { t } = useI18n();
 
     const [editOpen, setEditOpen] = useState(false);
     const [sellOpen, setSellOpen] = useState(false);
@@ -136,7 +138,7 @@ export default function ClientDetail() {
                 <p className="mt-3 text-sm text-destructive">{getErrorMessage(overviewQuery.error)}</p>
                 <Button variant="outline" className="mt-5" onClick={() => navigate('/clients')}>
                     <ArrowLeft />
-                    Retour aux clients
+                    {t('Retour aux clients')}
                 </Button>
             </Card>
         );
@@ -154,7 +156,7 @@ export default function ClientDetail() {
                     className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
                 >
                     <ArrowLeft className="h-4 w-4" />
-                    Clients
+                    {t('Clients')}
                 </Link>
 
                 {/* ------------------------------------------------ header */}
@@ -167,13 +169,13 @@ export default function ClientDetail() {
                                 {portal.has_password ? (
                                     <Badge variant="success" className="gap-1">
                                         <ShieldCheck className="h-3 w-3" />
-                                        Portail actif
+                                        {t('Portail actif')}
                                     </Badge>
                                 ) : (
-                                    <Badge variant="outline">Sans accès portail</Badge>
+                                    <Badge variant="outline">{t('Sans accès portail')}</Badge>
                                 )}
                                 {client.loyalty_points > 0 && (
-                                    <Badge variant="accent">{client.loyalty_points} points</Badge>
+                                    <Badge variant="accent">{client.loyalty_points} {t('points')}</Badge>
                                 )}
                             </div>
                             <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -195,8 +197,8 @@ export default function ClientDetail() {
                                         {formatDate(client.birth_date)}
                                     </span>
                                 )}
-                                {client.gender && <span>{GENDER_LABELS[client.gender]}</span>}
-                                <span>Client depuis {client.created_at ? formatDate(client.created_at) : '—'}</span>
+                                {client.gender && <span>{t(GENDER_LABELS[client.gender])}</span>}
+                                <span>{t('Client depuis {date}', { date: client.created_at ? formatDate(client.created_at) : '—' })}</span>
                             </div>
                             {client.notes && (
                                 <p className="mt-2 max-w-xl text-xs italic text-muted-foreground/80">{client.notes}</p>
@@ -205,12 +207,12 @@ export default function ClientDetail() {
                         <div className="flex shrink-0 flex-wrap items-center gap-2">
                             <Button type="button" variant="outline" onClick={() => setEditOpen(true)}>
                                 <Pencil />
-                                Modifier
+                                {t('Modifier')}
                             </Button>
                             {(hasPermission('subscriptions.sell') || hasPermission('loyalty.redeem')) && (
                                 <Button type="button" variant="accent" onClick={() => setSellOpen(true)}>
                                     <Plus />
-                                    Vendre un abonnement
+                                    {t('Vendre un abonnement')}
                                 </Button>
                             )}
                         </div>
@@ -219,16 +221,16 @@ export default function ClientDetail() {
 
                 {/* ------------------------------------------------ stats */}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                    <StatTile icon={ShoppingBag} label="Visites" value={String(stats.sales_count)} />
+                    <StatTile icon={ShoppingBag} label={t('Visites')} value={String(stats.sales_count)} />
                     <StatTile
                         icon={Wallet}
-                        label="Total dépensé"
+                        label={t('Total dépensé')}
                         value={formatCurrency(stats.total_spent, { maximumFractionDigits: 0 })}
                         accent
                     />
-                    <StatTile icon={CalendarClock} label="Rendez-vous" value={String(stats.appointments_count)} />
-                    <StatTile icon={Gift} label="Points fidélité" value={String(client.loyalty_points)} />
-                    <StatTile icon={BadgeCheck} label="Abonnements actifs" value={String(stats.active_subscriptions)} />
+                    <StatTile icon={CalendarClock} label={t('Rendez-vous')} value={String(stats.appointments_count)} />
+                    <StatTile icon={Gift} label={t('Points fidélité')} value={String(client.loyalty_points)} />
+                    <StatTile icon={BadgeCheck} label={t('Abonnements actifs')} value={String(stats.active_subscriptions)} />
                 </div>
 
                 <div className="grid gap-4 lg:grid-cols-2">
@@ -237,24 +239,24 @@ export default function ClientDetail() {
                         <CardContent className="p-5">
                             <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                                 <Smartphone className="h-3.5 w-3.5" />
-                                Compte portail « Mon BOGOSLAND »
+                                {t('Compte portail « Mon BOGOSLAND »')}
                             </p>
                             <div className="mt-3 space-y-2 text-sm">
                                 <PortalRow
                                     ok={portal.has_password}
-                                    label={portal.has_password ? 'Accès configuré (téléphone + mot de passe)' : 'Aucun accès configuré'}
+                                    label={t(portal.has_password ? 'Accès configuré (téléphone + mot de passe)' : 'Aucun accès configuré')}
                                 />
                                 <PortalRow
                                     ok={portal.registered_at !== null}
                                     label={
                                         portal.registered_at
-                                            ? `Inscrit le ${formatDate(portal.registered_at)}`
-                                            : 'Non inscrit au programme'
+                                            ? t('Inscrit le {date}', { date: formatDate(portal.registered_at) })
+                                            : t('Non inscrit au programme')
                                     }
                                 />
                                 <PortalRow
                                     ok={portal.marketing_consent}
-                                    label={portal.marketing_consent ? 'Consentement marketing accordé' : 'Pas de consentement marketing'}
+                                    label={t(portal.marketing_consent ? 'Consentement marketing accordé' : 'Pas de consentement marketing')}
                                     neutral={!portal.marketing_consent}
                                 />
                             </div>
@@ -271,12 +273,12 @@ export default function ClientDetail() {
                                     ) : (
                                         <KeyRound />
                                     )}
-                                    {portal.has_password ? 'Réinitialiser le mot de passe' : "Créer l'accès portail"}
+                                    {t(portal.has_password ? 'Réinitialiser le mot de passe' : "Créer l'accès portail")}
                                 </Button>
                                 {hasPermission('loyalty.redeem') && (
                                     <Button type="button" variant="outline" size="sm" onClick={() => setQrOpen(true)}>
                                         <QrCodeIcon />
-                                        QR fidélité
+                                        {t('QR fidélité')}
                                     </Button>
                                 )}
                             </div>
@@ -293,14 +295,14 @@ export default function ClientDetail() {
                         <CardContent className="p-5">
                             <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                                 <Gift className="h-3.5 w-3.5" />
-                                Fidélité
+                                {t('Fidélité')}
                             </p>
                             {!loyalty ? (
-                                <p className="mt-3 text-xs text-muted-foreground">Chargement…</p>
+                                <p className="mt-3 text-xs text-muted-foreground">{t('Chargement…')}</p>
                             ) : (
                                 <div className="mt-3 space-y-3">
                                     <div className="flex items-center justify-between rounded-md border border-accent/20 bg-accent/[0.06] px-3.5 py-2.5">
-                                        <span className="text-sm">Solde de points</span>
+                                        <span className="text-sm">{t('Solde de points')}</span>
                                         <span className="text-lg font-bold tabular-nums text-accent">
                                             {loyalty.points_balance}
                                         </span>
@@ -308,8 +310,8 @@ export default function ClientDetail() {
                                     {loyalty.rewards.length > 0 ? (
                                         <div>
                                             <p className="text-xs font-medium text-foreground">
-                                                {loyalty.rewards.length} récompense{loyalty.rewards.length > 1 ? 's' : ''} disponible
-                                                {loyalty.rewards.length > 1 ? 's' : ''}
+                                                {loyalty.rewards.length}{' '}
+                                                {t(loyalty.rewards.length > 1 ? 'récompenses disponibles' : 'récompense disponible')}
                                             </p>
                                             <div className="mt-1.5 space-y-1.5">
                                                 {loyalty.rewards.slice(0, 4).map((reward) => (
@@ -318,11 +320,11 @@ export default function ClientDetail() {
                                                         className="flex items-center justify-between gap-3 rounded-md bg-tint/[0.03] px-3 py-2 text-xs"
                                                     >
                                                         <span className="truncate">
-                                                            {reward.service_name ?? reward.program_name ?? 'Récompense'}
+                                                            {reward.service_name ?? reward.program_name ?? t('Récompense')}
                                                         </span>
                                                         {reward.expires_at && (
                                                             <span className="shrink-0 text-muted-foreground">
-                                                                exp. {formatDate(reward.expires_at)}
+                                                                {t('exp.')} {formatDate(reward.expires_at)}
                                                             </span>
                                                         )}
                                                     </div>
@@ -330,7 +332,7 @@ export default function ClientDetail() {
                                             </div>
                                         </div>
                                     ) : (
-                                        <p className="text-xs text-muted-foreground">Aucune récompense disponible.</p>
+                                        <p className="text-xs text-muted-foreground">{t('Aucune récompense disponible.')}</p>
                                     )}
                                 </div>
                             )}
@@ -344,21 +346,21 @@ export default function ClientDetail() {
                         <div className="flex items-center justify-between">
                             <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                                 <BadgeCheck className="h-3.5 w-3.5" />
-                                Abonnements
+                                {t('Abonnements')}
                             </p>
                             {subscriptions.length > 0 && (
                                 <Link
                                     to="/abonnements"
                                     className="flex items-center gap-0.5 text-xs font-medium text-accent hover:underline"
                                 >
-                                    Gérer
+                                    {t('Gérer')}
                                     <ChevronRight className="h-3.5 w-3.5" />
                                 </Link>
                             )}
                         </div>
                         {subscriptions.length === 0 ? (
                             <p className="mt-3 text-xs text-muted-foreground">
-                                Aucun abonnement — vendez-en un depuis le bouton en haut de la fiche.
+                                {t('Aucun abonnement — vendez-en un depuis le bouton en haut de la fiche.')}
                             </p>
                         ) : (
                             <div className="mt-3 space-y-2">
@@ -378,10 +380,10 @@ export default function ClientDetail() {
                                             <span className="text-sm font-semibold tabular-nums text-accent">
                                                 {subscription.total_visits !== null
                                                     ? `${subscription.used_visits}/${subscription.total_visits}`
-                                                    : `${subscription.used_visits} visites`}
+                                                    : `${subscription.used_visits} ${t('visites')}`}
                                             </span>
                                             <Badge variant={status.variant} className="shrink-0">
-                                                {status.label}
+                                                {t(status.label)}
                                             </Badge>
                                         </div>
                                     );
@@ -397,10 +399,10 @@ export default function ClientDetail() {
                         <CardContent className="p-5">
                             <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                                 <History className="h-3.5 w-3.5" />
-                                Dernières ventes
+                                {t('Dernières ventes')}
                             </p>
                             {recent_sales.length === 0 ? (
-                                <p className="mt-3 text-xs text-muted-foreground">Aucune vente enregistrée.</p>
+                                <p className="mt-3 text-xs text-muted-foreground">{t('Aucune vente enregistrée.')}</p>
                             ) : (
                                 <div className="mt-3 space-y-1.5">
                                     {recent_sales.map((sale) => (
@@ -434,10 +436,10 @@ export default function ClientDetail() {
                         <CardContent className="p-5">
                             <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                                 <CalendarClock className="h-3.5 w-3.5" />
-                                Derniers rendez-vous
+                                {t('Derniers rendez-vous')}
                             </p>
                             {recent_appointments.length === 0 ? (
-                                <p className="mt-3 text-xs text-muted-foreground">Aucun rendez-vous.</p>
+                                <p className="mt-3 text-xs text-muted-foreground">{t('Aucun rendez-vous.')}</p>
                             ) : (
                                 <div className="mt-3 space-y-1.5">
                                     {recent_appointments.map((appointment) => {
@@ -450,7 +452,7 @@ export default function ClientDetail() {
                                             >
                                                 <div className="min-w-0">
                                                     <p className="truncate text-sm">
-                                                        {appointment.service_name ?? 'Réservation'}
+                                                        {appointment.service_name ?? t('Réservation')}
                                                     </p>
                                                     <p className="text-[11px] text-muted-foreground">
                                                         {appointment.starts_at
@@ -459,7 +461,7 @@ export default function ClientDetail() {
                                                     </p>
                                                 </div>
                                                 <Badge variant={status.variant} className="shrink-0">
-                                                    {status.label}
+                                                    {t(status.label)}
                                                 </Badge>
                                             </div>
                                         );
@@ -499,19 +501,18 @@ export default function ClientDetail() {
             <Dialog open={credentials !== null} onOpenChange={(open) => { if (!open) setCredentials(null); }}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Accès portail créé</DialogTitle>
+                        <DialogTitle>{t('Accès portail créé')}</DialogTitle>
                         <DialogDescription>
-                            Communiquez ces identifiants à {client.name} — le mot de passe ne sera plus affiché
-                            ensuite. Connexion sur la page « Mon BOGOSLAND ».
+                            {t('Communiquez ces identifiants à {name} — le mot de passe ne sera plus affiché ensuite. Connexion sur la page « Mon BOGOSLAND ».', { name: client.name })}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-3">
-                        <CredentialRow label="Téléphone (identifiant)" value={credentials?.phone ?? ''} />
-                        <CredentialRow label="Mot de passe" value={credentials?.password ?? ''} />
+                        <CredentialRow label={t('Téléphone (identifiant)')} value={credentials?.phone ?? ''} />
+                        <CredentialRow label={t('Mot de passe')} value={credentials?.password ?? ''} />
                     </div>
                     <DialogFooter>
                         <Button type="button" variant="accent" onClick={() => setCredentials(null)}>
-                            Terminé
+                            {t('Terminé')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -576,6 +577,7 @@ function EditClientDialog({
     overview: ClientOverview;
     onSaved: () => void;
 }) {
+    const { t } = useI18n();
     const [form, setForm] = useState({ name: '', phone: '', email: '', birth_date: '', gender: '', notes: '' });
 
     useEffect(() => {
@@ -615,44 +617,44 @@ function EditClientDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>Modifier la fiche client</DialogTitle>
-                    <DialogDescription>Identité et coordonnées utilisées partout dans l'application.</DialogDescription>
+                    <DialogTitle>{t('Modifier la fiche client')}</DialogTitle>
+                    <DialogDescription>{t("Identité et coordonnées utilisées partout dans l'application.")}</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={submit} className="space-y-4">
                     <div className="space-y-2">
-                        <Label htmlFor="cd-name">Nom complet</Label>
+                        <Label htmlFor="cd-name">{t('Nom complet')}</Label>
                         <Input id="cd-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
                     </div>
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                            <Label htmlFor="cd-phone">Téléphone</Label>
+                            <Label htmlFor="cd-phone">{t('Téléphone')}</Label>
                             <Input id="cd-phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="cd-email">Email</Label>
+                            <Label htmlFor="cd-email">{t('Email')}</Label>
                             <Input id="cd-email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="cd-birth">Date de naissance</Label>
+                            <Label htmlFor="cd-birth">{t('Date de naissance')}</Label>
                             <Input id="cd-birth" type="date" value={form.birth_date} onChange={(e) => setForm({ ...form, birth_date: e.target.value })} />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="cd-gender">Sexe</Label>
+                            <Label htmlFor="cd-gender">{t('Sexe')}</Label>
                             <select
                                 id="cd-gender"
                                 value={form.gender}
                                 onChange={(e) => setForm({ ...form, gender: e.target.value })}
                                 className="flex h-10 w-full rounded-md border border-input bg-tint/[0.03] px-3 text-sm text-foreground outline-none focus:border-accent/60"
                             >
-                                <option value="">Non renseigné</option>
-                                <option value="female">Femme</option>
-                                <option value="male">Homme</option>
-                                <option value="other">Autre</option>
+                                <option value="">{t('Non renseigné')}</option>
+                                <option value="female">{t('Femme')}</option>
+                                <option value="male">{t('Homme')}</option>
+                                <option value="other">{t('Autre')}</option>
                             </select>
                         </div>
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="cd-notes">Notes</Label>
+                        <Label htmlFor="cd-notes">{t('Notes')}</Label>
                         <textarea
                             id="cd-notes"
                             value={form.notes}
@@ -663,11 +665,11 @@ function EditClientDialog({
                     {mutation.isError && <p className="text-sm text-destructive">{getErrorMessage(mutation.error)}</p>}
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                            Annuler
+                            {t('Annuler')}
                         </Button>
                         <Button type="submit" variant="accent" disabled={mutation.isPending}>
                             {mutation.isPending && <Loader2 className="animate-spin" />}
-                            Enregistrer
+                            {t('Enregistrer')}
                         </Button>
                     </DialogFooter>
                 </form>
@@ -693,6 +695,7 @@ function SellToClientDialog({
     clientName: string;
     onSold: () => void;
 }) {
+    const { t } = useI18n();
     const [planId, setPlanId] = useState<number | ''>('');
     const [paymentMethod, setPaymentMethod] = useState('especes');
 
@@ -720,9 +723,9 @@ function SellToClientDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-h-[85vh] max-w-md overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Vendre un abonnement</DialogTitle>
+                    <DialogTitle>{t('Vendre un abonnement')}</DialogTitle>
                     <DialogDescription>
-                        Pour {clientName} — le QR personnel est généré à l'activation.
+                        {t("Pour {name} — le QR personnel est généré à l'activation.", { name: clientName })}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3">
@@ -743,7 +746,7 @@ function SellToClientDialog({
                                     <span className="block truncate text-sm font-medium">{plan.name}</span>
                                     <span className="block text-xs text-muted-foreground">
                                         {plan.duration_value}{' '}
-                                        {plan.duration_unit === 'days' ? 'jours' : plan.duration_unit === 'weeks' ? 'semaines' : 'mois'}
+                                        {t(plan.duration_unit === 'days' ? 'jours' : plan.duration_unit === 'weeks' ? 'semaines' : 'mois')}
                                     </span>
                                 </span>
                                 <span className="shrink-0 text-sm font-semibold text-accent">
@@ -753,16 +756,16 @@ function SellToClientDialog({
                         ))}
                     </div>
                     <label className="block">
-                        <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Paiement</span>
+                        <span className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t('Paiement')}</span>
                         <select
                             value={paymentMethod}
                             onChange={(e) => setPaymentMethod(e.target.value)}
                             className="mt-2 flex h-11 w-full rounded-md border border-input bg-tint/[0.03] px-3 text-sm"
                         >
-                            <option value="especes">Espèces</option>
-                            <option value="carte">Carte</option>
-                            <option value="virement">Virement</option>
-                            <option value="autre">Autre</option>
+                            <option value="especes">{t('Espèces')}</option>
+                            <option value="carte">{t('Carte')}</option>
+                            <option value="virement">{t('Virement')}</option>
+                            <option value="autre">{t('Autre')}</option>
                         </select>
                     </label>
                     {mutation.isError && (
@@ -771,11 +774,11 @@ function SellToClientDialog({
                 </div>
                 <DialogFooter>
                     <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                        Annuler
+                        {t('Annuler')}
                     </Button>
                     <Button type="button" variant="accent" disabled={planId === '' || mutation.isPending} onClick={() => mutation.mutate()}>
                         {mutation.isPending && <Loader2 className="animate-spin" />}
-                        Activer l'abonnement
+                        {t("Activer l'abonnement")}
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -799,6 +802,7 @@ function PersonalQrDialog({
     clientName: string;
 }) {
     const queryClient = useQueryClient();
+    const { t } = useI18n();
     const [dataUrl, setDataUrl] = useState<string | null>(null);
 
     const { data } = useQuery({
@@ -824,18 +828,18 @@ function PersonalQrDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-sm">
                 <DialogHeader>
-                    <DialogTitle>QR fidélité personnel</DialogTitle>
+                    <DialogTitle>{t('QR fidélité personnel')}</DialogTitle>
                     <DialogDescription>
-                        {clientName} — identifie le client à la caisse sans donner son téléphone.
+                        {t('{name} — identifie le client à la caisse sans donner son téléphone.', { name: clientName })}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex flex-col items-center gap-3 py-2">
                     {data && !data.token ? (
                         <p className="py-8 text-center text-sm text-muted-foreground">
-                            Aucun QR actif — générez-en un ci-dessous.
+                            {t('Aucun QR actif — générez-en un ci-dessous.')}
                         </p>
                     ) : dataUrl ? (
-                        <img src={dataUrl} alt="QR fidélité" className="h-56 w-56 rounded-md bg-white p-3" />
+                        <img src={dataUrl} alt={t('QR fidélité')} className="h-56 w-56 rounded-md bg-white p-3" />
                     ) : (
                         <Skeleton className="h-56 w-56 rounded-md" />
                     )}
@@ -847,12 +851,12 @@ function PersonalQrDialog({
                         onClick={() => regenerateMutation.mutate()}
                     >
                         {regenerateMutation.isPending ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-                        {data?.token ? 'Régénérer' : 'Générer'}
+                        {t(data?.token ? 'Régénérer' : 'Générer')}
                     </Button>
                 </div>
                 <DialogFooter>
                     <Button type="button" variant="accent" onClick={() => onOpenChange(false)}>
-                        Fermer
+                        {t('Fermer')}
                     </Button>
                 </DialogFooter>
             </DialogContent>

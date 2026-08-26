@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { AlertCircle, Bell, CalendarClock, Gift, Sparkles, TicketPercent } from 'lucide-react';
 import { getErrorMessage, getPortalHome } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -16,6 +17,7 @@ const item = {
 };
 
 export default function PortalHome() {
+    const { t } = useI18n();
     const homeQuery = useQuery({ queryKey: ['portal', 'home'], queryFn: getPortalHome });
 
     if (homeQuery.isPending) {
@@ -41,8 +43,8 @@ export default function PortalHome() {
     return (
         <motion.div variants={container} initial="hidden" animate="show" className="space-y-5">
             <motion.div variants={item}>
-                <h1 className="text-xl font-semibold tracking-tight">Bonjour {home.name.split(' ')[0]} 👋</h1>
-                <p className="mt-1 text-sm text-muted-foreground">Voici votre programme de fidélité BOGOSLAND.</p>
+                <h1 className="text-xl font-semibold tracking-tight">{t('Bonjour {name} 👋', { name: home.name.split(' ')[0] })}</h1>
+                <p className="mt-1 text-sm text-muted-foreground">{t('Voici votre programme de fidélité BOGOSLAND.')}</p>
             </motion.div>
 
             {home.alerts.length > 0 && (
@@ -60,9 +62,9 @@ export default function PortalHome() {
             )}
 
             <motion.div variants={item} className="grid grid-cols-3 gap-3">
-                <Stat icon={Sparkles} label="Points" value={home.points_balance} />
-                <Stat icon={Gift} label="Récompenses" value={home.rewards_available} />
-                <Stat icon={CalendarClock} label="Abonnements" value={home.active_subscriptions} />
+                <Stat icon={Sparkles} label={t('Points')} value={home.points_balance} />
+                <Stat icon={Gift} label={t('Récompenses')} value={home.rewards_available} />
+                <Stat icon={CalendarClock} label={t('Abonnements')} value={home.active_subscriptions} />
             </motion.div>
 
             {home.next_reward && (
@@ -73,8 +75,8 @@ export default function PortalHome() {
                             <h2 className="text-sm font-semibold text-foreground">{home.next_reward.name}</h2>
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">
-                            {home.next_reward.current} / {home.next_reward.threshold ?? '—'} — encore{' '}
-                            {home.next_reward.remaining} pour votre prochaine récompense
+                            {home.next_reward.current} / {home.next_reward.threshold ?? '—'} —{' '}
+                            {t('encore {n} pour votre prochaine récompense', { n: home.next_reward.remaining })}
                         </p>
                         <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-tint/[0.08]">
                             <div
@@ -88,13 +90,13 @@ export default function PortalHome() {
 
             {home.subscriptions.length > 0 && (
                 <motion.div variants={item} className="space-y-3">
-                    <h2 className="text-sm font-semibold text-foreground">Mes abonnements actifs</h2>
+                    <h2 className="text-sm font-semibold text-foreground">{t('Mes abonnements actifs')}</h2>
                     {home.subscriptions.map((subscription) => (
                         <Card key={subscription.id} className="p-4">
                             <div className="flex items-center justify-between">
                                 <span className="text-sm font-medium text-foreground">{subscription.plan_name}</span>
                                 <span className="text-xs text-muted-foreground">
-                                    jusqu’au {subscription.ends_on ? new Date(subscription.ends_on).toLocaleDateString('fr-FR') : '—'}
+                                    {t('jusqu’au {date}', { date: subscription.ends_on ? new Date(subscription.ends_on).toLocaleDateString('fr-FR') : '—' })}
                                 </span>
                             </div>
                             <div className="mt-2 space-y-1.5">
@@ -103,10 +105,10 @@ export default function PortalHome() {
                                         <span>{service.service_name}</span>
                                         <span>
                                             {service.period_remaining !== null
-                                                ? `${service.period_remaining} restant(s) cette période`
+                                                ? t('{n} restant(s) cette période', { n: service.period_remaining })
                                                 : service.total_remaining !== null
-                                                  ? `${service.total_remaining} restant(s)`
-                                                  : 'illimité'}
+                                                  ? t('{n} restant(s)', { n: service.total_remaining })
+                                                  : t('illimité')}
                                         </span>
                                     </div>
                                 ))}

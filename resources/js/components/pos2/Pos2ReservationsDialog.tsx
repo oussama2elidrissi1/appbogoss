@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, CalendarCheck, Loader2, Users } from 'lucide-react';
 import { getErrorMessage } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { getPos2TodayAppointments, openPos2AppointmentInvoice, pos2Keys } from '@/lib/pos2Api';
 import { formatCurrency } from '@/lib/utils';
 import type { Pos2Invoice } from '@/types/pos2';
@@ -21,6 +22,7 @@ interface Pos2ReservationsDialogProps {
  * ones jump back to their invoice instead of duplicating it.
  */
 export function Pos2ReservationsDialog({ open, onClose, onOpened }: Pos2ReservationsDialogProps) {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
 
     const { data: appointments, isPending, isError, error } = useQuery({
@@ -44,7 +46,7 @@ export function Pos2ReservationsDialog({ open, onClose, onOpened }: Pos2Reservat
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 font-display text-xl">
                         <CalendarCheck className="h-5 w-5 text-accent" />
-                        Réservations du jour
+                        {t('Réservations du jour')}
                     </DialogTitle>
                 </DialogHeader>
 
@@ -61,7 +63,7 @@ export function Pos2ReservationsDialog({ open, onClose, onOpened }: Pos2Reservat
                     </p>
                 ) : (appointments ?? []).length === 0 ? (
                     <p className="rounded-md border border-dashed border-tint/[0.15] px-4 py-8 text-center text-sm text-muted-foreground">
-                        Aucune réservation aujourd'hui.
+                        {t("Aucune réservation aujourd'hui.")}
                     </p>
                 ) : (
                     <ul className="space-y-2">
@@ -98,7 +100,7 @@ export function Pos2ReservationsDialog({ open, onClose, onOpened }: Pos2Reservat
                                             onClick={() => openMutation.mutate(appointment.id)}
                                             disabled={openMutation.isPending}
                                         >
-                                            Reprendre
+                                            {t('Reprendre')}
                                         </Button>
                                     </div>
                                 ) : (
@@ -111,7 +113,7 @@ export function Pos2ReservationsDialog({ open, onClose, onOpened }: Pos2Reservat
                                         disabled={openMutation.isPending}
                                     >
                                         {openMutation.isPending && <Loader2 className="animate-spin" />}
-                                        Ouvrir en caisse
+                                        {t('Ouvrir en caisse')}
                                     </Button>
                                 )}
                             </li>

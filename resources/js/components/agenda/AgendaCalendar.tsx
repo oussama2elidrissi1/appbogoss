@@ -6,6 +6,7 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 import { agendaLocalizer, AGENDA_MESSAGES } from './agendaLocalizer';
 import { buildAgendaEvents, UNASSIGNED_RESOURCE_ID, type AgendaEvent, type AgendaResource } from './agendaEvents';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatTime } from '@/lib/utils';
 import { AGENDA_CLOSE_HOUR, AGENDA_OPEN_HOUR, AGENDA_STEP_MINUTES } from '@/lib/agendaHours';
 import { Button } from '@/components/ui/button';
@@ -114,20 +115,22 @@ export function AgendaCalendar({
 }
 
 function EventCard({ event }: { event: AgendaEvent }) {
+    const { t } = useI18n();
     return (
         <div className="flex h-full flex-col overflow-hidden px-0.5 py-0.5 text-left leading-tight">
             <span className="truncate text-[11px] font-semibold">
-                {formatTime(event.start.toISOString())} · {event.clientNames || 'Client'}
+                {formatTime(event.start.toISOString())} · {event.clientNames || t('Client')}
             </span>
             <span className="truncate text-[11px] opacity-80">{event.serviceNames}</span>
             {event.isMulti && (
-                <span className="truncate text-[10px] opacity-70">Réservation multi-employés</span>
+                <span className="truncate text-[10px] opacity-70">{t('Réservation multi-employés')}</span>
             )}
         </div>
     );
 }
 
 function ResourceHeader({ resource }: { resource: AgendaResource }) {
+    const { t } = useI18n();
     return (
         <div className="flex items-center justify-center gap-1.5 py-1">
             {resource.id === UNASSIGNED_RESOURCE_ID ? (
@@ -138,7 +141,9 @@ function ResourceHeader({ resource }: { resource: AgendaResource }) {
                     style={{ backgroundColor: resource.avatarColor ?? '#C8A24C' }}
                 />
             )}
-            <span className="truncate text-xs font-medium text-foreground">{resource.name}</span>
+            <span className="truncate text-xs font-medium text-foreground">
+                {resource.id === UNASSIGNED_RESOURCE_ID ? t('Non assigné') : resource.name}
+            </span>
         </div>
     );
 }
@@ -159,17 +164,18 @@ function normalizeViews(views: RbcToolbarProps<AgendaEvent, AgendaResource>['vie
 }
 
 function AgendaToolbar({ label, view, views, onNavigate, onView }: RbcToolbarProps<AgendaEvent, AgendaResource>) {
+    const { t } = useI18n();
     const viewOptions = normalizeViews(views);
     return (
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-1.5">
-                <Button type="button" variant="outline" size="icon" onClick={() => onNavigate('PREV')} aria-label="Période précédente">
+                <Button type="button" variant="outline" size="icon" onClick={() => onNavigate('PREV')} aria-label={t('Période précédente')}>
                     <ChevronLeft />
                 </Button>
                 <Button type="button" variant="outline" size="sm" onClick={() => onNavigate('TODAY')}>
-                    Aujourd'hui
+                    {t("Aujourd'hui")}
                 </Button>
-                <Button type="button" variant="outline" size="icon" onClick={() => onNavigate('NEXT')} aria-label="Période suivante">
+                <Button type="button" variant="outline" size="icon" onClick={() => onNavigate('NEXT')} aria-label={t('Période suivante')}>
                     <ChevronRight />
                 </Button>
                 <span className="ml-2 text-sm font-semibold capitalize text-foreground">{label}</span>
@@ -188,7 +194,7 @@ function AgendaToolbar({ label, view, views, onNavigate, onView }: RbcToolbarPro
                                 : 'text-muted-foreground hover:text-foreground',
                         )}
                     >
-                        {VIEW_LABELS[viewOption] ?? viewOption}
+                        {t(VIEW_LABELS[viewOption] ?? viewOption)}
                     </button>
                 ))}
             </div>
