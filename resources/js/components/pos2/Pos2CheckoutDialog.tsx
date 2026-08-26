@@ -170,7 +170,13 @@ export function Pos2CheckoutDialog({
                 }));
         }
         const amount = parseAmount(draft.amount);
-        return amount > 0 ? [{ employee_id: employee.id, amount }] : [];
+        return amount > 0
+            ? [{
+                employee_id: employee.id,
+                amount,
+                prestation_item_id: employee.lines.length === 1 ? employee.lines[0].id : undefined,
+            }]
+            : [];
     });
     const tipsTotal = tipRows.reduce((sum, tip) => sum + tip.amount, 0);
 
@@ -553,7 +559,7 @@ export function Pos2CheckoutDialog({
                                 {tipsTotal > 0 && (
                                     <p className="text-[11px] text-muted-foreground">
                                         {t(
-                                            'Total pourboires {x} — remis directement aux employés, hors total à encaisser.',
+                                            'Total pourboires {x} — hors total à encaisser ; coiffure commissionnée à 50%.',
                                             { x: formatCurrency(tipsTotal) },
                                         )}
                                     </p>

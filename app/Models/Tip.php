@@ -8,8 +8,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * Pourboire — voluntary client money for one employee, tied to an invoice
- * (and optionally one of its lines). Never part of Sale.total, never part of
- * a commission: the two concepts stay in separate tables by design (§40).
+ * (and optionally one of its lines). Never part of Sale.total. Caisse V2 can
+ * still derive a separate Commission row from it for specific service rules.
  */
 class Tip extends Model
 {

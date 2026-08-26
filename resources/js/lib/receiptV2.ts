@@ -354,7 +354,7 @@ td { padding: 9px 4px; border-bottom: 1px solid #eceae4; vertical-align: top; }
 
 ${
     tipsTotal > 0
-        ? `<div class="tipnote">Pourboires remis directement aux employés : ${escapeHtml(money(tipsTotal))} (hors total facture).</div>`
+        ? `<div class="tipnote">Pourboires : ${escapeHtml(money(tipsTotal))} (hors total facture ; coiffure commissionnée à 50%).</div>`
         : ''
 }
 

@@ -389,6 +389,35 @@ class PosV2WorkflowTest extends TestCase
         $this->assertSame(2, Tip::withTrashed()->count());
     }
 
+    public function test_coiffure_tips_generate_a_50_percent_commission_without_inflating_revenue(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $kamal = Employee::factory()->create(['name' => 'Kamal', 'default_commission_rate' => 50]);
+        $coupe = Service::factory()->create(['name' => 'Coupe cheveux + barbe', 'category' => 'coiffure', 'price' => 70]);
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $coupe->id, 'employee_id' => $kamal->id]],
+        ])->assertCreated()->json('data');
+
+        $paid = $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", [
+            'payment_method' => 'especes',
+            'tips' => [['employee_id' => $kamal->id, 'amount' => 20]],
+        ])->assertOk()->json('data');
+
+        $this->assertEquals(70, $paid['total']);
+        $this->assertEquals(45, (float) Sale::find($paid['sale_id'])->commission_amount);
+        $this->assertEquals(35, (float) Commission::where('prestation_id', $invoice['id'])->where('type', 'percentage')->sum('amount'));
+        $this->assertEquals(10, (float) Commission::where('prestation_id', $invoice['id'])->where('type', 'tip_percentage')->sum('amount'));
+
+        $detail = $this->getJson("/api/pos-v2/invoices/{$invoice['id']}")->assertOk()->json('data');
+        $this->assertEquals(45, collect($detail['commissions'])->sum('amount'));
+        $this->assertSame($invoice['items'][0]['id'], $detail['tips'][0]['prestation_item_id']);
+
+        $history = $this->getJson('/api/pos-v2/history')->assertOk()->json('meta.stats.employees.0');
+        $this->assertSame('Kamal', $history['employee_name']);
+        $this->assertEquals(45, $history['commission_total']);
+    }
+
     // ------------------------------------------------------------------
     // Cancel / refund (§32)
     // ------------------------------------------------------------------

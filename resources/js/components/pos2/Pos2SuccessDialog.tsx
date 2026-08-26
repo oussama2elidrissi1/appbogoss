@@ -65,7 +65,7 @@ export function Pos2SuccessDialog({
                         </p>
                         {(invoice.tips_total ?? 0) > 0 && (
                             <p className="text-xs text-muted-foreground">
-                                {t('Pourboires : {x} — remis directement aux employés.', {
+                                {t('Pourboires : {x} — hors total facture ; coiffure commissionnée à 50%.', {
                                     x: formatCurrency(invoice.tips_total ?? 0),
                                 })}
                             </p>

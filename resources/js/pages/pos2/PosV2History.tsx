@@ -397,10 +397,14 @@ export default function PosV2History() {
                                                 <p className="text-[11px] text-muted-foreground">
                                                     {paymentMethodLabel(invoice.payment_method)}
                                                     {(() => {
-                                                        const commission = (invoice.items ?? []).reduce(
-                                                            (sum, item) => sum + (item.commission_amount ?? 0),
-                                                            0,
-                                                        );
+                                                        const commission = (invoice.commissions ?? []).length > 0
+                                                            ? (invoice.commissions ?? [])
+                                                                .filter((row) => row.status === 'validated')
+                                                                .reduce((sum, row) => sum + row.amount, 0)
+                                                            : (invoice.items ?? []).reduce(
+                                                                (sum, item) => sum + (item.commission_amount ?? 0),
+                                                                0,
+                                                            );
                                                         return invoice.status === 'paid' && commission > 0
                                                             ? ` · comm. ${formatCurrency(commission)}`
                                                             : '';

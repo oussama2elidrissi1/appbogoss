@@ -56,6 +56,8 @@ class PosService
 
     public const BREAKDOWN_METHODS = ['especes', 'carte', 'virement', 'autre'];
 
+    public const COIFFURE_TIP_COMMISSION_RATE = 50.0;
+
     public function __construct(
         private readonly WorkDayService $workDayService,
         private readonly PrestationService $prestations,
@@ -790,7 +792,10 @@ class PosService
                 'sale_id' => $sale->id,
             ]);
 
-            $this->recordTips($locked, $data['tips'] ?? [], $activeDay->id, $actor);
+            $tipCommissionTotal = $this->recordTips($locked, $data['tips'] ?? [], $activeDay->id, $actor, $sale);
+            if ($tipCommissionTotal > 0) {
+                $sale->update(['commission_amount' => round((float) $sale->commission_amount + $tipCommissionTotal, 2)]);
+            }
 
             $this->loyaltyEngine->processSale($sale, $locked);
 
@@ -881,7 +886,7 @@ class PosService
                             });
                     });
             })
-            ->with(['employee', 'items.employee', 'items.service', 'items.product', 'client', 'confirmedBy', 'createdBy', 'tips.employee', 'sale'])
+            ->with(['employee', 'items.employee', 'items.service', 'items.product', 'client', 'confirmedBy', 'createdBy', 'tips.employee', 'commissions.employee', 'sale'])
             ->orderByDesc('created_at');
 
         if (! empty($filters['work_day_id'])) {
@@ -961,7 +966,7 @@ class PosService
         $byEmployee = [];
 
         foreach ($paid as $invoice) {
-            $invoice->loadMissing(['employee', 'items.employee', 'items.service', 'items.product']);
+            $invoice->loadMissing(['employee', 'items.employee', 'items.service', 'items.product', 'commissions.employee']);
             $computed = $this->computeTotals($invoice);
 
             foreach ($invoice->items as $item) {
@@ -989,8 +994,28 @@ class PosService
                 $entry['performed_count'] += max(1, (int) $item->quantity);
                 $entry['_invoice_ids'][$invoice->id] = true;
                 $entry['total'] += (float) ($computed['lines'][$item->id]['total'] ?? $item->effectiveLineTotal());
-                $entry['commission_total'] += (float) ($item->commission_amount ?? 0);
 
+                $byEmployee[$employeeId] = $entry;
+            }
+
+            foreach ($invoice->commissions->where('status', Commission::STATUS_VALIDATED) as $commission) {
+                $employee = $commission->employee;
+                if ($employee === null) {
+                    continue;
+                }
+
+                $employeeId = (int) $employee->id;
+                $entry = $byEmployee[$employeeId] ?? [
+                    'employee_id' => $employeeId,
+                    'employee_name' => $employee->name,
+                    'performed_count' => 0,
+                    'invoices_count' => 0,
+                    'total' => 0.0,
+                    'commission_total' => 0.0,
+                    '_invoice_ids' => [],
+                ];
+                $entry['_invoice_ids'][$invoice->id] = true;
+                $entry['commission_total'] += (float) $commission->amount;
                 $byEmployee[$employeeId] = $entry;
             }
         }
@@ -1204,10 +1229,10 @@ class PosService
     /**
      * @param  array<int, array<string, mixed>>  $tips
      */
-    private function recordTips(Prestation $prestation, array $tips, int $workDayId, User $actor): void
+    private function recordTips(Prestation $prestation, array $tips, int $workDayId, User $actor, Sale $sale): float
     {
         if ($tips === []) {
-            return;
+            return 0.0;
         }
         if (count($tips) > 10) {
             throw ValidationException::withMessages(['tips' => 'Trop de lignes de pourboire (maximum 10).']);
@@ -1218,6 +1243,8 @@ class PosService
         // invoice (derived from the lines), never to the rest of the salon.
         $invoiceEmployeeIds = $prestation->items->pluck('employee_id')->filter()->unique()->flip();
 
+        $tipCommissionTotal = 0.0;
+
         foreach ($tips as $tip) {
             $employeeId = isset($tip['employee_id']) ? (int) $tip['employee_id'] : 0;
             $amount = isset($tip['amount']) ? round((float) $tip['amount'], 2) : 0.0;
@@ -1226,6 +1253,14 @@ class PosService
             if ($amount <= 0) {
                 throw ValidationException::withMessages(['tips' => 'Chaque pourboire doit avoir un montant positif.']);
             }
+
+            if ($itemId === null && $employeeId !== 0) {
+                $employeeLines = $prestation->items->where('employee_id', $employeeId)->values();
+                if ($employeeLines->count() === 1) {
+                    $itemId = $employeeLines->first()->id;
+                }
+            }
+
             if ($itemId !== null && ! $itemIds->has($itemId)) {
                 throw ValidationException::withMessages(['tips' => 'La ligne associée au pourboire n’appartient pas à cette facture.']);
             }
@@ -1277,7 +1312,37 @@ class PosService
                 'employee_id' => $employeeId,
                 'amount' => $amount,
             ]);
+
+            $line = $itemId !== null ? $prestation->items->firstWhere('id', $itemId) : null;
+            if ($line?->service?->category === 'coiffure') {
+                $tipCommission = round($amount * self::COIFFURE_TIP_COMMISSION_RATE / 100, 2);
+
+                Commission::create([
+                    'prestation_id' => $prestation->id,
+                    'prestation_item_id' => $line->id,
+                    'employee_id' => $employeeId,
+                    'service_id' => $line->service_id,
+                    'rule_id' => null,
+                    'type' => 'tip_percentage',
+                    'rate_or_amount' => self::COIFFURE_TIP_COMMISSION_RATE,
+                    'base_amount' => $amount,
+                    'amount' => $tipCommission,
+                    'status' => Commission::STATUS_VALIDATED,
+                ]);
+
+                $tipCommissionTotal = round($tipCommissionTotal + $tipCommission, 2);
+                $this->activityLogger->log('caisse_v2.tip_commission_recorded', $sale, [], [
+                    'prestation_id' => $prestation->id,
+                    'prestation_item_id' => $line->id,
+                    'employee_id' => $employeeId,
+                    'rate' => self::COIFFURE_TIP_COMMISSION_RATE,
+                    'base_amount' => $amount,
+                    'amount' => $tipCommission,
+                ]);
+            }
         }
+
+        return $tipCommissionTotal;
     }
 
     /**

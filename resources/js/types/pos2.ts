@@ -62,6 +62,19 @@ export interface Pos2Tip {
     voided?: boolean;
 }
 
+export interface Pos2Commission {
+    id: number;
+    prestation_item_id: number;
+    employee_id: number;
+    employee_name: string | null;
+    service_id: number | null;
+    type: string;
+    rate_or_amount: number;
+    base_amount: number;
+    amount: number;
+    status: string;
+}
+
 export interface Pos2InvoiceEmployee {
     id: number;
     name: string;
@@ -119,6 +132,7 @@ export interface Pos2Invoice {
     employees?: Pos2InvoiceEmployee[];
     tips?: Pos2Tip[];
     tips_total?: number;
+    commissions?: Pos2Commission[];
     status_logs?: Pos2StatusLog[];
 }
 

@@ -91,11 +91,29 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
     );
     const activeTips = (invoice?.tips ?? []).filter((tip) => !tip.voided);
     const tipsTotal = activeTips.reduce((sum, tip) => sum + tip.amount, 0);
+    const activeCommissions = (invoice?.commissions ?? []).filter((commission) => commission.status === 'validated');
+    const commissionByLine = activeCommissions.reduce((map, commission) => {
+        map.set(commission.prestation_item_id, (map.get(commission.prestation_item_id) ?? 0) + commission.amount);
+        return map;
+    }, new Map<number, number>());
 
     // §25 — commissions agrégées par employé, depuis les lignes (valeurs
     // backend : réelles une fois payée, estimées avant).
     const commissionRecap = (() => {
         const byEmployee = new Map<number, { name: string; amount: number }>();
+        if (activeCommissions.length > 0) {
+            for (const commission of activeCommissions) {
+                const entry = byEmployee.get(commission.employee_id) ?? {
+                    name: commission.employee_name ?? `Employé #${commission.employee_id}`,
+                    amount: 0,
+                };
+                entry.amount += commission.amount;
+                byEmployee.set(commission.employee_id, entry);
+            }
+
+            return [...byEmployee.values()];
+        }
+
         for (const item of invoice?.items ?? []) {
             if (item.employee_id === null) continue;
             const amount = item.commission_amount ?? item.estimated_commission ?? 0;
@@ -191,7 +209,9 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                         <ul className="space-y-2">
                                             {(invoice.items ?? []).map((item) => {
                                                 const discount = Math.min(item.discount_amount ?? 0, item.line_total);
-                                                const commission = item.commission_amount ?? item.estimated_commission;
+                                                const commission = commissionByLine.get(item.id)
+                                                    ?? item.commission_amount
+                                                    ?? item.estimated_commission;
                                                 const lineTips = activeTips.filter(
                                                     (tip) => tip.prestation_item_id === item.id,
                                                 );
@@ -285,8 +305,8 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                             </div>
                                             {tipsTotal > 0 && (
                                                 <p className="pt-0.5 text-[11px] text-muted-foreground">
-                                                    + {formatCurrency(tipsTotal)} de pourboires — remis directement aux
-                                                    employés, hors total facture.
+                                                    + {formatCurrency(tipsTotal)} de pourboires — hors total facture ;
+                                                    coiffure commissionnée à 50%.
                                                 </p>
                                             )}
                                         </div>

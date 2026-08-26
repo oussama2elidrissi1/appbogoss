@@ -100,6 +100,18 @@ class PosInvoiceResource extends JsonResource
                 (float) $this->tips->reject(fn (Tip $tip) => $tip->trashed())->sum('amount'),
                 2,
             )),
+            'commissions' => $this->whenLoaded('commissions', fn () => $this->commissions->map(fn ($commission) => [
+                'id' => $commission->id,
+                'prestation_item_id' => $commission->prestation_item_id,
+                'employee_id' => $commission->employee_id,
+                'employee_name' => $commission->employee?->name,
+                'service_id' => $commission->service_id,
+                'type' => $commission->type,
+                'rate_or_amount' => (float) $commission->rate_or_amount,
+                'base_amount' => (float) $commission->base_amount,
+                'amount' => (float) $commission->amount,
+                'status' => $commission->status,
+            ])->values()),
             'status_logs' => $this->whenLoaded('statusLogs', fn () => $this->statusLogs->map(fn ($log) => [
                 'from_status' => $log->from_status,
                 'to_status' => $log->to_status,
