@@ -39,8 +39,7 @@ class PrestationService
         private readonly RewardRedemptionService $rewardRedemptionService,
         private readonly SubscriptionService $subscriptionService,
         private readonly PartnerCommissionService $partnerCommissionService,
-    ) {
-    }
+    ) {}
 
     /**
      * @param  array<string, mixed>  $data
@@ -51,7 +50,7 @@ class PrestationService
 
         if ($activeDay === null) {
             throw ValidationException::withMessages([
-                'work_day' => "Aucune journée ouverte. Ouvrez la journée avant de créer une prestation.",
+                'work_day' => 'Aucune journée ouverte. Ouvrez la journée avant de créer une prestation.',
             ]);
         }
 
@@ -126,7 +125,13 @@ class PrestationService
                 $actor,
                 (bool) ($data['exception_override'] ?? false),
                 $data['override_reason'] ?? null,
-                ['channel' => $data['usage_channel'] ?? 'caisse'],
+                [
+                    'channel' => $data['usage_channel'] ?? 'caisse',
+                    // Caisse V2 assigns employees per line; V1 never sends
+                    // this key, so the ?? in reserveUsage() keeps falling
+                    // back to the prestation header employee as before.
+                    'employee_id' => $data['usage_employee_id'] ?? null,
+                ],
             );
             $item->refresh();
         }

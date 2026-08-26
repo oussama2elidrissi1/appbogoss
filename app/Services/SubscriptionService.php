@@ -33,8 +33,7 @@ class SubscriptionService
         private readonly LoyaltyEngine $loyaltyEngine,
         private readonly LoyaltyNotifier $notifier,
         private readonly LoyaltySettingsService $settings,
-    ) {
-    }
+    ) {}
 
     private function today(): Carbon
     {
@@ -63,20 +62,34 @@ class SubscriptionService
         $activeDay = $this->workDayService->getActiveDay();
         if ($activeDay === null) {
             throw ValidationException::withMessages([
-                'work_day' => "Aucune journée ouverte. Ouvrez la journée avant de vendre un abonnement.",
+                'work_day' => 'Aucune journée ouverte. Ouvrez la journée avant de vendre un abonnement.',
             ]);
         }
 
-        return DB::transaction(function () use ($client, $plan, $actor, $data, $activeDay) {
+        return DB::transaction(function () use ($client, $plan, $data, $activeDay) {
             $startsOn = isset($data['starts_on']) ? Carbon::parse($data['starts_on']) : $this->today();
             $endsOn = $plan->computeEndsOn($startsOn);
+
+            // Caisse V2 (§16): an optional down payment — the Sale records
+            // what was actually collected today, total_amount freezes the
+            // agreed price, and the balance is settled later through
+            // recordPayment(). V1 callers never pass amount_paid, so the
+            // historical "one Sale at full price" behaviour is unchanged.
+            $amountPaid = array_key_exists('amount_paid', $data) && $data['amount_paid'] !== null
+                ? round((float) $data['amount_paid'], 2)
+                : (float) $plan->price;
+            if ($amountPaid < 0 || $amountPaid > (float) $plan->price) {
+                throw ValidationException::withMessages([
+                    'amount_paid' => 'Le montant encaissé doit être compris entre 0 et le prix du plan.',
+                ]);
+            }
 
             $sale = Sale::create([
                 'work_day_id' => $activeDay->id,
                 'client_id' => $client->id,
                 'employee_id' => null,
                 'category' => null,
-                'total' => $plan->price,
+                'total' => $amountPaid,
                 'payment_method' => $data['payment_method'] ?? 'especes',
                 'print_count' => 0,
             ]);
@@ -87,13 +100,14 @@ class SubscriptionService
                 'itemable_id' => $plan->id,
                 'label' => $plan->name,
                 'quantity' => 1,
-                'unit_price' => $plan->price,
+                'unit_price' => $amountPaid,
             ]);
 
             $subscription = ClientSubscription::create([
                 'client_id' => $client->id,
                 'subscription_plan_id' => $plan->id,
                 'plan_snapshot' => $plan->load('services.service')->toArray(),
+                'total_amount' => (float) $plan->price,
                 'status' => ClientSubscription::STATUS_ACTIVE,
                 'purchased_at' => now(),
                 'starts_on' => $startsOn->toDateString(),
@@ -106,6 +120,7 @@ class SubscriptionService
                 'plan' => $plan->name,
                 'client_id' => $client->id,
                 'price' => (float) $plan->price,
+                'amount_paid' => $amountPaid,
             ]);
 
             // The purchase itself is real revenue — a points/amount_spent
@@ -533,6 +548,146 @@ class SubscriptionService
 
             return $subscription->fresh();
         });
+    }
+
+    /**
+     * §16 (Caisse V2) — collect an installment on a partially-paid
+     * subscription. Two events, never blended: paying money (this) and
+     * consuming a visit (reserveUsage/confirmUsage) each leave their own
+     * trail. The Sale lands on the OPEN work day so the cash shows up in
+     * today's revenue and cash_expected through the untouched V1 report
+     * pipeline.
+     */
+    public function recordPayment(ClientSubscription $subscription, float $amount, string $paymentMethod, User $actor, ?string $notes = null): \App\Models\SubscriptionPayment
+    {
+        $activeDay = $this->workDayService->getActiveDay();
+        if ($activeDay === null) {
+            throw ValidationException::withMessages([
+                'work_day' => "Aucune journée ouverte. Ouvrez la journée avant d'encaisser un versement.",
+            ]);
+        }
+
+        return DB::transaction(function () use ($subscription, $amount, $paymentMethod, $actor, $notes, $activeDay) {
+            $locked = ClientSubscription::query()->whereKey($subscription->id)->lockForUpdate()->firstOrFail();
+
+            if ($locked->status === ClientSubscription::STATUS_CANCELLED) {
+                throw ValidationException::withMessages(['status' => 'Impossible d’encaisser un versement sur un abonnement annulé.']);
+            }
+
+            $amount = round($amount, 2);
+            if ($amount <= 0) {
+                throw ValidationException::withMessages(['amount' => 'Le montant doit être positif.']);
+            }
+
+            $status = $this->paymentStatus($locked);
+            if ($status['remaining'] !== null && $amount > $status['remaining'] + 0.009) {
+                throw ValidationException::withMessages([
+                    'amount' => sprintf('Le versement dépasse le reste à payer (%.2f MAD).', $status['remaining']),
+                ]);
+            }
+
+            $planName = $locked->plan?->name ?? ($locked->plan_snapshot['name'] ?? 'Abonnement');
+
+            $sale = Sale::create([
+                'work_day_id' => $activeDay->id,
+                'client_id' => $locked->client_id,
+                'employee_id' => null,
+                // 'autre' (a real report category) rather than NULL: keeps V2
+                // installment tickets printable and grouped in the closing
+                // report instead of falling into the null bucket.
+                'category' => 'autre',
+                'total' => $amount,
+                'payment_method' => $paymentMethod,
+                'print_count' => 0,
+            ]);
+
+            SaleItem::create([
+                'sale_id' => $sale->id,
+                'itemable_type' => SubscriptionPlan::class,
+                'itemable_id' => $locked->subscription_plan_id,
+                'label' => 'Versement abonnement — '.$planName,
+                'quantity' => 1,
+                'unit_price' => $amount,
+            ]);
+
+            $payment = \App\Models\SubscriptionPayment::create([
+                'client_subscription_id' => $locked->id,
+                'sale_id' => $sale->id,
+                'amount' => $amount,
+                'payment_method' => $paymentMethod,
+                'collected_by_user_id' => $actor->id,
+                'notes' => $notes,
+            ]);
+
+            $this->activityLogger->log('subscription.payment_recorded', $locked, [
+                'paid_before' => $status['paid'],
+            ], [
+                'amount' => $amount,
+                'payment_method' => $paymentMethod,
+                'sale_id' => $sale->id,
+            ]);
+
+            // Same accrual rule as the purchase Sale: a global points /
+            // amount_spent program counts installments; category-scoped
+            // programs never match (no service line).
+            $this->loyaltyEngine->processSale($sale);
+
+            return $payment;
+        });
+    }
+
+    /**
+     * Money position of a subscription: agreed price, what has actually been
+     * collected (purchase Sale + installments whose sale isn't voided), and
+     * the remaining balance. total falls back to the plan snapshot for
+     * pre-V2 rows whose total_amount is NULL.
+     *
+     * @return array{total: float|null, paid: float, remaining: float|null, payments: list<array<string, mixed>>}
+     */
+    public function paymentStatus(ClientSubscription $subscription): array
+    {
+        $subscription->loadMissing(['payments.sale', 'payments.collectedBy', 'sale', 'plan']);
+
+        $total = $subscription->total_amount !== null
+            ? (float) $subscription->total_amount
+            : (isset($subscription->plan_snapshot['price'])
+                ? (float) $subscription->plan_snapshot['price']
+                : ($subscription->plan?->price !== null ? (float) $subscription->plan->price : null));
+
+        $paid = 0.0;
+        if ($subscription->sale !== null && ! $subscription->sale->trashed()) {
+            $paid += (float) $subscription->sale->total;
+        }
+
+        $payments = $subscription->payments
+            ->sortByDesc('created_at')
+            ->map(function (\App\Models\SubscriptionPayment $payment) use (&$paid) {
+                $voided = $payment->sale_id !== null && $payment->sale === null;
+                if (! $voided) {
+                    $paid += (float) $payment->amount;
+                }
+
+                return [
+                    'id' => $payment->id,
+                    'amount' => (float) $payment->amount,
+                    'payment_method' => $payment->payment_method,
+                    'collected_by' => $payment->collectedBy?->name,
+                    'notes' => $payment->notes,
+                    'voided' => $voided,
+                    'created_at' => $payment->created_at?->toIso8601String(),
+                ];
+            })
+            ->values()
+            ->all();
+
+        $paid = round($paid, 2);
+
+        return [
+            'total' => $total,
+            'paid' => $paid,
+            'remaining' => $total !== null ? round(max(0.0, $total - $paid), 2) : null,
+            'payments' => $payments,
+        ];
     }
 
     public function release(ClientSubscriptionUsage $usage): void

@@ -1,0 +1,560 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Commission;
+use App\Models\Employee;
+use App\Models\Prestation;
+use App\Models\Sale;
+use App\Models\Service;
+use App\Models\Tip;
+use App\Models\User;
+use App\Models\WorkDay;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
+use Tests\TestCase;
+
+class PosV2WorkflowTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->seed(RolesAndPermissionsSeeder::class);
+        WorkDay::factory()->create(['status' => 'open']);
+    }
+
+    protected function superAdmin(): User
+    {
+        $user = User::factory()->create(['role' => 'super-admin']);
+        $user->assignRole('super-admin');
+
+        return $user;
+    }
+
+    protected function admin(): User
+    {
+        $user = User::factory()->create(['role' => 'admin']);
+        $user->assignRole('admin');
+
+        return $user;
+    }
+
+    // ------------------------------------------------------------------
+    // Access (§42, §52)
+    // ------------------------------------------------------------------
+
+    public function test_admin_without_caisse_v2_access_is_rejected_while_v1_keeps_working(): void
+    {
+        Sanctum::actingAs($this->admin());
+
+        $this->getJson('/api/pos-v2/invoices')->assertForbidden();
+        $this->getJson('/api/pos-v2/dashboard')->assertForbidden();
+
+        // V1 stays fully available to the same admin.
+        $employee = Employee::factory()->create();
+        $this->postJson('/api/transactions', [
+            'employee_id' => $employee->id,
+            'category' => 'coiffure',
+            'label' => 'Coupe',
+            'price' => 70,
+        ])->assertCreated();
+    }
+
+    public function test_employee_role_cannot_reach_caisse_v2(): void
+    {
+        $user = User::factory()->create(['role' => 'employee']);
+        $user->assignRole('employee');
+        Sanctum::actingAs($user);
+
+        $this->getJson('/api/pos-v2/invoices')->assertForbidden();
+    }
+
+    // ------------------------------------------------------------------
+    // Invoice lifecycle (§4-§7, §21-§22)
+    // ------------------------------------------------------------------
+
+    public function test_open_invoice_add_lines_with_per_line_employees_and_totals_recalc(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $omar = Employee::factory()->create(['name' => 'Omar']);
+        $yassine = Employee::factory()->create(['name' => 'Yassine']);
+        $coupe = Service::factory()->create(['name' => 'Coupe', 'category' => 'coiffure', 'price' => 70]);
+        $hammam = Service::factory()->create(['name' => 'Hammam Turc', 'category' => 'hammam', 'price' => 150]);
+
+        $created = $this->postJson('/api/pos-v2/invoices', [
+            'client_label' => 'Client de passage',
+        ])->assertCreated()->json('data');
+
+        $this->assertStringStartsWith('FAC-', $created['reference']);
+        $this->assertSame('draft', $created['status']);
+        $this->assertTrue($created['is_walk_in']);
+
+        $invoiceId = $created['id'];
+
+        $this->postJson("/api/pos-v2/invoices/{$invoiceId}/lines", [
+            'service_id' => $coupe->id,
+            'employee_id' => $omar->id,
+        ])->assertCreated();
+
+        $after = $this->postJson("/api/pos-v2/invoices/{$invoiceId}/lines", [
+            'service_id' => $hammam->id,
+            'employee_id' => $yassine->id,
+        ])->assertCreated()->json('data');
+
+        $this->assertSame('in_progress', $after['status']);
+        $this->assertEquals(220, $after['total']);
+        $this->assertCount(2, $after['items']);
+        $this->assertSame('Omar', $after['items'][0]['employee_name']);
+        $this->assertSame('Yassine', $after['items'][1]['employee_name']);
+
+        // Open invoices board lists it.
+        $open = $this->getJson('/api/pos-v2/invoices')->assertOk()->json('data');
+        $this->assertCount(1, $open);
+        $this->assertSame($invoiceId, $open[0]['id']);
+
+        // Hold / resume.
+        $this->postJson("/api/pos-v2/invoices/{$invoiceId}/hold")->assertOk();
+        $this->assertTrue($this->getJson('/api/pos-v2/invoices')->json('data.0.held'));
+        $this->postJson("/api/pos-v2/invoices/{$invoiceId}/resume")->assertOk();
+        $this->assertFalse($this->getJson('/api/pos-v2/invoices')->json('data.0.held'));
+    }
+
+    public function test_line_update_and_removal_keep_totals_consistent(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $employee = Employee::factory()->create();
+        $coupe = Service::factory()->create(['price' => 70]);
+        $soin = Service::factory()->create(['price' => 120]);
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [
+                ['service_id' => $coupe->id, 'employee_id' => $employee->id],
+                ['service_id' => $soin->id, 'employee_id' => $employee->id],
+            ],
+        ])->assertCreated()->json('data');
+
+        $this->assertEquals(190, $invoice['total']);
+
+        $lineId = $invoice['items'][0]['id'];
+        $updated = $this->patchJson("/api/pos-v2/invoices/{$invoice['id']}/lines/{$lineId}", [
+            'quantity' => 2,
+        ])->assertOk()->json('data');
+        $this->assertEquals(260, $updated['total']);
+
+        $removed = $this->deleteJson("/api/pos-v2/invoices/{$invoice['id']}/lines/{$invoice['items'][1]['id']}")
+            ->assertOk()->json('data');
+        $this->assertEquals(140, $removed['total']);
+    }
+
+    // ------------------------------------------------------------------
+    // Checkout (§25-§28, §48)
+    // ------------------------------------------------------------------
+
+    public function test_cash_checkout_creates_sale_with_per_line_commissions_and_change(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $omar = Employee::factory()->create(['name' => 'Omar', 'default_commission_rate' => 20]);
+        $yassine = Employee::factory()->create(['name' => 'Yassine', 'default_commission_rate' => 50]);
+        $coupe = Service::factory()->create(['category' => 'coiffure', 'price' => 70]);
+        $massage = Service::factory()->create(['category' => 'massage', 'price' => 250]);
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [
+                ['service_id' => $coupe->id, 'employee_id' => $omar->id],
+                ['service_id' => $massage->id, 'employee_id' => $yassine->id],
+            ],
+        ])->assertCreated()->json('data');
+
+        $paid = $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", [
+            'payment_method' => 'especes',
+            'amount_received' => 400,
+            'expected_total' => 320,
+        ])->assertOk()->json('data');
+
+        $this->assertSame('paid', $paid['status']);
+        $this->assertEquals(320, $paid['total']);
+        $this->assertEquals(80, $paid['change_given']);
+
+        $prestation = Prestation::find($invoice['id']);
+        $sale = Sale::find($paid['sale_id']);
+        $this->assertNotNull($sale);
+        $this->assertEquals(320, (float) $sale->total);
+        // Multi-category invoice lands in 'autre' — never NULL like V1.
+        $this->assertSame('autre', $sale->category);
+        // Header/sale employee = first line's employee (never diverging, to
+        // keep EmployeeEarningsService's legacy-sale exclusion correct).
+        $this->assertSame($omar->id, $sale->employee_id);
+        $this->assertSame($omar->id, $prestation->employee_id);
+
+        // One commission per line, each on ITS employee.
+        $commissions = Commission::where('prestation_id', $invoice['id'])->get();
+        $this->assertCount(2, $commissions);
+        $omarCommission = $commissions->firstWhere('employee_id', $omar->id);
+        $yassineCommission = $commissions->firstWhere('employee_id', $yassine->id);
+        $this->assertEquals(14.0, (float) $omarCommission->amount);   // 70 × 20%
+        $this->assertEquals(125.0, (float) $yassineCommission->amount); // 250 × 50%
+        $this->assertEquals(139.0, (float) $sale->commission_amount);
+
+        // Invariant G3 fixed for V2: Sale.total === Σ sale_items.
+        $itemsSum = $sale->items->sum(fn ($item) => $item->quantity * (float) $item->unit_price);
+        $this->assertEquals((float) $sale->total, round($itemsSum, 2));
+    }
+
+    public function test_double_click_checkout_is_rejected(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $employee = Employee::factory()->create();
+        $service = Service::factory()->create(['price' => 100]);
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $service->id, 'employee_id' => $employee->id]],
+        ])->json('data');
+
+        $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", ['payment_method' => 'carte'])->assertOk();
+        $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", ['payment_method' => 'carte'])
+            ->assertStatus(422);
+
+        $this->assertSame(1, Sale::count());
+    }
+
+    public function test_stale_cart_guard_rejects_mismatched_expected_total(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $employee = Employee::factory()->create();
+        $service = Service::factory()->create(['price' => 100]);
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $service->id, 'employee_id' => $employee->id]],
+        ])->json('data');
+
+        $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", [
+            'payment_method' => 'carte',
+            'expected_total' => 60,
+        ])->assertStatus(422);
+
+        $this->assertSame(0, Sale::count());
+    }
+
+    public function test_mixed_payment_requires_a_breakdown_that_sums_to_the_total(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $employee = Employee::factory()->create();
+        $service = Service::factory()->create(['price' => 500]);
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $service->id, 'employee_id' => $employee->id]],
+        ])->json('data');
+
+        // Wrong sum -> rejected, nothing written.
+        $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", [
+            'payment_method' => 'mixte',
+            'payment_breakdown' => [
+                ['method' => 'especes', 'amount' => 100],
+                ['method' => 'carte', 'amount' => 300],
+            ],
+        ])->assertStatus(422);
+        $this->assertSame(0, Sale::count());
+
+        // Correct split -> accepted and persisted.
+        $paid = $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", [
+            'payment_method' => 'mixte',
+            'payment_breakdown' => [
+                ['method' => 'especes', 'amount' => 200],
+                ['method' => 'carte', 'amount' => 300],
+            ],
+        ])->assertOk()->json('data');
+
+        $this->assertSame('mixte', $paid['payment_method']);
+        $this->assertEquals(200, $paid['payment_breakdown'][0]['amount']);
+        $this->assertEquals(300, $paid['payment_breakdown'][1]['amount']);
+    }
+
+    // ------------------------------------------------------------------
+    // Discounts (§29)
+    // ------------------------------------------------------------------
+
+    public function test_invoice_discount_is_distributed_and_the_sale_items_invariant_holds(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $employee = Employee::factory()->create(['default_commission_rate' => 50]);
+        $coupe = Service::factory()->create(['price' => 70]);
+        $massage = Service::factory()->create(['price' => 250]);
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [
+                ['service_id' => $coupe->id, 'employee_id' => $employee->id],
+                ['service_id' => $massage->id, 'employee_id' => $employee->id],
+            ],
+        ])->json('data');
+
+        $paid = $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", [
+            'payment_method' => 'carte',
+            'discount_amount' => 32,
+            'discount_reason' => 'Client fidèle',
+        ])->assertOk()->json('data');
+
+        $this->assertEquals(288, $paid['total']); // 320 - 32
+        $this->assertEquals(32, $paid['discount_amount']);
+        $this->assertSame('Client fidèle', $paid['discount_reason']);
+
+        $sale = Sale::find($paid['sale_id']);
+        $itemsSum = $sale->items->sum(fn ($item) => $item->quantity * (float) $item->unit_price);
+        $this->assertEquals((float) $sale->total, round($itemsSum, 2));
+        $this->assertEquals(288.0, (float) $sale->total);
+
+        // Commission base follows what the client actually paid (144 = 288/2 at 50%).
+        $this->assertEquals(144.0, (float) $sale->commission_amount);
+    }
+
+    public function test_line_discount_reduces_the_total_and_is_capped_by_the_line(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $employee = Employee::factory()->create();
+        $service = Service::factory()->create(['price' => 100]);
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $service->id, 'employee_id' => $employee->id]],
+        ])->json('data');
+        $lineId = $invoice['items'][0]['id'];
+
+        // Over-the-line discount rejected.
+        $this->patchJson("/api/pos-v2/invoices/{$invoice['id']}/lines/{$lineId}", [
+            'discount_amount' => 150,
+        ])->assertStatus(422);
+
+        $updated = $this->patchJson("/api/pos-v2/invoices/{$invoice['id']}/lines/{$lineId}", [
+            'discount_amount' => 20,
+            'discount_reason' => 'Geste commercial',
+        ])->assertOk()->json('data');
+
+        $this->assertEquals(80, $updated['total']);
+        $this->assertEquals(20, $updated['items'][0]['discount_amount']);
+    }
+
+    // ------------------------------------------------------------------
+    // Tips (§13, §40)
+    // ------------------------------------------------------------------
+
+    public function test_tips_are_recorded_separately_from_revenue_and_voided_on_refund(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $omar = Employee::factory()->create(['name' => 'Omar']);
+        $yassine = Employee::factory()->create(['name' => 'Yassine']);
+        $service = Service::factory()->create(['price' => 250]);
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $service->id, 'employee_id' => $yassine->id]],
+        ])->json('data');
+
+        $paid = $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", [
+            'payment_method' => 'especes',
+            'tips' => [
+                ['employee_id' => $yassine->id, 'amount' => 30, 'prestation_item_id' => $invoice['items'][0]['id']],
+                ['employee_id' => $omar->id, 'amount' => 20],
+            ],
+        ])->assertOk()->json('data');
+
+        // Tip money NEVER inflates the sale (§40: pourboire ≠ commission ≠ CA).
+        $this->assertEquals(250.0, (float) Sale::find($paid['sale_id'])->total);
+        $this->assertEquals(50, $paid['tips_total']);
+        $this->assertSame(2, Tip::count());
+        $this->assertDatabaseHas('tips', ['employee_id' => $yassine->id, 'amount' => 30]);
+        $this->assertDatabaseHas('tips', ['employee_id' => $omar->id, 'amount' => 20]);
+
+        // Refund voids the tips too.
+        $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/refund", ['reason' => 'Erreur de caisse'])->assertOk();
+        $this->assertSame(0, Tip::count());
+        $this->assertSame(2, Tip::withTrashed()->count());
+    }
+
+    // ------------------------------------------------------------------
+    // Cancel / refund (§32)
+    // ------------------------------------------------------------------
+
+    public function test_refund_cancels_commissions_and_soft_deletes_the_sale(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $employee = Employee::factory()->create(['default_commission_rate' => 20]);
+        $service = Service::factory()->create(['price' => 100]);
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $service->id, 'employee_id' => $employee->id]],
+        ])->json('data');
+        $paid = $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", ['payment_method' => 'carte'])->json('data');
+
+        // Refund requires a reason.
+        $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/refund", [])->assertStatus(422);
+
+        $refunded = $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/refund", [
+            'reason' => 'Client insatisfait',
+        ])->assertOk()->json('data');
+
+        $this->assertSame('refunded', $refunded['status']);
+        $this->assertSoftDeleted('sales', ['id' => $paid['sale_id']]);
+        $this->assertSame(
+            0,
+            Commission::where('prestation_id', $invoice['id'])->where('status', Commission::STATUS_VALIDATED)->count(),
+        );
+    }
+
+    public function test_unpaid_invoice_can_be_cancelled_but_paid_one_cannot(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $employee = Employee::factory()->create();
+        $service = Service::factory()->create(['price' => 100]);
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $service->id, 'employee_id' => $employee->id]],
+        ])->json('data');
+
+        $cancelled = $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/cancel", [
+            'reason' => 'Client parti',
+        ])->assertOk()->json('data');
+        $this->assertSame('cancelled', $cancelled['status']);
+
+        $invoice2 = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $service->id, 'employee_id' => $employee->id]],
+        ])->json('data');
+        $this->postJson("/api/pos-v2/invoices/{$invoice2['id']}/checkout", ['payment_method' => 'carte'])->assertOk();
+        $this->postJson("/api/pos-v2/invoices/{$invoice2['id']}/cancel", ['reason' => 'x'])->assertStatus(422);
+    }
+
+    // ------------------------------------------------------------------
+    // Cross-day invoice books to the CURRENT day (V1's G1 avoided)
+    // ------------------------------------------------------------------
+
+    public function test_invoice_opened_yesterday_books_its_sale_on_todays_work_day(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $employee = Employee::factory()->create();
+        $service = Service::factory()->create(['price' => 100]);
+
+        $dayOne = WorkDay::query()->where('status', 'open')->first();
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $service->id, 'employee_id' => $employee->id]],
+        ])->json('data');
+
+        // The day closes with the invoice still open; a new day starts.
+        $dayOne->update(['status' => 'closed', 'closed_at' => now()]);
+        $dayTwo = WorkDay::factory()->create([
+            'status' => 'open',
+            'date' => now()->addDay()->toDateString(),
+        ]);
+
+        $paid = $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", [
+            'payment_method' => 'especes',
+        ])->assertOk()->json('data');
+
+        $this->assertSame($dayTwo->id, Sale::find($paid['sale_id'])->work_day_id);
+    }
+
+    // ------------------------------------------------------------------
+    // History & dashboard (§23-§24, §33-§34)
+    // ------------------------------------------------------------------
+
+    public function test_history_filters_by_service_employee_and_hour(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $omar = Employee::factory()->create();
+        $yassine = Employee::factory()->create();
+        $coupe = Service::factory()->create(['name' => 'Coupe', 'category' => 'coiffure', 'price' => 70]);
+        $hammam = Service::factory()->create(['name' => 'Hammam', 'category' => 'hammam', 'price' => 150]);
+
+        $first = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $coupe->id, 'employee_id' => $omar->id]],
+        ])->json('data');
+        $this->postJson("/api/pos-v2/invoices/{$first['id']}/checkout", ['payment_method' => 'especes']);
+
+        $second = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $hammam->id, 'employee_id' => $yassine->id]],
+        ])->json('data');
+        $this->postJson("/api/pos-v2/invoices/{$second['id']}/checkout", ['payment_method' => 'carte']);
+
+        $all = $this->getJson('/api/pos-v2/history')->assertOk()->json('data');
+        $this->assertCount(2, $all);
+
+        $byService = $this->getJson("/api/pos-v2/history?service_id={$coupe->id}")->json('data');
+        $this->assertCount(1, $byService);
+        $this->assertSame($first['id'], $byService[0]['id']);
+
+        $byEmployee = $this->getJson("/api/pos-v2/history?employee_id={$yassine->id}")->json('data');
+        $this->assertCount(1, $byEmployee);
+        $this->assertSame($second['id'], $byEmployee[0]['id']);
+
+        $byCategory = $this->getJson('/api/pos-v2/history?category=hammam')->json('data');
+        $this->assertCount(1, $byCategory);
+
+        $byPayment = $this->getJson('/api/pos-v2/history?payment_method=carte')->json('data');
+        $this->assertCount(1, $byPayment);
+
+        // Hour window that excludes everything.
+        $this->assertCount(0, $this->getJson('/api/pos-v2/history?time_from=00:00&time_to=00:01')->json('data'));
+    }
+
+    public function test_dashboard_reports_day_totals_open_invoices_and_tips(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $employee = Employee::factory()->create();
+        $service = Service::factory()->create(['price' => 100]);
+
+        $paidInvoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $service->id, 'employee_id' => $employee->id]],
+        ])->json('data');
+        $this->postJson("/api/pos-v2/invoices/{$paidInvoice['id']}/checkout", [
+            'payment_method' => 'especes',
+            'tips' => [['employee_id' => $employee->id, 'amount' => 15]],
+        ])->assertOk();
+
+        // One still open.
+        $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $service->id, 'employee_id' => $employee->id]],
+        ])->assertCreated();
+
+        $dashboard = $this->getJson('/api/pos-v2/dashboard')->assertOk()->json('data');
+
+        $this->assertEquals(100, $dashboard['revenue_total']);
+        $this->assertSame(1, $dashboard['ticket_count']);
+        $this->assertSame(1, $dashboard['v2_ticket_count']);
+        $this->assertSame(1, $dashboard['open_invoices_count']);
+        $this->assertEquals(100, $dashboard['open_invoices_total']);
+        $this->assertEquals(15, $dashboard['tips_total']);
+    }
+
+    // ------------------------------------------------------------------
+    // V1/V2 coexistence (§50)
+    // ------------------------------------------------------------------
+
+    public function test_v1_pending_queue_never_sees_v2_invoices(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $employee = Employee::factory()->create();
+        $service = Service::factory()->create(['price' => 100]);
+
+        $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $service->id, 'employee_id' => $employee->id]],
+        ])->assertCreated();
+
+        $this->assertCount(0, $this->getJson('/api/prestations/pending')->assertOk()->json('data'));
+    }
+
+    public function test_v2_sales_appear_in_the_v1_day_ledger(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $employee = Employee::factory()->create();
+        $service = Service::factory()->create(['price' => 100]);
+        $workDay = WorkDay::query()->where('status', 'open')->first();
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $service->id, 'employee_id' => $employee->id]],
+        ])->json('data');
+        $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", ['payment_method' => 'carte'])->assertOk();
+
+        $ledger = $this->getJson("/api/transactions?work_day_id={$workDay->id}")->assertOk()->json('data');
+        $this->assertCount(1, $ledger);
+        $this->assertEquals(100, $ledger[0]['total']);
+    }
+}

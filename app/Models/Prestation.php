@@ -12,12 +12,21 @@ class Prestation extends Model
     use SoftDeletes;
 
     public const STATUS_DRAFT = 'draft';
+
     public const STATUS_IN_PROGRESS = 'in_progress';
+
     public const STATUS_SERVICES_DONE = 'services_done';
+
     public const STATUS_PENDING_PAYMENT = 'pending_payment';
+
     public const STATUS_PAID = 'paid';
+
     public const STATUS_CANCELLED = 'cancelled';
+
     public const STATUS_REFUNDED = 'refunded';
+
+    /** Rows created by the Caisse V2 POS carry this channel; V1 rows keep NULL. */
+    public const CHANNEL_CAISSE_V2 = 'caisse_v2';
 
     protected $fillable = [
         'reference',
@@ -27,9 +36,14 @@ class Prestation extends Model
         'employee_id',
         'created_by_user_id',
         'status',
+        'channel',
+        'appointment_id',
+        'held_at',
         'subtotal',
         'discount_percent',
         'discount_amount',
+        'discount_reason',
+        'discount_by_user_id',
         'total',
         'payment_method',
         'payment_breakdown',
@@ -58,6 +72,7 @@ class Prestation extends Model
         'amount_received' => 'decimal:2',
         'change_given' => 'decimal:2',
         'payment_breakdown' => 'array',
+        'held_at' => 'datetime',
         'validated_at' => 'datetime',
         'confirmed_at' => 'datetime',
         'cancelled_at' => 'datetime',
@@ -113,6 +128,16 @@ class Prestation extends Model
     public function commissions(): HasMany
     {
         return $this->hasMany(Commission::class);
+    }
+
+    public function tips(): HasMany
+    {
+        return $this->hasMany(Tip::class);
+    }
+
+    public function appointment(): BelongsTo
+    {
+        return $this->belongsTo(Appointment::class);
     }
 
     public function reviews(): HasMany

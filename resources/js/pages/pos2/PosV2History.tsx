@@ -1,0 +1,361 @@
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { motion } from 'framer-motion';
+import { ArrowLeft, ChevronLeft, ChevronRight, Clock3, Filter, Search } from 'lucide-react';
+import { getEmployees, getServices } from '@/lib/api';
+import { getPos2History, pos2Keys } from '@/lib/pos2Api';
+import { paymentMethodLabel } from '@/lib/receiptV2';
+import { pageFade } from '@/lib/motion';
+import { CATEGORIES } from '@/components/workday/categories';
+import { Pos2InvoiceDetailDrawer, STATUS_META } from '@/components/pos2/Pos2InvoiceDetailDrawer';
+import { cn, formatCurrency } from '@/lib/utils';
+import type { Pos2HistoryFilters, Pos2InvoiceStatus } from '@/types/pos2';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Chip } from '@/components/ui/chip';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+
+/** §23 — presets horaires de l'accueil. */
+const HOUR_PRESETS: Array<{ label: string; from?: string; to?: string }> = [
+    { label: 'Toute la journée' },
+    { label: '07:00 – 09:00', from: '07:00', to: '09:00' },
+    { label: '09:00 – 12:00', from: '09:00', to: '12:00' },
+    { label: '12:00 – 15:00', from: '12:00', to: '15:00' },
+    { label: '15:00 – 18:00', from: '15:00', to: '18:00' },
+    { label: '18:00 – fermeture', from: '18:00', to: '23:59' },
+];
+
+const ALL = '__all__';
+
+/**
+ * §34 — HISTORIQUE CAISSE V2 : filtres date/heure/service/catégorie/employé/
+ * statut/paiement/abonnement + recherche, liste et drawer de détail.
+ */
+export default function PosV2History() {
+    const today = new Date().toISOString().slice(0, 10);
+    const [from, setFrom] = useState(today);
+    const [to, setTo] = useState(today);
+    const [hourPreset, setHourPreset] = useState(0);
+    const [customHours, setCustomHours] = useState(false);
+    const [timeFrom, setTimeFrom] = useState('');
+    const [timeTo, setTimeTo] = useState('');
+    const [status, setStatus] = useState(ALL);
+    const [paymentMethod, setPaymentMethod] = useState(ALL);
+    const [serviceId, setServiceId] = useState(ALL);
+    const [category, setCategory] = useState(ALL);
+    const [employeeId, setEmployeeId] = useState(ALL);
+    const [subscription, setSubscription] = useState(ALL);
+    const [search, setSearch] = useState('');
+    const [page, setPage] = useState(1);
+    const [detailId, setDetailId] = useState<number | null>(null);
+
+    const { data: employees } = useQuery({ queryKey: ['employees'], queryFn: () => getEmployees(), staleTime: 5 * 60_000 });
+    const { data: services } = useQuery({ queryKey: ['services', 'pos2', 'all'], queryFn: () => getServices(), staleTime: 5 * 60_000 });
+
+    const filters: Pos2HistoryFilters = useMemo(() => {
+        const preset = HOUR_PRESETS[hourPreset];
+        return {
+            from,
+            to,
+            time_from: customHours ? timeFrom || undefined : preset?.from,
+            time_to: customHours ? timeTo || undefined : preset?.to,
+            status: status === ALL ? undefined : status,
+            payment_method: paymentMethod === ALL ? undefined : paymentMethod,
+            service_id: serviceId === ALL ? undefined : Number(serviceId),
+            category: category === ALL ? undefined : category,
+            employee_id: employeeId === ALL ? undefined : Number(employeeId),
+            subscription: subscription === ALL ? undefined : subscription === 'yes',
+            search: search.trim() || undefined,
+            page,
+        };
+    }, [from, to, hourPreset, customHours, timeFrom, timeTo, status, paymentMethod, serviceId, category, employeeId, subscription, search, page]);
+
+    const { data, isPending } = useQuery({
+        queryKey: pos2Keys.history(filters),
+        queryFn: () => getPos2History(filters),
+        placeholderData: keepPreviousData,
+    });
+
+    const invoices = data?.data ?? [];
+    const meta = data?.meta;
+
+    return (
+        <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h2 className="font-display text-2xl font-semibold tracking-tight">Historique caisse</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        Factures Caisse V2 — filtrez par heure, service, employé ou moyen de paiement.
+                    </p>
+                </div>
+                <Button type="button" variant="outline" asChild>
+                    <Link to="/pos-v2">
+                        <ArrowLeft />
+                        Retour à la caisse
+                    </Link>
+                </Button>
+            </div>
+
+            {/* -------------------------------------------------- filtres */}
+            <Card>
+                <CardContent className="space-y-4 p-4">
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-6">
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Du</Label>
+                            <Input type="date" value={from} onChange={(event) => { setFrom(event.target.value); setPage(1); }} className="h-10" />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Au</Label>
+                            <Input type="date" value={to} onChange={(event) => { setTo(event.target.value); setPage(1); }} className="h-10" />
+                        </div>
+                        <FilterSelect
+                            label="Statut"
+                            value={status}
+                            onChange={(value) => { setStatus(value); setPage(1); }}
+                            options={[
+                                { value: ALL, label: 'Tous' },
+                                { value: 'paid', label: 'Payée' },
+                                { value: 'in_progress', label: 'Ouverte' },
+                                { value: 'cancelled', label: 'Annulée' },
+                                { value: 'refunded', label: 'Remboursée' },
+                            ]}
+                        />
+                        <FilterSelect
+                            label="Paiement"
+                            value={paymentMethod}
+                            onChange={(value) => { setPaymentMethod(value); setPage(1); }}
+                            options={[
+                                { value: ALL, label: 'Tous' },
+                                { value: 'especes', label: 'Espèces' },
+                                { value: 'carte', label: 'Carte' },
+                                { value: 'virement', label: 'Virement' },
+                                { value: 'mixte', label: 'Mixte' },
+                                { value: 'autre', label: 'Autre' },
+                            ]}
+                        />
+                        <FilterSelect
+                            label="Service"
+                            value={serviceId}
+                            onChange={(value) => { setServiceId(value); setPage(1); }}
+                            options={[
+                                { value: ALL, label: 'Tous' },
+                                ...(services ?? []).map((service) => ({ value: String(service.id), label: service.name })),
+                            ]}
+                        />
+                        <FilterSelect
+                            label="Employé"
+                            value={employeeId}
+                            onChange={(value) => { setEmployeeId(value); setPage(1); }}
+                            options={[
+                                { value: ALL, label: 'Tous' },
+                                ...(employees ?? []).map((employee) => ({ value: String(employee.id), label: employee.name })),
+                            ]}
+                        />
+                    </div>
+
+                    {/* Heure (§23) */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        <Clock3 className="h-4 w-4 text-muted-foreground" />
+                        {HOUR_PRESETS.map((preset, index) => (
+                            <Chip
+                                key={preset.label}
+                                size="sm"
+                                selected={!customHours && hourPreset === index}
+                                onClick={() => { setCustomHours(false); setHourPreset(index); setPage(1); }}
+                            >
+                                {preset.label}
+                            </Chip>
+                        ))}
+                        <Chip size="sm" selected={customHours} onClick={() => { setCustomHours(true); setPage(1); }}>
+                            Personnalisé
+                        </Chip>
+                        {customHours && (
+                            <span className="flex items-center gap-1.5">
+                                <Input type="time" value={timeFrom} onChange={(event) => { setTimeFrom(event.target.value); setPage(1); }} className="h-9 w-28" />
+                                <span className="text-xs text-muted-foreground">à</span>
+                                <Input type="time" value={timeTo} onChange={(event) => { setTimeTo(event.target.value); setPage(1); }} className="h-9 w-28" />
+                            </span>
+                        )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        <Filter className="h-4 w-4 text-muted-foreground" />
+                        <Chip size="sm" selected={category === ALL} onClick={() => { setCategory(ALL); setPage(1); }}>
+                            Toutes catégories
+                        </Chip>
+                        {CATEGORIES.map((config) => (
+                            <Chip
+                                key={config.value}
+                                size="sm"
+                                selected={category === config.value}
+                                onClick={() => { setCategory(config.value); setPage(1); }}
+                            >
+                                {config.label}
+                            </Chip>
+                        ))}
+                        <span className="mx-1 h-4 w-px bg-tint/[0.12]" />
+                        <Chip size="sm" selected={subscription === ALL} onClick={() => { setSubscription(ALL); setPage(1); }}>
+                            Tout
+                        </Chip>
+                        <Chip size="sm" selected={subscription === 'yes'} onClick={() => { setSubscription('yes'); setPage(1); }}>
+                            Abonnement
+                        </Chip>
+                        <Chip size="sm" selected={subscription === 'no'} onClick={() => { setSubscription('no'); setPage(1); }}>
+                            Normal
+                        </Chip>
+                    </div>
+
+                    <div className="relative">
+                        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
+                        <Input
+                            value={search}
+                            onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+                            placeholder="Rechercher une facture (référence, client)…"
+                            className="pl-10"
+                        />
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* -------------------------------------------------- résultats */}
+            <Card>
+                <CardContent className="p-0">
+                    {isPending ? (
+                        <div className="space-y-2 p-4">
+                            {[0, 1, 2, 3, 4].map((index) => (
+                                <Skeleton key={index} className="h-14 w-full" />
+                            ))}
+                        </div>
+                    ) : invoices.length === 0 ? (
+                        <p className="px-4 py-10 text-center text-sm text-muted-foreground">
+                            Aucune facture ne correspond à ces filtres.
+                        </p>
+                    ) : (
+                        <ul className="divide-y divide-tint/[0.05]">
+                            {invoices.map((invoice) => (
+                                <li key={invoice.id}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setDetailId(invoice.id)}
+                                        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors duration-150 hover:bg-tint/[0.04]"
+                                    >
+                                        <div className="min-w-0 flex-1">
+                                            <p className="flex flex-wrap items-center gap-x-2 text-sm">
+                                                <span className="font-semibold tabular-nums text-foreground">
+                                                    {invoice.reference}
+                                                </span>
+                                                <span className="tabular-nums text-muted-foreground">
+                                                    {invoice.opened_time}
+                                                </span>
+                                                <span className="truncate text-foreground">
+                                                    {invoice.client_name ?? 'Client de passage'}
+                                                </span>
+                                            </p>
+                                            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                                                {(invoice.items ?? []).map((item) => item.label).join(' + ') || '—'}
+                                                {(invoice.employees ?? []).length > 0 &&
+                                                    ` · ${(invoice.employees ?? []).map((employee) => employee.name).join(', ')}`}
+                                            </p>
+                                        </div>
+                                        <div className="flex shrink-0 items-center gap-3">
+                                            <div className="text-right">
+                                                <p className={cn(
+                                                    'text-sm font-semibold tabular-nums text-foreground',
+                                                    invoice.status === 'refunded' && 'line-through opacity-60',
+                                                )}>
+                                                    {formatCurrency(invoice.total)}
+                                                </p>
+                                                <p className="text-[11px] text-muted-foreground">
+                                                    {paymentMethodLabel(invoice.payment_method)}
+                                                </p>
+                                            </div>
+                                            <Badge variant={STATUS_META[invoice.status as Pos2InvoiceStatus]?.variant ?? 'outline'}>
+                                                {STATUS_META[invoice.status as Pos2InvoiceStatus]?.label ?? invoice.status}
+                                            </Badge>
+                                        </div>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Pagination + résumé */}
+            {meta && (
+                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                    <p>
+                        {meta.total} facture{meta.total > 1 ? 's' : ''} — page {meta.current_page}/{meta.last_page} ·{' '}
+                        {meta.page_paid_count} payée{meta.page_paid_count > 1 ? 's' : ''} sur cette page (
+                        {formatCurrency(meta.page_paid_total)})
+                    </p>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={meta.current_page <= 1}
+                            onClick={() => setPage((value) => Math.max(1, value - 1))}
+                        >
+                            <ChevronLeft />
+                            Précédent
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={meta.current_page >= meta.last_page}
+                            onClick={() => setPage((value) => value + 1)}
+                        >
+                            Suivant
+                            <ChevronRight />
+                        </Button>
+                    </div>
+                </div>
+            )}
+
+            <Pos2InvoiceDetailDrawer invoiceId={detailId} onClose={() => setDetailId(null)} />
+        </motion.div>
+    );
+}
+
+function FilterSelect({
+    label,
+    value,
+    onChange,
+    options,
+}: {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    options: Array<{ value: string; label: string }>;
+}) {
+    return (
+        <div className="space-y-1.5">
+            <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</Label>
+            <Select value={value} onValueChange={onChange}>
+                <SelectTrigger className="h-10">
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    {options.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
+    );
+}

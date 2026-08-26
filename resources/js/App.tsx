@@ -43,6 +43,8 @@ import PartnerProfile from '@/pages/partner/PartnerProfile';
 import PartnerSupport from '@/pages/partner/PartnerSupport';
 import Payroll from '@/pages/Payroll';
 import PlaceholderPage from '@/pages/PlaceholderPage';
+import PosV2 from '@/pages/pos2/PosV2';
+import PosV2History from '@/pages/pos2/PosV2History';
 import Reports from '@/pages/Reports';
 import ScannerAbonnements from '@/pages/ScannerAbonnements';
 import Services from '@/pages/Services';
@@ -65,6 +67,7 @@ const realRoutes = new Set([
     '/dashboard',
     '/agenda',
     '/pos',
+    '/pos-v2',
     '/expenses',
     '/mon-espace',
     '/partenaires',
@@ -179,6 +182,14 @@ export default function App() {
                         <Route path="/stock" element={<Stock />} />
                         <Route path="/clients" element={<Clients />} />
                         <Route path="/clients/:id" element={<ClientDetail />} />
+                    </Route>
+
+                    {/* Caisse V2 — parallel POS, test-phase gated on its own
+                        permission (super-admin only until the switch is decided).
+                        V1 (/pos) above stays fully operational. */}
+                    <Route element={<ProtectedRoute permission="caisse_v2.access" />}>
+                        <Route path="/pos-v2" element={<PosV2 />} />
+                        <Route path="/pos-v2/historique" element={<PosV2History />} />
                     </Route>
 
                     <Route element={<ProtectedRoute permission="employees.manage" />}>

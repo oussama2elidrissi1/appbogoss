@@ -10,8 +10,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class ClientSubscription extends Model
 {
     public const STATUS_ACTIVE = 'active';
+
     public const STATUS_EXPIRED = 'expired';
+
     public const STATUS_CANCELLED = 'cancelled';
+
     public const STATUS_SUSPENDED = 'suspended';
 
     protected $fillable = [
@@ -19,6 +22,7 @@ class ClientSubscription extends Model
         'subscription_plan_id',
         'renewed_from_id',
         'plan_snapshot',
+        'total_amount',
         'status',
         'purchased_at',
         'starts_on',
@@ -35,6 +39,7 @@ class ClientSubscription extends Model
 
     protected $casts = [
         'plan_snapshot' => 'array',
+        'total_amount' => 'decimal:2',
         'purchased_at' => 'datetime',
         'starts_on' => 'date',
         'ends_on' => 'date',
@@ -76,6 +81,11 @@ class ClientSubscription extends Model
     public function usages(): HasMany
     {
         return $this->hasMany(ClientSubscriptionUsage::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(SubscriptionPayment::class);
     }
 
     public function scopeExpired(Builder $query): Builder

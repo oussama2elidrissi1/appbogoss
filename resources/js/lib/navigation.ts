@@ -19,6 +19,7 @@ import {
     ShieldCheck,
     ShoppingCart,
     Sparkles,
+    Store,
     UserCircle,
     Users,
     UserSquare2,
@@ -140,6 +141,13 @@ export const navSections: NavSection[] = [
                 icon: ShoppingCart,
                 description: 'Encaissement rapide, tickets et moyens de paiement.',
                 permission: 'caisse.manage',
+            },
+            {
+                label: 'Caisse V2 — Nouveau',
+                to: '/pos-v2',
+                icon: Store,
+                description: 'POS professionnel : factures ouvertes, employé par service, abonnements, pourboires.',
+                permission: 'caisse_v2.access',
             },
             {
                 label: 'Stock',

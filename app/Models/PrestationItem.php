@@ -10,11 +10,15 @@ class PrestationItem extends Model
     protected $fillable = [
         'prestation_id',
         'service_id',
+        'employee_id',
         'label',
         'quantity',
         'unit_price',
+        'discount_amount',
+        'discount_reason',
         'duration_minutes',
         'notes',
+        'beneficiary_name',
         'commission_type',
         'commission_value',
         'commission_amount',
@@ -30,6 +34,7 @@ class PrestationItem extends Model
     protected $casts = [
         'quantity' => 'integer',
         'unit_price' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
         'duration_minutes' => 'integer',
         'commission_value' => 'decimal:2',
         'commission_amount' => 'decimal:2',
@@ -63,8 +68,25 @@ class PrestationItem extends Model
         return $this->belongsTo(ClientSubscription::class);
     }
 
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class);
+    }
+
     public function lineTotal(): float
     {
         return round((float) $this->quantity * (float) $this->unit_price, 2);
+    }
+
+    /**
+     * Caisse V2 only: line total after the line-level discount. V1 code keeps
+     * calling lineTotal() and never sets discount_amount, so its figures are
+     * untouched.
+     */
+    public function effectiveLineTotal(): float
+    {
+        $discount = min((float) ($this->discount_amount ?? 0), $this->lineTotal());
+
+        return round(max(0.0, $this->lineTotal() - $discount), 2);
     }
 }

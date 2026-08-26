@@ -5,17 +5,18 @@ use App\Http\Controllers\Api\AdvanceController;
 use App\Http\Controllers\Api\AppointmentController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CashMovementController;
-use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\ClientAccountController;
 use App\Http\Controllers\Api\ClientController;
+use App\Http\Controllers\Api\ClientLoyaltyAdjustmentController;
 use App\Http\Controllers\Api\ClientLoyaltyStatusController;
 use App\Http\Controllers\Api\ClientQrController;
+use App\Http\Controllers\Api\ClientSubscriptionLifecycleController;
 use App\Http\Controllers\Api\CommissionPayoutController;
 use App\Http\Controllers\Api\CommissionRegularizationController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\EmployeeController;
-use App\Http\Controllers\Api\EmployeeWorkspaceController;
 use App\Http\Controllers\Api\EmployeeServiceCommissionController;
+use App\Http\Controllers\Api\EmployeeWorkspaceController;
 use App\Http\Controllers\Api\ExpenseController;
 use App\Http\Controllers\Api\LoyaltyDashboardController;
 use App\Http\Controllers\Api\LoyaltyProgramController;
@@ -23,17 +24,6 @@ use App\Http\Controllers\Api\LoyaltyQrController;
 use App\Http\Controllers\Api\LoyaltyReportController;
 use App\Http\Controllers\Api\LoyaltySettingsController;
 use App\Http\Controllers\Api\MarketingSegmentController;
-use App\Http\Controllers\Api\Portal\PortalController;
-use App\Http\Controllers\Api\Portal\PortalLoyaltyController;
-use App\Http\Controllers\Api\Portal\PortalPrestationsController;
-use App\Http\Controllers\Api\Public\ClientLoginController;
-use App\Http\Controllers\Api\Public\JoinController;
-use App\Http\Controllers\Api\SubscriptionAdminController;
-use App\Http\Controllers\Api\SubscriptionPlanController;
-use App\Http\Controllers\Api\SubscriptionPurchaseController;
-use App\Http\Controllers\Api\SubscriptionScanController;
-use App\Http\Controllers\Api\ClientLoyaltyAdjustmentController;
-use App\Http\Controllers\Api\ClientSubscriptionLifecycleController;
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\Partner\PartnerClientController;
@@ -44,11 +34,28 @@ use App\Http\Controllers\Api\Partner\PartnerServiceController as PartnerPortalSe
 use App\Http\Controllers\Api\Partner\PartnerSupportController;
 use App\Http\Controllers\Api\PartnerCommissionPayoutController;
 use App\Http\Controllers\Api\PartnerController;
+use App\Http\Controllers\Api\Portal\PortalController;
+use App\Http\Controllers\Api\Portal\PortalLoyaltyController;
+use App\Http\Controllers\Api\Portal\PortalPrestationsController;
+use App\Http\Controllers\Api\PosV2\PosAppointmentController;
+use App\Http\Controllers\Api\PosV2\PosCheckoutController;
+use App\Http\Controllers\Api\PosV2\PosClientContextController;
+use App\Http\Controllers\Api\PosV2\PosDashboardController;
+use App\Http\Controllers\Api\PosV2\PosHistoryController;
+use App\Http\Controllers\Api\PosV2\PosInvoiceController;
+use App\Http\Controllers\Api\PosV2\PosQrController;
+use App\Http\Controllers\Api\PosV2\PosSubscriptionPaymentController;
 use App\Http\Controllers\Api\PrestationController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\Public\ClientLoginController;
+use App\Http\Controllers\Api\Public\JoinController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\SettingsController;
+use App\Http\Controllers\Api\SubscriptionAdminController;
+use App\Http\Controllers\Api\SubscriptionPlanController;
+use App\Http\Controllers\Api\SubscriptionPurchaseController;
+use App\Http\Controllers\Api\SubscriptionScanController;
 use App\Http\Controllers\Api\SupportInboxController;
 use App\Http\Controllers\Api\TransactionController;
 use App\Http\Controllers\Api\UserController;
@@ -378,5 +385,40 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('/services', ServiceController::class)->only(['index', 'show']);
     Route::middleware('permission:services.manage')->group(function () {
         Route::apiResource('/services', ServiceController::class)->only(['store', 'update', 'destroy']);
+    });
+
+    // ------------------------------------------------------------------
+    // CAISSE V2 — parallel POS surface. V1 (/transactions, /prestations,
+    // /work-days) is untouched above; everything here is additive and lives
+    // behind its own permission so it can be enabled per role/user during
+    // the test phase (§51-§52: super-admin only for now). Money-moving
+    // actions re-check caisse_v2.checkout / .discount / .cancel / .refund
+    // inside the controllers.
+    // ------------------------------------------------------------------
+    Route::middleware('permission:caisse_v2.access')->prefix('pos-v2')->group(function () {
+        Route::get('/dashboard', PosDashboardController::class);
+        Route::get('/history', PosHistoryController::class);
+        Route::post('/qr-lookup', PosQrController::class);
+        Route::get('/clients/{client}/context', PosClientContextController::class);
+
+        Route::get('/appointments/today', [PosAppointmentController::class, 'today']);
+        Route::post('/appointments/{appointment}/open', [PosAppointmentController::class, 'open']);
+
+        Route::get('/subscriptions/{clientSubscription}/payments', [PosSubscriptionPaymentController::class, 'index']);
+        Route::post('/subscriptions/{clientSubscription}/payments', [PosSubscriptionPaymentController::class, 'store']);
+
+        Route::get('/invoices', [PosInvoiceController::class, 'index']);
+        Route::post('/invoices', [PosInvoiceController::class, 'store']);
+        Route::get('/invoices/{prestation}', [PosInvoiceController::class, 'show']);
+        Route::patch('/invoices/{prestation}', [PosInvoiceController::class, 'update']);
+        Route::post('/invoices/{prestation}/hold', [PosInvoiceController::class, 'hold']);
+        Route::post('/invoices/{prestation}/resume', [PosInvoiceController::class, 'resume']);
+        Route::post('/invoices/{prestation}/lines', [PosInvoiceController::class, 'storeLine']);
+        Route::patch('/invoices/{prestation}/lines/{item}', [PosInvoiceController::class, 'updateLine']);
+        Route::delete('/invoices/{prestation}/lines/{item}', [PosInvoiceController::class, 'destroyLine']);
+        Route::post('/invoices/{prestation}/cancel', [PosInvoiceController::class, 'cancel']);
+        Route::post('/invoices/{prestation}/checkout', [PosCheckoutController::class, 'checkout']);
+        Route::post('/invoices/{prestation}/refund', [PosCheckoutController::class, 'refund']);
+        Route::post('/invoices/{prestation}/print', [PosCheckoutController::class, 'print']);
     });
 });

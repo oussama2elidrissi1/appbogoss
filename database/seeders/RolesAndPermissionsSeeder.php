@@ -75,6 +75,16 @@ class RolesAndPermissionsSeeder extends Seeder
             'loyalty.reports.view',
             'loyalty.settings.manage',
             'loyalty.qr.manage',
+
+            // Caisse V2 (POS) — TEST PHASE: granted to super-admin only
+            // (§52). Widening to admin/caissiers is a deliberate later step,
+            // not something this seeder does implicitly. Kept in sync with
+            // the 2026_08_25_100006_seed_caisse_v2_permissions migration.
+            'caisse_v2.access',
+            'caisse_v2.checkout',
+            'caisse_v2.discount',
+            'caisse_v2.cancel',
+            'caisse_v2.refund',
         ];
 
         foreach ($permissions as $permission) {

@@ -1,0 +1,235 @@
+import QRCode from 'qrcode';
+import { formatCurrency } from '@/lib/utils';
+import type { Pos2Invoice } from '@/types/pos2';
+
+/**
+ * Caisse V2 ticket — same hidden-iframe printing technique and thermal
+ * formats as lib/receipt.ts (V1, untouched), but rendered from a V2 invoice:
+ * per-line employees, remises, paiement mixte and pourboires all appear on
+ * the ticket.
+ */
+
+export type TicketFormat = '58mm' | '80mm' | 'a4';
+
+interface FormatSpec {
+    pageSize: string;
+    width: string;
+    padding: string;
+    baseFontSize: string;
+    brandFontSize: string;
+    totalFontSize: string;
+}
+
+const FORMAT_SPECS: Record<TicketFormat, FormatSpec> = {
+    '58mm': { pageSize: '58mm auto', width: '58mm', padding: '3mm', baseFontSize: '10px', brandFontSize: '15px', totalFontSize: '12px' },
+    '80mm': { pageSize: '80mm auto', width: '80mm', padding: '4mm', baseFontSize: '11px', brandFontSize: '17px', totalFontSize: '14px' },
+    a4: { pageSize: 'A4', width: '190mm', padding: '14mm', baseFontSize: '13px', brandFontSize: '24px', totalFontSize: '18px' },
+};
+
+const METHOD_LABELS: Record<string, string> = {
+    especes: 'Espèces',
+    carte: 'Carte',
+    virement: 'Virement',
+    mixte: 'Mixte',
+    autre: 'Autre',
+    abonnement: 'Abonnement',
+};
+
+export function paymentMethodLabel(method: string | null | undefined): string {
+    if (!method) return '—';
+    return METHOD_LABELS[method] ?? method;
+}
+
+function escapeHtml(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function money(value: number): string {
+    return formatCurrency(value, { maximumFractionDigits: 2 });
+}
+
+async function qrDataUrl(text: string): Promise<string | null> {
+    try {
+        return await QRCode.toDataURL(text, { margin: 0, width: 120 });
+    } catch {
+        return null;
+    }
+}
+
+function documentShell(title: string, format: TicketFormat, bodyHtml: string): string {
+    const spec = FORMAT_SPECS[format];
+
+    return `<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(title)}</title>
+<style>
+@page { size: ${spec.pageSize}; margin: 0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; width: ${spec.width}; background: #fff; color: #000; }
+body { font-family: "Courier New", monospace; font-size: ${spec.baseFontSize}; line-height: 1.35; }
+.ticket { width: ${spec.width}; padding: ${spec.padding}; position: relative; }
+.center { text-align: center; }
+.brand { font-size: ${spec.brandFontSize}; font-weight: 700; letter-spacing: 0.5px; }
+.muted { font-size: 0.85em; }
+.line { border-top: 1px dashed #000; margin: 7px 0; }
+.row { display: flex; justify-content: space-between; gap: 6px; }
+.label { overflow-wrap: anywhere; }
+.amount { flex: 0 0 auto; text-align: right; white-space: nowrap; }
+.item { margin: 5px 0; }
+.total { font-size: ${spec.totalFontSize}; font-weight: 700; }
+.qr { display: flex; justify-content: center; margin: 8px 0; }
+.qr img { width: 90px; height: 90px; }
+.duplicata { position: absolute; top: 6px; right: 6px; border: 2px solid #000; color: #000; font-weight: 700; font-size: 0.9em; padding: 1px 6px; transform: rotate(8deg); letter-spacing: 1px; }
+.strike { text-decoration: line-through; }
+</style>
+</head>
+<body>
+<main class="ticket">
+${bodyHtml}
+</main>
+</body>
+</html>`;
+}
+
+export interface InvoiceReceiptOptions {
+    format?: TicketFormat;
+    duplicata?: boolean;
+    salonName?: string;
+    footer?: string | null;
+}
+
+async function invoiceReceiptHtml(invoice: Pos2Invoice, options: InvoiceReceiptOptions = {}): Promise<string> {
+    const format = options.format ?? '58mm';
+    const salonName = options.salonName?.trim() || 'BOGOSLAND';
+    const footer = options.footer?.trim() || 'Merci pour votre visite';
+    const date = new Date(invoice.confirmed_at ?? invoice.created_at);
+    const dateLabel = Number.isNaN(date.getTime())
+        ? ''
+        : new Intl.DateTimeFormat('fr-FR', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+          }).format(date);
+    const qr = await qrDataUrl(invoice.reference);
+
+    const items = invoice.items ?? [];
+    const tips = (invoice.tips ?? []).filter((tip) => !tip.voided);
+    const lineDiscounts = items.reduce(
+        (sum, item) => sum + Math.min(item.discount_amount ?? 0, item.line_total),
+        0,
+    );
+    const invoiceDiscount = invoice.discount_amount ?? 0;
+
+    const body = `
+    ${options.duplicata ? '<div class="duplicata">DUPLICATA</div>' : ''}
+    <section class="center">
+        <div class="brand">${escapeHtml(salonName)}</div>
+        <div class="muted">${escapeHtml(invoice.reference)}</div>
+        ${dateLabel ? `<div class="muted">${escapeHtml(dateLabel)}</div>` : ''}
+    </section>
+    <div class="line"></div>
+    <section>
+        <div>Client: ${escapeHtml(invoice.client_name ?? 'Client de passage')}</div>
+        ${invoice.payment_method ? `<div>Paiement: ${escapeHtml(paymentMethodLabel(invoice.payment_method))}</div>` : ''}
+    </section>
+    <div class="line"></div>
+    <section>
+        ${items
+            .map((item) => {
+                const discount = Math.min(item.discount_amount ?? 0, item.line_total);
+                return `
+        <div class="item">
+            <div class="row">
+                <span class="label">${escapeHtml(item.label)}${item.quantity > 1 ? ` x${item.quantity}` : ''}</span>
+                <span class="amount">${
+                    item.is_free
+                        ? '0'
+                        : escapeHtml(money(item.line_total - discount))
+                }</span>
+            </div>
+            ${item.employee_name ? `<div class="muted">${escapeHtml(item.employee_name)}${item.beneficiary_name ? ` — ${escapeHtml(item.beneficiary_name)}` : ''}</div>` : item.beneficiary_name ? `<div class="muted">${escapeHtml(item.beneficiary_name)}</div>` : ''}
+            ${item.is_free && item.public_price ? `<div class="muted">Abonnement — <span class="strike">${escapeHtml(money(item.public_price))}</span></div>` : ''}
+            ${discount > 0 ? `<div class="muted">Remise ligne: -${escapeHtml(money(discount))}</div>` : ''}
+        </div>`;
+            })
+            .join('')}
+    </section>
+    <div class="line"></div>
+    ${
+        lineDiscounts > 0 || invoiceDiscount > 0
+            ? `<section class="row muted"><span>Sous-total</span><span class="amount">${escapeHtml(money(invoice.subtotal))}</span></section>
+    ${lineDiscounts > 0 ? `<section class="row muted"><span>Remises lignes</span><span class="amount">-${escapeHtml(money(lineDiscounts))}</span></section>` : ''}
+    ${invoiceDiscount > 0 ? `<section class="row muted"><span>Remise</span><span class="amount">-${escapeHtml(money(invoiceDiscount))}</span></section>` : ''}`
+            : ''
+    }
+    <section class="row total">
+        <span>TOTAL</span>
+        <span class="amount">${escapeHtml(money(invoice.total))}</span>
+    </section>
+    ${(invoice.payment_breakdown ?? [])
+        .map(
+            (row) =>
+                `<section class="row muted"><span>${escapeHtml(paymentMethodLabel(row.method))}</span><span class="amount">${escapeHtml(money(row.amount))}</span></section>`,
+        )
+        .join('')}
+    ${
+        invoice.amount_received !== null && invoice.amount_received !== undefined
+            ? `<section class="row muted"><span>Reçu</span><span class="amount">${escapeHtml(money(invoice.amount_received))}</span></section>
+    <section class="row muted"><span>Rendu</span><span class="amount">${escapeHtml(money(invoice.change_given ?? 0))}</span></section>`
+            : ''
+    }
+    ${
+        tips.length > 0
+            ? `<div class="line"></div>
+    <section class="row muted"><span>Pourboires</span><span class="amount">${escapeHtml(money(tips.reduce((sum, tip) => sum + tip.amount, 0)))}</span></section>`
+            : ''
+    }
+    <div class="line"></div>
+    ${qr ? `<div class="qr"><img src="${qr}" alt="QR ${escapeHtml(invoice.reference)}"></div>` : ''}
+    <section class="center muted">${escapeHtml(footer)}</section>`;
+
+    return documentShell(`${invoice.reference}`, format, body);
+}
+
+function printHtmlDocument(html: string, title: string): void {
+    const frame = document.createElement('iframe');
+    frame.title = title;
+    frame.style.position = 'fixed';
+    frame.style.right = '0';
+    frame.style.bottom = '0';
+    frame.style.width = '0';
+    frame.style.height = '0';
+    frame.style.border = '0';
+    document.body.appendChild(frame);
+
+    const doc = frame.contentDocument ?? frame.contentWindow?.document;
+    if (!doc) {
+        frame.remove();
+        return;
+    }
+
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    const removeFrame = () => window.setTimeout(() => frame.remove(), 500);
+    frame.contentWindow?.addEventListener('afterprint', removeFrame, { once: true });
+    window.setTimeout(removeFrame, 10_000);
+    window.setTimeout(() => {
+        frame.contentWindow?.focus();
+        frame.contentWindow?.print();
+    }, 120);
+}
+
+export async function printInvoiceReceipt(invoice: Pos2Invoice, options: InvoiceReceiptOptions = {}): Promise<void> {
+    printHtmlDocument(await invoiceReceiptHtml(invoice, options), invoice.reference);
+}
