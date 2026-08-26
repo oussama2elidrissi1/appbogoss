@@ -889,7 +889,7 @@ class PosService
             ->with([
                 'employee', 'items.employee', 'items.service', 'items.product', 'client', 'confirmedBy', 'createdBy',
                 'tips.employee', 'commissions.employee',
-                'sale' => fn ($sale) => $sale->withTrashed(),
+                'sale' => fn ($sale) => $sale->withTrashed()->with('employee'),
             ])
             ->orderByDesc('created_at');
 
@@ -960,11 +960,12 @@ class PosService
     /**
      * Summary for the whole filtered history result, not just the current
      * page. V1 prestations use the header employee; V2 uses per-line employees.
+     * Legacy V1 quick-sales are included so the active-day CA matches Caisse V1.
      *
      * @param  Collection<int, Prestation>  $invoices
      * @return array<string, mixed>
      */
-    public function historyStats(Collection $invoices): array
+    public function historyStats(Collection $invoices, array $filters = []): array
     {
         $deletedSaleIds = $this->deletedSaleIdsFor($invoices);
         $activeInvoices = $invoices
@@ -977,14 +978,14 @@ class PosService
         $byEmployee = [];
 
         foreach ($paid as $invoice) {
-            $invoice->loadMissing(['employee', 'items.employee', 'items.service', 'items.product', 'commissions.employee']);
+            $invoice->loadMissing(['employee', 'sale.employee', 'items.employee', 'items.service', 'items.product', 'commissions.employee']);
             $computed = $this->computeTotals($invoice);
 
             foreach ($invoice->items as $item) {
                 $lineEmployee = $item->employee;
 
                 if ($lineEmployee === null && $invoice->channel !== Prestation::CHANNEL_CAISSE_V2) {
-                    $lineEmployee = $invoice->employee;
+                    $lineEmployee = $invoice->employee ?? $invoice->sale?->employee;
                 }
 
                 if ($lineEmployee === null) {
@@ -1031,6 +1032,36 @@ class PosService
             }
         }
 
+        $legacySales = $this->legacyHistorySalesQuery($filters)
+            ->get()
+            ->reject(fn (Sale $sale) => $sale->trashed())
+            ->values();
+
+        foreach ($legacySales as $sale) {
+            $employee = $sale->employee;
+            if ($employee === null) {
+                continue;
+            }
+
+            $employeeId = (int) $employee->id;
+            $entry = $byEmployee[$employeeId] ?? [
+                'employee_id' => $employeeId,
+                'employee_name' => $employee->name,
+                'performed_count' => 0,
+                'invoices_count' => 0,
+                'total' => 0.0,
+                'commission_total' => 0.0,
+                '_invoice_ids' => [],
+            ];
+
+            $performedCount = (int) $sale->items->sum(fn (SaleItem $item) => max(1, (int) $item->quantity));
+            $entry['performed_count'] += max(1, $performedCount);
+            $entry['_invoice_ids']['sale:'.$sale->id] = true;
+            $entry['total'] += (float) $sale->total;
+            $entry['commission_total'] += (float) ($sale->commission_amount ?? 0);
+            $byEmployee[$employeeId] = $entry;
+        }
+
         $employees = collect($byEmployee)
             ->map(function (array $entry) {
                 $entry['invoices_count'] = count($entry['_invoice_ids']);
@@ -1045,12 +1076,82 @@ class PosService
             ->all();
 
         return [
-            'paid_count' => $paid->count(),
-            'paid_total' => round((float) $paid->sum(fn (Prestation $invoice) => (float) $invoice->total), 2),
-            'v1_count' => $activeInvoices->filter(fn (Prestation $invoice) => $invoice->channel === null)->count(),
+            'paid_count' => $paid->count() + $legacySales->count(),
+            'paid_total' => round(
+                (float) $paid->sum(fn (Prestation $invoice) => (float) $invoice->total)
+                    + (float) $legacySales->sum('total'),
+                2,
+            ),
+            'v1_count' => $activeInvoices->filter(fn (Prestation $invoice) => $invoice->channel === null)->count()
+                + $legacySales->count(),
             'v2_count' => $activeInvoices->filter(fn (Prestation $invoice) => $invoice->channel === Prestation::CHANNEL_CAISSE_V2)->count(),
             'employees' => $employees,
         ];
+    }
+
+    /** @return Builder<Sale> */
+    private function legacyHistorySalesQuery(array $filters): Builder
+    {
+        $query = Sale::withTrashed()
+            ->with(['client', 'employee', 'items'])
+            ->whereNotIn('id', Prestation::whereNotNull('sale_id')->select('sale_id'));
+
+        if (! empty($filters['status']) && $filters['status'] !== Prestation::STATUS_PAID) {
+            $query->whereRaw('1 = 0');
+        }
+
+        if (isset($filters['subscription']) && $filters['subscription'] !== null && $filters['subscription'] !== '') {
+            $wantsSubscription = filter_var($filters['subscription'], FILTER_VALIDATE_BOOLEAN);
+            if ($wantsSubscription) {
+                $query->whereRaw('1 = 0');
+            }
+        }
+
+        if (! empty($filters['work_day_id'])) {
+            $query->where('work_day_id', (int) $filters['work_day_id']);
+        } else {
+            $from = ! empty($filters['from']) ? $filters['from'] : now()->toDateString();
+            $to = ! empty($filters['to']) ? $filters['to'] : $from;
+            $query->whereDate('created_at', '>=', $from)->whereDate('created_at', '<=', $to);
+        }
+
+        if (! empty($filters['time_from'])) {
+            $query->whereTime('created_at', '>=', $filters['time_from']);
+        }
+        if (! empty($filters['time_to'])) {
+            $query->whereTime('created_at', '<=', $filters['time_to']);
+        }
+        if (! empty($filters['payment_method'])) {
+            $query->where('payment_method', $filters['payment_method']);
+        }
+        if (! empty($filters['category'])) {
+            $query->where('category', $filters['category']);
+        }
+        if (! empty($filters['employee_id'])) {
+            $query->where('employee_id', (int) $filters['employee_id']);
+        }
+        if (! empty($filters['client_id'])) {
+            $query->where('client_id', (int) $filters['client_id']);
+        }
+        if (! empty($filters['service_id'])) {
+            $serviceId = (int) $filters['service_id'];
+            $query->where(function (Builder $builder) use ($serviceId) {
+                $builder->where('service_id', $serviceId)
+                    ->orWhereHas('items', fn (Builder $items) => $items
+                        ->where('itemable_type', Service::class)
+                        ->where('itemable_id', $serviceId));
+            });
+        }
+        if (! empty($filters['search'])) {
+            $search = trim((string) $filters['search']);
+            $query->where(function (Builder $builder) use ($search) {
+                $builder->where('client_label', 'like', "%{$search}%")
+                    ->orWhereHas('client', fn (Builder $client) => $client->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('items', fn (Builder $items) => $items->where('label', 'like', "%{$search}%"));
+            });
+        }
+
+        return $query;
     }
 
     /**

@@ -45,7 +45,7 @@ class PosInvoiceLineResource extends JsonResource
             && $this->resource->relationLoaded('prestation')
             && $this->prestation?->channel !== Prestation::CHANNEL_CAISSE_V2
         ) {
-            $employee = $this->prestation?->employee;
+            $employee = $this->prestation?->employee ?? $this->prestation?->sale?->employee;
         }
 
         return [

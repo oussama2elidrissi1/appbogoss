@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Commission;
 use App\Models\Employee;
 use App\Models\Prestation;
+use App\Models\PrestationItem;
 use App\Models\Sale;
 use App\Models\Service;
 use App\Models\Tip;
@@ -593,6 +594,94 @@ class PosV2WorkflowTest extends TestCase
         $this->assertSame(1, $employees['Omar']['performed_count']);
         $this->assertEquals(150, $employees['Yassine']['total']);
         $this->assertSame(1, $employees['Yassine']['performed_count']);
+    }
+
+    public function test_history_stats_include_active_v1_quick_sales_so_day_revenue_matches_caisse_v1(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $employee = Employee::factory()->create(['name' => 'Omar', 'default_commission_rate' => 50]);
+        $service = Service::factory()->create(['name' => 'Coupe simple', 'category' => 'coiffure', 'price' => 40]);
+        $workDay = WorkDay::query()->where('status', 'open')->firstOrFail();
+
+        $this->postJson('/api/transactions', [
+            'employee_id' => $employee->id,
+            'service_id' => $service->id,
+            'category' => 'coiffure',
+            'label' => 'Coupe simple',
+            'price' => 40,
+        ])->assertCreated();
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $service->id, 'employee_id' => $employee->id]],
+        ])->assertCreated()->json('data');
+        $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", ['payment_method' => 'carte'])
+            ->assertOk();
+
+        $history = $this->getJson("/api/pos-v2/history?work_day_id={$workDay->id}")->assertOk();
+
+        $this->assertEquals(80, $history->json('meta.stats.paid_total'));
+        $this->assertSame(2, $history->json('meta.stats.paid_count'));
+        $this->assertSame(1, $history->json('meta.stats.v2_count'));
+        $this->assertSame(1, $history->json('meta.stats.v1_count'));
+        $this->assertEquals(80, $history->json('meta.stats.employees.0.total'));
+        $this->assertEquals(40, $history->json('meta.stats.employees.0.commission_total'));
+        $this->assertSame(2, $history->json('meta.stats.employees.0.performed_count'));
+    }
+
+    public function test_history_uses_linked_sale_employee_for_old_v1_prestations(): void
+    {
+        $admin = $this->superAdmin();
+        Sanctum::actingAs($admin);
+        $employee = Employee::factory()->create(['name' => 'Omar']);
+        $service = Service::factory()->create(['name' => 'Coupe simple', 'price' => 40]);
+        $workDay = WorkDay::query()->where('status', 'open')->firstOrFail();
+
+        $sale = Sale::create([
+            'work_day_id' => $workDay->id,
+            'employee_id' => $employee->id,
+            'category' => 'coiffure',
+            'total' => 40,
+            'commission_amount' => 20,
+            'payment_method' => 'especes',
+            'print_count' => 1,
+        ]);
+        $prestation = Prestation::create([
+            'reference' => 'PRE-TEST-LEGACY',
+            'employee_id' => null,
+            'created_by_user_id' => $admin->id,
+            'sale_id' => $sale->id,
+            'work_day_id' => $workDay->id,
+            'status' => Prestation::STATUS_PAID,
+            'total' => 40,
+            'payment_method' => 'especes',
+            'confirmed_at' => now(),
+        ]);
+        $item = PrestationItem::create([
+            'prestation_id' => $prestation->id,
+            'service_id' => $service->id,
+            'label' => 'Coupe simple',
+            'quantity' => 1,
+            'unit_price' => 40,
+        ]);
+        Commission::create([
+            'prestation_id' => $prestation->id,
+            'prestation_item_id' => $item->id,
+            'employee_id' => $employee->id,
+            'service_id' => $service->id,
+            'type' => 'percentage',
+            'rate_or_amount' => 50,
+            'base_amount' => 40,
+            'amount' => 20,
+            'status' => Commission::STATUS_VALIDATED,
+        ]);
+
+        $history = $this->getJson("/api/pos-v2/history?work_day_id={$workDay->id}")->assertOk();
+
+        $this->assertEquals(40, $history->json('meta.stats.paid_total'));
+        $this->assertSame('Omar', $history->json('meta.stats.employees.0.employee_name'));
+        $this->assertEquals(40, $history->json('meta.stats.employees.0.total'));
+        $this->assertEquals(20, $history->json('meta.stats.employees.0.commission_total'));
+        $this->assertSame('Omar', $history->json('data.0.items.0.employee_name'));
     }
 
     public function test_deleted_v1_and_v2_sales_stay_visible_but_are_excluded_from_pos_history_stats(): void

@@ -34,7 +34,7 @@ class PosHistoryController extends Controller
         ]);
 
         $query = $this->pos->historyQuery($filters);
-        $stats = $this->pos->historyStats((clone $query)->get());
+        $stats = $this->pos->historyStats((clone $query)->get(), $filters);
         $paginator = $query->paginate((int) ($filters['per_page'] ?? 50));
 
         $summarySource = $paginator->getCollection();

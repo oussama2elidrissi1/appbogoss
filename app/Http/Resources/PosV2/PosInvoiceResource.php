@@ -46,7 +46,7 @@ class PosInvoiceResource extends JsonResource
             'client_avatar_color' => $this->client?->avatar_color,
             'is_walk_in' => $this->client_id === null,
             'employee_id' => $this->employee_id,
-            'employee_name' => $this->whenLoaded('employee', fn () => $this->employee?->name),
+            'employee_name' => $this->whenLoaded('employee', fn () => $this->employee?->name ?? $this->sale?->employee?->name),
             'subtotal' => (float) $this->subtotal,
             'line_discounts_total' => $lineDiscounts,
             'discount_amount' => $this->discount_amount !== null ? (float) $this->discount_amount : null,
@@ -77,8 +77,11 @@ class PosInvoiceResource extends JsonResource
             'employees' => $this->whenLoaded('items', function () {
                 $employees = $this->items->map(fn ($item) => $item->employee)->filter();
 
-                if ($employees->isEmpty() && $this->channel !== Prestation::CHANNEL_CAISSE_V2 && $this->employee !== null) {
-                    $employees = collect([$this->employee]);
+                if ($employees->isEmpty() && $this->channel !== Prestation::CHANNEL_CAISSE_V2) {
+                    $fallbackEmployee = $this->employee ?? $this->sale?->employee;
+                    if ($fallbackEmployee !== null) {
+                        $employees = collect([$fallbackEmployee]);
+                    }
                 }
 
                 return $employees
