@@ -111,6 +111,7 @@ export interface Pos2Invoice {
     discount_amount: number | null;
     discount_reason: string | null;
     total: number;
+    total_collected?: number;
     payment_method: string | null;
     payment_breakdown: Pos2BreakdownRow[] | null;
     amount_received: number | null;

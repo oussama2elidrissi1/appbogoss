@@ -168,7 +168,7 @@ async function invoiceReceiptHtml(invoice: Pos2Invoice, options: InvoiceReceiptO
     }
     <section class="row total">
         <span>${escapeHtml(t('TOTAL'))}</span>
-        <span class="amount">${escapeHtml(money(invoice.total))}</span>
+        <span class="amount">${escapeHtml(money(invoice.total_collected ?? invoice.total))}</span>
     </section>
     ${(invoice.payment_breakdown ?? [])
         .map(
@@ -350,7 +350,7 @@ td { padding: 9px 4px; border-bottom: 1px solid #eceae4; vertical-align: top; }
     <div class="row muted"><span>Sous-total</span><span>${escapeHtml(money(invoice.subtotal))}</span></div>
     ${lineDiscounts > 0 ? `<div class="row muted"><span>Remises lignes</span><span>−${escapeHtml(money(lineDiscounts))}</span></div>` : ''}
     ${invoiceDiscount > 0 ? `<div class="row muted"><span>Remise</span><span>−${escapeHtml(money(invoiceDiscount))}</span></div>` : ''}
-    <div class="row grand"><span>TOTAL</span><span>${escapeHtml(money(invoice.total))}</span></div>
+    <div class="row grand"><span>TOTAL</span><span>${escapeHtml(money(invoice.total_collected ?? invoice.total))}</span></div>
 </div>
 <div class="pay">
     Paiement : ${escapeHtml(paymentMethodLabel(invoice.payment_method))}
@@ -361,7 +361,7 @@ td { padding: 9px 4px; border-bottom: 1px solid #eceae4; vertical-align: top; }
 
 ${
     tipsTotal > 0
-        ? `<div class="tipnote">Pourboires : ${escapeHtml(money(tipsTotal))} (hors total facture ; coiffure commissionnée à 50%).</div>`
+        ? `<div class="tipnote">Pourboires : ${escapeHtml(money(tipsTotal))} (inclus dans le total encaissé ; coiffure commissionnée à 50%).</div>`
         : ''
 }
 

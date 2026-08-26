@@ -431,7 +431,7 @@ export default function PosV2History() {
                                                     'text-sm font-semibold tabular-nums text-foreground',
                                                     (invoice.status === 'refunded' || invoice.sale_deleted) && 'line-through opacity-60',
                                                 )}>
-                                                    {formatCurrency(invoice.total)}
+                                                    {formatCurrency(invoice.total_collected ?? invoice.total)}
                                                 </p>
                                                 <p className="text-[11px] text-muted-foreground">
                                                     {t(paymentMethodLabel(invoice.payment_method))}

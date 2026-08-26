@@ -314,7 +314,7 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                                     'font-display text-xl font-bold tabular-nums text-accent',
                                                     saleDeleted && 'line-through opacity-60',
                                                 )}>
-                                                    {formatCurrency(invoice.total)}
+                                                    {formatCurrency(invoice.total_collected ?? invoice.total)}
                                                 </span>
                                             </div>
                                             {saleDeleted && (
@@ -324,7 +324,7 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                             )}
                                             {tipsTotal > 0 && (
                                                 <p className="pt-0.5 text-[11px] text-muted-foreground">
-                                                    {t('+ {x} de pourboires — hors total facture ; coiffure commissionnée à 50%.', {
+                                                    {t('+ {x} de pourboires — inclus dans le total encaissé ; coiffure commissionnée à 50%.', {
                                                         x: formatCurrency(tipsTotal),
                                                     })}
                                                 </p>

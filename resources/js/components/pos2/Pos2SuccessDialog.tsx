@@ -46,7 +46,7 @@ export function Pos2SuccessDialog({
                             <p className="mt-1 text-sm text-muted-foreground">{invoice.reference}</p>
                         </div>
                         <p className="font-display text-4xl font-bold tabular-nums text-accent">
-                            {formatCurrency(invoice.total)}
+                            {formatCurrency(invoice.total_collected ?? invoice.total)}
                         </p>
                         <p className="text-sm text-muted-foreground">
                             {t('Paiement :')}{' '}
@@ -65,7 +65,7 @@ export function Pos2SuccessDialog({
                         </p>
                         {(invoice.tips_total ?? 0) > 0 && (
                             <p className="text-xs text-muted-foreground">
-                                {t('Pourboires : {x} — hors total facture ; coiffure commissionnée à 50%.', {
+                                {t('Pourboires : {x} — inclus dans le total encaissé ; coiffure commissionnée à 50%.', {
                                     x: formatCurrency(invoice.tips_total ?? 0),
                                 })}
                             </p>

@@ -631,7 +631,11 @@ class PosService
                 ]);
             }
 
-            [$paymentMethod, $breakdown, $amountReceived, $changeGiven] = $this->validatePayment($data, $total);
+            $tipsTotal = $this->providedTipsTotal($data['tips'] ?? []);
+            [$paymentMethod, $breakdown, $amountReceived, $changeGiven] = $this->validatePayment(
+                $data,
+                round($total + $tipsTotal, 2),
+            );
 
             // -------- Header employee: first line's employee owns the ticket
             $headerEmployeeId = $locked->items->first(fn (PrestationItem $item) => $item->employee_id !== null)?->employee_id
@@ -1447,6 +1451,19 @@ class PosService
         }
 
         return [$method, $breakdown, $amountReceived, $changeGiven];
+    }
+
+    /** @param array<int, array<string, mixed>> $tips */
+    private function providedTipsTotal(array $tips): float
+    {
+        return round(
+            array_reduce(
+                $tips,
+                fn (float $sum, array $tip) => $sum + max(0, (float) ($tip['amount'] ?? 0)),
+                0.0,
+            ),
+            2,
+        );
     }
 
     /**

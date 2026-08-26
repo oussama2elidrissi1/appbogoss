@@ -19,6 +19,10 @@ class PosInvoiceResource extends JsonResource
             $this->items->each(fn ($item) => $item->setRelation('prestation', $this->resource));
         }
 
+        $tipsTotal = $this->resource->relationLoaded('tips')
+            ? round((float) $this->tips->reject(fn (Tip $tip) => $tip->trashed())->sum('amount'), 2)
+            : 0.0;
+
         $lineDiscounts = $this->whenLoaded(
             'items',
             fn () => round((float) $this->items->sum(
@@ -48,6 +52,7 @@ class PosInvoiceResource extends JsonResource
             'discount_amount' => $this->discount_amount !== null ? (float) $this->discount_amount : null,
             'discount_reason' => $this->discount_reason,
             'total' => (float) $this->total,
+            'total_collected' => round((float) $this->total + $tipsTotal, 2),
             'payment_method' => $this->payment_method,
             'payment_breakdown' => $this->payment_breakdown,
             'amount_received' => $this->amount_received !== null ? (float) $this->amount_received : null,
@@ -98,10 +103,7 @@ class PosInvoiceResource extends JsonResource
                 'payment_method' => $tip->payment_method,
                 'voided' => $tip->trashed(),
             ])->values()),
-            'tips_total' => $this->whenLoaded('tips', fn () => round(
-                (float) $this->tips->reject(fn (Tip $tip) => $tip->trashed())->sum('amount'),
-                2,
-            )),
+            'tips_total' => $this->whenLoaded('tips', fn () => $tipsTotal),
             'commissions' => $this->whenLoaded('commissions', fn () => $this->commissions->map(fn ($commission) => [
                 'id' => $commission->id,
                 'prestation_item_id' => $commission->prestation_item_id,

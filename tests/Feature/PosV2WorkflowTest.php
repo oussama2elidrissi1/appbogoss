@@ -402,10 +402,14 @@ class PosV2WorkflowTest extends TestCase
 
         $paid = $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", [
             'payment_method' => 'especes',
+            'amount_received' => 90,
             'tips' => [['employee_id' => $kamal->id, 'amount' => 20]],
         ])->assertOk()->json('data');
 
         $this->assertEquals(70, $paid['total']);
+        $this->assertEquals(90, $paid['total_collected']);
+        $this->assertEquals(90, $paid['amount_received']);
+        $this->assertEquals(0, $paid['change_given']);
         $this->assertEquals(45, (float) Sale::find($paid['sale_id'])->commission_amount);
         $this->assertEquals(35, (float) Commission::where('prestation_id', $invoice['id'])->where('type', 'percentage')->sum('amount'));
         $this->assertEquals(10, (float) Commission::where('prestation_id', $invoice['id'])->where('type', 'tip_percentage')->sum('amount'));

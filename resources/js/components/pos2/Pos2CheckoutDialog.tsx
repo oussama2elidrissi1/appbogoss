@@ -122,14 +122,10 @@ export function Pos2CheckoutDialog({
     }, [discount]);
     const total = Math.max(0, Math.round((subtotal - lineDiscounts - parsedDiscount) * 100) / 100);
 
-    const parsedReceived = Number(received.replace(',', '.'));
-    const change = !Number.isNaN(parsedReceived) && parsedReceived >= total ? parsedReceived - total : null;
-
     const breakdownRows: Pos2BreakdownRow[] = breakdown
         .map((row) => ({ method: row.method, amount: Number(row.amount.replace(',', '.')) }))
         .filter((row) => !Number.isNaN(row.amount) && row.amount > 0);
     const breakdownSum = Math.round(breakdownRows.reduce((sum, row) => sum + row.amount, 0) * 100) / 100;
-    const breakdownRest = Math.round((total - breakdownSum) * 100) / 100;
 
     // §6/§10 — les bénéficiaires possibles sont dérivés des LIGNES de la
     // facture, jamais de la liste complète du salon.
@@ -179,6 +175,12 @@ export function Pos2CheckoutDialog({
             : [];
     });
     const tipsTotal = tipRows.reduce((sum, tip) => sum + tip.amount, 0);
+    const totalToCollect = Math.round((total + tipsTotal) * 100) / 100;
+    const parsedReceived = Number(received.replace(',', '.'));
+    const change = !Number.isNaN(parsedReceived) && parsedReceived >= totalToCollect
+        ? parsedReceived - totalToCollect
+        : null;
+    const breakdownRest = Math.round((totalToCollect - breakdownSum) * 100) / 100;
 
     const canSubmit =
         !submitting &&
@@ -216,7 +218,12 @@ export function Pos2CheckoutDialog({
                 ...(canDiscount && discount !== ''
                     ? { discount_amount: parsedDiscount, discount_reason: discountReason.trim() || null }
                     : {}),
-                ...(tipRows.length > 0 ? { tips: tipRows } : {}),
+                ...(tipRows.length > 0
+                    ? { tips: tipRows.map((tip) => ({
+                        ...tip,
+                        ...(method !== 'mixte' ? { payment_method: method } : {}),
+                    })) }
+                    : {}),
             };
             const paid = await onSubmit(payload);
             onPaid(paid);
@@ -287,7 +294,7 @@ export function Pos2CheckoutDialog({
                             <div className="flex items-baseline justify-between border-t border-tint/[0.06] pt-2">
                                 <span className="font-semibold text-foreground">{t('TOTAL À ENCAISSER')}</span>
                                 <span className="font-display text-2xl font-bold tabular-nums text-accent">
-                                    {formatCurrency(total)}
+                                    {formatCurrency(totalToCollect)}
                                 </span>
                             </div>
                         </div>
@@ -322,7 +329,7 @@ export function Pos2CheckoutDialog({
                                 <div className="flex items-center justify-between gap-3">
                                     <Label className="text-xs text-muted-foreground">{t('Montant reçu')}</Label>
                                     <div className="flex items-center gap-1.5">
-                                        {[total, Math.ceil(total / 50) * 50, Math.ceil(total / 100) * 100]
+                                        {[totalToCollect, Math.ceil(totalToCollect / 50) * 50, Math.ceil(totalToCollect / 100) * 100]
                                             .filter((value, index, all) => value > 0 && all.indexOf(value) === index)
                                             .map((value) => (
                                                 <Chip key={value} size="sm" onClick={() => setReceived(String(value))}>
@@ -559,7 +566,7 @@ export function Pos2CheckoutDialog({
                                 {tipsTotal > 0 && (
                                     <p className="text-[11px] text-muted-foreground">
                                         {t(
-                                            'Total pourboires {x} — hors total à encaisser ; coiffure commissionnée à 50%.',
+                                            'Total pourboires {x} — inclus dans le montant à encaisser ; coiffure commissionnée à 50%.',
                                             { x: formatCurrency(tipsTotal) },
                                         )}
                                     </p>
@@ -582,7 +589,7 @@ export function Pos2CheckoutDialog({
                             onClick={submit}
                         >
                             {submitting ? <Loader2 className="animate-spin" /> : <Banknote />}
-                            {t('VALIDER — {x}', { x: formatCurrency(total) })}
+                            {t('VALIDER — {x}', { x: formatCurrency(totalToCollect) })}
                         </Button>
                     </>
             </DialogContent>
