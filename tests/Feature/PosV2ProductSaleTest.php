@@ -173,10 +173,21 @@ class PosV2ProductSaleTest extends TestCase
             'employee_id' => $kamal->id,
         ])->assertStatus(422);
 
-        // Rupture à l'ajout : refus immédiat.
+        // Ajout d'un produit sur une facture existante (endpoint /lines) :
+        // aucun libellé requis — il vient du produit (régression du bug
+        // « The label field is required when service id is not present »).
+        $gel = Product::factory()->create(['name' => 'Gel', 'stock_area' => 'vitrine', 'price' => 30, 'stock_quantity' => 5]);
+        $withGel = $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/lines", [
+            'product_id' => $gel->id,
+        ])->assertCreated()->json('data');
+        $this->assertSame('Gel', $withGel['items'][1]['label']);
+
+        // Rupture à l'ajout : refus immédiat, avec le bon message.
         $vide = Product::factory()->create(['stock_area' => 'vitrine', 'price' => 30, 'stock_quantity' => 0]);
-        $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/lines", [
+        $response = $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/lines", [
             'product_id' => $vide->id,
-        ])->assertStatus(422);
+        ]);
+        $response->assertStatus(422);
+        $this->assertStringContainsString('Stock insuffisant', $response->json('message'));
     }
 }

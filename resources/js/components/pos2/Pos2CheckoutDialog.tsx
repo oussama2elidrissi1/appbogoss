@@ -92,6 +92,10 @@ export function Pos2CheckoutDialog({
     const [error, setError] = useState<string | null>(null);
     const [paidInvoice, setPaidInvoice] = useState<Pos2Invoice | null>(null);
 
+    // Reset ONLY when the dialog opens. Depending on the invoice here was a
+    // bug: right after a successful payment the invoice leaves the
+    // open-invoices list (prop becomes null), which re-ran this effect and
+    // wiped the success screen the instant it appeared.
     useEffect(() => {
         if (open) {
             setMethod('especes');
@@ -107,7 +111,8 @@ export function Pos2CheckoutDialog({
             setPaidInvoice(null);
             setSubmitting(false);
         }
-    }, [open, invoice?.id, invoice?.discount_amount, invoice?.discount_reason]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open]);
 
     const items = useMemo(() => invoice?.items ?? [], [invoice]);
     const subtotal = invoice?.subtotal ?? 0;

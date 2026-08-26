@@ -626,6 +626,10 @@ export default function PosV2() {
                 onPrintTicket={printTicket}
                 onPrintA4={printA4}
                 onViewDetail={(invoice) => {
+                    // Ferme le modal d'encaissement avant d'ouvrir le drawer,
+                    // sinon le drawer s'affiche derrière l'overlay du dialog.
+                    setCheckoutOpen(false);
+                    setCurrentInvoiceId(null);
                     setDetailId(invoice.id);
                 }}
                 onFinished={finishSale}
