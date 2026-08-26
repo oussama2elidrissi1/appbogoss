@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
-import { AlertCircle, Clock3, Loader2, Printer, RotateCcw, X } from 'lucide-react';
+import { AlertCircle, Clock3, FileText, Loader2, Printer, RotateCcw, X } from 'lucide-react';
 import { getErrorMessage, getSettings } from '@/lib/api';
+import { getCategoryLabel } from '@/components/workday/categories';
 import { getPos2Invoice, pos2Keys, recordPos2Print, refundPos2Invoice } from '@/lib/pos2Api';
-import { paymentMethodLabel, printInvoiceReceipt } from '@/lib/receiptV2';
+import { paymentMethodLabel, printInvoiceA4, printInvoiceReceipt } from '@/lib/receiptV2';
 import { cn, formatCurrency, formatTime } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import type { Pos2InvoiceStatus } from '@/types/pos2';
@@ -71,10 +72,43 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
         });
     }
 
+    function printA4() {
+        if (!invoice) return;
+        void recordPos2Print(invoice.id).catch(() => undefined);
+        void printInvoiceA4(invoice, {
+            salon_name: settings?.salon_name,
+            salon_phone: settings?.salon_phone,
+            salon_email: settings?.salon_email,
+            salon_address: settings?.salon_address,
+            receipt_footer: settings?.receipt_footer,
+            logo_url: settings?.logo_url,
+        });
+    }
+
     const lineDiscounts = (invoice?.items ?? []).reduce(
         (sum, item) => sum + Math.min(item.discount_amount ?? 0, item.line_total),
         0,
     );
+    const activeTips = (invoice?.tips ?? []).filter((tip) => !tip.voided);
+    const tipsTotal = activeTips.reduce((sum, tip) => sum + tip.amount, 0);
+
+    // §25 — commissions agrégées par employé, depuis les lignes (valeurs
+    // backend : réelles une fois payée, estimées avant).
+    const commissionRecap = (() => {
+        const byEmployee = new Map<number, { name: string; amount: number }>();
+        for (const item of invoice?.items ?? []) {
+            if (item.employee_id === null) continue;
+            const amount = item.commission_amount ?? item.estimated_commission ?? 0;
+            const entry = byEmployee.get(item.employee_id) ?? {
+                name: item.employee_name ?? `Employé #${item.employee_id}`,
+                amount: 0,
+            };
+            entry.amount += amount;
+            byEmployee.set(item.employee_id, entry);
+        }
+        return [...byEmployee.values()];
+    })();
+    const commissionTotal = commissionRecap.reduce((sum, entry) => sum + entry.amount, 0);
 
     return (
         <AnimatePresence>
@@ -147,78 +181,155 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
 
                                     <Separator />
 
-                                    {/* Lignes */}
-                                    <ul className="space-y-2">
-                                        {(invoice.items ?? []).map((item) => {
-                                            const discount = Math.min(item.discount_amount ?? 0, item.line_total);
-                                            return (
-                                                <li key={item.id} className="flex items-start justify-between gap-3 text-sm">
-                                                    <div className="min-w-0">
-                                                        <p className="font-medium text-foreground">
-                                                            {item.label}
-                                                            {item.quantity > 1 && ` ×${item.quantity}`}
-                                                        </p>
-                                                        <p className="text-xs text-muted-foreground">
-                                                            {[item.employee_name, item.beneficiary_name]
-                                                                .filter(Boolean)
-                                                                .join(' — ') || '—'}
-                                                            {item.is_free && ' · Abonnement'}
-                                                            {discount > 0 && ` · Remise −${formatCurrency(discount)}`}
-                                                        </p>
-                                                    </div>
-                                                    <span className="shrink-0 tabular-nums font-medium text-foreground">
-                                                        {item.is_free ? '0' : formatCurrency(item.line_total - discount)}
-                                                    </span>
-                                                </li>
-                                            );
-                                        })}
-                                    </ul>
+                                    {/* Services (§25) — chaque ligne dit tout : service,
+                                        catégorie, durée, employé, prix, commission, pourboire. */}
+                                    <div>
+                                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                            Services
+                                        </p>
+                                        <ul className="space-y-2">
+                                            {(invoice.items ?? []).map((item) => {
+                                                const discount = Math.min(item.discount_amount ?? 0, item.line_total);
+                                                const commission = item.commission_amount ?? item.estimated_commission;
+                                                const lineTips = activeTips.filter(
+                                                    (tip) => tip.prestation_item_id === item.id,
+                                                );
+                                                const lineTipTotal = lineTips.reduce((sum, tip) => sum + tip.amount, 0);
+                                                return (
+                                                    <li
+                                                        key={item.id}
+                                                        className="rounded-md border border-tint/[0.07] bg-tint/[0.02] p-3"
+                                                    >
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="min-w-0">
+                                                                <p className="text-sm font-semibold text-foreground">
+                                                                    {item.label}
+                                                                    {item.quantity > 1 && ` ×${item.quantity}`}
+                                                                </p>
+                                                                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                                                    {[
+                                                                        item.category ? getCategoryLabel(item.category) : null,
+                                                                        item.duration_minutes ? `${item.duration_minutes} min` : null,
+                                                                        item.beneficiary_name ? `Pour ${item.beneficiary_name}` : null,
+                                                                        item.is_free ? 'Couvert par abonnement' : null,
+                                                                    ]
+                                                                        .filter(Boolean)
+                                                                        .join(' · ')}
+                                                                </p>
+                                                            </div>
+                                                            <div className="shrink-0 text-right">
+                                                                <p className="text-sm font-semibold tabular-nums text-foreground">
+                                                                    {item.is_free ? '0' : formatCurrency(item.line_total - discount)}
+                                                                </p>
+                                                                {item.is_free && item.public_price !== null && (
+                                                                    <p className="text-[11px] tabular-nums text-muted-foreground line-through">
+                                                                        {formatCurrency(item.public_price)}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div className="mt-2 grid grid-cols-2 gap-1.5 border-t border-tint/[0.06] pt-2 text-[11px] sm:grid-cols-3">
+                                                            <span className="text-muted-foreground">
+                                                                Employé{' '}
+                                                                <span className="font-medium text-foreground">
+                                                                    {item.employee_name ?? '—'}
+                                                                </span>
+                                                            </span>
+                                                            <span className="text-muted-foreground">
+                                                                Commission{' '}
+                                                                <span className="font-medium text-accent">
+                                                                    {commission != null ? formatCurrency(commission) : '—'}
+                                                                </span>
+                                                            </span>
+                                                            <span className="text-muted-foreground">
+                                                                Pourboire{' '}
+                                                                <span className={cn('font-medium', lineTipTotal > 0 ? 'text-success' : 'text-foreground')}>
+                                                                    {lineTipTotal > 0 ? formatCurrency(lineTipTotal) : '—'}
+                                                                </span>
+                                                            </span>
+                                                            {discount > 0 && (
+                                                                <span className="text-accent">Remise −{formatCurrency(discount)}</span>
+                                                            )}
+                                                        </div>
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    </div>
 
                                     <Separator />
 
-                                    {/* Totaux */}
-                                    <div className="space-y-1 text-sm">
-                                        <TotalRow label="Sous-total" value={formatCurrency(invoice.subtotal)} muted />
-                                        {lineDiscounts > 0 && (
-                                            <TotalRow label="Remises lignes" value={`−${formatCurrency(lineDiscounts)}`} accent />
-                                        )}
-                                        {(invoice.discount_amount ?? 0) > 0 && (
-                                            <TotalRow
-                                                label={`Remise${invoice.discount_reason ? ` (${invoice.discount_reason})` : ''}`}
-                                                value={`−${formatCurrency(invoice.discount_amount ?? 0)}`}
-                                                accent
-                                            />
-                                        )}
-                                        <div className="flex items-baseline justify-between pt-1">
-                                            <span className="font-semibold text-foreground">TOTAL</span>
-                                            <span className="font-display text-xl font-bold tabular-nums text-accent">
-                                                {formatCurrency(invoice.total)}
-                                            </span>
+                                    {/* Finances (§25) */}
+                                    <div>
+                                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                            Finances
+                                        </p>
+                                        <div className="space-y-1 text-sm">
+                                            <TotalRow label="Sous-total services" value={formatCurrency(invoice.subtotal)} muted />
+                                            {lineDiscounts > 0 && (
+                                                <TotalRow label="Remises lignes" value={`−${formatCurrency(lineDiscounts)}`} accent />
+                                            )}
+                                            {(invoice.discount_amount ?? 0) > 0 && (
+                                                <TotalRow
+                                                    label={`Remise${invoice.discount_reason ? ` (${invoice.discount_reason})` : ''}`}
+                                                    value={`−${formatCurrency(invoice.discount_amount ?? 0)}`}
+                                                    accent
+                                                />
+                                            )}
+                                            <div className="flex items-baseline justify-between pt-1">
+                                                <span className="font-semibold text-foreground">TOTAL ENCAISSÉ</span>
+                                                <span className="font-display text-xl font-bold tabular-nums text-accent">
+                                                    {formatCurrency(invoice.total)}
+                                                </span>
+                                            </div>
+                                            {tipsTotal > 0 && (
+                                                <p className="pt-0.5 text-[11px] text-muted-foreground">
+                                                    + {formatCurrency(tipsTotal)} de pourboires — remis directement aux
+                                                    employés, hors total facture.
+                                                </p>
+                                            )}
                                         </div>
+                                        {(invoice.payment_breakdown ?? []).length > 0 && (
+                                            <div className="mt-2 rounded-md border border-tint/[0.07] bg-tint/[0.02] p-2.5 text-xs">
+                                                {(invoice.payment_breakdown ?? []).map((row, index) => (
+                                                    <div key={index} className="flex justify-between text-muted-foreground">
+                                                        <span>{paymentMethodLabel(row.method)}</span>
+                                                        <span className="tabular-nums">{formatCurrency(row.amount)}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {invoice.amount_received !== null && (
+                                            <p className="mt-1.5 text-xs text-muted-foreground">
+                                                Reçu {formatCurrency(invoice.amount_received)} — rendu{' '}
+                                                {formatCurrency(invoice.change_given ?? 0)}
+                                            </p>
+                                        )}
                                     </div>
 
-                                    {/* Paiements */}
-                                    {(invoice.payment_breakdown ?? []).length > 0 && (
+                                    {/* Commissions (§25) */}
+                                    {commissionRecap.length > 0 && (
                                         <div className="rounded-md border border-tint/[0.07] bg-tint/[0.02] p-3 text-sm">
                                             <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                                Paiements
+                                                Commissions employés
+                                                {invoice.status !== 'paid' && invoice.status !== 'refunded' && ' (estimation)'}
                                             </p>
-                                            {(invoice.payment_breakdown ?? []).map((row, index) => (
-                                                <div key={index} className="flex justify-between text-muted-foreground">
-                                                    <span>{paymentMethodLabel(row.method)}</span>
-                                                    <span className="tabular-nums">{formatCurrency(row.amount)}</span>
+                                            {commissionRecap.map((entry) => (
+                                                <div key={entry.name} className="flex justify-between text-muted-foreground">
+                                                    <span>{entry.name}</span>
+                                                    <span className="tabular-nums text-accent">{formatCurrency(entry.amount)}</span>
                                                 </div>
                                             ))}
+                                            {commissionRecap.length > 1 && (
+                                                <div className="mt-1.5 flex justify-between border-t border-tint/[0.06] pt-1.5 font-semibold text-foreground">
+                                                    <span>Total</span>
+                                                    <span className="tabular-nums text-accent">{formatCurrency(commissionTotal)}</span>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
-                                    {invoice.amount_received !== null && (
-                                        <p className="text-xs text-muted-foreground">
-                                            Reçu {formatCurrency(invoice.amount_received)} — rendu{' '}
-                                            {formatCurrency(invoice.change_given ?? 0)}
-                                        </p>
-                                    )}
 
-                                    {/* Pourboires */}
+                                    {/* Pourboires (détail, y compris annulés) */}
                                     {(invoice.tips ?? []).length > 0 && (
                                         <div className="rounded-md border border-tint/[0.07] bg-tint/[0.02] p-3 text-sm">
                                             <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -236,6 +347,12 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                                     <span className="tabular-nums">{formatCurrency(tip.amount)}</span>
                                                 </div>
                                             ))}
+                                            {activeTips.length > 1 && (
+                                                <div className="mt-1.5 flex justify-between border-t border-tint/[0.06] pt-1.5 font-semibold text-foreground">
+                                                    <span>Total</span>
+                                                    <span className="tabular-nums text-success">{formatCurrency(tipsTotal)}</span>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
@@ -304,12 +421,18 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="flex gap-2">
+                                    <div className="flex flex-wrap gap-2">
                                         {invoice.status === 'paid' && (
-                                            <Button type="button" variant="outline" className="flex-1" onClick={print}>
-                                                <Printer />
-                                                Imprimer
-                                            </Button>
+                                            <>
+                                                <Button type="button" variant="accent" className="flex-1" onClick={print}>
+                                                    <Printer />
+                                                    Ticket 58 mm
+                                                </Button>
+                                                <Button type="button" variant="outline" className="flex-1" onClick={printA4}>
+                                                    <FileText />
+                                                    Facture A4
+                                                </Button>
+                                            </>
                                         )}
                                         {invoice.status === 'paid' && canRefund && (
                                             <Button

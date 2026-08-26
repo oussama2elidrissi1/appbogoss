@@ -883,6 +883,9 @@ class PosService
         }
 
         $itemIds = $prestation->items->pluck('id')->flip();
+        // §10 — a tip can only go to an employee who actually worked on THIS
+        // invoice (derived from the lines), never to the rest of the salon.
+        $invoiceEmployeeIds = $prestation->items->pluck('employee_id')->filter()->unique()->flip();
 
         foreach ($tips as $tip) {
             $employeeId = isset($tip['employee_id']) ? (int) $tip['employee_id'] : 0;
@@ -917,6 +920,11 @@ class PosService
 
             if ($employeeId === 0) {
                 throw ValidationException::withMessages(['tips' => 'Choisissez l’employé bénéficiaire du pourboire.']);
+            }
+            if (! $invoiceEmployeeIds->has($employeeId)) {
+                throw ValidationException::withMessages([
+                    'tips' => 'Un pourboire ne peut revenir qu’à un employé présent sur cette facture.',
+                ]);
             }
             if (Employee::whereKey($employeeId)->where('is_company', false)->doesntExist()) {
                 throw ValidationException::withMessages(['tips' => 'Employé de pourboire introuvable.']);

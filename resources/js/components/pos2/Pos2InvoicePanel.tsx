@@ -77,6 +77,31 @@ export function Pos2InvoicePanel({
         (item) => (item.requires_employee ?? item.service_id !== null) && item.employee_id === null,
     );
 
+    // §5/§24 — répartition par employé, purement informative : services,
+    // montant et commission (réelle une fois payée, sinon estimation backend).
+    const teamRecap = (() => {
+        const byEmployee = new Map<
+            number,
+            { name: string; color: string | null; count: number; amount: number; commission: number }
+        >();
+        for (const item of items) {
+            if (item.employee_id === null) continue;
+            const entry = byEmployee.get(item.employee_id) ?? {
+                name: item.employee_name ?? `Employé #${item.employee_id}`,
+                color: item.employee_avatar_color,
+                count: 0,
+                amount: 0,
+                commission: 0,
+            };
+            entry.count += 1;
+            entry.amount += item.is_free ? 0 : item.effective_line_total;
+            entry.commission += item.commission_amount ?? item.estimated_commission ?? 0;
+            byEmployee.set(item.employee_id, entry);
+        }
+        return [...byEmployee.values()];
+    })();
+    const teamCommissionTotal = teamRecap.reduce((sum, entry) => sum + entry.commission, 0);
+
     return (
         <div className="flex h-full flex-col">
             <div className="flex items-center justify-between gap-2 border-b border-tint/[0.06] px-4 py-3">
@@ -144,6 +169,42 @@ export function Pos2InvoicePanel({
                             />
                         ))}
                     </ul>
+                )}
+
+                {/* Répartition employés (§5/§24) — informatif uniquement. */}
+                {teamRecap.length > 0 && (
+                    <div className="rounded-md border border-tint/[0.07] bg-tint/[0.02] p-3">
+                        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Répartition employés
+                        </p>
+                        <ul className="space-y-1.5">
+                            {teamRecap.map((entry) => (
+                                <li key={entry.name} className="flex items-center justify-between gap-2 text-xs">
+                                    <span className="inline-flex min-w-0 items-center gap-1.5">
+                                        <span
+                                            className="inline-block h-2 w-2 shrink-0 rounded-full"
+                                            style={{ backgroundColor: entry.color ?? '#C8A24C' }}
+                                        />
+                                        <span className="truncate font-medium text-foreground">{entry.name}</span>
+                                        <span className="text-muted-foreground">
+                                            · {entry.count} service{entry.count > 1 ? 's' : ''}
+                                        </span>
+                                    </span>
+                                    <span className="shrink-0 tabular-nums text-muted-foreground">
+                                        {formatCurrency(entry.amount)}
+                                        <span className="ml-2 font-medium text-accent">
+                                            comm. {formatCurrency(entry.commission)}
+                                        </span>
+                                    </span>
+                                </li>
+                            ))}
+                        </ul>
+                        {teamRecap.length > 1 && (
+                            <p className="mt-2 border-t border-tint/[0.06] pt-1.5 text-right text-xs font-semibold tabular-nums text-accent">
+                                Total commissions {formatCurrency(teamCommissionTotal)}
+                            </p>
+                        )}
+                    </div>
                 )}
 
                 {error && (

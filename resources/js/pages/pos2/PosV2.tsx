@@ -34,7 +34,7 @@ import {
     updatePos2Line,
 } from '@/lib/pos2Api';
 import { canPerform, eligibleEmployees } from '@/lib/pos2Eligibility';
-import { printInvoiceReceipt } from '@/lib/receiptV2';
+import { printInvoiceA4, printInvoiceReceipt } from '@/lib/receiptV2';
 import { pageFade } from '@/lib/motion';
 import { cn, formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -50,6 +50,7 @@ import type {
 import type { ClientSelection } from '@/components/workday/ClientPicker';
 import { Pos2Catalog } from '@/components/pos2/Pos2Catalog';
 import { Pos2CheckoutDialog } from '@/components/pos2/Pos2CheckoutDialog';
+import { Pos2InvoiceDetailDrawer } from '@/components/pos2/Pos2InvoiceDetailDrawer';
 import { Pos2InvoicePanel } from '@/components/pos2/Pos2InvoicePanel';
 import { Pos2QrScannerDialog } from '@/components/pos2/Pos2QrScannerDialog';
 import { Pos2ReservationsDialog } from '@/components/pos2/Pos2ReservationsDialog';
@@ -74,6 +75,7 @@ export default function PosV2() {
     const [currentInvoiceId, setCurrentInvoiceId] = useState<number | null>(null);
     const [activeEmployeeId, setActiveEmployeeId] = useState<number | null>(null);
     const [checkoutOpen, setCheckoutOpen] = useState(false);
+    const [detailId, setDetailId] = useState<number | null>(null);
     const [qrOpen, setQrOpen] = useState(false);
     const [reservationsOpen, setReservationsOpen] = useState(false);
     const [mobileCartOpen, setMobileCartOpen] = useState(false);
@@ -318,6 +320,18 @@ export default function PosV2() {
         void printInvoiceReceipt(invoice, {
             salonName: settings?.salon_name ?? 'BOGOSLAND',
             footer: settings?.receipt_footer,
+        });
+    }
+
+    function printA4(invoice: Pos2Invoice) {
+        void recordPos2Print(invoice.id).catch(() => undefined);
+        void printInvoiceA4(invoice, {
+            salon_name: settings?.salon_name,
+            salon_phone: settings?.salon_phone,
+            salon_email: settings?.salon_email,
+            salon_address: settings?.salon_address,
+            receipt_footer: settings?.receipt_footer,
+            logo_url: settings?.logo_url,
         });
     }
 
@@ -587,13 +601,17 @@ export default function PosV2() {
             <Pos2CheckoutDialog
                 open={checkoutOpen}
                 invoice={currentInvoice}
-                employees={employees ?? []}
                 canDiscount={canDiscount}
                 onClose={() => setCheckoutOpen(false)}
                 onSubmit={submitCheckout}
-                onPrint={printTicket}
+                onPrintTicket={printTicket}
+                onPrintA4={printA4}
+                onViewDetail={(invoice) => {
+                    setDetailId(invoice.id);
+                }}
                 onFinished={finishSale}
             />
+            <Pos2InvoiceDetailDrawer invoiceId={detailId} onClose={() => setDetailId(null)} />
             <Pos2QrScannerDialog open={qrOpen} onClose={() => setQrOpen(false)} onResolved={handleQrResolved} />
             <Pos2ReservationsDialog
                 open={reservationsOpen}

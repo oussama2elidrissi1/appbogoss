@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Banknote, CheckCircle2, CreditCard, HandCoins, Landmark, Loader2, Plus, Printer, Trash2, Wallet } from 'lucide-react';
+import { AlertCircle, Banknote, CheckCircle2, CreditCard, Eye, FileText, HandCoins, Landmark, Loader2, Plus, Printer, Wallet, X } from 'lucide-react';
 import { getErrorMessage } from '@/lib/api';
 import { cn, formatCurrency } from '@/lib/utils';
-import type { Employee } from '@/types/workday';
 import type {
     Pos2BreakdownRow,
     Pos2CheckoutPayload,
     Pos2Invoice,
+    Pos2InvoiceLine,
     Pos2PaymentMethod,
     Pos2TenderMethod,
     Pos2TipPayload,
@@ -16,13 +16,6 @@ import { Chip } from '@/components/ui/chip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 
 const METHODS: Array<{ value: Pos2PaymentMethod; label: string; icon: typeof Banknote }> = [
     { value: 'especes', label: 'Espèces', icon: Banknote },
@@ -39,41 +32,51 @@ const TENDER_METHODS: Array<{ value: Pos2TenderMethod; label: string }> = [
     { value: 'autre', label: 'Autre' },
 ];
 
+const TIP_PRESETS = [10, 20, 50];
+
+/** Per-invoice-employee tip draft: one global amount, or detailed per line. */
 interface TipDraft {
-    /** Ligne associée — null = pourboire général (§8). */
-    itemId: number | null;
-    employee_id: number | null;
     amount: string;
+    detailed: boolean;
+    byItem: Record<number, string>;
 }
 
-const GENERAL_TIP = '__general__';
+interface InvoiceEmployee {
+    id: number;
+    name: string;
+    color: string | null;
+    lines: Pos2InvoiceLine[];
+    servicesTotal: number;
+}
 
 interface Pos2CheckoutDialogProps {
     open: boolean;
     invoice: Pos2Invoice | null;
-    employees: Employee[];
     canDiscount: boolean;
     onClose: () => void;
     onSubmit: (payload: Pos2CheckoutPayload) => Promise<Pos2Invoice>;
-    onPrint: (invoice: Pos2Invoice) => void;
+    onPrintTicket: (invoice: Pos2Invoice) => void;
+    onPrintA4: (invoice: Pos2Invoice) => void;
+    onViewDetail: (invoice: Pos2Invoice) => void;
     onFinished: () => void;
 }
 
 /**
- * ENCAISSER (§25-§30): summary, remise facture, moyens de paiement (mixte
- * avec répartition contrôlée), monnaie automatique, pourboires par employé,
- * then the success screen with IMPRIMER TICKET / NOUVELLE VENTE.
- * Every amount is recomputed server-side — expected_total is sent so a stale
- * cart is refused instead of silently charged.
+ * ENCAISSER (V2.1) — récap, remise, moyens de paiement (mixte contrôlé),
+ * monnaie automatique, puis POURBOIRES par employé DE LA FACTURE uniquement
+ * (§6-§10) : une card par employé avec raccourcis +10/+20/+50 et détail par
+ * service optionnel (§8). Écran de succès avec impression immédiate (§13).
+ * Tous les montants restent recalculés côté serveur.
  */
 export function Pos2CheckoutDialog({
     open,
     invoice,
-    employees,
     canDiscount,
     onClose,
     onSubmit,
-    onPrint,
+    onPrintTicket,
+    onPrintA4,
+    onViewDetail,
     onFinished,
 }: Pos2CheckoutDialogProps) {
     const [method, setMethod] = useState<Pos2PaymentMethod>('especes');
@@ -84,7 +87,7 @@ export function Pos2CheckoutDialog({
     ]);
     const [discount, setDiscount] = useState('');
     const [discountReason, setDiscountReason] = useState('');
-    const [tips, setTips] = useState<TipDraft[]>([]);
+    const [tips, setTips] = useState<Record<number, TipDraft>>({});
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [paidInvoice, setPaidInvoice] = useState<Pos2Invoice | null>(null);
@@ -99,14 +102,14 @@ export function Pos2CheckoutDialog({
             ]);
             setDiscount(invoice?.discount_amount ? String(invoice.discount_amount) : '');
             setDiscountReason(invoice?.discount_reason ?? '');
-            setTips([]);
+            setTips({});
             setError(null);
             setPaidInvoice(null);
             setSubmitting(false);
         }
     }, [open, invoice?.id, invoice?.discount_amount, invoice?.discount_reason]);
 
-    const items = invoice?.items ?? [];
+    const items = useMemo(() => invoice?.items ?? [], [invoice]);
     const subtotal = invoice?.subtotal ?? 0;
     const lineDiscounts = items.reduce(
         (sum, item) => sum + Math.min(item.discount_amount ?? 0, item.line_total),
@@ -127,20 +130,47 @@ export function Pos2CheckoutDialog({
     const breakdownSum = Math.round(breakdownRows.reduce((sum, row) => sum + row.amount, 0) * 100) / 100;
     const breakdownRest = Math.round((total - breakdownSum) * 100) / 100;
 
-    // Une ligne associée impose son employé comme bénéficiaire (§8) — le
-    // backend le re-vérifie de toute façon.
-    const lineOptions = items.filter((item) => item.employee_id !== null);
-    const tipRows: Pos2TipPayload[] = tips
-        .map((tip) => {
-            const line = tip.itemId !== null ? lineOptions.find((item) => item.id === tip.itemId) : undefined;
-            const employeeId = line ? line.employee_id : tip.employee_id;
-            return {
-                employee_id: employeeId as number,
-                amount: Number(tip.amount.replace(',', '.')),
-                ...(line ? { prestation_item_id: line.id } : {}),
+    // §6/§10 — les bénéficiaires possibles sont dérivés des LIGNES de la
+    // facture, jamais de la liste complète du salon.
+    const invoiceEmployees: InvoiceEmployee[] = useMemo(() => {
+        const map = new Map<number, InvoiceEmployee>();
+        for (const item of items) {
+            if (item.employee_id === null) continue;
+            const entry = map.get(item.employee_id) ?? {
+                id: item.employee_id,
+                name: item.employee_name ?? `Employé #${item.employee_id}`,
+                color: item.employee_avatar_color,
+                lines: [],
+                servicesTotal: 0,
             };
-        })
-        .filter((tip) => tip.employee_id != null && !Number.isNaN(tip.amount) && tip.amount > 0);
+            entry.lines.push(item);
+            entry.servicesTotal += item.is_free ? 0 : item.effective_line_total;
+            map.set(item.employee_id, entry);
+        }
+        return [...map.values()];
+    }, [items]);
+
+    function parseAmount(raw: string): number {
+        const value = Number(raw.replace(',', '.'));
+        return Number.isNaN(value) || value <= 0 ? 0 : Math.round(value * 100) / 100;
+    }
+
+    const tipRows: Pos2TipPayload[] = invoiceEmployees.flatMap((employee) => {
+        const draft = tips[employee.id];
+        if (!draft) return [];
+        if (draft.detailed) {
+            return employee.lines
+                .map((line) => ({ line, amount: parseAmount(draft.byItem[line.id] ?? '') }))
+                .filter(({ amount }) => amount > 0)
+                .map(({ line, amount }) => ({
+                    employee_id: employee.id,
+                    amount,
+                    prestation_item_id: line.id,
+                }));
+        }
+        const amount = parseAmount(draft.amount);
+        return amount > 0 ? [{ employee_id: employee.id, amount }] : [];
+    });
     const tipsTotal = tipRows.reduce((sum, tip) => sum + tip.amount, 0);
 
     const canSubmit =
@@ -148,6 +178,21 @@ export function Pos2CheckoutDialog({
         items.length > 0 &&
         (method !== 'mixte' || (breakdownRows.length >= 2 && Math.abs(breakdownRest) <= 0.01)) &&
         (method !== 'especes' || received === '' || (change !== null && change >= 0));
+
+    function updateTip(employeeId: number, updater: (draft: TipDraft) => TipDraft) {
+        setTips((current) => ({
+            ...current,
+            [employeeId]: updater(current[employeeId] ?? { amount: '', detailed: false, byItem: {} }),
+        }));
+    }
+
+    function addPreset(employeeId: number, preset: number) {
+        updateTip(employeeId, (draft) => ({
+            ...draft,
+            detailed: false,
+            amount: String(Math.round((parseAmount(draft.amount) + preset) * 100) / 100),
+        }));
+    }
 
     async function submit() {
         if (!invoice || !canSubmit) return;
@@ -189,7 +234,7 @@ export function Pos2CheckoutDialog({
         <Dialog open={open} onOpenChange={(next) => !next && !submitting && onClose()}>
             <DialogContent className="max-h-[92dvh] max-w-lg overflow-y-auto">
                 {paidInvoice ? (
-                    /* ------------------- Écran de succès (§30) ------------------- */
+                    /* ------------------- Écran de succès (§13) ------------------- */
                     <div className="space-y-5 py-2 text-center">
                         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-success/30 bg-success/[0.12]">
                             <CheckCircle2 className="h-8 w-8 text-success" />
@@ -201,32 +246,63 @@ export function Pos2CheckoutDialog({
                         <p className="font-display text-4xl font-bold tabular-nums text-accent">
                             {formatCurrency(paidInvoice.total)}
                         </p>
-                        {(paidInvoice.change_given ?? 0) > 0 && (
-                            <p className="text-sm text-muted-foreground">
-                                À rendre :{' '}
-                                <span className="font-semibold text-foreground">
-                                    {formatCurrency(paidInvoice.change_given ?? 0)}
-                                </span>
-                            </p>
-                        )}
+                        <p className="text-sm text-muted-foreground">
+                            Paiement :{' '}
+                            <span className="font-medium text-foreground">
+                                {METHODS.find((option) => option.value === paidInvoice.payment_method)?.label ??
+                                    paidInvoice.payment_method}
+                            </span>
+                            {(paidInvoice.change_given ?? 0) > 0 && (
+                                <>
+                                    {' · '}À rendre :{' '}
+                                    <span className="font-semibold text-foreground">
+                                        {formatCurrency(paidInvoice.change_given ?? 0)}
+                                    </span>
+                                </>
+                            )}
+                        </p>
                         {(paidInvoice.tips_total ?? 0) > 0 && (
                             <p className="text-xs text-muted-foreground">
-                                Pourboires enregistrés : {formatCurrency(paidInvoice.tips_total ?? 0)}
+                                Pourboires : {formatCurrency(paidInvoice.tips_total ?? 0)} — remis directement aux
+                                employés.
                             </p>
                         )}
-                        <div className="flex flex-col gap-2 pt-1 sm:flex-row">
+                        <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
                             <Button
                                 type="button"
-                                variant="outline"
-                                className="h-12 flex-1"
-                                onClick={() => onPrint(paidInvoice)}
+                                variant="accent"
+                                className="h-14 text-base font-semibold"
+                                onClick={() => onPrintTicket(paidInvoice)}
                             >
                                 <Printer />
                                 Imprimer le ticket
                             </Button>
-                            <Button type="button" variant="accent" className="h-12 flex-1" onClick={onFinished}>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="h-14 text-base font-semibold"
+                                onClick={() => onPrintA4(paidInvoice)}
+                            >
+                                <FileText />
+                                Imprimer la facture
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="h-14 text-base font-semibold"
+                                onClick={() => onViewDetail(paidInvoice)}
+                            >
+                                <Eye />
+                                Voir le détail
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="accent"
+                                className="h-14 text-base font-semibold shadow-glow"
+                                onClick={onFinished}
+                            >
                                 <Plus />
-                                Nouvelle vente
+                                Nouvelle facture
                             </Button>
                         </div>
                     </div>
@@ -272,14 +348,14 @@ export function Pos2CheckoutDialog({
                                 />
                             )}
                             <div className="flex items-baseline justify-between border-t border-tint/[0.06] pt-2">
-                                <span className="font-semibold text-foreground">TOTAL À PAYER</span>
+                                <span className="font-semibold text-foreground">TOTAL À ENCAISSER</span>
                                 <span className="font-display text-2xl font-bold tabular-nums text-accent">
                                     {formatCurrency(total)}
                                 </span>
                             </div>
                         </div>
 
-                        {/* Moyen de paiement (§26) */}
+                        {/* Moyen de paiement (§26 V2) */}
                         <div className="space-y-2">
                             <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
                                 Moyen de paiement
@@ -303,7 +379,7 @@ export function Pos2CheckoutDialog({
                             </div>
                         </div>
 
-                        {/* Espèces : monnaie (§28) */}
+                        {/* Espèces : monnaie */}
                         {method === 'especes' && (
                             <div className="space-y-2 rounded-md border border-tint/[0.07] bg-tint/[0.02] p-3">
                                 <div className="flex items-center justify-between gap-3">
@@ -341,7 +417,7 @@ export function Pos2CheckoutDialog({
                             </div>
                         )}
 
-                        {/* Paiement mixte (§26) */}
+                        {/* Paiement mixte */}
                         {method === 'mixte' && (
                             <div className="space-y-2 rounded-md border border-tint/[0.07] bg-tint/[0.02] p-3">
                                 {breakdown.map((row, index) => (
@@ -399,134 +475,158 @@ export function Pos2CheckoutDialog({
                             </div>
                         )}
 
-                        {/* Pourboires (§13) */}
-                        <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                                <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                    Pourboires
-                                </Label>
+                        {/* ------------------- Pourboires (§6-§10, §30) ------------------- */}
+                        {invoiceEmployees.length > 0 && (
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                                        Pourboires — employés de cette facture
+                                    </Label>
+                                    {tipsTotal > 0 && (
+                                        <span className="text-xs font-semibold tabular-nums text-success">
+                                            {formatCurrency(tipsTotal)}
+                                        </span>
+                                    )}
+                                </div>
+
+                                <div className="space-y-2">
+                                    {invoiceEmployees.map((employee) => {
+                                        const draft = tips[employee.id] ?? { amount: '', detailed: false, byItem: {} };
+                                        const employeeTotal = draft.detailed
+                                            ? employee.lines.reduce(
+                                                  (sum, line) => sum + parseAmount(draft.byItem[line.id] ?? ''),
+                                                  0,
+                                              )
+                                            : parseAmount(draft.amount);
+                                        return (
+                                            <div
+                                                key={employee.id}
+                                                className={cn(
+                                                    'rounded-md border p-3 transition-colors',
+                                                    employeeTotal > 0
+                                                        ? 'border-success/30 bg-success/[0.04]'
+                                                        : 'border-tint/[0.07] bg-tint/[0.02]',
+                                                )}
+                                            >
+                                                <div className="flex items-center justify-between gap-2">
+                                                    <span className="inline-flex min-w-0 items-center gap-2">
+                                                        <span
+                                                            className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                                                            style={{ backgroundColor: employee.color ?? '#C8A24C' }}
+                                                        />
+                                                        <span className="truncate text-sm font-semibold text-foreground">
+                                                            {employee.name}
+                                                        </span>
+                                                    </span>
+                                                    <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                                                        {employee.lines.map((line) => line.label).join(' + ')} ·{' '}
+                                                        {formatCurrency(employee.servicesTotal)}
+                                                    </span>
+                                                </div>
+
+                                                {!draft.detailed ? (
+                                                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                                        <Input
+                                                            inputMode="decimal"
+                                                            value={draft.amount}
+                                                            onChange={(event) =>
+                                                                updateTip(employee.id, (d) => ({
+                                                                    ...d,
+                                                                    amount: event.target.value,
+                                                                }))
+                                                            }
+                                                            placeholder="0"
+                                                            className="h-9 w-20 text-right tabular-nums"
+                                                        />
+                                                        <span className="mr-1 text-xs text-muted-foreground">MAD</span>
+                                                        {TIP_PRESETS.map((preset) => (
+                                                            <Chip
+                                                                key={preset}
+                                                                size="sm"
+                                                                onClick={() => addPreset(employee.id, preset)}
+                                                            >
+                                                                +{preset}
+                                                            </Chip>
+                                                        ))}
+                                                        {parseAmount(draft.amount) > 0 && (
+                                                            <button
+                                                                type="button"
+                                                                className="rounded-sm p-1 text-muted-foreground hover:text-foreground"
+                                                                onClick={() =>
+                                                                    updateTip(employee.id, (d) => ({ ...d, amount: '' }))
+                                                                }
+                                                            >
+                                                                <X className="h-3.5 w-3.5" />
+                                                                <span className="sr-only">Effacer</span>
+                                                            </button>
+                                                        )}
+                                                        {employee.lines.length > 1 && (
+                                                            <button
+                                                                type="button"
+                                                                className="ml-auto text-[11px] font-medium text-accent hover:underline"
+                                                                onClick={() =>
+                                                                    updateTip(employee.id, (d) => ({
+                                                                        ...d,
+                                                                        detailed: true,
+                                                                    }))
+                                                                }
+                                                            >
+                                                                Détailler par service
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <div className="mt-2 space-y-1.5">
+                                                        {employee.lines.map((line) => (
+                                                            <div key={line.id} className="flex items-center justify-between gap-2">
+                                                                <span className="min-w-0 truncate text-xs text-muted-foreground">
+                                                                    {line.label}
+                                                                </span>
+                                                                <Input
+                                                                    inputMode="decimal"
+                                                                    value={draft.byItem[line.id] ?? ''}
+                                                                    onChange={(event) =>
+                                                                        updateTip(employee.id, (d) => ({
+                                                                            ...d,
+                                                                            byItem: {
+                                                                                ...d.byItem,
+                                                                                [line.id]: event.target.value,
+                                                                            },
+                                                                        }))
+                                                                    }
+                                                                    placeholder="0"
+                                                                    className="h-8 w-20 shrink-0 text-right tabular-nums"
+                                                                />
+                                                            </div>
+                                                        ))}
+                                                        <button
+                                                            type="button"
+                                                            className="text-[11px] font-medium text-accent hover:underline"
+                                                            onClick={() =>
+                                                                updateTip(employee.id, (d) => ({
+                                                                    ...d,
+                                                                    detailed: false,
+                                                                    byItem: {},
+                                                                }))
+                                                            }
+                                                        >
+                                                            Revenir au pourboire global
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
                                 {tipsTotal > 0 && (
-                                    <span className="text-xs font-semibold tabular-nums text-success">
-                                        {formatCurrency(tipsTotal)}
-                                    </span>
+                                    <p className="text-[11px] text-muted-foreground">
+                                        Total pourboires {formatCurrency(tipsTotal)} — remis directement aux employés,
+                                        hors total à encaisser.
+                                    </p>
                                 )}
                             </div>
-                            {tips.map((tip, index) => {
-                                const linkedLine =
-                                    tip.itemId !== null
-                                        ? lineOptions.find((item) => item.id === tip.itemId)
-                                        : undefined;
-                                return (
-                                    <div key={index} className="space-y-1.5 rounded-md border border-tint/[0.07] bg-tint/[0.02] p-2.5">
-                                        <div className="flex items-center gap-2">
-                                            <Select
-                                                value={tip.itemId !== null ? String(tip.itemId) : GENERAL_TIP}
-                                                onValueChange={(value) =>
-                                                    setTips((rows) =>
-                                                        rows.map((r, i) =>
-                                                            i === index
-                                                                ? {
-                                                                      ...r,
-                                                                      itemId: value === GENERAL_TIP ? null : Number(value),
-                                                                  }
-                                                                : r,
-                                                        ),
-                                                    )
-                                                }
-                                            >
-                                                <SelectTrigger className="h-9 flex-1 text-xs">
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value={GENERAL_TIP}>Pourboire général</SelectItem>
-                                                    {lineOptions.map((item) => (
-                                                        <SelectItem key={item.id} value={String(item.id)}>
-                                                            {item.label} — {item.employee_name}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <Input
-                                                inputMode="decimal"
-                                                value={tip.amount}
-                                                onChange={(event) =>
-                                                    setTips((rows) =>
-                                                        rows.map((r, i) =>
-                                                            i === index ? { ...r, amount: event.target.value } : r,
-                                                        ),
-                                                    )
-                                                }
-                                                placeholder="0"
-                                                className="h-9 w-20 text-right tabular-nums"
-                                            />
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-9 w-9 shrink-0 text-muted-foreground"
-                                                onClick={() => setTips((rows) => rows.filter((_, i) => i !== index))}
-                                            >
-                                                <Trash2 />
-                                            </Button>
-                                        </div>
-                                        {linkedLine ? (
-                                            <p className="text-[11px] text-muted-foreground">
-                                                Bénéficiaire : <span className="font-medium text-foreground">{linkedLine.employee_name}</span>{' '}
-                                                (employé de la ligne)
-                                            </p>
-                                        ) : (
-                                            <div className="flex flex-wrap gap-1">
-                                                {employees.map((employee) => (
-                                                    <Chip
-                                                        key={employee.id}
-                                                        size="sm"
-                                                        selected={tip.employee_id === employee.id}
-                                                        onClick={() =>
-                                                            setTips((rows) =>
-                                                                rows.map((r, i) =>
-                                                                    i === index
-                                                                        ? { ...r, employee_id: employee.id }
-                                                                        : r,
-                                                                ),
-                                                            )
-                                                        }
-                                                    >
-                                                        <span
-                                                            className="inline-block h-2 w-2 rounded-full"
-                                                            style={{ backgroundColor: employee.avatar_color }}
-                                                        />
-                                                        {employee.name}
-                                                    </Chip>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                            <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-9"
-                                disabled={tips.length >= 10}
-                                onClick={() =>
-                                    setTips((rows) => [
-                                        ...rows,
-                                        {
-                                            itemId: lineOptions.length === 1 ? lineOptions[0].id : null,
-                                            employee_id:
-                                                lineOptions.length === 1
-                                                    ? lineOptions[0].employee_id
-                                                    : (lineOptions[0]?.employee_id ?? null),
-                                            amount: '',
-                                        },
-                                    ])
-                                }
-                            >
-                                <HandCoins />
-                                Ajouter un pourboire
-                            </Button>
-                        </div>
+                        )}
 
                         {error && (
                             <div className="flex items-start gap-2 rounded-md border border-destructive/25 bg-destructive/[0.10] px-3 py-2.5">

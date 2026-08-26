@@ -46,6 +46,8 @@ export interface Pos2InvoiceLine {
     client_subscription_id: number | null;
     loyalty_reward_id: number | null;
     commission_amount: number | null;
+    /** Backend preview (CommissionResolver) while the invoice is open; commission_amount is the frozen value once paid. */
+    estimated_commission?: number | null;
 }
 
 export interface Pos2Tip {

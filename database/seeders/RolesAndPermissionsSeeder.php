@@ -120,6 +120,14 @@ class RolesAndPermissionsSeeder extends Seeder
             'subscriptions.use',
             'loyalty.reports.view',
             'loyalty.qr.manage',
+
+            // Caisse V2 — test phase widened to admins (V2.1 §17): the
+            // operational set only. caisse_v2.refund stays super-admin,
+            // mirroring prestations.edit_paid.
+            'caisse_v2.access',
+            'caisse_v2.checkout',
+            'caisse_v2.discount',
+            'caisse_v2.cancel',
             // Not granted to admin: loyalty.programs.delete, loyalty.rewards.adjust,
             // subscriptions.suspend, subscriptions.extend, loyalty.settings.manage —
             // sensitive corrections/config stay super-admin only (§27 vs §28).

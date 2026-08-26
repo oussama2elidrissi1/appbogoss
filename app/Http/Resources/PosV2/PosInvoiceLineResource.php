@@ -2,12 +2,36 @@
 
 namespace App\Http\Resources\PosV2;
 
+use App\Services\CommissionResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /** @mixin \App\Models\PrestationItem */
 class PosInvoiceLineResource extends JsonResource
 {
+    /**
+     * §20 — the backend is the single source of commission truth. Before
+     * checkout this is a read-only PREVIEW through the same
+     * CommissionResolver the checkout will use (nothing is persisted); after
+     * checkout commission_amount carries the frozen value. Free lines
+     * (abonnement/récompense) resolve their basis only at checkout, so no
+     * estimate is shown for them.
+     */
+    private function estimatedCommission(): ?float
+    {
+        if ($this->commission_amount !== null || $this->is_free || $this->employee === null) {
+            return null;
+        }
+
+        $resolved = app(CommissionResolver::class)->resolve(
+            $this->employee,
+            $this->service,
+            $this->effectiveLineTotal(),
+        );
+
+        return $resolved['amount'] !== null ? (float) $resolved['amount'] : 0.0;
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -37,6 +61,7 @@ class PosInvoiceLineResource extends JsonResource
             'client_subscription_id' => $this->client_subscription_id,
             'loyalty_reward_id' => $this->loyalty_reward_id,
             'commission_amount' => $this->commission_amount !== null ? (float) $this->commission_amount : null,
+            'estimated_commission' => $this->whenLoaded('employee', fn () => $this->estimatedCommission(), null),
         ];
     }
 }

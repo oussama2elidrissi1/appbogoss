@@ -278,6 +278,15 @@ export default function PosV2History() {
                                                 </p>
                                                 <p className="text-[11px] text-muted-foreground">
                                                     {paymentMethodLabel(invoice.payment_method)}
+                                                    {(() => {
+                                                        const commission = (invoice.items ?? []).reduce(
+                                                            (sum, item) => sum + (item.commission_amount ?? 0),
+                                                            0,
+                                                        );
+                                                        return invoice.status === 'paid' && commission > 0
+                                                            ? ` · comm. ${formatCurrency(commission)}`
+                                                            : '';
+                                                    })()}
                                                 </p>
                                             </div>
                                             <Badge variant={STATUS_META[invoice.status as Pos2InvoiceStatus]?.variant ?? 'outline'}>

@@ -46,15 +46,29 @@ class PosV2WorkflowTest extends TestCase
     // Access (§42, §52)
     // ------------------------------------------------------------------
 
-    public function test_admin_without_caisse_v2_access_is_rejected_while_v1_keeps_working(): void
+    /** V2.1 §17-§18 — the admin role joins the test phase with the operational set. */
+    public function test_admin_can_operate_caisse_v2_but_not_refund_while_v1_keeps_working(): void
     {
         Sanctum::actingAs($this->admin());
+        $employee = Employee::factory()->create();
+        $service = Service::factory()->create(['price' => 70]);
 
-        $this->getJson('/api/pos-v2/invoices')->assertForbidden();
-        $this->getJson('/api/pos-v2/dashboard')->assertForbidden();
+        // Access + full sale flow.
+        $this->getJson('/api/pos-v2/dashboard')->assertOk();
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $service->id, 'employee_id' => $employee->id]],
+        ])->assertCreated()->json('data');
+        $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", [
+            'payment_method' => 'especes',
+        ])->assertOk();
+        $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/print")->assertOk();
+        $this->getJson('/api/pos-v2/history')->assertOk();
+
+        // Refund stays super-admin only (mirrors V1's prestations.edit_paid).
+        $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/refund", ['reason' => 'test'])
+            ->assertForbidden();
 
         // V1 stays fully available to the same admin.
-        $employee = Employee::factory()->create();
         $this->postJson('/api/transactions', [
             'employee_id' => $employee->id,
             'category' => 'coiffure',
@@ -344,9 +358,13 @@ class PosV2WorkflowTest extends TestCase
         $omar = Employee::factory()->create(['name' => 'Omar']);
         $yassine = Employee::factory()->create(['name' => 'Yassine']);
         $service = Service::factory()->create(['price' => 250]);
+        $coupe = Service::factory()->create(['price' => 70]);
 
         $invoice = $this->postJson('/api/pos-v2/invoices', [
-            'items' => [['service_id' => $service->id, 'employee_id' => $yassine->id]],
+            'items' => [
+                ['service_id' => $service->id, 'employee_id' => $yassine->id],
+                ['service_id' => $coupe->id, 'employee_id' => $omar->id],
+            ],
         ])->json('data');
 
         $paid = $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", [
@@ -358,7 +376,7 @@ class PosV2WorkflowTest extends TestCase
         ])->assertOk()->json('data');
 
         // Tip money NEVER inflates the sale (§40: pourboire ≠ commission ≠ CA).
-        $this->assertEquals(250.0, (float) Sale::find($paid['sale_id'])->total);
+        $this->assertEquals(320.0, (float) Sale::find($paid['sale_id'])->total);
         $this->assertEquals(50, $paid['tips_total']);
         $this->assertSame(2, Tip::count());
         $this->assertDatabaseHas('tips', ['employee_id' => $yassine->id, 'amount' => 30]);

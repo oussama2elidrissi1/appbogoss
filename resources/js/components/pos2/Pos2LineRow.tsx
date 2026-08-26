@@ -109,6 +109,14 @@ export function Pos2LineRow({ line, employees, editable, canDiscount, busy, onUp
                                 </span>
                             )}
                             {discount > 0 && <span className="text-accent">Remise −{formatCurrency(discount)}</span>}
+                            {(line.commission_amount ?? line.estimated_commission) != null && (
+                                <span className="font-medium text-accent">
+                                    Commission {formatCurrency(line.commission_amount ?? line.estimated_commission ?? 0)}
+                                    {line.commission_amount == null && (
+                                        <span className="font-normal text-muted-foreground"> (est.)</span>
+                                    )}
+                                </span>
+                            )}
                         </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
