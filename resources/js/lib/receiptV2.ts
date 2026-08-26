@@ -1,4 +1,3 @@
-import QRCode from 'qrcode';
 import { formatCurrency } from '@/lib/utils';
 import type { Pos2Invoice } from '@/types/pos2';
 
@@ -53,14 +52,6 @@ function money(value: number): string {
     return formatCurrency(value, { maximumFractionDigits: 2 });
 }
 
-async function qrDataUrl(text: string): Promise<string | null> {
-    try {
-        return await QRCode.toDataURL(text, { margin: 0, width: 120 });
-    } catch {
-        return null;
-    }
-}
-
 function documentShell(title: string, format: TicketFormat, bodyHtml: string): string {
     const spec = FORMAT_SPECS[format];
 
@@ -84,8 +75,6 @@ body { font-family: "Courier New", monospace; font-size: ${spec.baseFontSize}; l
 .amount { flex: 0 0 auto; text-align: right; white-space: nowrap; }
 .item { margin: 5px 0; }
 .total { font-size: ${spec.totalFontSize}; font-weight: 700; }
-.qr { display: flex; justify-content: center; margin: 8px 0; }
-.qr img { width: 90px; height: 90px; }
 .duplicata { position: absolute; top: 6px; right: 6px; border: 2px solid #000; color: #000; font-weight: 700; font-size: 0.9em; padding: 1px 6px; transform: rotate(8deg); letter-spacing: 1px; }
 .strike { text-decoration: line-through; }
 </style>
@@ -119,7 +108,6 @@ async function invoiceReceiptHtml(invoice: Pos2Invoice, options: InvoiceReceiptO
               hour: '2-digit',
               minute: '2-digit',
           }).format(date);
-    const qr = await qrDataUrl(invoice.reference);
 
     const items = invoice.items ?? [];
     const tips = (invoice.tips ?? []).filter((tip) => !tip.voided);
@@ -194,7 +182,6 @@ async function invoiceReceiptHtml(invoice: Pos2Invoice, options: InvoiceReceiptO
             : ''
     }
     <div class="line"></div>
-    ${qr ? `<div class="qr"><img src="${qr}" alt="QR ${escapeHtml(invoice.reference)}"></div>` : ''}
     <section class="center muted">${escapeHtml(footer)}</section>`;
 
     return documentShell(`${invoice.reference}`, format, body);
@@ -259,7 +246,6 @@ export async function printInvoiceA4(invoice: Pos2Invoice, settings: InvoiceA4Se
     const timeLabel = Number.isNaN(date.getTime())
         ? ''
         : new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' }).format(date);
-    const qr = await qrDataUrl(invoice.reference);
 
     const items = invoice.items ?? [];
     const tips = (invoice.tips ?? []).filter((tip) => !tip.voided);
@@ -324,9 +310,8 @@ td { padding: 9px 4px; border-bottom: 1px solid #eceae4; vertical-align: top; }
 .totals .grand { border-top: 2px solid #C8A34C; margin-top: 6px; padding-top: 7px; font-size: 16px; font-weight: 700; }
 .pay { margin-top: 4px; color: #5b6b7e; font-size: 11px; text-align: right; }
 .tipnote { margin-top: 14px; padding: 8px 10px; background: #faf7ef; border: 1px solid #e2d8bd; border-radius: 4px; color: #5b6b7e; font-size: 11px; }
-.foot { margin-top: 28px; display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; border-top: 1px solid #eceae4; padding-top: 12px; }
+.foot { margin-top: 28px; border-top: 1px solid #eceae4; padding-top: 12px; }
 .thanks { font-size: 13px; font-weight: 600; }
-.qr img { width: 68px; height: 68px; }
 </style>
 </head>
 <body>
@@ -375,7 +360,6 @@ ${
 
 <div class="foot">
     <div class="thanks">${escapeHtml(footer)}</div>
-    ${qr ? `<div class="qr"><img src="${qr}" alt="QR ${escapeHtml(invoice.reference)}"></div>` : ''}
 </div>
 </body>
 </html>`;
