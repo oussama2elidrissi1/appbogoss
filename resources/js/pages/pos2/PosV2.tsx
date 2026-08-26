@@ -55,6 +55,7 @@ import { Pos2InvoicePanel } from '@/components/pos2/Pos2InvoicePanel';
 import { Pos2PendingPrestations } from '@/components/pos2/Pos2PendingPrestations';
 import { Pos2QrScannerDialog } from '@/components/pos2/Pos2QrScannerDialog';
 import { Pos2ReservationsDialog } from '@/components/pos2/Pos2ReservationsDialog';
+import { Pos2SuccessDialog } from '@/components/pos2/Pos2SuccessDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -76,6 +77,7 @@ export default function PosV2() {
     const [currentInvoiceId, setCurrentInvoiceId] = useState<number | null>(null);
     const [activeEmployeeId, setActiveEmployeeId] = useState<number | null>(null);
     const [checkoutOpen, setCheckoutOpen] = useState(false);
+    const [paidInvoice, setPaidInvoice] = useState<Pos2Invoice | null>(null);
     const [detailId, setDetailId] = useState<number | null>(null);
     const [qrOpen, setQrOpen] = useState(false);
     const [reservationsOpen, setReservationsOpen] = useState(false);
@@ -347,13 +349,6 @@ export default function PosV2() {
         });
     }
 
-    function finishSale() {
-        setCheckoutOpen(false);
-        setCurrentInvoiceId(null);
-        setMobileCartOpen(false);
-        invalidate();
-    }
-
     // ------------------------------------------------------------------
 
     const clientSelection: ClientSelection = useMemo(() => {
@@ -623,16 +618,26 @@ export default function PosV2() {
                 canDiscount={canDiscount}
                 onClose={() => setCheckoutOpen(false)}
                 onSubmit={submitCheckout}
+                onPaid={(invoice) => {
+                    // Le succès vit dans SON dialog, piloté par un état de
+                    // page : aucun rafraîchissement de données ne peut le
+                    // faire disparaître.
+                    setCheckoutOpen(false);
+                    setCurrentInvoiceId(null);
+                    setMobileCartOpen(false);
+                    setPaidInvoice(invoice);
+                }}
+            />
+            <Pos2SuccessDialog
+                invoice={paidInvoice}
                 onPrintTicket={printTicket}
                 onPrintA4={printA4}
                 onViewDetail={(invoice) => {
-                    // Ferme le modal d'encaissement avant d'ouvrir le drawer,
-                    // sinon le drawer s'affiche derrière l'overlay du dialog.
-                    setCheckoutOpen(false);
-                    setCurrentInvoiceId(null);
+                    setPaidInvoice(null);
                     setDetailId(invoice.id);
                 }}
-                onFinished={finishSale}
+                onNewSale={() => setPaidInvoice(null)}
+                onClose={() => setPaidInvoice(null)}
             />
             <Pos2InvoiceDetailDrawer invoiceId={detailId} onClose={() => setDetailId(null)} />
             <Pos2QrScannerDialog open={qrOpen} onClose={() => setQrOpen(false)} onResolved={handleQrResolved} />

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, Banknote, CheckCircle2, CreditCard, Eye, FileText, HandCoins, Landmark, Loader2, Plus, Printer, Wallet, X } from 'lucide-react';
+import { AlertCircle, Banknote, CreditCard, HandCoins, Landmark, Loader2, Plus, Wallet, X } from 'lucide-react';
 import { getErrorMessage } from '@/lib/api';
 import { cn, formatCurrency } from '@/lib/utils';
 import type {
@@ -55,17 +55,16 @@ interface Pos2CheckoutDialogProps {
     canDiscount: boolean;
     onClose: () => void;
     onSubmit: (payload: Pos2CheckoutPayload) => Promise<Pos2Invoice>;
-    onPrintTicket: (invoice: Pos2Invoice) => void;
-    onPrintA4: (invoice: Pos2Invoice) => void;
-    onViewDetail: (invoice: Pos2Invoice) => void;
-    onFinished: () => void;
+    /** Paiement réussi : le parent ferme ce modal et ouvre Pos2SuccessDialog. */
+    onPaid: (invoice: Pos2Invoice) => void;
 }
 
 /**
  * ENCAISSER (V2.1) — récap, remise, moyens de paiement (mixte contrôlé),
  * monnaie automatique, puis POURBOIRES par employé DE LA FACTURE uniquement
  * (§6-§10) : une card par employé avec raccourcis +10/+20/+50 et détail par
- * service optionnel (§8). Écran de succès avec impression immédiate (§13).
+ * service optionnel (§8). L'écran de succès vit dans Pos2SuccessDialog, au
+ * niveau de la page, pour survivre à tout rafraîchissement de données.
  * Tous les montants restent recalculés côté serveur.
  */
 export function Pos2CheckoutDialog({
@@ -74,10 +73,7 @@ export function Pos2CheckoutDialog({
     canDiscount,
     onClose,
     onSubmit,
-    onPrintTicket,
-    onPrintA4,
-    onViewDetail,
-    onFinished,
+    onPaid,
 }: Pos2CheckoutDialogProps) {
     const [method, setMethod] = useState<Pos2PaymentMethod>('especes');
     const [received, setReceived] = useState('');
@@ -90,7 +86,6 @@ export function Pos2CheckoutDialog({
     const [tips, setTips] = useState<Record<number, TipDraft>>({});
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [paidInvoice, setPaidInvoice] = useState<Pos2Invoice | null>(null);
 
     // Reset ONLY when the dialog opens. Depending on the invoice here was a
     // bug: right after a successful payment the invoice leaves the
@@ -108,7 +103,6 @@ export function Pos2CheckoutDialog({
             setDiscountReason(invoice?.discount_reason ?? '');
             setTips({});
             setError(null);
-            setPaidInvoice(null);
             setSubmitting(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -217,7 +211,7 @@ export function Pos2CheckoutDialog({
                 ...(tipRows.length > 0 ? { tips: tipRows } : {}),
             };
             const paid = await onSubmit(payload);
-            setPaidInvoice(paid);
+            onPaid(paid);
         } catch (err) {
             setError(getErrorMessage(err));
         } finally {
@@ -238,80 +232,6 @@ export function Pos2CheckoutDialog({
     return (
         <Dialog open={open} onOpenChange={(next) => !next && !submitting && onClose()}>
             <DialogContent className="max-h-[92dvh] max-w-lg overflow-y-auto">
-                {paidInvoice ? (
-                    /* ------------------- Écran de succès (§13) ------------------- */
-                    <div className="space-y-5 py-2 text-center">
-                        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-success/30 bg-success/[0.12]">
-                            <CheckCircle2 className="h-8 w-8 text-success" />
-                        </div>
-                        <div>
-                            <h2 className="font-display text-2xl font-bold text-foreground">Paiement validé</h2>
-                            <p className="mt-1 text-sm text-muted-foreground">{paidInvoice.reference}</p>
-                        </div>
-                        <p className="font-display text-4xl font-bold tabular-nums text-accent">
-                            {formatCurrency(paidInvoice.total)}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                            Paiement :{' '}
-                            <span className="font-medium text-foreground">
-                                {METHODS.find((option) => option.value === paidInvoice.payment_method)?.label ??
-                                    paidInvoice.payment_method}
-                            </span>
-                            {(paidInvoice.change_given ?? 0) > 0 && (
-                                <>
-                                    {' · '}À rendre :{' '}
-                                    <span className="font-semibold text-foreground">
-                                        {formatCurrency(paidInvoice.change_given ?? 0)}
-                                    </span>
-                                </>
-                            )}
-                        </p>
-                        {(paidInvoice.tips_total ?? 0) > 0 && (
-                            <p className="text-xs text-muted-foreground">
-                                Pourboires : {formatCurrency(paidInvoice.tips_total ?? 0)} — remis directement aux
-                                employés.
-                            </p>
-                        )}
-                        <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
-                            <Button
-                                type="button"
-                                variant="accent"
-                                className="h-14 text-base font-semibold"
-                                onClick={() => onPrintTicket(paidInvoice)}
-                            >
-                                <Printer />
-                                Imprimer le ticket
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                className="h-14 text-base font-semibold"
-                                onClick={() => onPrintA4(paidInvoice)}
-                            >
-                                <FileText />
-                                Imprimer la facture
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                className="h-14 text-base font-semibold"
-                                onClick={() => onViewDetail(paidInvoice)}
-                            >
-                                <Eye />
-                                Voir le détail
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="accent"
-                                className="h-14 text-base font-semibold shadow-glow"
-                                onClick={onFinished}
-                            >
-                                <Plus />
-                                Nouvelle facture
-                            </Button>
-                        </div>
-                    </div>
-                ) : (
                     <>
                         <DialogHeader>
                             <DialogTitle className="font-display text-xl">Encaisser {invoice?.reference}</DialogTitle>
@@ -651,7 +571,6 @@ export function Pos2CheckoutDialog({
                             VALIDER — {formatCurrency(total)}
                         </Button>
                     </>
-                )}
             </DialogContent>
         </Dialog>
     );
