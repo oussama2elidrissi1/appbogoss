@@ -215,6 +215,7 @@ class WorkDayService
 
         $saleRevenueRows = $this->saleRevenueRows($activeSales);
         $revenueByEmployee = $saleRevenueRows
+            ->filter(fn (array $row) => $row['employee_id'] !== null)
             ->groupBy(fn (array $row) => $row['employee_id'] ?? 0)
             ->map(function (Collection $group, $employeeId) {
                 return [
@@ -235,7 +236,7 @@ class WorkDayService
             ->all();
 
         $prestationGroups = $saleRevenueRows
-            ->filter(fn (array $row) => (int) $row['quantity'] > 0 || (float) $row['total'] > 0)
+            ->filter(fn (array $row) => (int) $row['performed_count'] > 0)
             ->groupBy('label');
         $topPrestations = $this->prestationRowsFromItems($prestationGroups)
             ->sortByDesc('total')
@@ -432,15 +433,16 @@ class WorkDayService
     {
         $saleItems = $sale->items->values();
         $rows = $prestation->items->values()->map(function (PrestationItem $item, int $index) use ($sale, $saleItems, $prestation) {
-            $employee = $item->employee ?? $prestation->employee ?? $sale->employee;
             $saleItem = $saleItems->get($index);
+            $isSaleLine = $this->isPrestationItemCountedAsSale($item);
+            $employee = $isSaleLine ? null : ($item->employee ?? $prestation->employee ?? $sale->employee);
 
             return [
                 'sale_id' => $sale->id,
                 'label' => $item->label,
                 'quantity' => (int) $item->quantity,
-                'performed_count' => $this->isPrestationItemCountedAsSale($item) ? 0 : (int) $item->quantity,
-                'sales_count' => $this->isPrestationItemCountedAsSale($item) ? (int) $item->quantity : 0,
+                'performed_count' => $isSaleLine ? 0 : (int) $item->quantity,
+                'sales_count' => $isSaleLine ? (int) $item->quantity : 0,
                 'total' => $saleItem !== null
                     ? (float) $saleItem->quantity * (float) $saleItem->unit_price
                     : (float) $item->effectiveLineTotal(),
@@ -452,7 +454,8 @@ class WorkDayService
 
         $allocatedTotal = (float) $rows->sum('total');
         $difference = round((float) $sale->total - $allocatedTotal, 2);
-        if (abs($difference) >= 0.01 && $rows->isNotEmpty()) {
+        $hasSaleLines = $rows->contains(fn (array $row) => (int) $row['sales_count'] > 0);
+        if (! $hasSaleLines && abs($difference) >= 0.01 && $rows->isNotEmpty()) {
             $rows = $rows->values();
             $first = $rows->first();
             $first['total'] = round((float) $first['total'] + $difference, 2);

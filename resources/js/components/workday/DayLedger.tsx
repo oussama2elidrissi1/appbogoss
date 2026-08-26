@@ -28,7 +28,6 @@ interface EmployeeSalesSummary {
     avatarColor: string;
     salesCount: number;
     performedCount: number;
-    saleItemsCount: number;
     total: number;
     commissionTotal: number;
 }
@@ -86,7 +85,7 @@ export function DayLedger({ workDayId, date }: DayLedgerProps) {
     const salesByEmployee = Array.from(
         activeSales
             .reduce((summaries, sale) => {
-                const breakdown = sale.employee_breakdown?.length
+                const breakdown = sale.employee_breakdown !== undefined
                     ? sale.employee_breakdown
                     : [{
                         employee_id: sale.employee.id,
@@ -106,14 +105,12 @@ export function DayLedger({ workDayId, date }: DayLedgerProps) {
                         avatarColor: row.employee_avatar_color ?? '#C8A24C',
                         salesCount: 0,
                         performedCount: 0,
-                        saleItemsCount: 0,
                         total: 0,
                         commissionTotal: 0,
                     };
 
                     current.salesCount += row.tickets_count;
                     current.performedCount += row.performed_count;
-                    current.saleItemsCount += row.sales_count;
                     current.total += row.total;
                     current.commissionTotal += row.commission;
                     summaries.set(row.employee_id, current);
@@ -143,7 +140,6 @@ export function DayLedger({ workDayId, date }: DayLedgerProps) {
             employeeName: employee.name,
             date,
             salesCount: employee.performedCount,
-            saleItemsCount: employee.saleItemsCount,
             total: employee.total,
             commissionTotal: employee.commissionTotal,
         });
@@ -222,8 +218,6 @@ export function DayLedger({ workDayId, date }: DayLedgerProps) {
                                                 <p className="text-xs text-muted-foreground">
                                                     {employee.performedCount} prestation
                                                     {employee.performedCount > 1 ? 's' : ''}
-                                                    {employee.saleItemsCount > 0 &&
-                                                        ` · ${employee.saleItemsCount} vente${employee.saleItemsCount > 1 ? 's' : ''}`}
                                                 </p>
                                             </div>
 

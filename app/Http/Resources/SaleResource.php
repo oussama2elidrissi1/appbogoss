@@ -62,6 +62,11 @@ class SaleResource extends JsonResource
             return $this->prestationEmployeeBreakdown();
         }
 
+        // A standalone product sale belongs to the register, never to an employee.
+        if ($this->isQuickSaleCountedAsSale()) {
+            return [];
+        }
+
         return [[
             'employee_id' => $this->employee?->id ?? 0,
             'employee_name' => $this->employee?->name ?? 'Société',
@@ -84,6 +89,11 @@ class SaleResource extends JsonResource
 
         foreach ($prestationItems as $index => $item) {
             /** @var PrestationItem $item */
+            $isSaleLine = $this->isPrestationItemCountedAsSale($item);
+            if ($isSaleLine) {
+                continue;
+            }
+
             $employee = $item->employee ?? $prestation->employee ?? $this->employee;
             if ($employee === null) {
                 continue;
@@ -94,7 +104,6 @@ class SaleResource extends JsonResource
                 ? (float) $saleItem->quantity * (float) $saleItem->unit_price
                 : (float) $item->effectiveLineTotal();
 
-            $isSaleLine = $this->isPrestationItemCountedAsSale($item);
             $this->addEmployeeBreakdownRow(
                 $rows,
                 (int) $employee->id,
@@ -102,14 +111,17 @@ class SaleResource extends JsonResource
                 $employee->avatar_color,
                 $total,
                 0.0,
-                $isSaleLine ? 0 : max(1, (int) $item->quantity),
-                $isSaleLine ? max(1, (int) $item->quantity) : 0,
+                max(1, (int) $item->quantity),
+                0,
             );
         }
 
         $allocatedTotal = collect($rows)->sum('total');
         $difference = round((float) $this->total - (float) $allocatedTotal, 2);
-        if (abs($difference) >= 0.01 && count($rows) > 0) {
+        $hasSaleLines = $prestationItems->contains(
+            fn (PrestationItem $item) => $this->isPrestationItemCountedAsSale($item),
+        );
+        if (! $hasSaleLines && abs($difference) >= 0.01 && count($rows) > 0) {
             $firstKey = array_key_first($rows);
             $rows[$firstKey]['total'] = round((float) $rows[$firstKey]['total'] + $difference, 2);
         }
@@ -135,6 +147,10 @@ class SaleResource extends JsonResource
         } else {
             foreach ($prestationItems as $item) {
                 /** @var PrestationItem $item */
+                if ($this->isPrestationItemCountedAsSale($item)) {
+                    continue;
+                }
+
                 $employee = $item->employee ?? $prestation->employee ?? $this->employee;
                 if ($employee === null) {
                     continue;

@@ -684,7 +684,7 @@ class PosV2WorkflowTest extends TestCase
         $this->assertSame('Omar', $history->json('data.0.items.0.employee_name'));
     }
 
-    public function test_sale_lines_inside_a_v2_invoice_are_shown_next_to_the_employee_without_counting_as_prestations(): void
+    public function test_sale_lines_inside_a_v2_invoice_stay_separate_from_the_employee(): void
     {
         Sanctum::actingAs($this->superAdmin());
         $ahmed = Employee::factory()->create(['name' => 'Ahmed', 'default_commission_rate' => 50]);
@@ -710,24 +710,26 @@ class PosV2WorkflowTest extends TestCase
             ->assertOk()
             ->json('meta.stats.employees.0');
         $this->assertSame('Ahmed', $historyEmployee['employee_name']);
-        $this->assertEquals(740, $historyEmployee['total']);
+        $this->assertEquals(700, $historyEmployee['total']);
         $this->assertSame(1, $historyEmployee['performed_count']);
-        $this->assertSame(1, $historyEmployee['sales_count']);
-        $this->assertEquals(40, $historyEmployee['sales_total']);
+        $this->assertSame(0, $historyEmployee['sales_count']);
+        $this->assertEquals(0, $historyEmployee['sales_total']);
+        $this->assertSame(1, $this->getJson("/api/pos-v2/history?work_day_id={$workDay->id}")->json('meta.stats.sales_count'));
+        $this->assertEquals(40, $this->getJson("/api/pos-v2/history?work_day_id={$workDay->id}")->json('meta.stats.sales_total'));
 
         $detail = $this->getJson("/api/pos-v2/invoices/{$invoice['id']}")
             ->assertOk()
             ->json('data');
         $saleLine = collect($detail['items'])->firstWhere('service_name', 'Vente gel');
-        $this->assertSame('Ahmed', $saleLine['employee_name']);
+        $this->assertNull($saleLine['employee_name']);
 
         $ledgerRow = $this->getJson("/api/transactions?work_day_id={$workDay->id}")
             ->assertOk()
             ->json('data.0.employee_breakdown.0');
         $this->assertSame('Ahmed', $ledgerRow['employee_name']);
-        $this->assertEquals(740, $ledgerRow['total']);
+        $this->assertEquals(700, $ledgerRow['total']);
         $this->assertSame(1, $ledgerRow['performed_count']);
-        $this->assertSame(1, $ledgerRow['sales_count']);
+        $this->assertSame(0, $ledgerRow['sales_count']);
     }
 
     public function test_deleted_v1_and_v2_sales_stay_visible_but_are_excluded_from_pos_history_stats(): void

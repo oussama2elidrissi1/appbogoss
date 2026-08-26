@@ -47,10 +47,8 @@ class PosInvoiceLineResource extends JsonResource
         if (
             $employee === null
             && $this->resource->relationLoaded('prestation')
-            && (
-                $this->prestation?->channel !== Prestation::CHANNEL_CAISSE_V2
-                || in_array($category, ['boisson', 'vente', 'vitrine'], true)
-            )
+            && $this->prestation?->channel !== Prestation::CHANNEL_CAISSE_V2
+            && ! in_array($category, ['boisson', 'vente', 'vitrine'], true)
         ) {
             $employee = $this->prestation?->employee ?? $this->prestation?->sale?->employee;
         }

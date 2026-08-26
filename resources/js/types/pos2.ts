@@ -333,6 +333,8 @@ export interface Pos2HistoryResponse {
             paid_total: number;
             v1_count: number;
             v2_count: number;
+            sales_count: number;
+            sales_total: number;
             employees: Array<{
                 employee_id: number;
                 employee_name: string;

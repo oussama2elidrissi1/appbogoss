@@ -100,7 +100,7 @@ export default function PosV2History() {
     const meta = data?.meta;
     const stats = meta?.stats;
     const performedTotal = stats?.employees.reduce((sum, employee) => sum + employee.performed_count, 0) ?? 0;
-    const salesTotal = stats?.employees.reduce((sum, employee) => sum + (employee.sales_count ?? 0), 0) ?? 0;
+    const salesCount = stats?.sales_count ?? 0;
 
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-4">
@@ -289,7 +289,11 @@ export default function PosV2History() {
                         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                             <StatTile icon={WalletCards} label={t('CA encaissé')} value={formatCurrency(stats.paid_total)} />
                             <StatTile icon={ReceiptText} label={t('Prestations effectuées')} value={String(performedTotal)} />
-                            <StatTile icon={ShoppingCart} label={t('Ventes')} value={String(salesTotal)} />
+                            <StatTile
+                                icon={ShoppingCart}
+                                label={t('Ventes')}
+                                value={`${salesCount} · ${formatCurrency(stats.sales_total)}`}
+                            />
                             <StatTile
                                 icon={BarChart3}
                                 label={t('Moyenne facture')}
@@ -315,8 +319,6 @@ export default function PosV2History() {
                                                     </p>
                                                     <p className="text-[11px] text-muted-foreground">
                                                         {employee.performed_count} {t(employee.performed_count > 1 ? 'prestations' : 'prestation')}
-                                                        {(employee.sales_count ?? 0) > 0 &&
-                                                            ` · ${employee.sales_count} ${t(employee.sales_count > 1 ? 'ventes' : 'vente')}`}
                                                     </p>
                                                 </div>
                                                 <p className="shrink-0 text-sm font-bold tabular-nums text-accent">

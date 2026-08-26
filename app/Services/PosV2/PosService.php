@@ -977,15 +977,28 @@ class PosService
             ->reject(fn (Prestation $invoice) => $this->hasDeletedSale($invoice, $deletedSaleIds))
             ->values();
         $byEmployee = [];
+        $salesCount = 0;
+        $salesTotal = 0.0;
 
         foreach ($paid as $invoice) {
             $invoice->loadMissing(['employee', 'sale.employee', 'items.employee', 'items.service', 'items.product', 'commissions.employee']);
             $computed = $this->computeTotals($invoice);
 
             foreach ($invoice->items as $item) {
+                $itemCount = max(1, (int) $item->quantity);
+                $lineTotal = (float) ($computed['lines'][$item->id]['total'] ?? $item->effectiveLineTotal());
+
+                // Product and vente lines belong to the register, not to an employee.
+                if ($this->isSaleLine($item)) {
+                    $salesCount += $itemCount;
+                    $salesTotal += $lineTotal;
+
+                    continue;
+                }
+
                 $lineEmployee = $item->employee;
 
-                if ($lineEmployee === null && ($invoice->channel !== Prestation::CHANNEL_CAISSE_V2 || $this->isSaleLine($item))) {
+                if ($lineEmployee === null && $invoice->channel !== Prestation::CHANNEL_CAISSE_V2) {
                     $lineEmployee = $invoice->employee ?? $invoice->sale?->employee;
                 }
 
@@ -1006,15 +1019,8 @@ class PosService
                     '_invoice_ids' => [],
                 ];
 
-                $itemCount = max(1, (int) $item->quantity);
                 $entry['_invoice_ids'][$invoice->id] = true;
-                $lineTotal = (float) ($computed['lines'][$item->id]['total'] ?? $item->effectiveLineTotal());
-                if ($this->isSaleLine($item)) {
-                    $entry['sales_count'] += $itemCount;
-                    $entry['sales_total'] += $lineTotal;
-                } else {
-                    $entry['performed_count'] += $itemCount;
-                }
+                $entry['performed_count'] += $itemCount;
                 $entry['total'] += $lineTotal;
 
                 $byEmployee[$employeeId] = $entry;
@@ -1050,6 +1056,14 @@ class PosService
             ->values();
 
         foreach ($legacySales as $sale) {
+            $performedCount = (int) $sale->items->sum(fn (SaleItem $item) => max(1, (int) $item->quantity));
+            if ($this->isLegacySaleCountedAsSale($sale)) {
+                $salesCount += max(1, $performedCount);
+                $salesTotal += (float) $sale->total;
+
+                continue;
+            }
+
             $employee = $sale->employee;
             if ($employee === null) {
                 continue;
@@ -1068,13 +1082,7 @@ class PosService
                 '_invoice_ids' => [],
             ];
 
-            $performedCount = (int) $sale->items->sum(fn (SaleItem $item) => max(1, (int) $item->quantity));
-            if ($this->isLegacySaleCountedAsSale($sale)) {
-                $entry['sales_count'] += max(1, $performedCount);
-                $entry['sales_total'] += (float) $sale->total;
-            } else {
-                $entry['performed_count'] += max(1, $performedCount);
-            }
+            $entry['performed_count'] += max(1, $performedCount);
             $entry['_invoice_ids']['sale:'.$sale->id] = true;
             $entry['total'] += (float) $sale->total;
             $entry['commission_total'] += (float) ($sale->commission_amount ?? 0);
@@ -1105,6 +1113,8 @@ class PosService
             'v1_count' => $activeInvoices->filter(fn (Prestation $invoice) => $invoice->channel === null)->count()
                 + $legacySales->count(),
             'v2_count' => $activeInvoices->filter(fn (Prestation $invoice) => $invoice->channel === Prestation::CHANNEL_CAISSE_V2)->count(),
+            'sales_count' => $salesCount,
+            'sales_total' => round($salesTotal, 2),
             'employees' => $employees,
         ];
     }
