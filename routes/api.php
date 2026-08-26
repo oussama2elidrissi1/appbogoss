@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\PosV2\PosClientContextController;
 use App\Http\Controllers\Api\PosV2\PosDashboardController;
 use App\Http\Controllers\Api\PosV2\PosHistoryController;
 use App\Http\Controllers\Api\PosV2\PosInvoiceController;
+use App\Http\Controllers\Api\PosV2\PosPendingController;
 use App\Http\Controllers\Api\PosV2\PosQrController;
 use App\Http\Controllers\Api\PosV2\PosSubscriptionPaymentController;
 use App\Http\Controllers\Api\PrestationController;
@@ -403,6 +404,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/appointments/today', [PosAppointmentController::class, 'today']);
         Route::post('/appointments/{appointment}/open', [PosAppointmentController::class, 'open']);
+
+        // File V1 des prestations envoyées par les employés — reprise en V2.
+        Route::get('/pending', [PosPendingController::class, 'index']);
+        Route::post('/pending/{prestation}/import', [PosPendingController::class, 'import']);
 
         Route::get('/subscriptions/{clientSubscription}/payments', [PosSubscriptionPaymentController::class, 'index']);
         Route::post('/subscriptions/{clientSubscription}/payments', [PosSubscriptionPaymentController::class, 'store']);

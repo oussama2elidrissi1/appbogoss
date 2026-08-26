@@ -370,6 +370,147 @@ class PosService
     }
 
     // ------------------------------------------------------------------
+    // V1 pending queue bridge — prestations sent by employees from Mon
+    // Espace (status pending_payment, channel NULL) can be taken over by
+    // Caisse V2 instead of the V1 queue.
+    // ------------------------------------------------------------------
+
+    /** @return Builder<Prestation> */
+    public function pendingPrestationsQuery(): Builder
+    {
+        return Prestation::query()
+            ->whereNull('channel')
+            ->where('status', Prestation::STATUS_PENDING_PAYMENT)
+            ->with(['employee', 'client', 'items.service'])
+            ->orderBy('validated_at');
+    }
+
+    /**
+     * Take over an employee-sent prestation in Caisse V2.
+     *
+     * - Without target: the prestation is ADOPTED — it becomes a V2 open
+     *   invoice (same row, same id), so reward/subscription reservations
+     *   keep pointing at it untouched. Its per-line employee is filled from
+     *   the header (the employee who did the work).
+     * - With target: its lines are MOVED into the target open invoice
+     *   (client's facture), reservations are re-pointed, and the source is
+     *   closed as cancelled with an explicit trace — so the V1 queue can
+     *   never charge it a second time.
+     *
+     * Money still only moves in checkout(); this is pure re-routing.
+     */
+    public function importPendingPrestation(Prestation $source, ?Prestation $target, User $actor): Prestation
+    {
+        return DB::transaction(function () use ($source, $target, $actor) {
+            /** @var Prestation $lockedSource */
+            $lockedSource = Prestation::query()->whereKey($source->id)->lockForUpdate()->firstOrFail();
+
+            if ($lockedSource->channel === Prestation::CHANNEL_CAISSE_V2) {
+                throw ValidationException::withMessages(['prestation' => 'Cette prestation est déjà en Caisse V2.']);
+            }
+            if ($lockedSource->status !== Prestation::STATUS_PENDING_PAYMENT) {
+                throw ValidationException::withMessages([
+                    'prestation' => 'Seule une prestation en attente de paiement peut être reprise en Caisse V2.',
+                ]);
+            }
+
+            $lockedSource->load('items');
+
+            if ($target === null) {
+                // ---- Adopt: same row becomes a V2 open invoice. ----
+                $lockedSource->items()
+                    ->whereNull('employee_id')
+                    ->update(['employee_id' => $lockedSource->employee_id]);
+
+                $lockedSource->update([
+                    'channel' => Prestation::CHANNEL_CAISSE_V2,
+                    'status' => Prestation::STATUS_IN_PROGRESS,
+                    'held_at' => null,
+                ]);
+                $this->logTransition($lockedSource, Prestation::STATUS_PENDING_PAYMENT, Prestation::STATUS_IN_PROGRESS, $actor);
+                $this->activityLogger->log('caisse_v2.pending_adopted', $lockedSource, [], [
+                    'employee_id' => $lockedSource->employee_id,
+                ]);
+
+                $this->recalcTotals($lockedSource);
+
+                return $lockedSource->fresh(['items.employee', 'items.service', 'client']);
+            }
+
+            // ---- Merge into an existing open V2 invoice. ----
+            /** @var Prestation $lockedTarget */
+            $lockedTarget = Prestation::query()->whereKey($target->id)->lockForUpdate()->firstOrFail();
+            $this->assertV2($lockedTarget);
+            $this->assertEditable($lockedTarget);
+
+            if ($lockedSource->client_id !== null
+                && $lockedTarget->client_id !== null
+                && $lockedSource->client_id !== $lockedTarget->client_id) {
+                throw ValidationException::withMessages([
+                    'prestation' => 'Cette prestation appartient à un autre client que la facture sélectionnée.',
+                ]);
+            }
+            if ($lockedTarget->client_id === null && $lockedSource->client_id !== null) {
+                // A subscription/reward reservation is bound to the client —
+                // the receiving invoice inherits them together.
+                $lockedTarget->update(['client_id' => $lockedSource->client_id, 'client_label' => null]);
+            }
+
+            // Move the item rows themselves (ids preserved), stamping the
+            // performing employee on each line.
+            foreach ($lockedSource->items as $item) {
+                $item->update([
+                    'prestation_id' => $lockedTarget->id,
+                    'employee_id' => $item->employee_id ?? $lockedSource->employee_id,
+                ]);
+            }
+
+            // Re-point live reservations at the receiving invoice so
+            // checkout confirms them (and cancelling the source releases
+            // nothing that was transferred).
+            ClientSubscriptionUsage::where('reserved_prestation_id', $lockedSource->id)
+                ->where('status', ClientSubscriptionUsage::STATUS_RESERVED)
+                ->update(['reserved_prestation_id' => $lockedTarget->id]);
+            LoyaltyReward::where('reserved_prestation_id', $lockedSource->id)
+                ->where('status', LoyaltyReward::STATUS_RESERVED)
+                ->update(['reserved_prestation_id' => $lockedTarget->id]);
+
+            if ($lockedTarget->status === Prestation::STATUS_DRAFT) {
+                $lockedTarget->update(['status' => Prestation::STATUS_IN_PROGRESS]);
+                $this->logTransition($lockedTarget, Prestation::STATUS_DRAFT, Prestation::STATUS_IN_PROGRESS, $actor);
+            }
+
+            // Close the (now empty) source with an explicit trace. Direct
+            // update on purpose: PrestationService::cancel() would try to
+            // release the reservations we just transferred.
+            $reason = 'Fusionnée dans '.$lockedTarget->reference.' (Caisse V2)';
+            $lockedSource->update([
+                'status' => Prestation::STATUS_CANCELLED,
+                'cancelled_at' => now(),
+                'cancelled_by_user_id' => $actor->id,
+                'cancel_reason' => $reason,
+                'subtotal' => 0,
+                'total' => 0,
+            ]);
+            PrestationStatusLog::create([
+                'prestation_id' => $lockedSource->id,
+                'from_status' => Prestation::STATUS_PENDING_PAYMENT,
+                'to_status' => Prestation::STATUS_CANCELLED,
+                'user_id' => $actor->id,
+                'reason' => $reason,
+            ]);
+            $this->activityLogger->log('caisse_v2.pending_merged', $lockedSource, [], [
+                'target_prestation_id' => $lockedTarget->id,
+                'target_reference' => $lockedTarget->reference,
+            ]);
+
+            $this->recalcTotals($lockedTarget);
+
+            return $lockedTarget->fresh(['items.employee', 'items.service', 'client']);
+        });
+    }
+
+    // ------------------------------------------------------------------
     // Checkout — the only place V2 money moves
     // ------------------------------------------------------------------
 

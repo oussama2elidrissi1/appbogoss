@@ -7,6 +7,7 @@ import type {
     Pos2HistoryResponse,
     Pos2Invoice,
     Pos2LinePayload,
+    Pos2PendingPrestation,
     Pos2QrLookupResult,
     Pos2SubscriptionPaymentStatus,
     Pos2TodayAppointment,
@@ -24,6 +25,7 @@ export const pos2Keys = {
     invoice: (id: number) => ['pos2', 'invoices', id] as const,
     clientContext: (clientId: number) => ['pos2', 'client-context', clientId] as const,
     appointmentsToday: ['pos2', 'appointments-today'] as const,
+    pending: ['pos2', 'pending'] as const,
     history: (filters: Pos2HistoryFilters) => ['pos2', 'history', filters] as const,
     subscriptionPayments: (id: number) => ['pos2', 'subscription-payments', id] as const,
 };
@@ -126,6 +128,20 @@ export async function getPos2ClientContext(clientId: number): Promise<Pos2Client
 
 export async function pos2QrLookup(token: string): Promise<Pos2QrLookupResult> {
     const { data } = await api.post<{ data: Pos2QrLookupResult }>('/api/pos-v2/qr-lookup', { token });
+    return data.data;
+}
+
+/** Prestations envoyées par les employés (workflow V1) — reprenables en V2. */
+export async function getPos2PendingPrestations(): Promise<Pos2PendingPrestation[]> {
+    const { data } = await api.get<{ data: Pos2PendingPrestation[] }>('/api/pos-v2/pending');
+    return data.data;
+}
+
+/** Sans cible : la prestation devient une facture V2 ; avec cible : ses lignes fusionnent dedans. */
+export async function importPos2Pending(prestationId: number, targetInvoiceId?: number | null): Promise<Pos2Invoice> {
+    const { data } = await api.post<{ data: Pos2Invoice }>(`/api/pos-v2/pending/${prestationId}/import`, {
+        target_invoice_id: targetInvoiceId ?? null,
+    });
     return data.data;
 }
 

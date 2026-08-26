@@ -52,6 +52,7 @@ import { Pos2Catalog } from '@/components/pos2/Pos2Catalog';
 import { Pos2CheckoutDialog } from '@/components/pos2/Pos2CheckoutDialog';
 import { Pos2InvoiceDetailDrawer } from '@/components/pos2/Pos2InvoiceDetailDrawer';
 import { Pos2InvoicePanel } from '@/components/pos2/Pos2InvoicePanel';
+import { Pos2PendingPrestations } from '@/components/pos2/Pos2PendingPrestations';
 import { Pos2QrScannerDialog } from '@/components/pos2/Pos2QrScannerDialog';
 import { Pos2ReservationsDialog } from '@/components/pos2/Pos2ReservationsDialog';
 import { Badge } from '@/components/ui/badge';
@@ -501,6 +502,12 @@ export default function PosV2() {
                     </CardContent>
                 </Card>
             )}
+
+            {/* ---------------------- prestations envoyées par les employés (V1) */}
+            <Pos2PendingPrestations
+                currentInvoice={currentInvoice}
+                onImported={(invoice) => setCurrentInvoiceId(invoice.id)}
+            />
 
             {/* ----------------------------------------- factures ouvertes (§21) */}
             {(openInvoices ?? []).length > 0 && (

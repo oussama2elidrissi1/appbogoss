@@ -216,6 +216,22 @@ export interface Pos2QrLookupResult {
     status?: string;
 }
 
+/** Prestation envoyée en caisse par un employé (workflow V1, statut pending_payment). */
+export interface Pos2PendingPrestation {
+    id: number;
+    reference: string;
+    client_id: number | null;
+    client_name: string;
+    employee_id: number | null;
+    employee_name: string | null;
+    employee_avatar_color: string | null;
+    items_count: number;
+    services_label: string;
+    total: number;
+    sent_at: string | null;
+    sent_time: string | null;
+}
+
 export interface Pos2TodayAppointment {
     id: number;
     client_id: number | null;
