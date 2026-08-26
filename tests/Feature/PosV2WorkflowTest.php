@@ -716,6 +716,8 @@ class PosV2WorkflowTest extends TestCase
         $this->assertEquals(0, $historyEmployee['sales_total']);
         $this->assertSame(1, $this->getJson("/api/pos-v2/history?work_day_id={$workDay->id}")->json('meta.stats.sales_count'));
         $this->assertEquals(40, $this->getJson("/api/pos-v2/history?work_day_id={$workDay->id}")->json('meta.stats.sales_total'));
+        $this->assertEquals(1, $this->getJson("/api/pos-v2/history?work_day_id={$workDay->id}")->json('meta.stats.sales_by_area.0.count'));
+        $this->assertEquals(40, $this->getJson("/api/pos-v2/history?work_day_id={$workDay->id}")->json('meta.stats.sales_by_area.0.total'));
 
         $detail = $this->getJson("/api/pos-v2/invoices/{$invoice['id']}")
             ->assertOk()

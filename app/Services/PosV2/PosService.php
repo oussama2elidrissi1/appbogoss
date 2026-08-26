@@ -979,6 +979,10 @@ class PosService
         $byEmployee = [];
         $salesCount = 0;
         $salesTotal = 0.0;
+        $salesByArea = [
+            'vitrine' => ['count' => 0, 'total' => 0.0],
+            'refrigerateur' => ['count' => 0, 'total' => 0.0],
+        ];
 
         foreach ($paid as $invoice) {
             $invoice->loadMissing(['employee', 'sale.employee', 'items.employee', 'items.service', 'items.product', 'commissions.employee']);
@@ -992,6 +996,11 @@ class PosService
                 if ($this->isSaleLine($item)) {
                     $salesCount += $itemCount;
                     $salesTotal += $lineTotal;
+                    $area = $this->saleAreaForItem($item);
+                    if ($area !== null) {
+                        $salesByArea[$area]['count'] += $itemCount;
+                        $salesByArea[$area]['total'] += $lineTotal;
+                    }
 
                     continue;
                 }
@@ -1060,6 +1069,11 @@ class PosService
             if ($this->isLegacySaleCountedAsSale($sale)) {
                 $salesCount += max(1, $performedCount);
                 $salesTotal += (float) $sale->total;
+                $area = $this->saleAreaForLegacySale($sale);
+                if ($area !== null) {
+                    $salesByArea[$area]['count'] += max(1, $performedCount);
+                    $salesByArea[$area]['total'] += (float) $sale->total;
+                }
 
                 continue;
             }
@@ -1115,6 +1129,14 @@ class PosService
             'v2_count' => $activeInvoices->filter(fn (Prestation $invoice) => $invoice->channel === Prestation::CHANNEL_CAISSE_V2)->count(),
             'sales_count' => $salesCount,
             'sales_total' => round($salesTotal, 2),
+            'sales_by_area' => collect($salesByArea)
+                ->map(fn (array $stats, string $area) => [
+                    'area' => $area,
+                    'count' => $stats['count'],
+                    'total' => round((float) $stats['total'], 2),
+                ])
+                ->values()
+                ->all(),
             'employees' => $employees,
         ];
     }
@@ -1125,10 +1147,36 @@ class PosService
             || in_array($item->service?->category, ['boisson', 'vente', 'vitrine'], true);
     }
 
+    private function saleAreaForItem(PrestationItem $item): ?string
+    {
+        if ($item->product_id !== null) {
+            return $item->product?->stock_area === 'refrigerateur' ? 'refrigerateur' : 'vitrine';
+        }
+
+        return match ($item->service?->category) {
+            'boisson' => 'refrigerateur',
+            'vente', 'vitrine' => 'vitrine',
+            default => null,
+        };
+    }
+
     private function isLegacySaleCountedAsSale(Sale $sale): bool
     {
         return in_array($sale->category, ['boisson', 'vente', 'vitrine'], true)
             || $sale->items->contains(fn (SaleItem $item) => $item->itemable_type === Product::class);
+    }
+
+    private function saleAreaForLegacySale(Sale $sale): ?string
+    {
+        if (in_array($sale->employee?->company_area, ['vitrine', 'refrigerateur'], true)) {
+            return $sale->employee->company_area;
+        }
+
+        return match ($sale->category) {
+            'boisson' => 'refrigerateur',
+            'vente', 'vitrine' => 'vitrine',
+            default => null,
+        };
     }
 
     /** @return Builder<Sale> */

@@ -335,6 +335,11 @@ export interface Pos2HistoryResponse {
             v2_count: number;
             sales_count: number;
             sales_total: number;
+            sales_by_area: Array<{
+                area: 'vitrine' | 'refrigerateur';
+                count: number;
+                total: number;
+            }>;
             employees: Array<{
                 employee_id: number;
                 employee_name: string;

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { ArrowLeft, BarChart3, ChevronLeft, ChevronRight, Clock3, Filter, type LucideIcon, ReceiptText, Search, ShoppingCart, WalletCards } from 'lucide-react';
+import { ArrowLeft, BarChart3, ChevronLeft, ChevronRight, Clock3, Coffee, Filter, type LucideIcon, ReceiptText, Search, ShoppingBag, ShoppingCart, WalletCards } from 'lucide-react';
 import { getEmployees, getServices } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { getPos2History, pos2Keys } from '@/lib/pos2Api';
@@ -101,6 +101,7 @@ export default function PosV2History() {
     const stats = meta?.stats;
     const performedTotal = stats?.employees.reduce((sum, employee) => sum + employee.performed_count, 0) ?? 0;
     const salesCount = stats?.sales_count ?? 0;
+    const salesByArea = stats?.sales_by_area ?? [];
 
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-4">
@@ -301,7 +302,7 @@ export default function PosV2History() {
                             />
                         </div>
 
-                        {stats.employees.length > 0 && (
+                        {(stats.employees.length > 0 || salesByArea.length > 0) && (
                             <div className="space-y-2">
                                 <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                                     {t('CA par employé')}
@@ -341,6 +342,36 @@ export default function PosV2History() {
                                             </div>
                                         </div>
                                     ))}
+                                    {salesByArea.map((area) => {
+                                        const isFridge = area.area === 'refrigerateur';
+                                        const Icon = isFridge ? Coffee : ShoppingBag;
+                                        const label = isFridge ? t('Réfrigérateur') : t('Vente');
+
+                                        return (
+                                            <div
+                                                key={area.area}
+                                                className="rounded-md border border-tint/[0.07] bg-tint/[0.02] px-3 py-2.5"
+                                            >
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="flex min-w-0 items-center gap-2">
+                                                        <Icon className={cn('h-4 w-4 shrink-0', isFridge ? 'text-success' : 'text-rose-600 dark:text-rose-300')} />
+                                                        <div className="min-w-0">
+                                                            <p className="truncate text-sm font-semibold text-foreground">{label}</p>
+                                                            <p className="text-[11px] text-muted-foreground">
+                                                                {area.count} {t(area.count > 1 ? 'ventes' : 'vente')}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <p className="shrink-0 text-sm font-bold tabular-nums text-accent">
+                                                        {formatCurrency(area.total)}
+                                                    </p>
+                                                </div>
+                                                <div className="mt-2 border-t border-tint/[0.06] pt-2 text-[11px] text-muted-foreground">
+                                                    {t('Société')}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}

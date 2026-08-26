@@ -82,6 +82,14 @@ class PosV2ProductSaleTest extends TestCase
         $this->assertSame(Product::class, SaleItem::first()->itemable_type);
         // …et zéro commission.
         $this->assertSame(0, Commission::count());
+
+        $history = $this->getJson('/api/pos-v2/history?work_day_id='.WorkDay::firstOrFail()->id)
+            ->assertOk();
+        $this->assertSame(2, $history->json('meta.stats.sales_count'));
+        $this->assertEquals(20, $history->json('meta.stats.sales_total'));
+        $this->assertSame('refrigerateur', $history->json('meta.stats.sales_by_area.1.area'));
+        $this->assertSame(2, $history->json('meta.stats.sales_by_area.1.count'));
+        $this->assertEquals(20, $history->json('meta.stats.sales_by_area.1.total'));
     }
 
     public function test_insufficient_stock_blocks_the_checkout_atomically(): void
