@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Banknote, CreditCard, HandCoins, Landmark, Loader2, Plus, Wallet, X } from 'lucide-react';
 import { getErrorMessage } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency } from '@/lib/utils';
 import type {
     Pos2BreakdownRow,
@@ -75,6 +76,7 @@ export function Pos2CheckoutDialog({
     onSubmit,
     onPaid,
 }: Pos2CheckoutDialogProps) {
+    const { t } = useI18n();
     const [method, setMethod] = useState<Pos2PaymentMethod>('especes');
     const [received, setReceived] = useState('');
     const [breakdown, setBreakdown] = useState<Array<{ method: Pos2TenderMethod; amount: string }>>([
@@ -234,24 +236,28 @@ export function Pos2CheckoutDialog({
             <DialogContent className="max-h-[92dvh] max-w-lg overflow-y-auto">
                     <>
                         <DialogHeader>
-                            <DialogTitle className="font-display text-xl">Encaisser {invoice?.reference}</DialogTitle>
+                            <DialogTitle className="font-display text-xl">
+                                {t('Encaisser {ref}', { ref: invoice?.reference ?? '' })}
+                            </DialogTitle>
                         </DialogHeader>
 
                         {/* Récapitulatif */}
                         <div className="space-y-1 rounded-md border border-tint/[0.07] bg-tint/[0.02] px-3.5 py-3 text-sm">
                             <div className="flex justify-between text-muted-foreground">
-                                <span>Sous-total ({items.length} ligne{items.length > 1 ? 's' : ''})</span>
+                                <span>
+                                    {t('Sous-total')} ({items.length} {t(items.length > 1 ? 'lignes' : 'ligne')})
+                                </span>
                                 <span className="tabular-nums">{formatCurrency(subtotal)}</span>
                             </div>
                             {lineDiscounts > 0 && (
                                 <div className="flex justify-between text-accent">
-                                    <span>Remises lignes</span>
+                                    <span>{t('Remises lignes')}</span>
                                     <span className="tabular-nums">−{formatCurrency(lineDiscounts)}</span>
                                 </div>
                             )}
                             {canDiscount && (
                                 <div className="flex items-center justify-between gap-3 py-1">
-                                    <span className="text-muted-foreground">Remise facture</span>
+                                    <span className="text-muted-foreground">{t('Remise facture')}</span>
                                     <div className="flex items-center gap-2">
                                         <Input
                                             inputMode="decimal"
@@ -260,7 +266,7 @@ export function Pos2CheckoutDialog({
                                             placeholder="0"
                                             className="h-8 w-20 text-right tabular-nums"
                                         />
-                                        <span className="text-xs text-muted-foreground">MAD</span>
+                                        <span className="text-xs text-muted-foreground">{t('MAD')}</span>
                                     </div>
                                 </div>
                             )}
@@ -268,12 +274,12 @@ export function Pos2CheckoutDialog({
                                 <Input
                                     value={discountReason}
                                     onChange={(event) => setDiscountReason(event.target.value)}
-                                    placeholder="Raison de la remise"
+                                    placeholder={t('Raison de la remise')}
                                     className="h-8 text-xs"
                                 />
                             )}
                             <div className="flex items-baseline justify-between border-t border-tint/[0.06] pt-2">
-                                <span className="font-semibold text-foreground">TOTAL À ENCAISSER</span>
+                                <span className="font-semibold text-foreground">{t('TOTAL À ENCAISSER')}</span>
                                 <span className="font-display text-2xl font-bold tabular-nums text-accent">
                                     {formatCurrency(total)}
                                 </span>
@@ -283,7 +289,7 @@ export function Pos2CheckoutDialog({
                         {/* Moyen de paiement (§26 V2) */}
                         <div className="space-y-2">
                             <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                Moyen de paiement
+                                {t('Moyen de paiement')}
                             </Label>
                             <div className="grid grid-cols-5 gap-1.5">
                                 {METHODS.map((option) => {
@@ -297,7 +303,7 @@ export function Pos2CheckoutDialog({
                                             onClick={() => setMethod(option.value)}
                                         >
                                             <Icon />
-                                            {option.label}
+                                            {t(option.label)}
                                         </Chip>
                                     );
                                 })}
@@ -308,7 +314,7 @@ export function Pos2CheckoutDialog({
                         {method === 'especes' && (
                             <div className="space-y-2 rounded-md border border-tint/[0.07] bg-tint/[0.02] p-3">
                                 <div className="flex items-center justify-between gap-3">
-                                    <Label className="text-xs text-muted-foreground">Montant reçu</Label>
+                                    <Label className="text-xs text-muted-foreground">{t('Montant reçu')}</Label>
                                     <div className="flex items-center gap-1.5">
                                         {[total, Math.ceil(total / 50) * 50, Math.ceil(total / 100) * 100]
                                             .filter((value, index, all) => value > 0 && all.indexOf(value) === index)
@@ -323,7 +329,7 @@ export function Pos2CheckoutDialog({
                                     inputMode="decimal"
                                     value={received}
                                     onChange={(event) => setReceived(event.target.value)}
-                                    placeholder="Montant remis par le client"
+                                    placeholder={t('Montant remis par le client')}
                                     className="h-11 text-right text-base tabular-nums"
                                     autoFocus
                                 />
@@ -335,8 +341,8 @@ export function Pos2CheckoutDialog({
                                         )}
                                     >
                                         {change !== null
-                                            ? `À rendre : ${formatCurrency(change)}`
-                                            : 'Montant insuffisant'}
+                                            ? t('À rendre : {x}', { x: formatCurrency(change) })
+                                            : t('Montant insuffisant')}
                                     </p>
                                 )}
                             </div>
@@ -361,7 +367,7 @@ export function Pos2CheckoutDialog({
                                                         )
                                                     }
                                                 >
-                                                    {tender.label}
+                                                    {t(tender.label)}
                                                 </Chip>
                                             ))}
                                         </div>
@@ -386,7 +392,7 @@ export function Pos2CheckoutDialog({
                                         }
                                     >
                                         <Plus />
-                                        Ajouter un moyen
+                                        {t('Ajouter un moyen')}
                                     </Button>
                                     <p
                                         className={cn(
@@ -394,7 +400,7 @@ export function Pos2CheckoutDialog({
                                             Math.abs(breakdownRest) <= 0.01 ? 'text-success' : 'text-destructive',
                                         )}
                                     >
-                                        Reste : {formatCurrency(breakdownRest)}
+                                        {t('Reste : {x}', { x: formatCurrency(breakdownRest) })}
                                     </p>
                                 </div>
                             </div>
@@ -405,7 +411,7 @@ export function Pos2CheckoutDialog({
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between">
                                     <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                        Pourboires — employés de cette facture
+                                        {t('Pourboires — employés de cette facture')}
                                     </Label>
                                     {tipsTotal > 0 && (
                                         <span className="text-xs font-semibold tabular-nums text-success">
@@ -463,7 +469,7 @@ export function Pos2CheckoutDialog({
                                                             placeholder="0"
                                                             className="h-9 w-20 text-right tabular-nums"
                                                         />
-                                                        <span className="mr-1 text-xs text-muted-foreground">MAD</span>
+                                                        <span className="mr-1 text-xs text-muted-foreground">{t('MAD')}</span>
                                                         {TIP_PRESETS.map((preset) => (
                                                             <Chip
                                                                 key={preset}
@@ -482,7 +488,7 @@ export function Pos2CheckoutDialog({
                                                                 }
                                                             >
                                                                 <X className="h-3.5 w-3.5" />
-                                                                <span className="sr-only">Effacer</span>
+                                                                <span className="sr-only">{t('Effacer')}</span>
                                                             </button>
                                                         )}
                                                         {employee.lines.length > 1 && (
@@ -496,7 +502,7 @@ export function Pos2CheckoutDialog({
                                                                     }))
                                                                 }
                                                             >
-                                                                Détailler par service
+                                                                {t('Détailler par service')}
                                                             </button>
                                                         )}
                                                     </div>
@@ -535,7 +541,7 @@ export function Pos2CheckoutDialog({
                                                                 }))
                                                             }
                                                         >
-                                                            Revenir au pourboire global
+                                                            {t('Revenir au pourboire global')}
                                                         </button>
                                                     </div>
                                                 )}
@@ -546,8 +552,10 @@ export function Pos2CheckoutDialog({
 
                                 {tipsTotal > 0 && (
                                     <p className="text-[11px] text-muted-foreground">
-                                        Total pourboires {formatCurrency(tipsTotal)} — remis directement aux employés,
-                                        hors total à encaisser.
+                                        {t(
+                                            'Total pourboires {x} — remis directement aux employés, hors total à encaisser.',
+                                            { x: formatCurrency(tipsTotal) },
+                                        )}
                                     </p>
                                 )}
                             </div>
@@ -568,7 +576,7 @@ export function Pos2CheckoutDialog({
                             onClick={submit}
                         >
                             {submitting ? <Loader2 className="animate-spin" /> : <Banknote />}
-                            VALIDER — {formatCurrency(total)}
+                            {t('VALIDER — {x}', { x: formatCurrency(total) })}
                         </Button>
                     </>
             </DialogContent>

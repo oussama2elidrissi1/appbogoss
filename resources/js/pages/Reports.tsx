@@ -13,6 +13,7 @@ import {
 } from '@/lib/api';
 import { cn, formatCurrency, formatDayLabel, formatTime } from '@/lib/utils';
 import { pageFade } from '@/lib/motion';
+import { useI18n } from '@/lib/i18n';
 import { printSaleReceipt, type TicketFormat } from '@/lib/receipt';
 import type { ClosingReport, RevenueByEmployee, Sale, WorkDay } from '@/types/workday';
 import { Badge } from '@/components/ui/badge';
@@ -52,10 +53,11 @@ function clientName(sale: Sale): string {
 }
 
 function ReportStat({ label, value }: { label: string; value: string }) {
+    const { t } = useI18n();
     return (
         <div className="rounded-md border border-tint/[0.06] bg-tint/[0.025] px-3 py-2.5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                {label}
+                {t(label)}
             </p>
             <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{value}</p>
         </div>
@@ -68,6 +70,7 @@ function monthValue(): string {
 }
 
 function MonthlyReportPanel({ month }: { month: string }) {
+    const { t } = useI18n();
     const { data: report, isPending, isError, error } = useQuery({
         queryKey: ['reports', 'monthly', month],
         queryFn: () => getMonthlyReport(month),
@@ -81,7 +84,7 @@ function MonthlyReportPanel({ month }: { month: string }) {
     if (isError || !report) {
         return (
             <Card className="border-destructive/25 bg-destructive/[0.04] p-5 text-sm text-destructive">
-                {getErrorMessage(error, 'Impossible de charger le rapport mensuel.')}
+                {getErrorMessage(error, t('Impossible de charger le rapport mensuel.'))}
             </Card>
         );
     }
@@ -97,14 +100,14 @@ function MonthlyReportPanel({ month }: { month: string }) {
         <Card>
             <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
                 <div>
-                    <CardTitle>Rapport du mois</CardTitle>
+                    <CardTitle>{t('Rapport du mois')}</CardTitle>
                     <p className="mt-1 text-sm text-muted-foreground">
-                        Du {formatDayLabel(report.period.start)} au {formatDayLabel(report.period.end)}
+                        {t('Du {start} au {end}', { start: formatDayLabel(report.period.start), end: formatDayLabel(report.period.end) })}
                     </p>
                 </div>
                 <Button asChild variant="outline" size="sm">
                     <a href={getMonthlyReportPdfUrl(month)} target="_blank" rel="noreferrer">
-                        <Download /> PDF mensuel
+                        <Download /> {t('PDF mensuel')}
                     </a>
                 </Button>
             </CardHeader>

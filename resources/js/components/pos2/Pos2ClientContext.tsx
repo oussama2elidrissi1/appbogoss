@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, BadgeCheck, ChevronDown, Gift, HandCoins, Loader2, Star } from 'lucide-react';
 import { getErrorMessage } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { pos2Keys, recordPos2SubscriptionPayment } from '@/lib/pos2Api';
 import { cn, formatCurrency } from '@/lib/utils';
 import type { Pos2ClientContext as ContextData, Pos2SubscriptionInfo, Pos2SubscriptionServiceInfo } from '@/types/pos2';
@@ -29,6 +30,8 @@ export function Pos2ClientContext({
     onUseSubscriptionService,
     onUseReward,
 }: Pos2ClientContextProps) {
+    const { t } = useI18n();
+
     if (context.subscriptions.length === 0 && context.rewards.length === 0 && context.points_balance <= 0) {
         return null;
     }
@@ -38,7 +41,7 @@ export function Pos2ClientContext({
             {context.points_balance > 0 && (
                 <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Star className="h-3.5 w-3.5 text-accent" />
-                    {context.points_balance} points fidélité
+                    {context.points_balance} {t('points fidélité')}
                 </p>
             )}
 
@@ -56,7 +59,7 @@ export function Pos2ClientContext({
                 <div className="rounded-md border border-accent/25 bg-accent/[0.05] p-3">
                     <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-accent">
                         <Gift className="h-3.5 w-3.5" />
-                        Récompenses disponibles
+                        {t('Récompenses disponibles')}
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                         {context.rewards.map((reward) => (
@@ -67,7 +70,7 @@ export function Pos2ClientContext({
                                 onClick={() => onUseReward(reward.id, reward.service_id)}
                             >
                                 <Gift />
-                                {reward.service_name ?? reward.program_name ?? 'Récompense'}
+                                {reward.service_name ?? reward.program_name ?? t('Récompense')}
                             </Chip>
                         ))}
                     </div>
@@ -88,6 +91,7 @@ function SubscriptionCard({
     busy: boolean;
     onUseService: (service: Pos2SubscriptionServiceInfo) => void;
 }) {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const [expanded, setExpanded] = useState(true);
     const [collecting, setCollecting] = useState(false);
@@ -133,11 +137,15 @@ function SubscriptionCard({
                 <span className="inline-flex min-w-0 items-center gap-1.5">
                     <BadgeCheck className={cn('h-4 w-4 shrink-0', subscription.usable ? 'text-success' : 'text-destructive')} />
                     <span className="truncate text-sm font-semibold text-foreground">
-                        {subscription.plan_name ?? 'Abonnement'}
+                        {subscription.plan_name ?? t('Abonnement')}
                     </span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
-                    {endsOn && <span className="text-[11px] text-muted-foreground">jusqu'au {endsOn}</span>}
+                    {endsOn && (
+                        <span className="text-[11px] text-muted-foreground">
+                            {t("jusqu'au {date}", { date: endsOn })}
+                        </span>
+                    )}
                     <ChevronDown
                         className={cn('h-4 w-4 text-muted-foreground transition-transform', expanded && 'rotate-180')}
                     />
@@ -156,7 +164,10 @@ function SubscriptionCard({
                     {(subscription.rules.time_start || subscription.rules.allowed_days.length > 0) && (
                         <p className="text-[11px] text-muted-foreground">
                             {subscription.rules.time_start && subscription.rules.time_end
-                                ? `Horaires : ${subscription.rules.time_start} – ${subscription.rules.time_end}`
+                                ? t('Horaires : {a} – {b}', {
+                                      a: subscription.rules.time_start,
+                                      b: subscription.rules.time_end,
+                                  })
                                 : null}
                         </p>
                     )}
@@ -170,17 +181,17 @@ function SubscriptionCard({
                                 <li key={service.subscription_plan_service_id} className="flex items-center justify-between gap-2">
                                     <div className="min-w-0">
                                         <p className="truncate text-xs font-medium text-foreground">
-                                            {service.service_name ?? 'Service'}
+                                            {service.service_name ?? t('Service')}
                                         </p>
                                         <p className="text-[11px] text-muted-foreground">
                                             {service.unlimited
-                                                ? 'Illimité'
+                                                ? t('Illimité')
                                                 : [
                                                       service.period_remaining !== null
-                                                          ? `${service.period_remaining} restante(s) / période`
+                                                          ? t('{n} restante(s) / période', { n: service.period_remaining })
                                                           : null,
                                                       service.total_remaining !== null
-                                                          ? `${service.total_remaining} au total`
+                                                          ? t('{n} au total', { n: service.total_remaining })
                                                           : null,
                                                   ]
                                                       .filter(Boolean)
@@ -195,7 +206,7 @@ function SubscriptionCard({
                                         disabled={busy || !subscription.usable || exhausted}
                                         onClick={() => onUseService(service)}
                                     >
-                                        Utiliser une visite
+                                        {t('Utiliser une visite')}
                                     </Button>
                                 </li>
                             );
@@ -207,15 +218,17 @@ function SubscriptionCard({
                         <div className="rounded-sm border border-tint/[0.08] bg-tint/[0.03] p-2.5">
                             <div className="flex items-center justify-between text-xs">
                                 <span className="text-muted-foreground">
-                                    Payé {formatCurrency(subscription.payment.paid)} /{' '}
-                                    {formatCurrency(subscription.payment.total)}
+                                    {t('Payé {a} / {b}', {
+                                        a: formatCurrency(subscription.payment.paid),
+                                        b: formatCurrency(subscription.payment.total ?? 0),
+                                    })}
                                 </span>
                                 {hasBalance ? (
                                     <span className="font-semibold text-destructive">
-                                        Reste {formatCurrency(remaining)}
+                                        {t('Reste {x}', { x: formatCurrency(remaining) })}
                                     </span>
                                 ) : (
-                                    <span className="font-medium text-success">Soldé</span>
+                                    <span className="font-medium text-success">{t('Soldé')}</span>
                                 )}
                             </div>
 
@@ -228,7 +241,7 @@ function SubscriptionCard({
                                                     inputMode="decimal"
                                                     value={amount}
                                                     onChange={(event) => setAmount(event.target.value)}
-                                                    placeholder={`max ${remaining}`}
+                                                    placeholder={t('max {x}', { x: remaining ?? 0 })}
                                                     className="h-9 text-right tabular-nums"
                                                     autoFocus
                                                 />
@@ -240,7 +253,7 @@ function SubscriptionCard({
                                                             selected={method === value}
                                                             onClick={() => setMethod(value)}
                                                         >
-                                                            {value === 'especes' ? 'Espèces' : 'Carte'}
+                                                            {t(value === 'especes' ? 'Espèces' : 'Carte')}
                                                         </Chip>
                                                     ))}
                                                 </div>
@@ -257,7 +270,7 @@ function SubscriptionCard({
                                                     size="sm"
                                                     onClick={() => setCollecting(false)}
                                                 >
-                                                    Annuler
+                                                    {t('Annuler')}
                                                 </Button>
                                                 <Button
                                                     type="button"
@@ -267,7 +280,7 @@ function SubscriptionCard({
                                                     onClick={() => payMutation.mutate()}
                                                 >
                                                     {payMutation.isPending && <Loader2 className="animate-spin" />}
-                                                    Encaisser le versement
+                                                    {t('Encaisser le versement')}
                                                 </Button>
                                             </div>
                                         </div>
@@ -280,7 +293,7 @@ function SubscriptionCard({
                                             onClick={() => setCollecting(true)}
                                         >
                                             <HandCoins />
-                                            Encaisser un versement
+                                            {t('Encaisser un versement')}
                                         </Button>
                                     )}
                                 </div>

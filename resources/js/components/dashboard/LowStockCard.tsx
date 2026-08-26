@@ -1,18 +1,20 @@
 import { PackageCheck } from 'lucide-react';
 import type { LowStockProduct } from '@/types/dashboard';
+import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from './EmptyState';
 
 export function LowStockCard({ products }: { products: LowStockProduct[] }) {
+    const { t } = useI18n();
     return (
         <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">
                 <div>
-                    <CardTitle>Stock faible</CardTitle>
+                    <CardTitle>{t('Stock faible')}</CardTitle>
                     <p className="mt-1.5 text-sm text-muted-foreground">
-                        Produits sous le seuil d’alerte
+                        {t('Produits sous le seuil d’alerte')}
                     </p>
                 </div>
                 {products.length > 0 && (
@@ -24,8 +26,8 @@ export function LowStockCard({ products }: { products: LowStockProduct[] }) {
                 {products.length === 0 ? (
                     <EmptyState
                         icon={PackageCheck}
-                        title="Stock au vert"
-                        description="Tous les produits sont au-dessus de leur seuil d’alerte."
+                        title={t('Stock au vert')}
+                        description={t('Tous les produits sont au-dessus de leur seuil d’alerte.')}
                     />
                 ) : (
                     <ul className="space-y-4">
@@ -65,7 +67,7 @@ export function LowStockCard({ products }: { products: LowStockProduct[] }) {
                                         aria-valuenow={product.stock_quantity}
                                         aria-valuemin={0}
                                         aria-valuemax={product.low_stock_threshold}
-                                        aria-label={`Stock de ${product.name}`}
+                                        aria-label={t('Stock de {name}', { name: product.name })}
                                     >
                                         <div
                                             className={cn(

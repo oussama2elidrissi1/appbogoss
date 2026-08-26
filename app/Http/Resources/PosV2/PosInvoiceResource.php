@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\PosV2;
 
+use App\Models\Prestation;
 use App\Models\Tip;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -14,6 +15,14 @@ class PosInvoiceResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        if (
+            $this->resource->relationLoaded('items')
+            && $this->channel !== Prestation::CHANNEL_CAISSE_V2
+            && $this->resource->relationLoaded('employee')
+        ) {
+            $this->items->each(fn ($item) => $item->setRelation('prestation', $this->resource));
+        }
+
         $lineDiscounts = $this->whenLoaded(
             'items',
             fn () => round((float) $this->items->sum(
@@ -37,6 +46,7 @@ class PosInvoiceResource extends JsonResource
             'client_avatar_color' => $this->client?->avatar_color,
             'is_walk_in' => $this->client_id === null,
             'employee_id' => $this->employee_id,
+            'employee_name' => $this->whenLoaded('employee', fn () => $this->employee?->name),
             'subtotal' => (float) $this->subtotal,
             'line_discounts_total' => $lineDiscounts,
             'discount_amount' => $this->discount_amount !== null ? (float) $this->discount_amount : null,
@@ -61,16 +71,22 @@ class PosInvoiceResource extends JsonResource
             'print_count' => (int) $this->print_count,
             'items_count' => $this->whenLoaded('items', fn () => $this->items->count()),
             'items' => PosInvoiceLineResource::collection($this->whenLoaded('items')),
-            'employees' => $this->whenLoaded('items', fn () => $this->items
-                ->map(fn ($item) => $item->employee)
-                ->filter()
-                ->unique('id')
-                ->map(fn ($employee) => [
-                    'id' => $employee->id,
-                    'name' => $employee->name,
-                    'avatar_color' => $employee->avatar_color,
-                ])
-                ->values()),
+            'employees' => $this->whenLoaded('items', function () {
+                $employees = $this->items->map(fn ($item) => $item->employee)->filter();
+
+                if ($employees->isEmpty() && $this->channel !== Prestation::CHANNEL_CAISSE_V2 && $this->employee !== null) {
+                    $employees = collect([$this->employee]);
+                }
+
+                return $employees
+                    ->unique('id')
+                    ->map(fn ($employee) => [
+                        'id' => $employee->id,
+                        'name' => $employee->name,
+                        'avatar_color' => $employee->avatar_color,
+                    ])
+                    ->values();
+            }),
             'tips' => $this->whenLoaded('tips', fn () => $this->tips->map(fn (Tip $tip) => [
                 'id' => $tip->id,
                 'employee_id' => $tip->employee_id,

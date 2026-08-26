@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/hooks/useAuth';
 import { PortalAuthProvider } from '@/hooks/usePortalAuth';
 import { ThemeProvider } from '@/hooks/useTheme';
+import { I18nProvider } from '@/lib/i18n';
 import App from '@/App';
 import '../css/app.css';
 
@@ -26,6 +27,7 @@ if (!container) {
 
 createRoot(container).render(
     <StrictMode>
+        <I18nProvider>
         <ThemeProvider>
             <BrowserRouter>
                 <QueryClientProvider client={queryClient}>
@@ -37,5 +39,6 @@ createRoot(container).render(
                 </QueryClientProvider>
             </BrowserRouter>
         </ThemeProvider>
+        </I18nProvider>
     </StrictMode>,
 );

@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { ArrowRight, HandCoins, Receipt, TrendingUp, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { ActiveDaySummary } from '@/types/dashboard';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDayLabel } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -41,13 +42,14 @@ function Figure({
 
 /** Live mirror of the open work day. Rendered only when `active_day` is present. */
 export function ActiveDayCard({ day }: { day: ActiveDaySummary }) {
+    const { t } = useI18n();
     return (
         <Card className="relative overflow-hidden">
             <span className="pointer-events-none absolute inset-0 bg-gradient-to-br from-accent/[0.07] via-transparent to-transparent" />
 
             <CardHeader>
                 <div className="flex items-center justify-between gap-3">
-                    <CardTitle>Journée en cours</CardTitle>
+                    <CardTitle>{t('Journée en cours')}</CardTitle>
                     <Badge variant="success" className="gap-1.5">
                         <motion.span
                             aria-hidden
@@ -55,12 +57,13 @@ export function ActiveDayCard({ day }: { day: ActiveDaySummary }) {
                             animate={{ opacity: [1, 0.25, 1] }}
                             transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
                         />
-                        Ouverte
+                        {t('Ouverte')}
                     </Badge>
                 </div>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                    {formatDayLabel(day.date)} · {day.employees_present} employé
-                    {day.employees_present > 1 ? 's' : ''} en service · fond de caisse{' '}
+                    {formatDayLabel(day.date)} · {day.employees_present}{' '}
+                    {day.employees_present > 1 ? t('employés') : t('employé')} {t('en service')} ·{' '}
+                    {t('fond de caisse')}{' '}
                     {formatCurrency(day.opening_balance, { maximumFractionDigits: 2 })}
                 </p>
             </CardHeader>
@@ -76,25 +79,25 @@ export function ActiveDayCard({ day }: { day: ActiveDaySummary }) {
                 <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
                     <Figure
                         icon={Wallet}
-                        label="Encaissé"
+                        label={t('Encaissé')}
                         value={formatCurrency(day.revenue_so_far, { maximumFractionDigits: 2 })}
                         tone="accent"
                     />
                     <Figure
                         icon={Receipt}
-                        label="Dépenses"
+                        label={t('Dépenses')}
                         value={formatCurrency(day.expenses_so_far, { maximumFractionDigits: 2 })}
                         tone="destructive"
                     />
                     <Figure
                         icon={HandCoins}
-                        label="Avances"
+                        label={t('Avances')}
                         value={formatCurrency(day.advances_so_far, { maximumFractionDigits: 2 })}
                         tone="destructive"
                     />
                     <Figure
                         icon={TrendingUp}
-                        label="Montant de la caisse"
+                        label={t('Montant de la caisse')}
                         value={formatCurrency(day.cash_on_hand, { maximumFractionDigits: 2 })}
                         tone={day.cash_on_hand >= 0 ? 'success' : 'destructive'}
                     />
@@ -102,7 +105,7 @@ export function ActiveDayCard({ day }: { day: ActiveDaySummary }) {
 
                 <Button asChild variant="outline" className="mt-4 w-full sm:w-auto">
                     <Link to="/pos">
-                        Ouvrir la caisse
+                        {t('Ouvrir la caisse')}
                         <ArrowRight />
                     </Link>
                 </Button>

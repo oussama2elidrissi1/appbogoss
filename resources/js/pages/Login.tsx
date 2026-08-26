@@ -24,6 +24,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { usePortalAuth } from '@/hooks/usePortalAuth';
 import { getErrorMessage, loginClient } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 /* ------------------------------------------------------------------ */
@@ -257,6 +258,7 @@ const TOP_SERVICES = [
 ];
 
 function DashboardMockup({ animate }: { animate: boolean }) {
+    const { t } = useI18n();
     const revenue = useCountUp(15870, { delay: 700, enabled: animate });
     const bookings = useCountUp(24, { delay: 900, duration: 1100, enabled: animate });
 
@@ -276,7 +278,7 @@ function DashboardMockup({ animate }: { animate: boolean }) {
                 </div>
                 <span className="ml-auto flex items-center gap-1 rounded-full border border-white/[0.07] bg-white/[0.03] px-2 py-0.5 text-[8px] font-medium text-white/50">
                     <span className="h-1 w-1 rounded-full bg-emerald-400" />
-                    En direct
+                    {t('En direct')}
                 </span>
             </div>
 
@@ -284,7 +286,7 @@ function DashboardMockup({ animate }: { animate: boolean }) {
             <div className="mt-3 grid grid-cols-2 gap-2">
                 <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
                     <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-white/40">
-                        Chiffre d'affaires
+                        {t("Chiffre d'affaires")}
                     </p>
                     <p className="mt-1 text-lg font-bold tabular-nums text-[#F2EDE3]">
                         {revenue.toLocaleString('fr-FR')} <span className="text-[10px] font-semibold" style={{ color: GOLD }}>DH</span>
@@ -296,7 +298,7 @@ function DashboardMockup({ animate }: { animate: boolean }) {
                 </div>
                 <div className="rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
                     <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-white/40">
-                        Rendez-vous aujourd'hui
+                        {t("Rendez-vous aujourd'hui")}
                     </p>
                     <p className="mt-1 text-lg font-bold tabular-nums text-[#F2EDE3]">{bookings}</p>
                     <p className="mt-0.5 flex items-center gap-1 text-[9px] font-semibold text-emerald-400">
@@ -309,7 +311,7 @@ function DashboardMockup({ animate }: { animate: boolean }) {
             {/* Chart */}
             <div className="mt-2 rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
                 <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-white/40">
-                    Performance équipe
+                    {t('Performance équipe')}
                 </p>
                 <svg viewBox="0 0 250 82" className="mt-1.5 w-full">
                     <defs>
@@ -355,7 +357,7 @@ function DashboardMockup({ animate }: { animate: boolean }) {
                 </svg>
                 <div className="flex justify-between px-1 text-[7px] font-medium tracking-[0.1em] text-white/30">
                     {DAYS.map((day) => (
-                        <span key={day}>{day}</span>
+                        <span key={day}>{t(day)}</span>
                     ))}
                 </div>
             </div>
@@ -363,12 +365,12 @@ function DashboardMockup({ animate }: { animate: boolean }) {
             {/* Top services */}
             <div className="mt-2 rounded-xl border border-white/[0.07] bg-white/[0.03] p-3">
                 <p className="text-[8px] font-semibold uppercase tracking-[0.14em] text-white/40">
-                    Services populaires
+                    {t('Services populaires')}
                 </p>
                 <div className="mt-2 space-y-2">
                     {TOP_SERVICES.map((service, index) => (
                         <div key={service.name} className="flex items-center gap-2.5">
-                            <span className="w-20 truncate text-[9px] text-white/55">{service.name}</span>
+                            <span className="w-20 truncate text-[9px] text-white/55">{t(service.name)}</span>
                             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.06]">
                                 <motion.div
                                     className="h-full origin-left rounded-full"

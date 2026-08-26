@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, BadgeCheck, ChevronDown, Minus, Plus, Trash2, UserRound } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 import { eligibleEmployeesForLine } from '@/lib/pos2Eligibility';
 import { cn, formatCurrency } from '@/lib/utils';
 import type { Employee } from '@/types/workday';
@@ -35,6 +36,7 @@ interface Pos2LineRowProps {
  * row expands the inline editor (quantité, prix, remise, bénéficiaire).
  */
 export function Pos2LineRow({ line, employees, editable, canDiscount, busy, onUpdate, onRemove }: Pos2LineRowProps) {
+    const { t } = useI18n();
     const [expanded, setExpanded] = useState(false);
     const [priceDraft, setPriceDraft] = useState<string | null>(null);
     const [discountDraft, setDiscountDraft] = useState<string | null>(null);
@@ -103,23 +105,27 @@ export function Pos2LineRow({ line, employees, editable, canDiscount, busy, onUp
                         <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                             {isProduct && (
                                 <span className="font-medium text-rose-600 dark:text-rose-300">
-                                    Produit · {line.category === 'boisson' ? 'Réfrigérateur' : 'Vitrine'}
+                                    {t(line.category === 'boisson' ? 'Produit · Réfrigérateur' : 'Produit · Vitrine')}
                                 </span>
                             )}
-                            {line.duration_minutes ? <span>{line.duration_minutes} min</span> : null}
+                            {line.duration_minutes ? <span>{line.duration_minutes} {t('min')}</span> : null}
                             {line.beneficiary_name && <span>· {line.beneficiary_name}</span>}
                             {line.is_free && (
                                 <span className="inline-flex items-center gap-1 text-success">
                                     <BadgeCheck className="h-3 w-3" />
-                                    Abonnement
+                                    {t('Abonnement')}
                                 </span>
                             )}
-                            {discount > 0 && <span className="text-accent">Remise −{formatCurrency(discount)}</span>}
+                            {discount > 0 && (
+                                <span className="text-accent">{t('Remise −{x}', { x: formatCurrency(discount) })}</span>
+                            )}
                             {(line.commission_amount ?? line.estimated_commission) != null && (
                                 <span className="font-medium text-accent">
-                                    Commission {formatCurrency(line.commission_amount ?? line.estimated_commission ?? 0)}
+                                    {t('Commission {x}', {
+                                        x: formatCurrency(line.commission_amount ?? line.estimated_commission ?? 0),
+                                    })}
                                     {line.commission_amount == null && (
-                                        <span className="font-normal text-muted-foreground"> (est.)</span>
+                                        <span className="font-normal text-muted-foreground"> {t('(est.)')}</span>
                                     )}
                                 </span>
                             )}
@@ -168,16 +174,16 @@ export function Pos2LineRow({ line, employees, editable, canDiscount, busy, onUp
                                         missingEmployee && 'border-destructive/50 text-destructive',
                                     )}
                                 >
-                                    <SelectValue placeholder="Choisir un employé" />
+                                    <SelectValue placeholder={t('Choisir un employé')} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {missingEmployee && (
                                         <SelectItem value={NONE} disabled>
-                                            Choisir un employé
+                                            {t('Choisir un employé')}
                                         </SelectItem>
                                     )}
                                     {!requiresEmployee && (
-                                        <SelectItem value={NONE}>Aucun employé</SelectItem>
+                                        <SelectItem value={NONE}>{t('Aucun employé')}</SelectItem>
                                     )}
                                     {eligible.map((employee) => (
                                         <SelectItem key={employee.id} value={String(employee.id)}>
@@ -186,7 +192,7 @@ export function Pos2LineRow({ line, employees, editable, canDiscount, busy, onUp
                                     ))}
                                     {!assignedIsEligible && line.employee_id !== null && (
                                         <SelectItem value={String(line.employee_id)}>
-                                            {line.employee_name ?? `Employé #${line.employee_id}`} (non autorisé)
+                                            {line.employee_name ?? `#${line.employee_id}`} {t('(non autorisé)')}
                                         </SelectItem>
                                     )}
                                 </SelectContent>
@@ -197,18 +203,18 @@ export function Pos2LineRow({ line, employees, editable, canDiscount, busy, onUp
                         {missingEmployee && (
                             <span className="inline-flex items-center gap-1 text-[11px] font-medium text-destructive">
                                 <AlertTriangle className="h-3 w-3" />
-                                Employé manquant
+                                {t('Employé manquant')}
                             </span>
                         )}
                         {!assignedIsEligible && line.employee_id !== null && (
                             <span className="inline-flex items-center gap-1 text-[11px] font-medium text-destructive">
                                 <AlertTriangle className="h-3 w-3" />
-                                Non autorisé pour ce service
+                                {t('Non autorisé pour ce service')}
                             </span>
                         )}
                         {eligible.length === 0 && requiresEmployee && line.employee_id === null && (
                             <span className="text-[11px] text-muted-foreground">
-                                Aucun employé autorisé — vérifiez les compétences dans la fiche employé.
+                                {t('Aucun employé autorisé — vérifiez les compétences dans la fiche employé.')}
                             </span>
                         )}
                     </div>
@@ -230,7 +236,7 @@ export function Pos2LineRow({ line, employees, editable, canDiscount, busy, onUp
                                     <>
                                         <div className="space-y-1">
                                             <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                                Quantité
+                                                {t('Quantité')}
                                             </Label>
                                             <div className="flex items-center gap-1">
                                                 <Button
@@ -260,7 +266,7 @@ export function Pos2LineRow({ line, employees, editable, canDiscount, busy, onUp
                                         </div>
                                         <div className="w-24 space-y-1">
                                             <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                                Prix (MAD)
+                                                {t('Prix (MAD)')}
                                             </Label>
                                             <Input
                                                 inputMode="decimal"
@@ -275,7 +281,7 @@ export function Pos2LineRow({ line, employees, editable, canDiscount, busy, onUp
                                         {canDiscount && (
                                             <div className="w-24 space-y-1">
                                                 <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                                    Remise (MAD)
+                                                    {t('Remise (MAD)')}
                                                 </Label>
                                                 <Input
                                                     inputMode="decimal"
@@ -293,11 +299,11 @@ export function Pos2LineRow({ line, employees, editable, canDiscount, busy, onUp
                                 )}
                                 <div className="w-36 space-y-1">
                                     <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                                        Bénéficiaire
+                                        {t('Bénéficiaire')}
                                     </Label>
                                     <Input
                                         className="h-9"
-                                        placeholder="ex. Yassine"
+                                        placeholder={t('ex. Yassine')}
                                         value={beneficiaryDraft ?? (line.beneficiary_name ?? '')}
                                         onChange={(event) => setBeneficiaryDraft(event.target.value)}
                                         onBlur={commitBeneficiary}
@@ -317,7 +323,7 @@ export function Pos2LineRow({ line, employees, editable, canDiscount, busy, onUp
                                     onClick={() => onRemove(line.id)}
                                 >
                                     <Trash2 />
-                                    Supprimer la ligne
+                                    {t('Supprimer la ligne')}
                                 </Button>
                             </div>
                         </div>

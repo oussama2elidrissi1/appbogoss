@@ -1,5 +1,6 @@
 import { CalendarClock, Inbox, Receipt, UserPlus } from 'lucide-react';
 import type { ActivityItem, ActivityType } from '@/types/dashboard';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatRelativeTime } from '@/lib/utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from './EmptyState';
@@ -29,12 +30,13 @@ const typeConfig: Record<
 };
 
 export function RecentActivityCard({ items }: { items: ActivityItem[] }) {
+    const { t } = useI18n();
     return (
         <Card className="h-full">
             <CardHeader>
-                <CardTitle>Activité récente</CardTitle>
+                <CardTitle>{t('Activité récente')}</CardTitle>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                    Les derniers mouvements du salon
+                    {t('Les derniers mouvements du salon')}
                 </p>
             </CardHeader>
 
@@ -42,8 +44,8 @@ export function RecentActivityCard({ items }: { items: ActivityItem[] }) {
                 {items.length === 0 ? (
                     <EmptyState
                         icon={Inbox}
-                        title="Rien à signaler"
-                        description="L’activité du salon s’affichera ici au fil de la journée."
+                        title={t('Rien à signaler')}
+                        description={t('L’activité du salon s’affichera ici au fil de la journée.')}
                     />
                 ) : (
                     <ol className="relative space-y-5">

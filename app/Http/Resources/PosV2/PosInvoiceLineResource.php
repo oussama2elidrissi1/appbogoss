@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\PosV2;
 
+use App\Models\Prestation;
 use App\Services\CommissionResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -37,6 +38,16 @@ class PosInvoiceLineResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $employee = $this->employee;
+
+        if (
+            $employee === null
+            && $this->resource->relationLoaded('prestation')
+            && $this->prestation?->channel !== Prestation::CHANNEL_CAISSE_V2
+        ) {
+            $employee = $this->prestation?->employee;
+        }
+
         return [
             'id' => $this->id,
             'service_id' => $this->service_id,
@@ -54,9 +65,9 @@ class PosInvoiceLineResource extends JsonResource
             'discount_reason' => $this->discount_reason,
             'line_total' => $this->lineTotal(),
             'effective_line_total' => $this->effectiveLineTotal(),
-            'employee_id' => $this->employee_id,
-            'employee_name' => $this->employee?->name,
-            'employee_avatar_color' => $this->employee?->avatar_color,
+            'employee_id' => $this->employee_id ?? $employee?->id,
+            'employee_name' => $employee?->name,
+            'employee_avatar_color' => $employee?->avatar_color,
             'beneficiary_name' => $this->beneficiary_name,
             'duration_minutes' => $this->duration_minutes,
             'notes' => $this->notes,

@@ -10,6 +10,7 @@ import {
     setSupportConversationStatus,
 } from '@/lib/api';
 import { cn, formatRelativeTime } from '@/lib/utils';
+import { useI18n } from '@/lib/i18n';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -49,6 +50,7 @@ export default function SupportInbox() {
 }
 
 function InboxList({ onSelect }: { onSelect: (id: number) => void }) {
+    const { t } = useI18n();
     const [statusFilter, setStatusFilter] = useState<SupportConversationStatus | 'all'>('all');
 
     const { data: conversations, isPending, isError, error } = useQuery({
@@ -65,8 +67,8 @@ function InboxList({ onSelect }: { onSelect: (id: number) => void }) {
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-6">
             <div>
-                <h1 className="text-2xl font-semibold tracking-tight">Support</h1>
-                <p className="mt-1.5 text-sm text-muted-foreground">Conversations avec les partenaires.</p>
+                <h1 className="text-2xl font-semibold tracking-tight">{t('Support')}</h1>
+                <p className="mt-1.5 text-sm text-muted-foreground">{t('Conversations avec les partenaires.')}</p>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -82,7 +84,7 @@ function InboxList({ onSelect }: { onSelect: (id: number) => void }) {
                                 : 'border-tint/[0.08] bg-tint/[0.02] text-muted-foreground hover:border-accent/30 hover:text-foreground',
                         )}
                     >
-                        {filter.label}
+                        {t(filter.label)}
                     </button>
                 ))}
             </div>
@@ -99,7 +101,7 @@ function InboxList({ onSelect }: { onSelect: (id: number) => void }) {
                     <p className="mt-2 text-sm text-destructive">{getErrorMessage(error)}</p>
                 </Card>
             ) : rows.length === 0 ? (
-                <EmptyState icon={MessageCircle} title="Aucune conversation" description="Rien à traiter pour le moment." />
+                <EmptyState icon={MessageCircle} title={t('Aucune conversation')} description={t('Rien à traiter pour le moment.')} />
             ) : (
                 <Card className="overflow-hidden">
                     <ul className="divide-y divide-tint/[0.06]">
@@ -121,13 +123,13 @@ function InboxList({ onSelect }: { onSelect: (id: number) => void }) {
                                                 )}
                                             </p>
                                             <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                                                {conversation.subject ?? 'Sans sujet'} —{' '}
+                                                {conversation.subject ?? t('Sans sujet')} —{' '}
                                                 {conversation.last_message_preview ?? '—'}
                                             </p>
                                         </div>
                                         <div className="flex shrink-0 flex-col items-end gap-1">
                                             <Badge variant={status.variant} className="text-[10px]">
-                                                {status.label}
+                                                {t(status.label)}
                                             </Badge>
                                             {conversation.last_message_at && (
                                                 <span className="text-[11px] text-muted-foreground">
@@ -147,6 +149,7 @@ function InboxList({ onSelect }: { onSelect: (id: number) => void }) {
 }
 
 function ThreadView({ id, onBack }: { id: number; onBack: () => void }) {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const [draft, setDraft] = useState('');
 
@@ -176,7 +179,7 @@ function ThreadView({ id, onBack }: { id: number; onBack: () => void }) {
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="flex flex-col gap-4">
             <div className="flex items-center gap-3">
-                <Button type="button" variant="ghost" size="icon" onClick={onBack} aria-label="Retour">
+                <Button type="button" variant="ghost" size="icon" onClick={onBack} aria-label={t('Retour')}>
                     <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div className="min-w-0 flex-1">
@@ -185,7 +188,7 @@ function ThreadView({ id, onBack }: { id: number; onBack: () => void }) {
                         {conversation?.partner_name ?? '…'}
                     </p>
                     <h1 className="truncate text-lg font-semibold text-foreground">
-                        {conversation?.subject ?? 'Conversation'}
+                        {conversation?.subject ?? t('Conversation')}
                     </h1>
                 </div>
                 {conversation && (
@@ -199,7 +202,7 @@ function ThreadView({ id, onBack }: { id: number; onBack: () => void }) {
                         <SelectContent>
                             {Object.entries(STATUS_META).map(([value, meta]) => (
                                 <SelectItem key={value} value={value}>
-                                    {meta.label}
+                                    {t(meta.label)}
                                 </SelectItem>
                             ))}
                         </SelectContent>

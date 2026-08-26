@@ -26,6 +26,7 @@ import {
     updateService,
 } from '@/lib/api';
 import { workDayKeys } from '@/hooks/useWorkDay';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency } from '@/lib/utils';
 import type { Product, ProductPayload, Service, ServicePayload } from '@/types/workday';
 import { Badge } from '@/components/ui/badge';
@@ -140,6 +141,7 @@ function productPayload(form: ProductFormState): ProductPayload {
 
 export default function Services() {
     const queryClient = useQueryClient();
+    const { t } = useI18n();
 
     const [mode, setMode] = useState<Mode>('services');
     const [serviceCategory, setServiceCategory] = useState('coiffure');

@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronLeft, LogOut, Scissors } from 'lucide-react';
 import { navSections, type NavItem } from '@/lib/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { useI18n } from '@/lib/i18n';
 import { useQuery } from '@tanstack/react-query';
 import { getSettings } from '@/lib/api';
 import { cn, getInitials } from '@/lib/utils';
@@ -24,6 +25,7 @@ export function Sidebar({ collapsed, onToggle, variant = 'desktop', onNavigate }
     const isMobile = variant === 'mobile';
     const isCollapsed = isMobile ? false : collapsed;
     const { user, logout, hasPermission } = useAuth();
+    const { t } = useI18n();
     const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings, staleTime: 5 * 60_000 });
     const location = useLocation();
 
@@ -90,7 +92,7 @@ export function Sidebar({ collapsed, onToggle, variant = 'desktop', onNavigate }
                                         transition={{ duration: 0.16 }}
                                         className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/60"
                                     >
-                                        {section.heading}
+                                        {t(section.heading)}
                                     </motion.p>
                                 )}
                             </AnimatePresence>
@@ -149,13 +151,13 @@ export function Sidebar({ collapsed, onToggle, variant = 'desktop', onNavigate }
                                 <button
                                     type="button"
                                     onClick={() => void logout()}
-                                    aria-label="Déconnexion"
+                                    aria-label={t('Déconnexion')}
                                     className="shrink-0 rounded-sm p-2 text-muted-foreground transition-colors duration-200 hover:bg-destructive/[0.12] hover:text-destructive"
                                 >
                                     <LogOut className="h-4 w-4" />
                                 </button>
                             </TooltipTrigger>
-                            <TooltipContent side="top">Déconnexion</TooltipContent>
+                            <TooltipContent side="top">{t('Déconnexion')}</TooltipContent>
                         </Tooltip>
                     )}
                 </div>
@@ -166,13 +168,13 @@ export function Sidebar({ collapsed, onToggle, variant = 'desktop', onNavigate }
                             <button
                                 type="button"
                                 onClick={() => void logout()}
-                                aria-label="Déconnexion"
+                                aria-label={t('Déconnexion')}
                                 className="mt-1 flex w-full items-center justify-center rounded-sm p-2 text-muted-foreground transition-colors duration-200 hover:bg-destructive/[0.12] hover:text-destructive"
                             >
                                 <LogOut className="h-4 w-4" />
                             </button>
                         </TooltipTrigger>
-                        <TooltipContent side="right">Déconnexion</TooltipContent>
+                        <TooltipContent side="right">{t('Déconnexion')}</TooltipContent>
                     </Tooltip>
                 )}
             </div>
@@ -213,6 +215,7 @@ function SidebarLink({
     onNavigate?: () => void;
 }) {
     const Icon = item.icon;
+    const { t } = useI18n();
 
     const link = (
         <NavLink
@@ -242,7 +245,7 @@ function SidebarLink({
                 )}
             />
 
-            {!collapsed && <span className="truncate">{item.label}</span>}
+            {!collapsed && <span className="truncate">{t(item.label)}</span>}
         </NavLink>
     );
 
@@ -251,7 +254,7 @@ function SidebarLink({
     return (
         <Tooltip>
             <TooltipTrigger asChild>{link}</TooltipTrigger>
-            <TooltipContent side="right">{item.label}</TooltipContent>
+            <TooltipContent side="right">{t(item.label)}</TooltipContent>
         </Tooltip>
     );
 }

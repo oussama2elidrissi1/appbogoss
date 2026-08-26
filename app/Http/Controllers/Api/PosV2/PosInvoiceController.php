@@ -48,7 +48,7 @@ class PosInvoiceController extends Controller
     public function show(Prestation $prestation): JsonResponse
     {
         $prestation->load([
-            'items.employee', 'items.service', 'client', 'confirmedBy', 'createdBy',
+            'employee', 'items.employee', 'items.service', 'items.product', 'client', 'confirmedBy', 'createdBy',
             'sale', 'statusLogs.user',
             'tips' => fn ($query) => $query->withTrashed()->with('employee'),
         ]);

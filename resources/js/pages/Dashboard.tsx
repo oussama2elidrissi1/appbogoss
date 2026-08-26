@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { getDashboard, getErrorMessage } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useI18n } from '@/lib/i18n';
 import { formatCurrency, formatNumber } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -47,6 +48,7 @@ function greeting(): string {
 }
 
 export default function Dashboard() {
+    const { t } = useI18n();
     const { user } = useAuth();
     const { data, isPending, isError, error, refetch } = useQuery({
         queryKey: ['dashboard'],
@@ -63,12 +65,12 @@ export default function Dashboard() {
                 <span className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/[0.12]">
                     <AlertCircle className="h-5 w-5 text-destructive" />
                 </span>
-                <h2 className="mt-4 text-base font-semibold">Impossible de charger le tableau de bord</h2>
+                <h2 className="mt-4 text-base font-semibold">{t('Impossible de charger le tableau de bord')}</h2>
                 <p className="mt-1.5 max-w-[42ch] text-sm leading-relaxed text-muted-foreground">
                     {getErrorMessage(error)}
                 </p>
                 <Button variant="accent" className="mt-6" onClick={() => void refetch()}>
-                    Réessayer
+                    {t('Réessayer')}
                 </Button>
             </Card>
         );
@@ -88,11 +90,11 @@ export default function Dashboard() {
             {/* Page heading */}
             <motion.div variants={item}>
                 <h2 className="text-2xl font-semibold tracking-tight">
-                    {greeting()}
+                    {t(greeting())}
                     {user ? `, ${user.name.split(' ')[0]}` : ''}
                 </h2>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                    Voici l’activité de votre salon aujourd’hui.
+                    {t('Voici l’activité de votre salon aujourd’hui.')}
                 </p>
             </motion.div>
 
@@ -102,48 +104,48 @@ export default function Dashboard() {
                 className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
             >
                 <KpiCard
-                    label="CA du jour"
+                    label={t('CA du jour')}
                     value={kpis.revenue_today}
                     icon={Wallet}
                     format={(n) => formatCurrency(n)}
                     trend={kpis.revenue_trend_pct}
-                    hint={active_day ? 'Journée de caisse ouverte' : 'Aucune journée ouverte'}
+                    hint={active_day ? t('Journée de caisse ouverte') : t('Aucune journée ouverte')}
                 />
                 <KpiCard
-                    label="Rendez-vous"
+                    label={t('Rendez-vous')}
                     value={kpis.appointments_today}
                     icon={CalendarDays}
                     format={(n) => formatNumber(Math.round(n))}
                     trend={kpis.appointments_trend_pct}
-                    hint="Programmés aujourd’hui"
+                    hint={t('Programmés aujourd’hui')}
                 />
                 <KpiCard
-                    label="Clients servis"
+                    label={t('Clients servis')}
                     value={kpis.clients_today}
                     icon={UserCheck}
                     format={(n) => formatNumber(Math.round(n))}
-                    hint="Aujourd’hui en caisse"
+                    hint={t('Aujourd’hui en caisse')}
                 />
                 <KpiCard
-                    label="Clients"
+                    label={t('Clients')}
                     value={kpis.clients_total}
                     icon={Users}
                     format={(n) => formatNumber(Math.round(n))}
-                    hint={`+${formatNumber(kpis.clients_new_this_month)} ce mois-ci`}
+                    hint={t('+{n} ce mois-ci', { n: formatNumber(kpis.clients_new_this_month) })}
                 />
                 <KpiCard
-                    label="Employés actifs"
+                    label={t('Employés actifs')}
                     value={kpis.employees_active}
                     icon={UserSquare2}
                     format={(n) => formatNumber(Math.round(n))}
-                    hint="En service"
+                    hint={t('En service')}
                 />
                 <KpiCard
-                    label="Dépenses du mois"
+                    label={t('Dépenses du mois')}
                     value={kpis.expenses_month}
                     icon={Receipt}
                     format={(n) => formatCurrency(n)}
-                    hint="Charges cumulées"
+                    hint={t('Charges cumulées')}
                 />
             </motion.div>
 

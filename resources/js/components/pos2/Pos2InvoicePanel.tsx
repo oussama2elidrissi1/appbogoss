@@ -3,6 +3,7 @@ import { AlertCircle, Banknote, Loader2, PauseCircle, PlayCircle, Plus, ReceiptT
 import { ClientPicker, type ClientSelection } from '@/components/workday/ClientPicker';
 import { Pos2ClientContext } from '@/components/pos2/Pos2ClientContext';
 import { Pos2LineRow } from '@/components/pos2/Pos2LineRow';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency } from '@/lib/utils';
 import type { Employee } from '@/types/workday';
 import type {
@@ -60,6 +61,7 @@ export function Pos2InvoicePanel({
     onUseSubscriptionService,
     onUseReward,
 }: Pos2InvoicePanelProps) {
+    const { t } = useI18n();
     const [cancelling, setCancelling] = useState(false);
     const [cancelReason, setCancelReason] = useState('');
 
@@ -108,12 +110,12 @@ export function Pos2InvoicePanel({
                 <div className="min-w-0">
                     <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
                         <ReceiptText className="h-4 w-4 text-accent" />
-                        {invoice ? invoice.reference : 'Facture en cours'}
+                        {invoice ? invoice.reference : t('Facture en cours')}
                     </p>
                     {invoice && (
                         <p className="text-[11px] text-muted-foreground">
-                            Ouverte à {invoice.opened_time ?? '—'}
-                            {invoice.held && ' · EN ATTENTE'}
+                            {t('Ouverte à {time}', { time: invoice.opened_time ?? '—' })}
+                            {invoice.held && ` · ${t('EN ATTENTE')}`}
                         </p>
                     )}
                 </div>
@@ -127,7 +129,7 @@ export function Pos2InvoicePanel({
                         onClick={onHoldToggle}
                     >
                         {invoice.held ? <PlayCircle /> : <PauseCircle />}
-                        {invoice.held ? 'Reprendre' : 'En attente'}
+                        {invoice.held ? t('Reprendre') : t('En attente')}
                     </Button>
                 )}
             </div>
@@ -149,9 +151,9 @@ export function Pos2InvoicePanel({
                 {/* Lignes (§5-§6) */}
                 {items.length === 0 ? (
                     <div className="rounded-md border border-dashed border-tint/[0.15] px-4 py-8 text-center">
-                        <p className="text-sm font-medium text-foreground">Aucune ligne</p>
+                        <p className="text-sm font-medium text-foreground">{t('Aucune ligne')}</p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                            Touchez un service à gauche pour l'ajouter à la facture.
+                            {t("Touchez un service à gauche pour l'ajouter à la facture.")}
                         </p>
                     </div>
                 ) : (
@@ -175,7 +177,7 @@ export function Pos2InvoicePanel({
                 {teamRecap.length > 0 && (
                     <div className="rounded-md border border-tint/[0.07] bg-tint/[0.02] p-3">
                         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                            Répartition employés
+                            {t('Répartition employés')}
                         </p>
                         <ul className="space-y-1.5">
                             {teamRecap.map((entry) => (
@@ -187,13 +189,13 @@ export function Pos2InvoicePanel({
                                         />
                                         <span className="truncate font-medium text-foreground">{entry.name}</span>
                                         <span className="text-muted-foreground">
-                                            · {entry.count} service{entry.count > 1 ? 's' : ''}
+                                            · {entry.count} {t(entry.count > 1 ? 'services' : 'service')}
                                         </span>
                                     </span>
                                     <span className="shrink-0 tabular-nums text-muted-foreground">
                                         {formatCurrency(entry.amount)}
                                         <span className="ml-2 font-medium text-accent">
-                                            comm. {formatCurrency(entry.commission)}
+                                            {t('comm. {x}', { x: formatCurrency(entry.commission) })}
                                         </span>
                                     </span>
                                 </li>
@@ -201,7 +203,7 @@ export function Pos2InvoicePanel({
                         </ul>
                         {teamRecap.length > 1 && (
                             <p className="mt-2 border-t border-tint/[0.06] pt-1.5 text-right text-xs font-semibold tabular-nums text-accent">
-                                Total commissions {formatCurrency(teamCommissionTotal)}
+                                {t('Total commissions {x}', { x: formatCurrency(teamCommissionTotal) })}
                             </p>
                         )}
                     </div>
@@ -222,25 +224,25 @@ export function Pos2InvoicePanel({
                         {(lineDiscounts > 0 || (invoice.discount_amount ?? 0) > 0) && (
                             <>
                                 <div className="flex justify-between text-muted-foreground">
-                                    <span>Sous-total</span>
+                                    <span>{t('Sous-total')}</span>
                                     <span className="tabular-nums">{formatCurrency(invoice.subtotal)}</span>
                                 </div>
                                 {lineDiscounts > 0 && (
                                     <div className="flex justify-between text-accent">
-                                        <span>Remises lignes</span>
+                                        <span>{t('Remises lignes')}</span>
                                         <span className="tabular-nums">−{formatCurrency(lineDiscounts)}</span>
                                     </div>
                                 )}
                                 {(invoice.discount_amount ?? 0) > 0 && (
                                     <div className="flex justify-between text-accent">
-                                        <span>Remise facture</span>
+                                        <span>{t('Remise facture')}</span>
                                         <span className="tabular-nums">−{formatCurrency(invoice.discount_amount ?? 0)}</span>
                                     </div>
                                 )}
                             </>
                         )}
                         <div className="flex items-baseline justify-between">
-                            <span className="text-base font-semibold text-foreground">TOTAL</span>
+                            <span className="text-base font-semibold text-foreground">{t('Total').toUpperCase()}</span>
                             <span className="font-display text-2xl font-bold tabular-nums text-accent">
                                 {formatCurrency(invoice.total)}
                             </span>
@@ -253,13 +255,13 @@ export function Pos2InvoicePanel({
                         <Input
                             value={cancelReason}
                             onChange={(event) => setCancelReason(event.target.value)}
-                            placeholder="Motif d'annulation (optionnel)"
+                            placeholder={t("Motif d'annulation (optionnel)")}
                             className="h-9"
                             autoFocus
                         />
                         <div className="flex justify-end gap-2">
                             <Button type="button" variant="ghost" size="sm" onClick={() => setCancelling(false)}>
-                                Retour
+                                {t('Retour')}
                             </Button>
                             <Button
                                 type="button"
@@ -273,7 +275,7 @@ export function Pos2InvoicePanel({
                                 }}
                             >
                                 <XCircle />
-                                Confirmer l'annulation
+                                {t("Confirmer l'annulation")}
                             </Button>
                         </div>
                     </div>
@@ -283,7 +285,7 @@ export function Pos2InvoicePanel({
                             <p className="flex items-start gap-1.5 text-xs text-destructive">
                                 <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" />
                                 <span>
-                                    Employé manquant — sélectionnez l'employé responsable de{' '}
+                                    {t("Employé manquant — sélectionnez l'employé responsable de")}{' '}
                                     {missingEmployeeLines.map((item) => `« ${item.label} »`).join(', ')}.
                                 </span>
                             </p>
@@ -314,14 +316,14 @@ export function Pos2InvoicePanel({
                                 onClick={onOpenCheckout}
                             >
                                 {busy ? <Loader2 className="animate-spin" /> : <Banknote />}
-                                ENCAISSER
+                                {t('ENCAISSER')}
                             </Button>
                         </div>
                     </div>
                 ) : (
                     <Button type="button" variant="accent" className="h-12 w-full text-base font-semibold" onClick={onNewInvoice}>
                         <Plus />
-                        Nouvelle facture
+                        {t('Nouvelle facture')}
                     </Button>
                 )}
             </div>

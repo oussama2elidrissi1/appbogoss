@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { AlertCircle } from 'lucide-react';
 import { getEmployees, getErrorMessage, getTransactions } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { useActiveWorkDay, useRefreshDay, workDayKeys } from '@/hooks/useWorkDay';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -69,6 +70,7 @@ function CaisseSkeleton() {
  * no day open means the only thing on screen is the opening card.
  */
 export default function Caisse() {
+    const { t } = useI18n();
     const [closeOpen, setCloseOpen] = useState(false);
     const refreshDay = useRefreshDay();
 
@@ -97,12 +99,12 @@ export default function Caisse() {
                 <span className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/[0.12]">
                     <AlertCircle className="h-5 w-5 text-destructive" />
                 </span>
-                <h2 className="mt-4 text-base font-semibold">Impossible de charger la caisse</h2>
+                <h2 className="mt-4 text-base font-semibold">{t('Impossible de charger la caisse')}</h2>
                 <p className="mt-1.5 max-w-[42ch] text-sm leading-relaxed text-muted-foreground">
                     {getErrorMessage(error)}
                 </p>
                 <Button variant="accent" className="mt-6" onClick={() => void refetch()}>
-                    Réessayer
+                    {t('Réessayer')}
                 </Button>
             </Card>
         );

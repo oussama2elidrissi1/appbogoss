@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Clock3, Coffee, Package, PenLine, Plus, Search, ShoppingBag, Sparkles, Users } from 'lucide-react';
 import { CATEGORIES, getCategory } from '@/components/workday/categories';
 import { getProducts } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { canPerform, eligibleEmployees } from '@/lib/pos2Eligibility';
 import { cn, formatCurrency } from '@/lib/utils';
 import type { Employee, Product, Service } from '@/types/workday';
@@ -49,6 +50,7 @@ export function Pos2Catalog({
     coveredServiceIds,
     busy,
 }: Pos2CatalogProps) {
+    const { t } = useI18n();
     const [category, setCategory] = useState<string>('all');
     const [search, setSearch] = useState('');
     const [freeLineOpen, setFreeLineOpen] = useState(false);
@@ -116,7 +118,8 @@ export function Pos2Catalog({
                 pré-assigné uniquement s'il est autorisé à le réaliser. */}
             <div className="space-y-1.5">
                 <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                    Employé actif <span className="normal-case tracking-normal">— pré-assigné s'il est autorisé</span>
+                    {t('Employé actif')}{' '}
+                    <span className="normal-case tracking-normal">{t("— pré-assigné s'il est autorisé")}</span>
                 </Label>
                 <div className="flex flex-wrap gap-1.5">
                     {employees.map((employee) => (
@@ -141,7 +144,7 @@ export function Pos2Catalog({
             {/* Catégories (§8) */}
             <div className="flex flex-wrap gap-1.5">
                 <Chip size="sm" selected={category === 'all'} onClick={() => setCategory('all')}>
-                    Tous
+                    {t('Tous')}
                 </Chip>
                 {presentCategories.map((config) => {
                     const Icon = config.icon;
@@ -153,7 +156,7 @@ export function Pos2Catalog({
                             onClick={() => setCategory(config.value)}
                         >
                             <Icon className={config.chip} />
-                            {config.label}
+                            {t(config.label)}
                         </Chip>
                     );
                 })}
@@ -168,7 +171,7 @@ export function Pos2Catalog({
                             onClick={() => setCategory(tab.value)}
                         >
                             <Icon className={tab.area === 'refrigerateur' ? 'text-success' : 'text-rose-600 dark:text-rose-300'} />
-                            {tab.label}
+                            {t(tab.label)}
                         </Chip>
                     );
                 })}
@@ -180,7 +183,7 @@ export function Pos2Catalog({
                 <Input
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Rechercher un service…"
+                    placeholder={t('Rechercher un service…')}
                     className="pl-10"
                 />
             </div>
@@ -213,7 +216,7 @@ export function Pos2Catalog({
                                         'mt-1 text-[11px] font-medium',
                                         productTab.area === 'refrigerateur' ? 'text-success' : 'text-rose-600 dark:text-rose-300',
                                     )}>
-                                        {productTab.label}
+                                        {t(productTab.label)}
                                     </p>
                                 </div>
                                 <div className="mt-2 flex items-end justify-between gap-2">
@@ -231,7 +234,7 @@ export function Pos2Catalog({
                                         )}
                                     >
                                         <Package className="h-3 w-3" />
-                                        {outOfStock ? 'Rupture' : `Stock ${product.stock_quantity}`}
+                                        {outOfStock ? t('Rupture') : t('Stock {n}', { n: product.stock_quantity })}
                                     </span>
                                 </div>
                             </button>
@@ -239,7 +242,7 @@ export function Pos2Catalog({
                     })}
                     {filteredProducts.length === 0 && (
                         <p className="col-span-full rounded-md border border-tint/[0.07] bg-tint/[0.02] px-4 py-6 text-center text-sm text-muted-foreground">
-                            Aucun produit dans cette zone de stock.
+                            {t('Aucun produit dans cette zone de stock.')}
                         </p>
                     )}
                 </div>
@@ -259,7 +262,9 @@ export function Pos2Catalog({
                             onClick={() => onPickService(service)}
                             title={
                                 restricted && eligible.length > 0
-                                    ? `Réalisé par : ${eligible.map((employee) => employee.name).join(', ')}`
+                                    ? t('Réalisé par : {names}', {
+                                          names: eligible.map((employee) => employee.name).join(', '),
+                                      })
                                     : undefined
                             }
                             className={cn(
@@ -281,7 +286,7 @@ export function Pos2Catalog({
                                 <p className="line-clamp-2 text-sm font-medium leading-snug text-foreground">
                                     {service.name}
                                 </p>
-                                <p className={cn('mt-1 text-[11px] font-medium', config.chip)}>{config.label}</p>
+                                <p className={cn('mt-1 text-[11px] font-medium', config.chip)}>{t(config.label)}</p>
                             </div>
                             <div className="mt-2 flex items-end justify-between gap-2">
                                 <span className="text-sm font-semibold tabular-nums text-foreground">
@@ -323,32 +328,32 @@ export function Pos2Catalog({
                     )}
                 >
                     <PenLine className="h-4 w-4" />
-                    <span className="text-xs font-medium">Ligne libre</span>
+                    <span className="text-xs font-medium">{t('Ligne libre')}</span>
                 </button>
             </div>
             )}
 
             {productTab === null && filtered.length === 0 && (
                 <p className="rounded-md border border-tint/[0.07] bg-tint/[0.02] px-4 py-6 text-center text-sm text-muted-foreground">
-                    Aucun service ne correspond à cette recherche.
+                    {t('Aucun service ne correspond à cette recherche.')}
                 </p>
             )}
 
             {freeLineOpen && (
                 <div className="flex flex-wrap items-end gap-2.5 rounded-md border border-accent/30 bg-accent/[0.04] p-3.5">
                     <div className="min-w-[180px] flex-1 space-y-1.5">
-                        <Label htmlFor="pos2-free-label" className="text-xs">Libellé</Label>
+                        <Label htmlFor="pos2-free-label" className="text-xs">{t('Libellé')}</Label>
                         <Input
                             id="pos2-free-label"
                             value={freeLabel}
                             onChange={(event) => setFreeLabel(event.target.value)}
-                            placeholder="ex. Produit coiffant"
+                            placeholder={t('ex. Produit coiffant')}
                             className="h-10"
                             autoFocus
                         />
                     </div>
                     <div className="w-28 space-y-1.5">
-                        <Label htmlFor="pos2-free-price" className="text-xs">Prix (MAD)</Label>
+                        <Label htmlFor="pos2-free-price" className="text-xs">{t('Prix (MAD)')}</Label>
                         <Input
                             id="pos2-free-price"
                             inputMode="decimal"
@@ -361,7 +366,7 @@ export function Pos2Catalog({
                     </div>
                     <Button type="button" variant="accent" className="h-10" disabled={busy} onClick={submitFreeLine}>
                         <Plus />
-                        Ajouter
+                        {t('Ajouter')}
                     </Button>
                 </div>
             )}

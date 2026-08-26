@@ -20,7 +20,7 @@ class PosHistoryController extends Controller
             'to' => ['nullable', 'date', 'after_or_equal:from'],
             'time_from' => ['nullable', 'date_format:H:i'],
             'time_to' => ['nullable', 'date_format:H:i'],
-            'status' => ['nullable', 'string', 'in:draft,in_progress,services_done,paid,cancelled,refunded'],
+            'status' => ['nullable', 'string', 'in:draft,in_progress,services_done,pending_payment,paid,cancelled,refunded'],
             'payment_method' => ['nullable', 'string', 'max:20'],
             'service_id' => ['nullable', 'integer', 'exists:services,id'],
             'category' => ['nullable', 'string', 'max:30'],
@@ -32,8 +32,9 @@ class PosHistoryController extends Controller
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
-        $paginator = $this->pos->historyQuery($filters)
-            ->paginate((int) ($filters['per_page'] ?? 50));
+        $query = $this->pos->historyQuery($filters);
+        $stats = $this->pos->historyStats((clone $query)->get());
+        $paginator = $query->paginate((int) ($filters['per_page'] ?? 50));
 
         $summarySource = $paginator->getCollection();
         $paid = $summarySource->where('status', 'paid');
@@ -46,6 +47,7 @@ class PosHistoryController extends Controller
                 'total' => $paginator->total(),
                 'page_paid_total' => round((float) $paid->sum(fn ($invoice) => (float) $invoice->total), 2),
                 'page_paid_count' => $paid->count(),
+                'stats' => $stats,
             ],
         ]);
     }

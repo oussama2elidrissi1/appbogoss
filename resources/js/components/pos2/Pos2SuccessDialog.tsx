@@ -1,4 +1,5 @@
 import { CheckCircle2, Eye, FileText, Plus, Printer } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 import { formatCurrency } from '@/lib/utils';
 import { paymentMethodLabel } from '@/lib/receiptV2';
 import type { Pos2Invoice } from '@/types/pos2';
@@ -28,6 +29,8 @@ export function Pos2SuccessDialog({
     onNewSale,
     onClose,
 }: Pos2SuccessDialogProps) {
+    const { t } = useI18n();
+
     return (
         <Dialog open={invoice !== null} onOpenChange={(next) => !next && onClose()}>
             <DialogContent className="max-w-lg">
@@ -38,7 +41,7 @@ export function Pos2SuccessDialog({
                         </div>
                         <div>
                             <DialogTitle className="font-display text-2xl font-bold text-foreground">
-                                Paiement validé
+                                {t('Paiement validé')}
                             </DialogTitle>
                             <p className="mt-1 text-sm text-muted-foreground">{invoice.reference}</p>
                         </div>
@@ -46,13 +49,14 @@ export function Pos2SuccessDialog({
                             {formatCurrency(invoice.total)}
                         </p>
                         <p className="text-sm text-muted-foreground">
-                            Paiement :{' '}
+                            {t('Paiement :')}{' '}
                             <span className="font-medium text-foreground">
-                                {paymentMethodLabel(invoice.payment_method)}
+                                {t(paymentMethodLabel(invoice.payment_method))}
                             </span>
                             {(invoice.change_given ?? 0) > 0 && (
                                 <>
-                                    {' · '}À rendre :{' '}
+                                    {' · '}
+                                    {t('À rendre :')}{' '}
                                     <span className="font-semibold text-foreground">
                                         {formatCurrency(invoice.change_given ?? 0)}
                                     </span>
@@ -61,8 +65,9 @@ export function Pos2SuccessDialog({
                         </p>
                         {(invoice.tips_total ?? 0) > 0 && (
                             <p className="text-xs text-muted-foreground">
-                                Pourboires : {formatCurrency(invoice.tips_total ?? 0)} — remis directement aux
-                                employés.
+                                {t('Pourboires : {x} — remis directement aux employés.', {
+                                    x: formatCurrency(invoice.tips_total ?? 0),
+                                })}
                             </p>
                         )}
                         <div className="grid grid-cols-1 gap-2 pt-1 sm:grid-cols-2">
@@ -73,7 +78,7 @@ export function Pos2SuccessDialog({
                                 onClick={() => onPrintTicket(invoice)}
                             >
                                 <Printer />
-                                Imprimer le ticket
+                                {t('Imprimer le ticket')}
                             </Button>
                             <Button
                                 type="button"
@@ -82,7 +87,7 @@ export function Pos2SuccessDialog({
                                 onClick={() => onPrintA4(invoice)}
                             >
                                 <FileText />
-                                Imprimer la facture
+                                {t('Imprimer la facture')}
                             </Button>
                             <Button
                                 type="button"
@@ -91,7 +96,7 @@ export function Pos2SuccessDialog({
                                 onClick={() => onViewDetail(invoice)}
                             >
                                 <Eye />
-                                Voir le détail
+                                {t('Voir le détail')}
                             </Button>
                             <Button
                                 type="button"
@@ -100,7 +105,7 @@ export function Pos2SuccessDialog({
                                 onClick={onNewSale}
                             >
                                 <Plus />
-                                Nouvelle facture
+                                {t('Nouvelle facture')}
                             </Button>
                         </div>
                     </div>

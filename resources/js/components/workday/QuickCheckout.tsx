@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertCircle, Check, Loader2, Package, Refrigerator, Search } from 'lucide-react';
 import { createTransaction, getErrorMessage, getProducts, getServices } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { printSaleReceipt } from '@/lib/receipt';
 import { workDayKeys } from '@/hooks/useWorkDay';
 import { cn, formatCurrency } from '@/lib/utils';
@@ -59,6 +60,7 @@ export function QuickCheckout({
     presentIds,
     onSaleRecorded,
 }: QuickCheckoutProps) {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
 
     const [employeeId, setEmployeeId] = useState<number | null>(null);
@@ -311,7 +313,7 @@ export function QuickCheckout({
                                 />
                             </span>
                             <p className="mt-3 text-sm font-medium text-foreground">
-                                Encaissement enregistré
+                                {t('Encaissement enregistré')}
                             </p>
                         </motion.div>
                     </motion.div>
@@ -321,15 +323,14 @@ export function QuickCheckout({
             <div className="space-y-7 p-6">
                 <div>
                     <h3 className="text-base font-semibold leading-none tracking-tight">
-                        Nouvel encaissement
+                        {t('Nouvel encaissement')}
                     </h3>
                     <p className="mt-1.5 text-sm text-muted-foreground">
-                        Six étapes, quelques secondes. Touches 1–6 pour la catégorie, Entrée pour
-                        valider.
+                        {t('Six étapes, quelques secondes. Touches 1–6 pour la catégorie, Entrée pour valider.')}
                     </p>
                 </div>
 
-                <Step index={1} title="Employé">
+                <Step index={1} title={t('Employé')}>
                     {usesProductCatalog ? (
                         <div className="flex items-center gap-3 rounded-md border border-accent/30 bg-accent/[0.08] px-3.5 py-3">
                             {productStockArea === 'refrigerateur' ? (
@@ -338,10 +339,11 @@ export function QuickCheckout({
                                 <Package className="h-5 w-5 text-accent" />
                             )}
                             <div>
-                                <p className="text-sm font-semibold text-foreground">Vente directe du stock société</p>
+                                <p className="text-sm font-semibold text-foreground">{t('Vente directe du stock société')}</p>
                                 <p className="text-xs text-muted-foreground">
-                                    Aucun employé à sélectionner. Le ticket sera rattaché au stock{' '}
-                                    {productStockArea === 'refrigerateur' ? 'réfrigérateur' : 'vitrine'}.
+                                    {t('Aucun employé à sélectionner. Le ticket sera rattaché au stock {zone}.', {
+                                        zone: t(productStockArea === 'refrigerateur' ? 'réfrigérateur' : 'vitrine'),
+                                    })}
                                 </p>
                             </div>
                         </div>
@@ -375,11 +377,11 @@ export function QuickCheckout({
                     )}
                 </Step>
 
-                <Step index={2} title="Client" hint="Optionnel">
+                <Step index={2} title={t('Client')} hint={t('Optionnel')}>
                     <ClientPicker value={client} onChange={setClient} />
                 </Step>
 
-                <Step index={3} title="Catégorie" hint="Touches 1 à 6">
+                <Step index={3} title={t('Catégorie')} hint={t('Touches 1 à 6')}>
                     <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
                         {CATEGORIES.map((config, index) => {
                             const Icon = config.icon;
@@ -396,7 +398,7 @@ export function QuickCheckout({
                                             selected ? config.chip : 'text-muted-foreground',
                                         )}
                                     />
-                                    <span className="text-xs">{config.label}</span>
+                                    <span className="text-xs">{t(config.label)}</span>
                                     <span className="absolute right-1.5 top-1.5 text-[10px] font-semibold text-muted-foreground/50">
                                         {index + 1}
                                     </span>

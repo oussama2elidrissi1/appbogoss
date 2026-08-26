@@ -3,6 +3,7 @@ import { ArrowLeft, type LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useI18n } from '@/lib/i18n';
 
 interface PlaceholderPageProps {
     title: string;
@@ -15,6 +16,8 @@ export default function PlaceholderPage({
     icon: Icon,
     description,
 }: PlaceholderPageProps) {
+    const { t } = useI18n();
+
     return (
         <div className="flex min-h-[70vh] items-center justify-center">
             <motion.div
@@ -40,18 +43,18 @@ export default function PlaceholderPage({
                 </div>
 
                 <Badge variant="accent" className="relative mt-6">
-                    Bientôt disponible
+                    {t('Bientôt disponible')}
                 </Badge>
 
-                <h2 className="relative mt-4 text-xl font-semibold tracking-tight">{title}</h2>
+                <h2 className="relative mt-4 text-xl font-semibold tracking-tight">{t(title)}</h2>
                 <p className="relative mt-2.5 text-sm leading-relaxed text-muted-foreground">
-                    {description}
+                    {t(description)}
                 </p>
 
                 <Button asChild variant="outline" className="relative mt-8">
                     <Link to="/dashboard">
                         <ArrowLeft />
-                        Retour au dashboard
+                        {t('Retour au dashboard')}
                     </Link>
                 </Button>
             </motion.div>

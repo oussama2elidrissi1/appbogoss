@@ -10,6 +10,7 @@ use App\Models\Service;
 use App\Models\Tip;
 use App\Models\User;
 use App\Models\WorkDay;
+use App\Services\PrestationService;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -511,6 +512,52 @@ class PosV2WorkflowTest extends TestCase
 
         // Hour window that excludes everything.
         $this->assertCount(0, $this->getJson('/api/pos-v2/history?time_from=00:00&time_to=00:01')->json('data'));
+    }
+
+    public function test_history_includes_settled_v1_prestations_and_employee_stats(): void
+    {
+        $admin = $this->superAdmin();
+        $employeeUser = User::factory()->create(['role' => 'employee']);
+        $employeeUser->assignRole('employee');
+        $omar = Employee::factory()->create([
+            'name' => 'Omar',
+            'user_id' => $employeeUser->id,
+            'default_commission_rate' => 10,
+        ]);
+        $yassine = Employee::factory()->create([
+            'name' => 'Yassine',
+            'default_commission_rate' => 20,
+        ]);
+        $coupe = Service::factory()->create(['name' => 'Coupe', 'price' => 70]);
+        $hammam = Service::factory()->create(['name' => 'Hammam', 'price' => 150]);
+
+        $prestations = app(PrestationService::class);
+        $v1 = $prestations->create(['items' => [['service_id' => $coupe->id]]], $omar, $employeeUser);
+        $prestations->markServicesDone($v1->fresh(), $employeeUser);
+        $prestations->sendToCaisse($v1->fresh(), $employeeUser, false);
+        $prestations->confirmPayment($v1->fresh(), ['payment_method' => 'especes'], $admin);
+
+        Sanctum::actingAs($admin);
+        $v2 = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $hammam->id, 'employee_id' => $yassine->id]],
+        ])->assertCreated()->json('data');
+        $this->postJson("/api/pos-v2/invoices/{$v2['id']}/checkout", ['payment_method' => 'carte'])
+            ->assertOk();
+
+        $history = $this->getJson('/api/pos-v2/history')->assertOk();
+        $references = collect($history->json('data'))->pluck('reference');
+
+        $this->assertTrue($references->contains(fn (string $reference) => str_starts_with($reference, 'PRE-')));
+        $this->assertTrue($references->contains(fn (string $reference) => str_starts_with($reference, 'FAC-')));
+        $this->assertSame(1, $history->json('meta.stats.v1_count'));
+        $this->assertSame(1, $history->json('meta.stats.v2_count'));
+        $this->assertEquals(220, $history->json('meta.stats.paid_total'));
+
+        $employees = collect($history->json('meta.stats.employees'))->keyBy('employee_name');
+        $this->assertEquals(70, $employees['Omar']['total']);
+        $this->assertSame(1, $employees['Omar']['performed_count']);
+        $this->assertEquals(150, $employees['Yassine']['total']);
+        $this->assertSame(1, $employees['Yassine']['performed_count']);
     }
 
     public function test_dashboard_reports_day_totals_open_invoices_and_tips(): void

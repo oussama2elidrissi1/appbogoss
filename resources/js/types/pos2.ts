@@ -80,7 +80,7 @@ export interface Pos2Invoice {
     id: number;
     reference: string;
     status: Pos2InvoiceStatus;
-    channel: string;
+    channel: string | null;
     held: boolean;
     held_at: string | null;
     work_day_id: number | null;
@@ -91,6 +91,7 @@ export interface Pos2Invoice {
     client_avatar_color: string | null;
     is_walk_in: boolean;
     employee_id: number | null;
+    employee_name?: string | null;
     subtotal: number;
     line_discounts_total?: number;
     discount_amount: number | null;
@@ -311,5 +312,19 @@ export interface Pos2HistoryResponse {
         total: number;
         page_paid_total: number;
         page_paid_count: number;
+        stats: {
+            paid_count: number;
+            paid_total: number;
+            v1_count: number;
+            v2_count: number;
+            employees: Array<{
+                employee_id: number;
+                employee_name: string;
+                performed_count: number;
+                invoices_count: number;
+                total: number;
+                commission_total: number;
+            }>;
+        };
     };
 }

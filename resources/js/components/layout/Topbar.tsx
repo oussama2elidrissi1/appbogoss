@@ -1,8 +1,9 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
-import { LogOut, Menu, Moon, Search, Settings, Sun, User } from 'lucide-react';
+import { Languages, LogOut, Menu, Moon, Search, Settings, Sun, User } from 'lucide-react';
 import { getNavItemByPath } from '@/lib/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { useI18n } from '@/lib/i18n';
 import { useTheme } from '@/hooks/useTheme';
 import { cn, getInitials } from '@/lib/utils';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -21,9 +22,10 @@ export function Topbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
     const navigate = useNavigate();
     const { user, logout } = useAuth();
     const { theme, toggleTheme } = useTheme();
+    const { lang, setLang, t } = useI18n();
 
     const current = getNavItemByPath(location.pathname);
-    const title = current?.label ?? 'Dashboard';
+    const title = t(current?.label ?? 'Dashboard');
 
     const handleLogout = async () => {
         await logout();
@@ -35,7 +37,7 @@ export function Topbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
             <button
                 type="button"
                 onClick={onOpenMobileNav}
-                aria-label="Ouvrir le menu"
+                aria-label={t('Ouvrir le menu')}
                 className="rounded-sm p-2 text-muted-foreground transition-colors duration-200 hover:bg-tint/[0.05] hover:text-foreground lg:hidden"
             >
                 <Menu className="h-5 w-5" />
@@ -52,8 +54,8 @@ export function Topbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70" />
                 <input
                     type="search"
-                    placeholder="Rechercher..."
-                    aria-label="Rechercher"
+                    placeholder={t('Rechercher...')}
+                    aria-label={t('Rechercher')}
                     className={cn(
                         'h-10 w-56 rounded-md border border-tint/[0.06] bg-tint/[0.03] pl-9 pr-14 text-sm text-foreground',
                         'placeholder:text-muted-foreground/70 transition-all duration-200',
@@ -66,9 +68,22 @@ export function Topbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
                 </kbd>
             </div>
 
+            {/* Bascule FR ⇄ AR — la préférence est mémorisée, le sens de
+                lecture (RTL) suit automatiquement. */}
             <button
                 type="button"
-                aria-label={theme === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'}
+                aria-label={t('Langue')}
+                title={lang === 'fr' ? 'العربية' : 'Français'}
+                onClick={() => setLang(lang === 'fr' ? 'ar' : 'fr')}
+                className="flex items-center gap-1.5 rounded-md p-2.5 text-muted-foreground transition-colors duration-200 hover:bg-tint/[0.05] hover:text-foreground"
+            >
+                <Languages className="h-[18px] w-[18px]" />
+                <span className="text-xs font-semibold">{lang === 'fr' ? 'ع' : 'FR'}</span>
+            </button>
+
+            <button
+                type="button"
+                aria-label={theme === 'dark' ? t('Passer en mode clair') : t('Passer en mode sombre')}
                 onClick={toggleTheme}
                 className="relative overflow-hidden rounded-md p-2.5 text-muted-foreground transition-colors duration-200 hover:bg-tint/[0.05] hover:text-foreground"
             >
@@ -119,16 +134,16 @@ export function Topbar({ onOpenMobileNav }: { onOpenMobileNav: () => void }) {
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onSelect={() => navigate('/settings')}>
                         <User />
-                        Profil
+                        {t('Profil')}
                     </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => navigate('/settings')}>
                         <Settings />
-                        Paramètres
+                        {t('Paramètres')}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem variant="destructive" onSelect={() => void handleLogout()}>
                         <LogOut />
-                        Déconnexion
+                        {t('Déconnexion')}
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>

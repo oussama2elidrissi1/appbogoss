@@ -68,8 +68,10 @@ export default {
                 scrim: 'rgb(var(--scrim-rgb) / <alpha-value>)',
             },
             fontFamily: {
-                sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-                display: ['"Cormorant Garamond"', 'Georgia', 'serif'],
+                // Tajawal après Inter : ne sert que les glyphes arabes
+                // (Inter n'en possède pas), aucun impact sur le rendu latin.
+                sans: ['Inter', 'Tajawal', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                display: ['"Cormorant Garamond"', 'Tajawal', 'Georgia', 'serif'],
             },
             borderRadius: {
                 lg: '1rem',

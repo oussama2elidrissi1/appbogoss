@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ChevronLeft, ChevronRight, Clock3, Filter, Search } from 'lucide-react';
+import { ArrowLeft, BarChart3, ChevronLeft, ChevronRight, Clock3, Filter, type LucideIcon, ReceiptText, Search, Users, WalletCards } from 'lucide-react';
 import { getEmployees, getServices } from '@/lib/api';
 import { getPos2History, pos2Keys } from '@/lib/pos2Api';
 import { paymentMethodLabel } from '@/lib/receiptV2';
@@ -89,6 +89,7 @@ export default function PosV2History() {
 
     const invoices = data?.data ?? [];
     const meta = data?.meta;
+    const stats = meta?.stats;
 
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-4">
@@ -127,6 +128,7 @@ export default function PosV2History() {
                                 { value: ALL, label: 'Tous' },
                                 { value: 'paid', label: 'Payée' },
                                 { value: 'in_progress', label: 'Ouverte' },
+                                { value: 'pending_payment', label: 'En caisse' },
                                 { value: 'cancelled', label: 'Annulée' },
                                 { value: 'refunded', label: 'Remboursée' },
                             ]}
@@ -228,6 +230,80 @@ export default function PosV2History() {
                 </CardContent>
             </Card>
 
+            {/* -------------------------------------------------- statistiques */}
+            {stats && (
+                <Card>
+                    <CardContent className="space-y-4 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                                <p className="text-sm font-semibold text-foreground">Statistiques filtrées</p>
+                                <p className="text-xs text-muted-foreground">
+                                    Calculées sur toutes les factures du filtre, pas seulement la page affichée.
+                                </p>
+                            </div>
+                            <Badge variant="outline">
+                                V1 {stats.v1_count} · V2 {stats.v2_count}
+                            </Badge>
+                        </div>
+
+                        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                            <StatTile icon={WalletCards} label="CA encaissé" value={formatCurrency(stats.paid_total)} />
+                            <StatTile icon={ReceiptText} label="Factures payées" value={String(stats.paid_count)} />
+                            <StatTile icon={Users} label="Employés avec CA" value={String(stats.employees.length)} />
+                            <StatTile
+                                icon={BarChart3}
+                                label="Moyenne facture"
+                                value={formatCurrency(stats.paid_count > 0 ? stats.paid_total / stats.paid_count : 0)}
+                            />
+                        </div>
+
+                        {stats.employees.length > 0 && (
+                            <div className="space-y-2">
+                                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                    CA par employé
+                                </p>
+                                <div className="grid gap-2 lg:grid-cols-2 xl:grid-cols-3">
+                                    {stats.employees.map((employee, index) => (
+                                        <div
+                                            key={employee.employee_id}
+                                            className="rounded-md border border-tint/[0.07] bg-tint/[0.02] px-3 py-2.5"
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <p className="truncate text-sm font-semibold text-foreground">
+                                                        #{index + 1} {employee.employee_name}
+                                                    </p>
+                                                    <p className="text-[11px] text-muted-foreground">
+                                                        {employee.invoices_count} facture{employee.invoices_count > 1 ? 's' : ''}
+                                                    </p>
+                                                </div>
+                                                <p className="shrink-0 text-sm font-bold tabular-nums text-accent">
+                                                    {formatCurrency(employee.total)}
+                                                </p>
+                                            </div>
+                                            <div className="mt-2 grid grid-cols-2 gap-2 border-t border-tint/[0.06] pt-2 text-[11px]">
+                                                <span className="text-muted-foreground">
+                                                    Effectué{' '}
+                                                    <span className="font-medium text-foreground">
+                                                        {employee.performed_count}
+                                                    </span>
+                                                </span>
+                                                <span className="text-right text-muted-foreground">
+                                                    Comm.{' '}
+                                                    <span className="font-medium text-foreground">
+                                                        {formatCurrency(employee.commission_total)}
+                                                    </span>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+
             {/* -------------------------------------------------- résultats */}
             <Card>
                 <CardContent className="p-0">
@@ -255,6 +331,12 @@ export default function PosV2History() {
                                                 <span className="font-semibold tabular-nums text-foreground">
                                                     {invoice.reference}
                                                 </span>
+                                                <Badge
+                                                    variant={invoice.channel === 'caisse_v2' ? 'outline' : 'accent'}
+                                                    className="px-1.5 py-0 text-[10px]"
+                                                >
+                                                    {invoice.channel === 'caisse_v2' ? 'V2' : 'V1'}
+                                                </Badge>
                                                 <span className="tabular-nums text-muted-foreground">
                                                     {invoice.opened_time}
                                                 </span>
@@ -365,6 +447,18 @@ function FilterSelect({
                     ))}
                 </SelectContent>
             </Select>
+        </div>
+    );
+}
+
+function StatTile({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+    return (
+        <div className="rounded-md border border-tint/[0.07] bg-tint/[0.02] px-3 py-2.5">
+            <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <Icon className="h-3.5 w-3.5 text-accent" />
+                <span>{label}</span>
+            </div>
+            <p className="mt-1 text-lg font-bold tabular-nums text-foreground">{value}</p>
         </div>
     );
 }

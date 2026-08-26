@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { AlertCircle, CalendarCheck, Handshake, Users } from 'lucide-react';
 import { getAppointments, getEmployees, getErrorMessage, getServices } from '@/lib/api';
 import { formatCurrency, formatDate, formatTime } from '@/lib/utils';
+import { useI18n } from '@/lib/i18n';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -24,6 +25,7 @@ function wideRange(): { from: string; to: string } {
 
 /** §26 — every pending partner booking, across every partner, in one triage queue. */
 export default function PartnerReservationsReview() {
+    const { t } = useI18n();
     const [selected, setSelected] = useState<Appointment | null>(null);
     const [detailsOpen, setDetailsOpen] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
@@ -57,9 +59,9 @@ export default function PartnerReservationsReview() {
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-6">
             <div>
-                <h1 className="text-2xl font-semibold tracking-tight">Réservations partenaires</h1>
+                <h1 className="text-2xl font-semibold tracking-tight">{t('Réservations partenaires')}</h1>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                    Demandes en attente d'une décision — accepter, proposer un autre créneau ou refuser.
+                    {t("Demandes en attente d'une décision — accepter, proposer un autre créneau ou refuser.")}
                 </p>
             </div>
 
@@ -77,8 +79,8 @@ export default function PartnerReservationsReview() {
             ) : !appointments || appointments.length === 0 ? (
                 <EmptyState
                     icon={CalendarCheck}
-                    title="Aucune demande en attente"
-                    description="Toutes les réservations partenaires ont été traitées."
+                    title={t('Aucune demande en attente')}
+                    description={t('Toutes les réservations partenaires ont été traitées.')}
                 />
             ) : (
                 <>
@@ -87,12 +89,12 @@ export default function PartnerReservationsReview() {
                         <table className="w-full text-sm">
                             <thead className="border-b border-tint/[0.06] bg-tint/[0.02] text-left text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
                                 <tr>
-                                    <th className="px-4 py-3 font-medium">Partenaire</th>
-                                    <th className="px-4 py-3 font-medium">Contact</th>
-                                    <th className="px-4 py-3 font-medium">Participants</th>
-                                    <th className="px-4 py-3 font-medium">Date</th>
-                                    <th className="px-4 py-3 text-right font-medium">Total</th>
-                                    <th className="px-4 py-3 text-right font-medium">Commission</th>
+                                    <th className="px-4 py-3 font-medium">{t('Partenaire')}</th>
+                                    <th className="px-4 py-3 font-medium">{t('Contact')}</th>
+                                    <th className="px-4 py-3 font-medium">{t('Participants')}</th>
+                                    <th className="px-4 py-3 font-medium">{t('Date')}</th>
+                                    <th className="px-4 py-3 text-right font-medium">{t('Total')}</th>
+                                    <th className="px-4 py-3 text-right font-medium">{t('Commission')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -180,6 +182,7 @@ function ReviewRow({ appointment, onClick }: { appointment: Appointment; onClick
 }
 
 function ReviewCard({ appointment, onClick }: { appointment: Appointment; onClick: () => void }) {
+    const { t } = useI18n();
     const contact = appointment.client ?? appointment.clients?.[0] ?? null;
     const participantsCount = appointment.people?.length ?? 1;
 
@@ -198,7 +201,9 @@ function ReviewCard({ appointment, onClick }: { appointment: Appointment; onClic
             <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
                 <span className="flex items-center gap-1.5">
                     <Users className="h-3.5 w-3.5" />
-                    {participantsCount} participant{participantsCount > 1 ? 's' : ''}
+                    {participantsCount > 1
+                        ? t('{n} participants', { n: participantsCount })
+                        : t('{n} participant', { n: participantsCount })}
                 </span>
                 <span>
                     {formatDate(appointment.starts_at)} · {formatTime(appointment.starts_at)}

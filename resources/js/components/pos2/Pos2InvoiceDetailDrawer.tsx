@@ -109,6 +109,7 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
         return [...byEmployee.values()];
     })();
     const commissionTotal = commissionRecap.reduce((sum, entry) => sum + entry.amount, 0);
+    const canRefundInvoice = invoice?.status === 'paid' && invoice.channel === 'caisse_v2' && canRefund;
 
     return (
         <AnimatePresence>
@@ -434,7 +435,7 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                                 </Button>
                                             </>
                                         )}
-                                        {invoice.status === 'paid' && canRefund && (
+                                        {canRefundInvoice && (
                                             <Button
                                                 type="button"
                                                 variant="outline"

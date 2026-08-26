@@ -12,6 +12,7 @@ import {
     updateLoyaltyProgram,
 } from '@/lib/api';
 import { cn, formatCurrency, formatRelativeTime, getInitials } from '@/lib/utils';
+import { useI18n } from '@/lib/i18n';
 import { CATEGORIES } from '@/components/workday/categories';
 import type { CommissionBasis, LoyaltyProgram, LoyaltyProgramPayload, LoyaltyProgramType } from '@/types/loyalty';
 import { Badge } from '@/components/ui/badge';
@@ -155,6 +156,7 @@ function formToPayload(form: FormState): LoyaltyProgramPayload {
 }
 
 export default function LoyaltyPrograms() {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
 
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -230,7 +232,7 @@ export default function LoyaltyPrograms() {
         setFormError(null);
 
         if (!form.name.trim()) {
-            setFormError('Le nom est obligatoire.');
+            setFormError(t('Le nom est obligatoire.'));
             return;
         }
 
@@ -250,25 +252,25 @@ export default function LoyaltyPrograms() {
             <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
                 <motion.div variants={item} className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                     <div>
-                        <h2 className="text-2xl font-semibold tracking-tight">Programmes de fidélité</h2>
+                        <h2 className="text-2xl font-semibold tracking-tight">{t('Programmes de fidélité')}</h2>
                         <p className="mt-1.5 text-sm text-muted-foreground">
-                            Comptes fidélité numériques des clients — aucune carte, tout se joue sur le compte.
+                            {t('Comptes fidélité numériques des clients — aucune carte, tout se joue sur le compte.')}
                         </p>
                     </div>
                     <Button variant="accent" onClick={openCreateDialog}>
                         <Plus />
-                        Nouveau programme
+                        {t('Nouveau programme')}
                     </Button>
                 </motion.div>
 
                 <motion.div variants={item} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <Stat label="Programmes" value={programs.length} />
-                    <Stat label="Actifs" value={activeCount} tone="success" />
+                    <Stat label={t('Programmes')} value={programs.length} />
+                    <Stat label={t('Actifs')} value={activeCount} tone="success" />
                 </motion.div>
 
                 {programsQuery.isError ? (
                     <ErrorCard
-                        title="Impossible de charger les programmes"
+                        title={t('Impossible de charger les programmes')}
                         message={getErrorMessage(programsQuery.error)}
                         onRetry={() => void programsQuery.refetch()}
                     />
@@ -277,8 +279,8 @@ export default function LoyaltyPrograms() {
                 ) : programs.length === 0 ? (
                     <EmptyState
                         icon={Gift}
-                        title="Aucun programme"
-                        description="Créez un programme de fidélité, par exemple « 5 Hammams = 1 Gratuit »."
+                        title={t('Aucun programme')}
+                        description={t('Créez un programme de fidélité, par exemple « 5 Hammams = 1 Gratuit ».')}
                     />
                 ) : (
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -295,9 +297,9 @@ export default function LoyaltyPrograms() {
                                     </div>
 
                                     <div className="mt-4 flex flex-wrap gap-2">
-                                        <Badge variant="outline">{TYPE_LABELS[program.type]}</Badge>
+                                        <Badge variant="outline">{t(TYPE_LABELS[program.type])}</Badge>
                                         <Badge variant={program.is_active ? 'success' : 'outline'}>
-                                            {program.is_active ? 'Actif' : 'Inactif'}
+                                            {program.is_active ? t('Actif') : t('Inactif')}
                                         </Badge>
                                     </div>
 
@@ -309,17 +311,17 @@ export default function LoyaltyPrograms() {
                                             onClick={() => setProgressProgram(program)}
                                         >
                                             <Users className="h-3.5 w-3.5" />
-                                            Avancement
+                                            {t('Avancement')}
                                         </Button>
                                         <div className="flex items-center gap-1">
-                                        <Button type="button" size="icon" variant="ghost" aria-label="Modifier" onClick={() => openEditDialog(program)}>
+                                        <Button type="button" size="icon" variant="ghost" aria-label={t('Modifier')} onClick={() => openEditDialog(program)}>
                                             <Pencil />
                                         </Button>
                                         <Button
                                             type="button"
                                             size="icon"
                                             variant="ghost"
-                                            aria-label={program.is_active ? 'Désactiver' : 'Activer'}
+                                            aria-label={program.is_active ? t('Désactiver') : t('Activer')}
                                             disabled={toggleMutation.isPending}
                                             onClick={() => toggleMutation.mutate(program)}
                                         >
@@ -356,6 +358,7 @@ export default function LoyaltyPrograms() {
 
 /** §avancement — where every client stands on one program (7/10, 3/10…). */
 function ProgramProgressDialog({ program, onClose }: { program: LoyaltyProgram | null; onClose: () => void }) {
+    const { t } = useI18n();
     const [search, setSearch] = useState('');
     const isAmount = program?.type === 'amount_spent';
 
@@ -383,7 +386,7 @@ function ProgramProgressDialog({ program, onClose }: { program: LoyaltyProgram |
         <Dialog open={program !== null} onOpenChange={(open) => !open && onClose()}>
             <DialogContent className="max-h-[85vh] max-w-lg overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Avancement des clients</DialogTitle>
+                    <DialogTitle>{t('Avancement des clients')}</DialogTitle>
                     <DialogDescription>{program?.name}</DialogDescription>
                 </DialogHeader>
 
@@ -402,15 +405,15 @@ function ProgramProgressDialog({ program, onClose }: { program: LoyaltyProgram |
                     <div className="space-y-3">
                         <EmptyState
                             icon={Users}
-                            title="Aucun client engagé"
-                            description="Dès qu'un client cumule sur ce programme, il apparaît ici."
+                            title={t('Aucun client engagé')}
+                            description={t("Dès qu'un client cumule sur ce programme, il apparaît ici.")}
                         />
                         <p className="rounded-md border border-accent/20 bg-accent/[0.05] px-3.5 py-2.5 text-xs text-muted-foreground">
-                            Le cumul se fait automatiquement à l'encaissement, à trois conditions : le ticket est
-                            lié à un <span className="font-medium text-foreground">client fiché</span> (un client
-                            de passage ne cumule jamais), la vente correspond aux{' '}
-                            <span className="font-medium text-foreground">services/catégorie du programme</span>,
-                            et la vente est postérieure à la création du programme.
+                            {t("Le cumul se fait automatiquement à l'encaissement, à trois conditions : le ticket est lié à un")}{' '}
+                            <span className="font-medium text-foreground">{t('client fiché')}</span>{' '}
+                            {t('(un client de passage ne cumule jamais), la vente correspond aux')}{' '}
+                            <span className="font-medium text-foreground">{t('services/catégorie du programme')}</span>
+                            {t(', et la vente est postérieure à la création du programme.')}
                         </p>
                     </div>
                 ) : (
@@ -418,12 +421,12 @@ function ProgramProgressDialog({ program, onClose }: { program: LoyaltyProgram |
                         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1.5">
                                 <Users className="h-3.5 w-3.5" />
-                                {data.meta.participants} client{data.meta.participants > 1 ? 's' : ''}
+                                {data.meta.participants} {data.meta.participants > 1 ? t('clients') : t('client')}
                             </span>
                             <span className="flex items-center gap-1.5">
                                 <Trophy className="h-3.5 w-3.5 text-accent" />
-                                {data.meta.rewards_total} récompense{data.meta.rewards_total > 1 ? 's' : ''} gagnée
-                                {data.meta.rewards_total > 1 ? 's' : ''}
+                                {data.meta.rewards_total}{' '}
+                                {data.meta.rewards_total > 1 ? t('récompenses gagnées') : t('récompense gagnée')}
                             </span>
                         </div>
 
@@ -433,7 +436,7 @@ function ProgramProgressDialog({ program, onClose }: { program: LoyaltyProgram |
                                 <Input
                                     value={search}
                                     onChange={(event) => setSearch(event.target.value)}
-                                    placeholder="Filtrer par nom ou téléphone..."
+                                    placeholder={t('Filtrer par nom ou téléphone...')}
                                     className="h-9 pl-9"
                                 />
                             </div>
@@ -452,7 +455,7 @@ function ProgramProgressDialog({ program, onClose }: { program: LoyaltyProgram |
                                             </span>
                                             <span className="min-w-0">
                                                 <span className="block truncate text-sm font-medium text-foreground">
-                                                    {row.client_name ?? 'Client supprimé'}
+                                                    {row.client_name ?? t('Client supprimé')}
                                                 </span>
                                                 {row.client_phone && (
                                                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -472,7 +475,7 @@ function ProgramProgressDialog({ program, onClose }: { program: LoyaltyProgram |
                                             {row.rewards_earned > 0 && (
                                                 <span className="flex items-center justify-end gap-1 text-[11px] text-accent">
                                                     <Trophy className="h-3 w-3" />
-                                                    {row.rewards_earned} gagnée{row.rewards_earned > 1 ? 's' : ''}
+                                                    {row.rewards_earned} {row.rewards_earned > 1 ? t('gagnées') : t('gagnée')}
                                                 </span>
                                             )}
                                         </span>
@@ -493,8 +496,8 @@ function ProgramProgressDialog({ program, onClose }: { program: LoyaltyProgram |
                                                 <span>{row.percent}%</span>
                                                 <span>
                                                     {row.percent >= 100
-                                                        ? 'Objectif atteint'
-                                                        : `Encore ${formatValue(row.remaining ?? 0)}`}
+                                                        ? t('Objectif atteint')
+                                                        : t('Encore {n}', { n: formatValue(row.remaining ?? 0) })}
                                                     {row.last_activity_at
                                                         ? ` · ${formatRelativeTime(row.last_activity_at)}`
                                                         : ''}
@@ -506,7 +509,7 @@ function ProgramProgressDialog({ program, onClose }: { program: LoyaltyProgram |
                             ))}
                             {rows.length === 0 && (
                                 <p className="rounded-md border border-dashed border-tint/[0.1] px-3 py-5 text-center text-xs text-muted-foreground">
-                                    Aucun client ne correspond à ce filtre.
+                                    {t('Aucun client ne correspond à ce filtre.')}
                                 </p>
                             )}
                         </ul>
@@ -538,6 +541,7 @@ function ProgramDialog({
     onClose: () => void;
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+    const { t } = useI18n();
     const isRuleType = RULE_TYPES.includes(form.type);
     const hasReward = form.type !== 'custom';
 
@@ -545,26 +549,26 @@ function ProgramDialog({
         <Dialog open={open} onOpenChange={(nextOpen) => (nextOpen ? null : onClose())}>
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>{editing ? 'Modifier le programme' : 'Nouveau programme de fidélité'}</DialogTitle>
+                    <DialogTitle>{editing ? t('Modifier le programme') : t('Nouveau programme de fidélité')}</DialogTitle>
                     <DialogDescription>
-                        Le client cumule sur son compte fidélité numérique — jamais une carte physique.
+                        {t('Le client cumule sur son compte fidélité numérique — jamais une carte physique.')}
                     </DialogDescription>
                 </DialogHeader>
 
                 <form onSubmit={onSubmit} className="space-y-5">
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                            <Label htmlFor="program-name">Nom</Label>
+                            <Label htmlFor="program-name">{t('Nom')}</Label>
                             <Input
                                 id="program-name"
                                 value={form.name}
                                 onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                                placeholder="5 Hammams = 1 Gratuit"
+                                placeholder={t('5 Hammams = 1 Gratuit')}
                                 required
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="program-type">Type</Label>
+                            <Label htmlFor="program-type">{t('Type')}</Label>
                             <select
                                 id="program-type"
                                 value={form.type}
@@ -575,7 +579,7 @@ function ProgramDialog({
                             >
                                 {Object.entries(TYPE_LABELS).map(([value, label]) => (
                                     <option key={value} value={value}>
-                                        {label}
+                                        {t(label)}
                                     </option>
                                 ))}
                             </select>
@@ -583,50 +587,49 @@ function ProgramDialog({
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="program-description">Description</Label>
+                        <Label htmlFor="program-description">{t('Description')}</Label>
                         <Input
                             id="program-description"
                             value={form.description}
                             onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-                            placeholder="Après 5 hammams payés, le client reçoit un hammam gratuit."
+                            placeholder={t('Après 5 hammams payés, le client reçoit un hammam gratuit.')}
                         />
                     </div>
 
                     {isRuleType && (
                         <div className="space-y-4 rounded-md border border-tint/[0.08] bg-tint/[0.02] p-4">
                             <div>
-                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Règle d'accumulation</p>
+                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("Règle d'accumulation")}</p>
                                 <p className="mt-1 text-xs text-muted-foreground">
-                                    Quelles ventes encaissées font avancer le compteur du client — à ne pas
-                                    confondre avec la récompense offerte, définie plus bas.
+                                    {t('Quelles ventes encaissées font avancer le compteur du client — à ne pas confondre avec la récompense offerte, définie plus bas.')}
                                 </p>
                             </div>
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div className="space-y-2">
-                                    <Label htmlFor="program-category">Catégorie ciblée (optionnel)</Label>
+                                    <Label htmlFor="program-category">{t('Catégorie ciblée (optionnel)')}</Label>
                                     <select
                                         id="program-category"
                                         value={form.category}
                                         onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
                                         className="flex h-10 w-full rounded-md border border-input bg-tint/[0.03] px-3 text-sm text-foreground outline-none focus:border-accent/60"
                                     >
-                                        <option value="">Toutes les catégories</option>
+                                        <option value="">{t('Toutes les catégories')}</option>
                                         {CATEGORIES.map((category) => (
                                             <option key={category.value} value={category.value}>
-                                                {category.label}
+                                                {t(category.label)}
                                             </option>
                                         ))}
                                     </select>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="program-service">Service ciblé (optionnel)</Label>
+                                    <Label htmlFor="program-service">{t('Service ciblé (optionnel)')}</Label>
                                     <select
                                         id="program-service"
                                         value={form.service_id}
                                         onChange={(event) => setForm((current) => ({ ...current, service_id: event.target.value }))}
                                         className="flex h-10 w-full rounded-md border border-input bg-tint/[0.03] px-3 text-sm text-foreground outline-none focus:border-accent/60"
                                     >
-                                        <option value="">Tous les services de la catégorie</option>
+                                        <option value="">{t('Tous les services de la catégorie')}</option>
                                         {services.map((service) => (
                                             <option key={service.id} value={service.id}>
                                                 {service.name}
@@ -643,9 +646,7 @@ function ProgramDialog({
                                         <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-xs text-destructive sm:col-span-2">
                                             <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" />
                                             <span>
-                                                Le service « {targeted.name} » appartient à la catégorie «{' '}
-                                                {targeted.category} », pas « {form.category} » — aucune vente ne
-                                                pourrait jamais correspondre. Retirez l'un des deux filtres.
+                                                {t("Le service « {service} » appartient à la catégorie « {catService} », pas « {cat} » — aucune vente ne pourrait jamais correspondre. Retirez l'un des deux filtres.", { service: targeted.name, catService: targeted.category, cat: form.category })}
                                             </span>
                                         </div>
                                     );
@@ -653,7 +654,7 @@ function ProgramDialog({
                                 {form.type === 'points' && (
                                     <Field
                                         id="program-points-per-mad"
-                                        label="Points par MAD dépensé"
+                                        label={t('Points par MAD dépensé')}
                                         value={form.points_per_mad}
                                         onChange={(value) => setForm((current) => ({ ...current, points_per_mad: value }))}
                                         type="number"
@@ -663,7 +664,7 @@ function ProgramDialog({
                                 )}
                                 <Field
                                     id="program-threshold"
-                                    label={form.type === 'points' ? 'Seuil (points)' : form.type === 'amount_spent' ? 'Seuil (MAD)' : 'Seuil (nombre)'}
+                                    label={form.type === 'points' ? t('Seuil (points)') : form.type === 'amount_spent' ? t('Seuil (MAD)') : t('Seuil (nombre)')}
                                     value={form.threshold}
                                     onChange={(value) => setForm((current) => ({ ...current, threshold: value }))}
                                     type="number"
@@ -672,7 +673,7 @@ function ProgramDialog({
                                 />
                                 <Field
                                     id="program-expiry"
-                                    label="Expiration récompense (jours, optionnel)"
+                                    label={t('Expiration récompense (jours, optionnel)')}
                                     value={form.reward_expires_after_days}
                                     onChange={(value) => setForm((current) => ({ ...current, reward_expires_after_days: value }))}
                                     type="number"
@@ -689,7 +690,7 @@ function ProgramDialog({
                                     className="h-4 w-4 accent-accent"
                                 />
                                 <span className="text-sm font-medium text-foreground">
-                                    Reporter le surplus au-delà du seuil (sinon il est perdu)
+                                    {t('Reporter le surplus au-delà du seuil (sinon il est perdu)')}
                                 </span>
                             </label>
                         </div>
@@ -697,7 +698,7 @@ function ProgramDialog({
 
                     {form.type === 'custom' && (
                         <div className="space-y-2">
-                            <Label htmlFor="program-conditions">Conditions (JSON, toutes requises)</Label>
+                            <Label htmlFor="program-conditions">{t('Conditions (JSON, toutes requises)')}</Label>
                             <textarea
                                 id="program-conditions"
                                 value={form.conditions_json}
@@ -707,17 +708,17 @@ function ProgramDialog({
                                 placeholder='[{"metric":"total_spent_gte","value":1000}]'
                             />
                             <p className="text-xs text-muted-foreground">
-                                Métriques disponibles : total_spent_gte, visits_gte, days_since_last_visit_gte, has_active_subscription.
+                                {t('Métriques disponibles : total_spent_gte, visits_gte, days_since_last_visit_gte, has_active_subscription.')}
                             </p>
                         </div>
                     )}
 
                     {hasReward && (
                         <div className="space-y-4 rounded-md border border-tint/[0.08] bg-tint/[0.02] p-4">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Récompense générée</p>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Récompense générée')}</p>
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div className="space-y-2">
-                                    <Label htmlFor="reward-type">Type de récompense</Label>
+                                    <Label htmlFor="reward-type">{t('Type de récompense')}</Label>
                                     <select
                                         id="reward-type"
                                         value={form.reward_type}
@@ -726,21 +727,21 @@ function ProgramDialog({
                                         }
                                         className="flex h-10 w-full rounded-md border border-input bg-tint/[0.03] px-3 text-sm text-foreground outline-none focus:border-accent/60"
                                     >
-                                        <option value="service">Service gratuit</option>
-                                        <option value="discount_percent">Réduction en %</option>
-                                        <option value="discount_amount">Réduction en MAD</option>
+                                        <option value="service">{t('Service gratuit')}</option>
+                                        <option value="discount_percent">{t('Réduction en %')}</option>
+                                        <option value="discount_amount">{t('Réduction en MAD')}</option>
                                     </select>
                                 </div>
                                 {form.reward_type === 'service' ? (
                                     <div className="space-y-2">
-                                        <Label htmlFor="reward-service">Service offert</Label>
+                                        <Label htmlFor="reward-service">{t('Service offert')}</Label>
                                         <select
                                             id="reward-service"
                                             value={form.reward_service_id}
                                             onChange={(event) => setForm((current) => ({ ...current, reward_service_id: event.target.value }))}
                                             className="flex h-10 w-full rounded-md border border-input bg-tint/[0.03] px-3 text-sm text-foreground outline-none focus:border-accent/60"
                                         >
-                                            <option value="">Choisir un service</option>
+                                            <option value="">{t('Choisir un service')}</option>
                                             {services.map((service) => (
                                                 <option key={service.id} value={service.id}>
                                                     {service.name}
@@ -751,7 +752,7 @@ function ProgramDialog({
                                 ) : (
                                     <Field
                                         id="reward-value"
-                                        label={form.reward_type === 'discount_percent' ? 'Valeur (%)' : 'Valeur (MAD)'}
+                                        label={form.reward_type === 'discount_percent' ? t('Valeur (%)') : t('Valeur (MAD)')}
                                         value={form.reward_value}
                                         onChange={(value) => setForm((current) => ({ ...current, reward_value: value }))}
                                         type="number"
@@ -765,24 +766,24 @@ function ProgramDialog({
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                            <Label htmlFor="commission-basis">Commission sur ligne gratuite</Label>
+                            <Label htmlFor="commission-basis">{t('Commission sur ligne gratuite')}</Label>
                             <select
                                 id="commission-basis"
                                 value={form.commission_basis}
                                 onChange={(event) => setForm((current) => ({ ...current, commission_basis: event.target.value as CommissionBasis }))}
                                 className="flex h-10 w-full rounded-md border border-input bg-tint/[0.03] px-3 text-sm text-foreground outline-none focus:border-accent/60"
                             >
-                                <option value="none">Aucune</option>
-                                <option value="public_price">Prix public</option>
-                                <option value="internal_value">Valeur interne</option>
-                                <option value="fixed">Montant fixe</option>
-                                <option value="percent">Pourcentage du prix public</option>
+                                <option value="none">{t('Aucune')}</option>
+                                <option value="public_price">{t('Prix public')}</option>
+                                <option value="internal_value">{t('Valeur interne')}</option>
+                                <option value="fixed">{t('Montant fixe')}</option>
+                                <option value="percent">{t('Pourcentage du prix public')}</option>
                             </select>
                         </div>
                         {(form.commission_basis === 'fixed' || form.commission_basis === 'percent') && (
                             <Field
                                 id="commission-value"
-                                label={form.commission_basis === 'fixed' ? 'Montant (MAD)' : 'Pourcentage (%)'}
+                                label={form.commission_basis === 'fixed' ? t('Montant (MAD)') : t('Pourcentage (%)')}
                                 value={form.commission_value}
                                 onChange={(value) => setForm((current) => ({ ...current, commission_value: value }))}
                                 type="number"
@@ -794,7 +795,7 @@ function ProgramDialog({
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
-                            <Label htmlFor="program-starts">Début (optionnel)</Label>
+                            <Label htmlFor="program-starts">{t('Début (optionnel)')}</Label>
                             <Input
                                 id="program-starts"
                                 type="date"
@@ -803,7 +804,7 @@ function ProgramDialog({
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="program-ends">Fin (optionnel)</Label>
+                            <Label htmlFor="program-ends">{t('Fin (optionnel)')}</Label>
                             <Input
                                 id="program-ends"
                                 type="date"
@@ -820,18 +821,18 @@ function ProgramDialog({
                             onChange={(event) => setForm((current) => ({ ...current, is_active: event.target.checked }))}
                             className="h-4 w-4 accent-accent"
                         />
-                        <span className="text-sm font-medium text-foreground">Programme actif</span>
+                        <span className="text-sm font-medium text-foreground">{t('Programme actif')}</span>
                     </label>
 
                     <FormError error={error} />
 
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={onClose}>
-                            Annuler
+                            {t('Annuler')}
                         </Button>
                         <Button type="submit" variant="accent" disabled={saving}>
                             {saving && <Loader2 className="animate-spin" />}
-                            {editing ? 'Enregistrer' : 'Créer'}
+                            {editing ? t('Enregistrer') : t('Créer')}
                         </Button>
                     </DialogFooter>
                 </form>
@@ -864,6 +865,7 @@ function LoadingGrid() {
 }
 
 function ErrorCard({ title, message, onRetry }: { title: string; message: string; onRetry: () => void }) {
+    const { t } = useI18n();
     return (
         <Card className="flex flex-col items-center justify-center px-6 py-16 text-center">
             <span className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/[0.12]">
@@ -872,7 +874,7 @@ function ErrorCard({ title, message, onRetry }: { title: string; message: string
             <h2 className="mt-4 text-base font-semibold">{title}</h2>
             <p className="mt-1.5 max-w-[42ch] text-sm leading-relaxed text-muted-foreground">{message}</p>
             <Button variant="accent" className="mt-6" onClick={onRetry}>
-                Réessayer
+                {t('Réessayer')}
             </Button>
         </Card>
     );

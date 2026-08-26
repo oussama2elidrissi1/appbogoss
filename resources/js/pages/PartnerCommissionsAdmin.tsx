@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { AlertCircle, Banknote, HandCoins } from 'lucide-react';
 import { getAdminPartnerCommissions, getErrorMessage, payPartnerCommissions } from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { useI18n } from '@/lib/i18n';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -15,6 +16,7 @@ import { EmptyState } from '@/components/dashboard/EmptyState';
 import { pageFade } from '@/lib/motion';
 
 export default function PartnerCommissionsAdmin() {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const [partnerFilter, setPartnerFilter] = useState<number | 'all'>('all');
     const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -83,16 +85,16 @@ export default function PartnerCommissionsAdmin() {
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-6">
             <div>
-                <h1 className="text-2xl font-semibold tracking-tight">Commissions partenaires</h1>
+                <h1 className="text-2xl font-semibold tracking-tight">{t('Commissions partenaires')}</h1>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                    Commissions validées, en attente de règlement — sélectionnez celles à payer.
+                    {t('Commissions validées, en attente de règlement — sélectionnez celles à payer.')}
                 </p>
             </div>
 
             {!isPending && data && (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     <Card className="p-4">
-                        <p className="text-xs text-muted-foreground">Total dû</p>
+                        <p className="text-xs text-muted-foreground">{t('Total dû')}</p>
                         <p className="mt-1 text-lg font-semibold tabular-nums text-accent">
                             {formatCurrency(data.meta.total_due)}
                         </p>
@@ -109,10 +111,10 @@ export default function PartnerCommissionsAdmin() {
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <Select value={String(partnerFilter)} onValueChange={(value) => setPartnerFilter(value === 'all' ? 'all' : Number(value))}>
                     <SelectTrigger className="h-9 w-56">
-                        <SelectValue placeholder="Tous les partenaires" />
+                        <SelectValue placeholder={t('Tous les partenaires')} />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="all">Tous les partenaires</SelectItem>
+                        <SelectItem value="all">{t('Tous les partenaires')}</SelectItem>
                         {data?.meta.by_partner.map((partner) => (
                             <SelectItem key={partner.partner_id} value={String(partner.partner_id)}>
                                 {partner.partner_name} ({partner.count})
@@ -124,7 +126,7 @@ export default function PartnerCommissionsAdmin() {
                 {selected.size > 0 && (
                     <Button variant="accent" onClick={() => setPayTarget(selectedPartnerId)}>
                         <HandCoins className="h-4 w-4" />
-                        Marquer comme payé — {formatCurrency(selectedTotal, { maximumFractionDigits: 2 })} (
+                        {t('Marquer comme payé')} — {formatCurrency(selectedTotal, { maximumFractionDigits: 2 })} (
                         {selected.size})
                     </Button>
                 )}
@@ -141,22 +143,22 @@ export default function PartnerCommissionsAdmin() {
                     <AlertCircle className="h-5 w-5 text-destructive" />
                     <p className="mt-2 text-sm text-destructive">{getErrorMessage(error)}</p>
                     <Button variant="accent" className="mt-4" onClick={() => void refetch()}>
-                        Réessayer
+                        {t('Réessayer')}
                     </Button>
                 </Card>
             ) : rows.length === 0 ? (
-                <EmptyState icon={Banknote} title="Rien à payer" description="Aucune commission validée en attente." />
+                <EmptyState icon={Banknote} title={t('Rien à payer')} description={t('Aucune commission validée en attente.')} />
             ) : (
                 <Card className="overflow-hidden">
                     <table className="w-full text-sm">
                         <thead className="border-b border-tint/[0.06] bg-tint/[0.02] text-left text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
                             <tr>
                                 <th className="w-10 px-4 py-3" />
-                                <th className="px-4 py-3 font-medium">Partenaire</th>
-                                <th className="px-4 py-3 font-medium">Client</th>
-                                <th className="px-4 py-3 font-medium">Service</th>
-                                <th className="px-4 py-3 font-medium">Date</th>
-                                <th className="px-4 py-3 text-right font-medium">Commission</th>
+                                <th className="px-4 py-3 font-medium">{t('Partenaire')}</th>
+                                <th className="px-4 py-3 font-medium">{t('Client')}</th>
+                                <th className="px-4 py-3 font-medium">{t('Service')}</th>
+                                <th className="px-4 py-3 font-medium">{t('Date')}</th>
+                                <th className="px-4 py-3 text-right font-medium">{t('Commission')}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -191,9 +193,19 @@ export default function PartnerCommissionsAdmin() {
                 onOpenChange={(open) => {
                     if (!open) setPayTarget(null);
                 }}
-                title="Marquer ces commissions comme payées ?"
-                description={`${formatCurrency(selectedTotal, { maximumFractionDigits: 2 })} seront enregistrés comme payés (${selected.size} commission${selected.size > 1 ? 's' : ''}).`}
-                confirmLabel="Confirmer le paiement"
+                title={t('Marquer ces commissions comme payées ?')}
+                description={
+                    selected.size > 1
+                        ? t('{amount} seront enregistrés comme payés ({n} commissions).', {
+                              amount: formatCurrency(selectedTotal, { maximumFractionDigits: 2 }),
+                              n: selected.size,
+                          })
+                        : t('{amount} seront enregistrés comme payés ({n} commission).', {
+                              amount: formatCurrency(selectedTotal, { maximumFractionDigits: 2 }),
+                              n: selected.size,
+                          })
+                }
+                confirmLabel={t('Confirmer le paiement')}
                 variant="accent"
                 loading={payMutation.isPending}
                 onConfirm={() => payMutation.mutate()}
@@ -201,31 +213,31 @@ export default function PartnerCommissionsAdmin() {
                 <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                            <Label htmlFor="payment-method">Mode de paiement</Label>
+                            <Label htmlFor="payment-method">{t('Mode de paiement')}</Label>
                             <Select value={paymentMethod} onValueChange={setPaymentMethod}>
                                 <SelectTrigger id="payment-method" className="h-9">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="virement">Virement</SelectItem>
-                                    <SelectItem value="cheque">Chèque</SelectItem>
-                                    <SelectItem value="especes">Espèces</SelectItem>
-                                    <SelectItem value="autre">Autre</SelectItem>
+                                    <SelectItem value="virement">{t('Virement')}</SelectItem>
+                                    <SelectItem value="cheque">{t('Chèque')}</SelectItem>
+                                    <SelectItem value="especes">{t('Espèces')}</SelectItem>
+                                    <SelectItem value="autre">{t('Autre')}</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
                         <div className="space-y-1.5">
-                            <Label htmlFor="payment-reference">Référence</Label>
+                            <Label htmlFor="payment-reference">{t('Référence')}</Label>
                             <Input
                                 id="payment-reference"
                                 value={reference}
                                 onChange={(event) => setReference(event.target.value)}
-                                placeholder="N° de virement..."
+                                placeholder={t('N° de virement...')}
                             />
                         </div>
                     </div>
                     <div className="space-y-1.5">
-                        <Label htmlFor="payment-notes">Notes</Label>
+                        <Label htmlFor="payment-notes">{t('Notes')}</Label>
                         <Input id="payment-notes" value={notes} onChange={(event) => setNotes(event.target.value)} />
                     </div>
                     {payMutation.isError && (

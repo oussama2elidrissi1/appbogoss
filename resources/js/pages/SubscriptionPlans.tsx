@@ -12,6 +12,7 @@ import {
     updateSubscriptionPlan,
 } from '@/lib/api';
 import { cn, formatCurrency } from '@/lib/utils';
+import { useI18n } from '@/lib/i18n';
 import type {
     CommissionBasis,
     SubscriptionPlan,
@@ -172,6 +173,7 @@ const DAY_OPTIONS: Array<{ value: number; label: string }> = [
 ];
 
 export default function SubscriptionPlans() {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
 
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -241,15 +243,15 @@ export default function SubscriptionPlans() {
         setFormError(null);
 
         if (!form.name.trim()) {
-            setFormError('Le nom est obligatoire.');
+            setFormError(t('Le nom est obligatoire.'));
             return;
         }
         if (!Number.isFinite(Number(form.price)) || Number(form.price) < 0) {
-            setFormError('Le prix doit être valide.');
+            setFormError(t('Le prix doit être valide.'));
             return;
         }
         if (!form.services.some((row) => row.service_id)) {
-            setFormError('Ajoutez au moins un service inclus.');
+            setFormError(t('Ajoutez au moins un service inclus.'));
             return;
         }
 
@@ -269,25 +271,25 @@ export default function SubscriptionPlans() {
             <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
                 <motion.div variants={item} className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                     <div>
-                        <h2 className="text-2xl font-semibold tracking-tight">Abonnements</h2>
+                        <h2 className="text-2xl font-semibold tracking-tight">{t('Abonnements')}</h2>
                         <p className="mt-1.5 text-sm text-muted-foreground">
-                            Plans payants avec quotas de services inclus, ex. « Hammam 3 mois ».
+                            {t('Plans payants avec quotas de services inclus, ex. « Hammam 3 mois ».')}
                         </p>
                     </div>
                     <Button variant="accent" onClick={openCreateDialog}>
                         <Plus />
-                        Nouveau plan
+                        {t('Nouveau plan')}
                     </Button>
                 </motion.div>
 
                 <motion.div variants={item} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <Stat label="Plans" value={plans.length} />
-                    <Stat label="Actifs" value={activeCount} tone="success" />
+                    <Stat label={t('Plans')} value={plans.length} />
+                    <Stat label={t('Actifs')} value={activeCount} tone="success" />
                 </motion.div>
 
                 {plansQuery.isError ? (
                     <ErrorCard
-                        title="Impossible de charger les plans"
+                        title={t('Impossible de charger les plans')}
                         message={getErrorMessage(plansQuery.error)}
                         onRetry={() => void plansQuery.refetch()}
                     />
@@ -296,8 +298,8 @@ export default function SubscriptionPlans() {
                 ) : plans.length === 0 ? (
                     <EmptyState
                         icon={CalendarClock}
-                        title="Aucun plan d'abonnement"
-                        description="Créez un plan, par exemple « Hammam 3 mois » (1 hammam/semaine)."
+                        title={t("Aucun plan d'abonnement")}
+                        description={t('Créez un plan, par exemple « Hammam 3 mois » (1 hammam/semaine).')}
                     />
                 ) : (
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -308,7 +310,7 @@ export default function SubscriptionPlans() {
                                         <div className="min-w-0">
                                             <h3 className="truncate text-sm font-semibold text-foreground">{plan.name}</h3>
                                             <p className="mt-1 text-xs text-muted-foreground">
-                                                {plan.duration_value} {DURATION_LABELS[plan.duration_unit]}
+                                                {plan.duration_value} {t(DURATION_LABELS[plan.duration_unit])}
                                             </p>
                                         </div>
                                         <p className="shrink-0 text-sm font-semibold tabular-nums text-accent">
@@ -317,12 +319,12 @@ export default function SubscriptionPlans() {
                                     </div>
 
                                     <div className="mt-4 flex flex-wrap gap-2">
-                                        <Badge variant={plan.is_active ? 'success' : 'outline'}>{plan.is_active ? 'Actif' : 'Inactif'}</Badge>
+                                        <Badge variant={plan.is_active ? 'success' : 'outline'}>{plan.is_active ? t('Actif') : t('Inactif')}</Badge>
                                         {plan.services.map((service) => (
                                             <Badge key={service.id} variant="outline">
                                                 {service.service_name}
                                                 {service.quota_period && service.quota_per_period
-                                                    ? ` · ${service.quota_per_period}/${QUOTA_PERIOD_LABELS[service.quota_period]}`
+                                                    ? ` · ${service.quota_per_period}/${t(QUOTA_PERIOD_LABELS[service.quota_period])}`
                                                     : ''}
                                             </Badge>
                                         ))}
@@ -337,17 +339,17 @@ export default function SubscriptionPlans() {
                                             onClick={() => setSellingPlan(plan)}
                                         >
                                             <ShoppingBag className="h-3.5 w-3.5" />
-                                            Vendre
+                                            {t('Vendre')}
                                         </Button>
                                         <div className="flex items-center gap-1">
-                                            <Button type="button" size="icon" variant="ghost" aria-label="Modifier" onClick={() => openEditDialog(plan)}>
+                                            <Button type="button" size="icon" variant="ghost" aria-label={t('Modifier')} onClick={() => openEditDialog(plan)}>
                                                 <Pencil />
                                             </Button>
                                             <Button
                                                 type="button"
                                                 size="icon"
                                                 variant="ghost"
-                                                aria-label={plan.is_active ? 'Désactiver' : 'Activer'}
+                                                aria-label={plan.is_active ? t('Désactiver') : t('Activer')}
                                                 disabled={toggleMutation.isPending}
                                                 onClick={() => toggleMutation.mutate(plan)}
                                             >
@@ -400,6 +402,8 @@ function PlanDialog({
     onClose: () => void;
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+    const { t } = useI18n();
+
     function updateRow(key: string, patch: Partial<ServiceRowForm>) {
         setForm((current) => ({
             ...current,
@@ -419,36 +423,36 @@ function PlanDialog({
         <Dialog open={open} onOpenChange={(nextOpen) => (nextOpen ? null : onClose())}>
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>{editing ? 'Modifier le plan' : 'Nouveau plan d’abonnement'}</DialogTitle>
-                    <DialogDescription>Le client achète le plan une fois, puis consomme les services inclus selon leur quota.</DialogDescription>
+                    <DialogTitle>{editing ? t('Modifier le plan') : t('Nouveau plan d’abonnement')}</DialogTitle>
+                    <DialogDescription>{t('Le client achète le plan une fois, puis consomme les services inclus selon leur quota.')}</DialogDescription>
                 </DialogHeader>
 
                 <form onSubmit={onSubmit} className="space-y-5">
                     <div className="space-y-2">
-                        <Label htmlFor="plan-name">Nom</Label>
+                        <Label htmlFor="plan-name">{t('Nom')}</Label>
                         <Input
                             id="plan-name"
                             value={form.name}
                             onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                            placeholder="Hammam 3 mois"
+                            placeholder={t('Hammam 3 mois')}
                             required
                         />
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="plan-description">Description</Label>
+                        <Label htmlFor="plan-description">{t('Description')}</Label>
                         <Input
                             id="plan-description"
                             value={form.description}
                             onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-                            placeholder="1 hammam par semaine pendant 3 mois."
+                            placeholder={t('1 hammam par semaine pendant 3 mois.')}
                         />
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                         <Field
                             id="plan-price"
-                            label="Prix MAD"
+                            label={t('Prix MAD')}
                             value={form.price}
                             onChange={(value) => setForm((current) => ({ ...current, price: value }))}
                             type="number"
@@ -458,7 +462,7 @@ function PlanDialog({
                         />
                         <Field
                             id="plan-duration-value"
-                            label="Durée"
+                            label={t('Durée')}
                             value={form.duration_value}
                             onChange={(value) => setForm((current) => ({ ...current, duration_value: value }))}
                             type="number"
@@ -466,7 +470,7 @@ function PlanDialog({
                             min="1"
                         />
                         <div className="space-y-2">
-                            <Label htmlFor="plan-duration-unit">Unité</Label>
+                            <Label htmlFor="plan-duration-unit">{t('Unité')}</Label>
                             <select
                                 id="plan-duration-unit"
                                 value={form.duration_unit}
@@ -475,9 +479,9 @@ function PlanDialog({
                                 }
                                 className="flex h-10 w-full rounded-md border border-input bg-tint/[0.03] px-3 text-sm text-foreground outline-none focus:border-accent/60"
                             >
-                                <option value="days">Jours</option>
-                                <option value="weeks">Semaines</option>
-                                <option value="months">Mois</option>
+                                <option value="days">{t('Jours')}</option>
+                                <option value="weeks">{t('Semaines')}</option>
+                                <option value="months">{t('Mois')}</option>
                             </select>
                         </div>
                     </div>
@@ -485,14 +489,14 @@ function PlanDialog({
                     {/* ------------------------------------------------ usage rules */}
                     <div className="space-y-4 rounded-md border border-tint/[0.08] bg-tint/[0.02] p-4">
                         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                            Règles d'utilisation
+                            {t("Règles d'utilisation")}
                             <span className="ml-2 font-normal normal-case tracking-normal text-muted-foreground/70">
-                                — tout est optionnel, vide = aucune restriction
+                                {t('— tout est optionnel, vide = aucune restriction')}
                             </span>
                         </p>
 
                         <div>
-                            <Label>Jours autorisés</Label>
+                            <Label>{t('Jours autorisés')}</Label>
                             <div className="mt-2 flex flex-wrap gap-1.5">
                                 {DAY_OPTIONS.map((day) => {
                                     const selected = form.allowed_days.includes(day.value);
@@ -515,19 +519,19 @@ function PlanDialog({
                                                     : 'border-tint/[0.08] bg-tint/[0.02] text-muted-foreground hover:border-accent/30',
                                             )}
                                         >
-                                            {day.label}
+                                            {t(day.label)}
                                         </button>
                                     );
                                 })}
                             </div>
                             {form.allowed_days.length === 0 && (
-                                <p className="mt-1.5 text-[11px] text-muted-foreground/70">Aucun jour coché = valable tous les jours.</p>
+                                <p className="mt-1.5 text-[11px] text-muted-foreground/70">{t('Aucun jour coché = valable tous les jours.')}</p>
                             )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                             <div className="space-y-2">
-                                <Label htmlFor="plan-time-start">Heure début</Label>
+                                <Label htmlFor="plan-time-start">{t('Heure début')}</Label>
                                 <Input
                                     id="plan-time-start"
                                     type="time"
@@ -536,7 +540,7 @@ function PlanDialog({
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="plan-time-end">Heure fin</Label>
+                                <Label htmlFor="plan-time-end">{t('Heure fin')}</Label>
                                 <Input
                                     id="plan-time-end"
                                     type="time"
@@ -546,7 +550,7 @@ function PlanDialog({
                             </div>
                             <Field
                                 id="plan-max-day"
-                                label="Max / jour"
+                                label={t('Max / jour')}
                                 value={form.max_per_day}
                                 onChange={(value) => setForm((current) => ({ ...current, max_per_day: value }))}
                                 type="number"
@@ -555,7 +559,7 @@ function PlanDialog({
                             />
                             <Field
                                 id="plan-max-week"
-                                label="Max / semaine"
+                                label={t('Max / semaine')}
                                 value={form.max_per_week}
                                 onChange={(value) => setForm((current) => ({ ...current, max_per_week: value }))}
                                 type="number"
@@ -567,7 +571,7 @@ function PlanDialog({
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                             <Field
                                 id="plan-max-month"
-                                label="Max / mois"
+                                label={t('Max / mois')}
                                 value={form.max_per_month}
                                 onChange={(value) => setForm((current) => ({ ...current, max_per_month: value }))}
                                 type="number"
@@ -576,12 +580,12 @@ function PlanDialog({
                             />
                             <Field
                                 id="plan-min-interval"
-                                label="Intervalle min. (minutes)"
+                                label={t('Intervalle min. (minutes)')}
                                 value={form.min_interval_minutes}
                                 onChange={(value) => setForm((current) => ({ ...current, min_interval_minutes: value }))}
                                 type="number"
                                 min="5"
-                                placeholder="ex. 360 = 6h"
+                                placeholder={t('ex. 360 = 6h')}
                             />
                             <label className="flex items-center gap-2 self-end pb-2.5 text-sm">
                                 <input
@@ -590,7 +594,7 @@ function PlanDialog({
                                     onChange={(event) => setForm((current) => ({ ...current, allow_renewal: event.target.checked }))}
                                     className="h-4 w-4 accent-[#C8A24C]"
                                 />
-                                Renouvelable
+                                {t('Renouvelable')}
                             </label>
                             <label className="flex items-center gap-2 self-end pb-2.5 text-sm">
                                 <input
@@ -599,17 +603,17 @@ function PlanDialog({
                                     onChange={(event) => setForm((current) => ({ ...current, allow_suspension: event.target.checked }))}
                                     className="h-4 w-4 accent-[#C8A24C]"
                                 />
-                                Suspension autorisée
+                                {t('Suspension autorisée')}
                             </label>
                         </div>
                     </div>
 
                     <div className="space-y-3 rounded-md border border-tint/[0.08] bg-tint/[0.02] p-4">
                         <div className="flex items-center justify-between">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Services inclus</p>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t('Services inclus')}</p>
                             <Button type="button" size="sm" variant="outline" onClick={addRow}>
                                 <Plus className="h-3.5 w-3.5" />
-                                Ajouter un service
+                                {t('Ajouter un service')}
                             </Button>
                         </div>
 
@@ -621,7 +625,7 @@ function PlanDialog({
                                         onChange={(event) => updateRow(row.key, { service_id: event.target.value })}
                                         className="flex h-10 w-full rounded-md border border-input bg-tint/[0.03] px-3 text-sm text-foreground outline-none focus:border-accent/60"
                                     >
-                                        <option value="">Choisir un service</option>
+                                        <option value="">{t('Choisir un service')}</option>
                                         {services.map((service) => (
                                             <option key={service.id} value={service.id}>
                                                 {service.name}
@@ -632,7 +636,7 @@ function PlanDialog({
                                         type="button"
                                         size="icon"
                                         variant="ghost"
-                                        aria-label="Retirer"
+                                        aria-label={t('Retirer')}
                                         onClick={() => removeRow(row.key)}
                                         disabled={form.services.length === 1}
                                     >
@@ -646,17 +650,17 @@ function PlanDialog({
                                         onChange={(event) => updateRow(row.key, { quota_period: event.target.value as ServiceRowForm['quota_period'] })}
                                         className="flex h-9 w-full rounded-md border border-input bg-tint/[0.03] px-2 text-xs text-foreground outline-none focus:border-accent/60"
                                     >
-                                        <option value="">Sans quota périodique</option>
-                                        <option value="day">Par jour</option>
-                                        <option value="week">Par semaine</option>
-                                        <option value="month">Par mois</option>
+                                        <option value="">{t('Sans quota périodique')}</option>
+                                        <option value="day">{t('Par jour')}</option>
+                                        <option value="week">{t('Par semaine')}</option>
+                                        <option value="month">{t('Par mois')}</option>
                                     </select>
                                     <Input
                                         value={row.quota_per_period}
                                         onChange={(event) => updateRow(row.key, { quota_per_period: event.target.value })}
                                         type="number"
                                         min="1"
-                                        placeholder="Qté / période"
+                                        placeholder={t('Qté / période')}
                                         className="h-9 text-xs"
                                         disabled={!row.quota_period}
                                     />
@@ -665,7 +669,7 @@ function PlanDialog({
                                         onChange={(event) => updateRow(row.key, { quota_total: event.target.value })}
                                         type="number"
                                         min="1"
-                                        placeholder="Quota total (optionnel)"
+                                        placeholder={t('Quota total (optionnel)')}
                                         className="h-9 text-xs"
                                     />
                                     <select
@@ -673,11 +677,11 @@ function PlanDialog({
                                         onChange={(event) => updateRow(row.key, { commission_basis: event.target.value as CommissionBasis })}
                                         className="flex h-9 w-full rounded-md border border-input bg-tint/[0.03] px-2 text-xs text-foreground outline-none focus:border-accent/60"
                                     >
-                                        <option value="none">Commission: aucune</option>
-                                        <option value="public_price">Commission: prix public</option>
-                                        <option value="internal_value">Commission: valeur interne</option>
-                                        <option value="fixed">Commission: montant fixe</option>
-                                        <option value="percent">Commission: %</option>
+                                        <option value="none">{t('Commission: aucune')}</option>
+                                        <option value="public_price">{t('Commission: prix public')}</option>
+                                        <option value="internal_value">{t('Commission: valeur interne')}</option>
+                                        <option value="fixed">{t('Commission: montant fixe')}</option>
+                                        <option value="percent">{t('Commission: %')}</option>
                                     </select>
                                 </div>
 
@@ -688,14 +692,14 @@ function PlanDialog({
                                         onChange={(event) => updateRow(row.key, { allow_rollover: event.target.checked })}
                                         className="h-3.5 w-3.5 accent-accent"
                                     />
-                                    Reporter le quota non utilisé à la période suivante
+                                    {t('Reporter le quota non utilisé à la période suivante')}
                                 </label>
                             </div>
                         ))}
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="plan-notes">Notes</Label>
+                        <Label htmlFor="plan-notes">{t('Notes')}</Label>
                         <Input
                             id="plan-notes"
                             value={form.notes}
@@ -710,18 +714,18 @@ function PlanDialog({
                             onChange={(event) => setForm((current) => ({ ...current, is_active: event.target.checked }))}
                             className="h-4 w-4 accent-accent"
                         />
-                        <span className="text-sm font-medium text-foreground">Plan actif</span>
+                        <span className="text-sm font-medium text-foreground">{t('Plan actif')}</span>
                     </label>
 
                     <FormError error={error} />
 
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={onClose}>
-                            Annuler
+                            {t('Annuler')}
                         </Button>
                         <Button type="submit" variant="accent" disabled={saving}>
                             {saving && <Loader2 className="animate-spin" />}
-                            {editing ? 'Enregistrer' : 'Créer'}
+                            {editing ? t('Enregistrer') : t('Créer')}
                         </Button>
                     </DialogFooter>
                 </form>

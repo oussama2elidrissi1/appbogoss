@@ -25,6 +25,7 @@ import {
     updatePartner,
 } from '@/lib/api';
 import { cn, formatCurrency } from '@/lib/utils';
+import { useI18n } from '@/lib/i18n';
 import type { Partner, PartnerPayload, PartnerStatus } from '@/types/workday';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -47,6 +48,7 @@ const STATUS_META: Record<PartnerStatus, { label: string; variant: 'success' | '
 };
 
 export default function Partenaires() {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const [search, setSearch] = useState('');
     const [formOpen, setFormOpen] = useState(false);
@@ -158,15 +160,14 @@ export default function Partenaires() {
             <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-6">
                 <div className="flex flex-wrap items-end justify-between gap-4">
                     <div>
-                        <h2 className="text-2xl font-semibold tracking-tight">Partenaires</h2>
+                        <h2 className="text-2xl font-semibold tracking-tight">{t('Partenaires')}</h2>
                         <p className="mt-1.5 text-sm text-muted-foreground">
-                            Hôtels, riads, guides… qui réservent pour leurs clients. Chaque partenaire a son
-                            compte de connexion et sa commission par service (fixe ou pourcentage).
+                            {t('Hôtels, riads, guides… qui réservent pour leurs clients. Chaque partenaire a son compte de connexion et sa commission par service (fixe ou pourcentage).')}
                         </p>
                     </div>
                     <Button variant="accent" onClick={openCreate}>
                         <Plus />
-                        Nouveau partenaire
+                        {t('Nouveau partenaire')}
                     </Button>
                 </div>
 
@@ -175,7 +176,7 @@ export default function Partenaires() {
                     <Input
                         value={search}
                         onChange={(event) => setSearch(event.target.value)}
-                        placeholder="Rechercher un partenaire..."
+                        placeholder={t('Rechercher un partenaire...')}
                         className="pl-10"
                     />
                 </div>
@@ -191,14 +192,14 @@ export default function Partenaires() {
                         <AlertCircle className="h-5 w-5 text-destructive" />
                         <p className="mt-2 text-sm text-destructive">{getErrorMessage(error)}</p>
                         <Button variant="accent" className="mt-4" onClick={() => void refetch()}>
-                            Réessayer
+                            {t('Réessayer')}
                         </Button>
                     </Card>
                 ) : filteredPartners.length === 0 ? (
                     <EmptyState
                         icon={Handshake}
-                        title="Aucun partenaire"
-                        description="Créez un compte partenaire pour lui permettre de réserver dans votre agenda."
+                        title={t('Aucun partenaire')}
+                        description={t('Créez un compte partenaire pour lui permettre de réserver dans votre agenda.')}
                     />
                 ) : (
                     <div className="space-y-2">
@@ -222,20 +223,22 @@ export default function Partenaires() {
                                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
                                         {[partner.contact_name, partner.phone, partner.login_email]
                                             .filter(Boolean)
-                                            .join(' · ') || 'Aucune coordonnée'}
+                                            .join(' · ') || t('Aucune coordonnée')}
                                     </p>
                                 </div>
 
                                 <Badge variant="outline" className="shrink-0 gap-1.5">
                                     <CalendarCheck className="h-3.5 w-3.5" />
-                                    {partner.appointments_count ?? 0} réservation
-                                    {(partner.appointments_count ?? 0) > 1 ? 's' : ''}
+                                    {(partner.appointments_count ?? 0) > 1
+                                        ? t('{n} réservations', { n: partner.appointments_count ?? 0 })
+                                        : t('{n} réservation', { n: partner.appointments_count ?? 0 })}
                                 </Badge>
 
                                 <Badge variant="outline" className="shrink-0 gap-1.5">
                                     <Percent className="h-3.5 w-3.5" />
-                                    {partner.commissions?.length ?? 0} commission
-                                    {(partner.commissions?.length ?? 0) > 1 ? 's' : ''}
+                                    {(partner.commissions?.length ?? 0) > 1
+                                        ? t('{n} commissions', { n: partner.commissions?.length ?? 0 })
+                                        : t('{n} commission', { n: partner.commissions?.length ?? 0 })}
                                 </Badge>
 
                                 <Select
@@ -252,7 +255,7 @@ export default function Partenaires() {
                                     <SelectContent>
                                         {(Object.keys(STATUS_META) as PartnerStatus[]).map((key) => (
                                             <SelectItem key={key} value={key}>
-                                                {STATUS_META[key].label}
+                                                {t(STATUS_META[key].label)}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -263,7 +266,7 @@ export default function Partenaires() {
                                         type="button"
                                         size="icon"
                                         variant="ghost"
-                                        aria-label="Voir la fiche"
+                                        aria-label={t('Voir la fiche')}
                                         asChild
                                     >
                                         <Link to={`/partenaires/${partner.id}`}>
@@ -274,7 +277,7 @@ export default function Partenaires() {
                                         type="button"
                                         size="icon"
                                         variant="ghost"
-                                        aria-label="Modifier le partenaire"
+                                        aria-label={t('Modifier le partenaire')}
                                         onClick={() => openEdit(partner)}
                                     >
                                         <Pencil />
@@ -283,7 +286,7 @@ export default function Partenaires() {
                                         type="button"
                                         size="icon"
                                         variant="ghost"
-                                        aria-label="Réinitialiser le mot de passe"
+                                        aria-label={t('Réinitialiser le mot de passe')}
                                         disabled={!partner.user_id}
                                         onClick={() => setResetTarget(partner)}
                                     >
@@ -293,7 +296,7 @@ export default function Partenaires() {
                                         type="button"
                                         size="icon"
                                         variant="ghost"
-                                        aria-label="Supprimer le partenaire"
+                                        aria-label={t('Supprimer le partenaire')}
                                         onClick={() => setDeleteTarget(partner)}
                                     >
                                         <Trash2 className="text-destructive" />
@@ -307,7 +310,7 @@ export default function Partenaires() {
                                                 key={rule.service_id}
                                                 className="rounded-full border border-tint/[0.08] bg-tint/[0.03] px-2.5 py-1 text-[11px] text-muted-foreground"
                                             >
-                                                {rule.service_name ?? `Service ${rule.service_id}`}
+                                                {rule.service_name ?? t('Service {id}', { id: rule.service_id })}
                                                 {' — '}
                                                 <span className="font-semibold text-accent">
                                                     {rule.type === 'percentage'
@@ -348,13 +351,13 @@ export default function Partenaires() {
                 onOpenChange={(open) => {
                     if (!open) setDeleteTarget(null);
                 }}
-                title="Supprimer ce partenaire ?"
+                title={t('Supprimer ce partenaire ?')}
                 description={
                     deleteTarget
-                        ? `${deleteTarget.name}, son compte de connexion et sa grille de commissions seront définitivement supprimés. Ses réservations existantes restent dans l'agenda.`
+                        ? t("{name}, son compte de connexion et sa grille de commissions seront définitivement supprimés. Ses réservations existantes restent dans l'agenda.", { name: deleteTarget.name })
                         : undefined
                 }
-                confirmLabel="Supprimer"
+                confirmLabel={t('Supprimer')}
                 loading={deleteMutation.isPending}
                 onConfirm={() => {
                     if (deleteTarget) deleteMutation.mutate(deleteTarget);
@@ -366,13 +369,13 @@ export default function Partenaires() {
                 onOpenChange={(open) => {
                     if (!open) setResetTarget(null);
                 }}
-                title="Réinitialiser le mot de passe ?"
+                title={t('Réinitialiser le mot de passe ?')}
                 description={
                     resetTarget
-                        ? `Un nouveau mot de passe sera généré pour ${resetTarget.name}. L'ancien ne fonctionnera plus.`
+                        ? t("Un nouveau mot de passe sera généré pour {name}. L'ancien ne fonctionnera plus.", { name: resetTarget.name })
                         : undefined
                 }
-                confirmLabel="Réinitialiser"
+                confirmLabel={t('Réinitialiser')}
                 loading={resetMutation.isPending}
                 onConfirm={() => {
                     if (resetTarget) resetMutation.mutate(resetTarget);

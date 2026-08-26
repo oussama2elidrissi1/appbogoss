@@ -26,6 +26,7 @@ use App\Services\RewardRedemptionService;
 use App\Services\SubscriptionService;
 use App\Services\WorkDayService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
@@ -867,8 +868,20 @@ class PosService
     public function historyQuery(array $filters): Builder
     {
         $query = Prestation::query()
-            ->where('channel', Prestation::CHANNEL_CAISSE_V2)
-            ->with(['items.employee', 'items.service', 'client', 'confirmedBy', 'createdBy', 'tips.employee', 'sale'])
+            ->where(function (Builder $builder) {
+                $builder->where('channel', Prestation::CHANNEL_CAISSE_V2)
+                    ->orWhere(function (Builder $v1) {
+                        $v1->whereNull('channel')
+                            ->where(function (Builder $settled) {
+                                $settled->whereIn('status', [Prestation::STATUS_PAID, Prestation::STATUS_REFUNDED])
+                                    ->orWhere(function (Builder $cancelled) {
+                                        $cancelled->where('status', Prestation::STATUS_CANCELLED)
+                                            ->whereNotNull('validated_at');
+                                    });
+                            });
+                    });
+            })
+            ->with(['employee', 'items.employee', 'items.service', 'items.product', 'client', 'confirmedBy', 'createdBy', 'tips.employee', 'sale'])
             ->orderByDesc('created_at');
 
         $from = ! empty($filters['from']) ? $filters['from'] : now()->toDateString();
@@ -921,6 +934,75 @@ class PosService
         }
 
         return $query;
+    }
+
+    /**
+     * Summary for the whole filtered history result, not just the current
+     * page. V1 prestations use the header employee; V2 uses per-line employees.
+     *
+     * @param  Collection<int, Prestation>  $invoices
+     * @return array<string, mixed>
+     */
+    public function historyStats(Collection $invoices): array
+    {
+        $paid = $invoices->where('status', Prestation::STATUS_PAID);
+        $byEmployee = [];
+
+        foreach ($paid as $invoice) {
+            $invoice->loadMissing(['employee', 'items.employee', 'items.service', 'items.product']);
+            $computed = $this->computeTotals($invoice);
+
+            foreach ($invoice->items as $item) {
+                $lineEmployee = $item->employee;
+
+                if ($lineEmployee === null && $invoice->channel !== Prestation::CHANNEL_CAISSE_V2) {
+                    $lineEmployee = $invoice->employee;
+                }
+
+                if ($lineEmployee === null) {
+                    continue;
+                }
+
+                $employeeId = (int) $lineEmployee->id;
+                $entry = $byEmployee[$employeeId] ?? [
+                    'employee_id' => $employeeId,
+                    'employee_name' => $lineEmployee->name,
+                    'performed_count' => 0,
+                    'invoices_count' => 0,
+                    'total' => 0.0,
+                    'commission_total' => 0.0,
+                    '_invoice_ids' => [],
+                ];
+
+                $entry['performed_count'] += max(1, (int) $item->quantity);
+                $entry['_invoice_ids'][$invoice->id] = true;
+                $entry['total'] += (float) ($computed['lines'][$item->id]['total'] ?? $item->effectiveLineTotal());
+                $entry['commission_total'] += (float) ($item->commission_amount ?? 0);
+
+                $byEmployee[$employeeId] = $entry;
+            }
+        }
+
+        $employees = collect($byEmployee)
+            ->map(function (array $entry) {
+                $entry['invoices_count'] = count($entry['_invoice_ids']);
+                $entry['total'] = round((float) $entry['total'], 2);
+                $entry['commission_total'] = round((float) $entry['commission_total'], 2);
+                unset($entry['_invoice_ids']);
+
+                return $entry;
+            })
+            ->sortByDesc('total')
+            ->values()
+            ->all();
+
+        return [
+            'paid_count' => $paid->count(),
+            'paid_total' => round((float) $paid->sum(fn (Prestation $invoice) => (float) $invoice->total), 2),
+            'v1_count' => $invoices->filter(fn (Prestation $invoice) => $invoice->channel === null)->count(),
+            'v2_count' => $invoices->filter(fn (Prestation $invoice) => $invoice->channel === Prestation::CHANNEL_CAISSE_V2)->count(),
+            'employees' => $employees,
+        ];
     }
 
     /**

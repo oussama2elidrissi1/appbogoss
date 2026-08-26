@@ -9,6 +9,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Button, type ButtonProps } from '@/components/ui/button';
+import { useI18n } from '@/lib/i18n';
 
 interface ConfirmDialogProps {
     open: boolean;
@@ -40,6 +41,8 @@ export function ConfirmDialog({
     loading = false,
     onConfirm,
 }: ConfirmDialogProps) {
+    const { t } = useI18n();
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-sm">
@@ -48,20 +51,20 @@ export function ConfirmDialog({
                         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/[0.12]">
                             <TriangleAlert className="h-5 w-5 text-destructive" />
                         </span>
-                        <DialogTitle>{title}</DialogTitle>
+                        <DialogTitle>{t(title)}</DialogTitle>
                     </div>
-                    {description && <DialogDescription>{description}</DialogDescription>}
+                    {description && <DialogDescription>{t(description)}</DialogDescription>}
                 </DialogHeader>
 
                 {children}
 
                 <DialogFooter>
                     <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-                        {cancelLabel}
+                        {t(cancelLabel)}
                     </Button>
                     <Button type="button" variant={variant} onClick={onConfirm} disabled={loading}>
                         {loading && <Loader2 className="animate-spin" />}
-                        {confirmLabel}
+                        {t(confirmLabel)}
                     </Button>
                 </DialogFooter>
             </DialogContent>

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { getAdminPartnerCommissions, getAppointments, getClientsByPartner, getErrorMessage, getPartnerDetail } from '@/lib/api';
 import { formatCurrency, formatDate, getInitials } from '@/lib/utils';
+import { useI18n } from '@/lib/i18n';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -40,6 +41,7 @@ function wideRange(): { from: string; to: string } {
 }
 
 export default function PartnerDetail() {
+    const { t } = useI18n();
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const partnerId = Number(id);
@@ -84,9 +86,9 @@ export default function PartnerDetail() {
         return (
             <Card className="mx-auto flex max-w-lg flex-col items-center justify-center px-6 py-12 text-center">
                 <AlertCircle className="h-5 w-5 text-destructive" />
-                <p className="mt-2 text-sm text-destructive">{error ? getErrorMessage(error) : 'Partenaire introuvable.'}</p>
+                <p className="mt-2 text-sm text-destructive">{error ? getErrorMessage(error) : t('Partenaire introuvable.')}</p>
                 <Button variant="outline" className="mt-4" onClick={() => navigate('/partenaires')}>
-                    Retour aux partenaires
+                    {t('Retour aux partenaires')}
                 </Button>
             </Card>
         );
@@ -95,16 +97,16 @@ export default function PartnerDetail() {
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-6">
             <div className="flex items-center gap-3">
-                <Button variant="ghost" size="icon" onClick={() => navigate('/partenaires')} aria-label="Retour">
+                <Button variant="ghost" size="icon" onClick={() => navigate('/partenaires')} aria-label={t('Retour')}>
                     <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div className="flex-1">
                     <h1 className="text-2xl font-semibold tracking-tight">{partner.trade_name || partner.name}</h1>
                     <p className="mt-1 text-sm text-muted-foreground">
-                        Fiche partenaire · {partner.login_email ?? 'aucun compte'}
+                        {t('Fiche partenaire')} · {partner.login_email ?? t('aucun compte')}
                     </p>
                 </div>
-                <Badge variant={STATUS_META[partner.status].variant}>{STATUS_META[partner.status].label}</Badge>
+                <Badge variant={STATUS_META[partner.status].variant}>{t(STATUS_META[partner.status].label)}</Badge>
             </div>
 
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
@@ -119,21 +121,21 @@ export default function PartnerDetail() {
                     <div className="min-w-0">
                         <p className="truncate text-sm font-semibold">{partner.contact_name ?? partner.name}</p>
                         <p className="truncate text-xs text-muted-foreground">
-                            {[partner.phone, partner.email].filter(Boolean).join(' · ') || 'Aucune coordonnée'}
+                            {[partner.phone, partner.email].filter(Boolean).join(' · ') || t('Aucune coordonnée')}
                         </p>
                     </div>
                 </Card>
-                <KpiTile icon={Users} label="Clients apportés" value={partner.performance.clients_count} />
-                <KpiTile icon={CalendarCheck} label="Réservations" value={partner.performance.appointments_count} />
+                <KpiTile icon={Users} label={t('Clients apportés')} value={partner.performance.clients_count} />
+                <KpiTile icon={CalendarCheck} label={t('Réservations')} value={partner.performance.appointments_count} />
                 <KpiTile
                     icon={CalendarCheck}
-                    label="Réservations confirmées"
+                    label={t('Réservations confirmées')}
                     value={partner.performance.appointments_confirmed_count}
                 />
-                <KpiTile icon={Wallet2} label="CA généré" value={formatCurrency(partner.performance.revenue_generated)} />
+                <KpiTile icon={Wallet2} label={t('CA généré')} value={formatCurrency(partner.performance.revenue_generated)} />
                 <KpiTile
                     icon={HandCoins}
-                    label="Commission à payer"
+                    label={t('Commission à payer')}
                     value={formatCurrency(partner.performance.commission_due, { maximumFractionDigits: 2 })}
                     accent
                 />
@@ -141,30 +143,30 @@ export default function PartnerDetail() {
 
             <Tabs defaultValue="info">
                 <TabsList>
-                    <TabsTrigger value="info">Informations</TabsTrigger>
-                    <TabsTrigger value="clients">Clients ({clients?.length ?? 0})</TabsTrigger>
-                    <TabsTrigger value="reservations">Réservations ({reservations?.length ?? 0})</TabsTrigger>
-                    <TabsTrigger value="commissions">Commissions</TabsTrigger>
+                    <TabsTrigger value="info">{t('Informations')}</TabsTrigger>
+                    <TabsTrigger value="clients">{t('Clients')} ({clients?.length ?? 0})</TabsTrigger>
+                    <TabsTrigger value="reservations">{t('Réservations')} ({reservations?.length ?? 0})</TabsTrigger>
+                    <TabsTrigger value="commissions">{t('Commissions')}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="info">
                     <Card className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6">
-                        <InfoBlock icon={Building2} title="Entreprise">
-                            <InfoRow label="Nom commercial" value={partner.trade_name} />
-                            <InfoRow label="Raison sociale" value={partner.legal_name} />
-                            <InfoRow label="ICE" value={partner.ice} />
-                            <InfoRow label="Adresse" value={[partner.address, partner.city, partner.country].filter(Boolean).join(', ') || null} />
+                        <InfoBlock icon={Building2} title={t('Entreprise')}>
+                            <InfoRow label={t('Nom commercial')} value={partner.trade_name} />
+                            <InfoRow label={t('Raison sociale')} value={partner.legal_name} />
+                            <InfoRow label={t('ICE')} value={partner.ice} />
+                            <InfoRow label={t('Adresse')} value={[partner.address, partner.city, partner.country].filter(Boolean).join(', ') || null} />
                         </InfoBlock>
-                        <InfoBlock icon={IdCard} title="Compte">
-                            <InfoRow label="Email de connexion" value={partner.login_email} />
-                            <InfoRow label="Statut" value={STATUS_META[partner.status].label} />
-                            <InfoRow label="Inscrit le" value={partner.created_at ? formatDate(partner.created_at) : null} />
+                        <InfoBlock icon={IdCard} title={t('Compte')}>
+                            <InfoRow label={t('Email de connexion')} value={partner.login_email} />
+                            <InfoRow label={t('Statut')} value={t(STATUS_META[partner.status].label)} />
+                            <InfoRow label={t('Inscrit le')} value={partner.created_at ? formatDate(partner.created_at) : null} />
                         </InfoBlock>
-                        <InfoBlock icon={Banknote} title="Informations de paiement">
-                            <InfoRow label="Titulaire" value={partner.payment_holder_name} />
-                            <InfoRow label="Banque" value={partner.payment_bank_name} />
-                            <InfoRow label="RIB / IBAN" value={partner.payment_iban} />
-                            <InfoRow label="Méthode préférée" value={partner.payment_method_preference} />
+                        <InfoBlock icon={Banknote} title={t('Informations de paiement')}>
+                            <InfoRow label={t('Titulaire')} value={partner.payment_holder_name} />
+                            <InfoRow label={t('Banque')} value={partner.payment_bank_name} />
+                            <InfoRow label={t('RIB / IBAN')} value={partner.payment_iban} />
+                            <InfoRow label={t('Méthode préférée')} value={partner.payment_method_preference} />
                         </InfoBlock>
                     </Card>
                 </TabsContent>
@@ -178,7 +180,7 @@ export default function PartnerDetail() {
                                 ))}
                             </div>
                         ) : !clients || clients.length === 0 ? (
-                            <p className="px-4 py-10 text-center text-sm text-muted-foreground">Aucun client apporté.</p>
+                            <p className="px-4 py-10 text-center text-sm text-muted-foreground">{t('Aucun client apporté.')}</p>
                         ) : (
                             <ul className="divide-y divide-tint/[0.06]">
                                 {clients.map((client) => (
@@ -201,7 +203,7 @@ export default function PartnerDetail() {
                                 ))}
                             </div>
                         ) : !reservations || reservations.length === 0 ? (
-                            <p className="px-4 py-10 text-center text-sm text-muted-foreground">Aucune réservation.</p>
+                            <p className="px-4 py-10 text-center text-sm text-muted-foreground">{t('Aucune réservation.')}</p>
                         ) : (
                             <ul className="divide-y divide-tint/[0.06]">
                                 {reservations.map((appointment) => (
@@ -227,7 +229,7 @@ export default function PartnerDetail() {
                             </div>
                         ) : !commissions || commissions.data.length === 0 ? (
                             <p className="px-4 py-10 text-center text-sm text-muted-foreground">
-                                Aucune commission validée en attente de paiement.
+                                {t('Aucune commission validée en attente de paiement.')}
                             </p>
                         ) : (
                             <ul className="divide-y divide-tint/[0.06]">
