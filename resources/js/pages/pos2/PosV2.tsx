@@ -33,6 +33,7 @@ import {
     updatePos2Invoice,
     updatePos2Line,
 } from '@/lib/pos2Api';
+import { canPerform, eligibleEmployees } from '@/lib/pos2Eligibility';
 import { printInvoiceReceipt } from '@/lib/receiptV2';
 import { pageFade } from '@/lib/motion';
 import { cn, formatCurrency } from '@/lib/utils';
@@ -223,9 +224,22 @@ export default function PosV2() {
     // ------------------------------------------------------------------
 
     function pickService(service: Service) {
+        // §4 + §12 — l'employé actif n'est qu'un accélérateur : pré-assigné
+        // seulement s'il est autorisé pour CE service ; sinon, si un seul
+        // employé peut le réaliser, c'est lui (§11) ; sinon la ligne attend
+        // un choix explicite (le backend refuse l'encaissement sans).
+        const activeEmployee = (employees ?? []).find((employee) => employee.id === activeEmployeeId) ?? null;
+        const eligible = eligibleEmployees(employees ?? [], service);
+        const employeeId =
+            activeEmployee && canPerform(activeEmployee, service)
+                ? activeEmployee.id
+                : eligible.length === 1
+                  ? eligible[0].id
+                  : null;
+
         const payload: Pos2LinePayload = {
             service_id: service.id,
-            employee_id: activeEmployeeId,
+            employee_id: employeeId,
         };
         if (currentInvoice) {
             addLineMutation.mutate({ invoiceId: currentInvoice.id, payload });

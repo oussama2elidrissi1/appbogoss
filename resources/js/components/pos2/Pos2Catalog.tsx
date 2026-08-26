@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Clock3, PenLine, Plus, Search, Sparkles } from 'lucide-react';
+import { Clock3, PenLine, Plus, Search, Sparkles, Users } from 'lucide-react';
 import { CATEGORIES, getCategory } from '@/components/workday/categories';
+import { canPerform, eligibleEmployees } from '@/lib/pos2Eligibility';
 import { cn, formatCurrency } from '@/lib/utils';
 import type { Employee, Service } from '@/types/workday';
 import { Button } from '@/components/ui/button';
@@ -48,9 +49,14 @@ export function Pos2Catalog({
         return CATEGORIES.filter((config) => values.has(config.value));
     }, [services]);
 
+    const activeEmployee = useMemo(
+        () => employees.find((employee) => employee.id === activeEmployeeId) ?? null,
+        [employees, activeEmployeeId],
+    );
+
     const filtered = useMemo(() => {
         const term = search.trim().toLowerCase();
-        return services.filter((service) => {
+        const list = services.filter((service) => {
             if (category !== 'all' && service.category !== category) return false;
             if (!term) return true;
             return (
@@ -58,7 +64,15 @@ export function Pos2Catalog({
                 getCategory(service.category).label.toLowerCase().includes(term)
             );
         });
-    }, [services, category, search]);
+        // §17 — employé actif = accélérateur UX : ses services passent en
+        // tête, les autres restent visibles (et sélectionnables) mais atténués.
+        if (activeEmployee) {
+            return [...list].sort(
+                (a, b) => Number(canPerform(activeEmployee, b)) - Number(canPerform(activeEmployee, a)),
+            );
+        }
+        return list;
+    }, [services, category, search, activeEmployee]);
 
     function submitFreeLine() {
         const label = freeLabel.trim();
@@ -72,10 +86,11 @@ export function Pos2Catalog({
 
     return (
         <div className="space-y-4">
-            {/* Employé actif — chaque service tapé lui est assigné (§12). */}
+            {/* Employé actif = employé PAR DÉFAUT (§4) : un service tapé lui est
+                pré-assigné uniquement s'il est autorisé à le réaliser. */}
             <div className="space-y-1.5">
                 <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
-                    Employé actif
+                    Employé actif <span className="normal-case tracking-normal">— pré-assigné s'il est autorisé</span>
                 </Label>
                 <div className="flex flex-wrap gap-1.5">
                     {employees.map((employee) => (
@@ -134,18 +149,27 @@ export function Pos2Catalog({
                 {filtered.map((service) => {
                     const config = getCategory(service.category);
                     const covered = coveredServiceIds?.has(service.id) ?? false;
+                    const eligible = eligibleEmployees(employees, service);
+                    const restricted = eligible.length < employees.length;
+                    const activeIncompatible = activeEmployee !== null && !canPerform(activeEmployee, service);
                     return (
                         <button
                             key={service.id}
                             type="button"
                             disabled={busy}
                             onClick={() => onPickService(service)}
+                            title={
+                                restricted && eligible.length > 0
+                                    ? `Réalisé par : ${eligible.map((employee) => employee.name).join(', ')}`
+                                    : undefined
+                            }
                             className={cn(
                                 'group relative flex min-h-[86px] flex-col justify-between rounded-md border p-3 text-left',
                                 'transition-all duration-200 ease-out active:scale-[0.97]',
                                 'border-tint/[0.08] bg-tint/[0.03] hover:border-accent/40 hover:bg-tint/[0.06] hover:shadow-glow',
                                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70',
                                 'disabled:pointer-events-none disabled:opacity-60',
+                                activeIncompatible && 'opacity-55 hover:opacity-100',
                             )}
                         >
                             {covered && (
@@ -164,12 +188,25 @@ export function Pos2Catalog({
                                 <span className="text-sm font-semibold tabular-nums text-foreground">
                                     {formatCurrency(service.price)}
                                 </span>
-                                {service.duration_minutes > 0 && (
-                                    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                                        <Clock3 className="h-3 w-3" />
-                                        {service.duration_minutes} min
-                                    </span>
-                                )}
+                                <span className="flex items-center gap-2">
+                                    {restricted && (
+                                        <span
+                                            className={cn(
+                                                'inline-flex items-center gap-1 text-[11px]',
+                                                eligible.length === 0 ? 'text-destructive' : 'text-muted-foreground',
+                                            )}
+                                        >
+                                            <Users className="h-3 w-3" />
+                                            {eligible.length}
+                                        </span>
+                                    )}
+                                    {service.duration_minutes > 0 && (
+                                        <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                                            <Clock3 className="h-3 w-3" />
+                                            {service.duration_minutes} min
+                                        </span>
+                                    )}
+                                </span>
                             </div>
                         </button>
                     );

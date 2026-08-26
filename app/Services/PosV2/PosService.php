@@ -171,6 +171,21 @@ class PosService
     {
         $this->assertV2($prestation);
 
+        // §2 + §14 — the skills relation is enforced at line creation, not
+        // just at checkout: an employee can only be put on a service they
+        // actually perform (employees.service_categories / allowed_service_ids).
+        $service = ! empty($data['service_id']) ? Service::find($data['service_id']) : null;
+        if (! empty($data['employee_id'])) {
+            $this->assertEmployeeCanPerform((int) $data['employee_id'], $service);
+        } elseif ($service !== null && $service->requires_employee) {
+            // §11 — exactly one employee can perform this service: assign
+            // them automatically instead of asking a pointless question.
+            $eligible = $this->eligibleEmployeesFor($service);
+            if ($eligible->count() === 1) {
+                $data['employee_id'] = $eligible->first()->id;
+            }
+        }
+
         // Reuses V1's addItem for the label/price defaults, the draft ->
         // in_progress transition and — critically — the reward/subscription
         // reservation logic with all its quota locks. recalc:false because
@@ -218,6 +233,10 @@ class PosService
             $changes['unit_price'] = round(max(0, (float) $data['unit_price']), 2);
         }
         if (array_key_exists('employee_id', $data)) {
+            if ($data['employee_id'] !== null) {
+                $lineService = $item->service_id !== null ? Service::find($item->service_id) : null;
+                $this->assertEmployeeCanPerform((int) $data['employee_id'], $lineService);
+            }
             $changes['employee_id'] = $data['employee_id'];
         }
         if (array_key_exists('beneficiary_name', $data)) {
@@ -382,6 +401,12 @@ class PosService
                 throw ValidationException::withMessages(['items' => 'Ajoutez au moins un service avant d’encaisser.']);
             }
 
+            // §1 + §14 — UNE LIGNE = UN SERVICE = UN EMPLOYÉ RESPONSABLE.
+            // Re-validated here under the lock, server-side: a tampered
+            // request can never checkout a line whose employee is missing,
+            // inactive, or not authorised for that service.
+            $this->assertLinesHaveValidEmployees($locked);
+
             // -------- Server-side computation (never trust the client) ----
             $computation = $this->computeTotals($locked, array_key_exists('discount_amount', $data)
                 ? ($data['discount_amount'] !== null ? round(max(0, (float) $data['discount_amount']), 2) : 0.0)
@@ -459,10 +484,12 @@ class PosService
                     'unit_price' => $effective['unit_price'],
                 ]);
 
-                // Commission: the LINE's employee, falling back to the ticket
-                // owner. A line with no resolvable employee (e.g. free-text
-                // walk-in sale on an ownerless invoice) simply earns nothing.
-                $lineEmployee = $item->employee ?? $headerEmployee;
+                // Commission: strictly the LINE's employee — the validation
+                // above has already guaranteed every human-service line has
+                // one. Only an optional-employee line (free-text,
+                // requires_employee=false) can land here without one, and it
+                // simply earns no commission.
+                $lineEmployee = $item->employee;
 
                 if ($lineEmployee === null) {
                     $item->update(['commission_type' => 'none', 'commission_value' => 0, 'commission_amount' => 0, 'commission_rule_id' => null]);
@@ -865,11 +892,34 @@ class PosService
             if ($amount <= 0) {
                 throw ValidationException::withMessages(['tips' => 'Chaque pourboire doit avoir un montant positif.']);
             }
-            if (Employee::whereKey($employeeId)->where('is_company', false)->doesntExist()) {
-                throw ValidationException::withMessages(['tips' => 'Employé de pourboire introuvable.']);
-            }
             if ($itemId !== null && ! $itemIds->has($itemId)) {
                 throw ValidationException::withMessages(['tips' => 'La ligne associée au pourboire n’appartient pas à cette facture.']);
+            }
+
+            // §8 — a tip attached to a line belongs to that line's employee:
+            // omitted -> derived from the line; mismatching -> refused.
+            if ($itemId !== null) {
+                $line = $prestation->items->firstWhere('id', $itemId);
+                $lineEmployeeId = $line?->employee_id !== null ? (int) $line->employee_id : null;
+                if ($lineEmployeeId === null) {
+                    throw ValidationException::withMessages([
+                        'tips' => sprintf('La ligne « %s » n’a pas d’employé — assignez-le avant d’y attacher un pourboire.', $line?->label ?? 'ligne'),
+                    ]);
+                }
+                if ($employeeId === 0) {
+                    $employeeId = $lineEmployeeId;
+                } elseif ($employeeId !== $lineEmployeeId) {
+                    throw ValidationException::withMessages([
+                        'tips' => sprintf('Le pourboire de la ligne « %s » doit revenir à l’employé qui l’a réalisée.', $line?->label ?? 'ligne'),
+                    ]);
+                }
+            }
+
+            if ($employeeId === 0) {
+                throw ValidationException::withMessages(['tips' => 'Choisissez l’employé bénéficiaire du pourboire.']);
+            }
+            if (Employee::whereKey($employeeId)->where('is_company', false)->doesntExist()) {
+                throw ValidationException::withMessages(['tips' => 'Employé de pourboire introuvable.']);
             }
 
             $created = Tip::create([
@@ -916,6 +966,84 @@ class PosService
             'subtotal' => $computation['subtotal'],
             'total' => $computation['total'],
         ]);
+    }
+
+    /**
+     * Active, non-company employees allowed to perform this service —
+     * mirrors Employee::canPerform() over the whole team.
+     *
+     * @return \Illuminate\Support\Collection<int, Employee>
+     */
+    private function eligibleEmployeesFor(Service $service): \Illuminate\Support\Collection
+    {
+        return Employee::query()
+            ->where('is_active', true)
+            ->where('is_company', false)
+            ->get()
+            ->filter(fn (Employee $employee) => $employee->canPerform($service))
+            ->values();
+    }
+
+    /**
+     * §2/§14 — the employee must exist, be active, be human, and (when the
+     * line targets a catalog service) be authorised for that service.
+     */
+    private function assertEmployeeCanPerform(int $employeeId, ?Service $service): void
+    {
+        $employee = Employee::find($employeeId);
+
+        if ($employee === null) {
+            throw ValidationException::withMessages(['employee_id' => 'Employé introuvable.']);
+        }
+        if (! $employee->is_active || $employee->is_company) {
+            throw ValidationException::withMessages([
+                'employee_id' => sprintf('%s n’est plus actif — choisissez un autre employé.', $employee->name),
+            ]);
+        }
+        if ($service !== null && ! $employee->canPerform($service)) {
+            throw ValidationException::withMessages([
+                'employee_id' => sprintf('%s ne réalise pas « %s » — choisissez un employé autorisé.', $employee->name, $service->name),
+            ]);
+        }
+    }
+
+    /**
+     * §1/§14 — checkout gate: every line whose service requires a human must
+     * carry an employee, and that employee must still be active and
+     * authorised at the moment the money moves.
+     */
+    private function assertLinesHaveValidEmployees(Prestation $prestation): void
+    {
+        foreach ($prestation->items as $item) {
+            $service = $item->service;
+
+            if ($item->employee_id === null) {
+                if ($service !== null && $service->requires_employee) {
+                    throw ValidationException::withMessages([
+                        'items' => sprintf('Employé manquant : veuillez sélectionner l’employé responsable de « %s ».', $item->label),
+                    ]);
+                }
+
+                continue;
+            }
+
+            $employee = $item->employee;
+            if ($employee === null) {
+                throw ValidationException::withMessages([
+                    'items' => sprintf('Employé introuvable pour « %s » — sélectionnez-le à nouveau.', $item->label),
+                ]);
+            }
+            if (! $employee->is_active || $employee->is_company) {
+                throw ValidationException::withMessages([
+                    'items' => sprintf('%s n’est plus actif — choisissez un autre employé pour « %s ».', $employee->name, $item->label),
+                ]);
+            }
+            if ($service !== null && ! $employee->canPerform($service)) {
+                throw ValidationException::withMessages([
+                    'items' => sprintf('%s ne réalise pas « %s » — choisissez un employé autorisé.', $employee->name, $service->name),
+                ]);
+            }
+        }
     }
 
     private function requireActiveDay(string $message): \App\Models\WorkDay

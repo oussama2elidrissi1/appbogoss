@@ -26,6 +26,8 @@ export interface Pos2InvoiceLine {
     service_id: number | null;
     service_name: string | null;
     category: string | null;
+    /** Does this line's service require a responsible employee? false for free-text lines. */
+    requires_employee?: boolean;
     label: string;
     quantity: number;
     unit_price: number;

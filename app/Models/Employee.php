@@ -41,6 +41,39 @@ class Employee extends Model
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * Can this employee perform this service? Single source of truth for the
+     * skills relation, mirroring exactly what "Nouvelle prestation" (Mon
+     * espace) has always enforced on the frontend:
+     *  - service_categories null/empty = no category restriction, otherwise
+     *    the service's category must be listed;
+     *  - allowed_service_ids null/empty = no further restriction, otherwise
+     *    the service must be listed.
+     * Company pseudo-employees (vitrine/réfrigérateur) and inactive
+     * employees never perform human services.
+     */
+    public function canPerform(Service $service): bool
+    {
+        if (! $this->is_active || $this->is_company) {
+            return false;
+        }
+
+        $categories = array_values(array_filter((array) ($this->service_categories ?? [])));
+        if ($categories !== [] && ! in_array($service->category, $categories, true)) {
+            return false;
+        }
+
+        $serviceIds = array_map('intval', array_values(array_filter(
+            (array) ($this->allowed_service_ids ?? []),
+            fn ($value) => $value !== null && $value !== '',
+        )));
+        if ($serviceIds !== [] && ! in_array((int) $service->id, $serviceIds, true)) {
+            return false;
+        }
+
+        return true;
+    }
+
     public function appointments(): HasMany
     {
         return $this->hasMany(Appointment::class);

@@ -70,6 +70,13 @@ export function Pos2InvoicePanel({
     );
     const editable = invoice !== null && ['draft', 'in_progress', 'services_done'].includes(invoice.status);
 
+    // §1 — UNE LIGNE = UN EMPLOYÉ RESPONSABLE : l'encaissement est bloqué
+    // tant qu'une prestation humaine n'a pas son employé (le backend
+    // re-vérifie de toute façon).
+    const missingEmployeeLines = items.filter(
+        (item) => (item.requires_employee ?? item.service_id !== null) && item.employee_id === null,
+    );
+
     return (
         <div className="flex h-full flex-col">
             <div className="flex items-center justify-between gap-2 border-b border-tint/[0.06] px-4 py-3">
@@ -210,28 +217,45 @@ export function Pos2InvoicePanel({
                         </div>
                     </div>
                 ) : invoice ? (
-                    <div className="flex items-center gap-2">
-                        {editable && canCancel && (
+                    <div className="space-y-2">
+                        {editable && missingEmployeeLines.length > 0 && (
+                            <p className="flex items-start gap-1.5 text-xs text-destructive">
+                                <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" />
+                                <span>
+                                    Employé manquant — sélectionnez l'employé responsable de{' '}
+                                    {missingEmployeeLines.map((item) => `« ${item.label} »`).join(', ')}.
+                                </span>
+                            </p>
+                        )}
+                        <div className="flex items-center gap-2">
+                            {editable && canCancel && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-12 shrink-0 text-destructive hover:text-destructive"
+                                    disabled={busy}
+                                    onClick={() => setCancelling(true)}
+                                >
+                                    <XCircle />
+                                </Button>
+                            )}
                             <Button
                                 type="button"
-                                variant="outline"
-                                className="h-12 shrink-0 text-destructive hover:text-destructive"
-                                disabled={busy}
-                                onClick={() => setCancelling(true)}
+                                variant="accent"
+                                className={cn('h-12 flex-1 text-base font-semibold shadow-glow')}
+                                disabled={
+                                    busy ||
+                                    !canCheckout ||
+                                    !editable ||
+                                    items.length === 0 ||
+                                    missingEmployeeLines.length > 0
+                                }
+                                onClick={onOpenCheckout}
                             >
-                                <XCircle />
+                                {busy ? <Loader2 className="animate-spin" /> : <Banknote />}
+                                ENCAISSER
                             </Button>
-                        )}
-                        <Button
-                            type="button"
-                            variant="accent"
-                            className={cn('h-12 flex-1 text-base font-semibold shadow-glow')}
-                            disabled={busy || !canCheckout || !editable || items.length === 0}
-                            onClick={onOpenCheckout}
-                        >
-                            {busy ? <Loader2 className="animate-spin" /> : <Banknote />}
-                            ENCAISSER
-                        </Button>
+                        </div>
                     </div>
                 ) : (
                     <Button type="button" variant="accent" className="h-12 w-full text-base font-semibold" onClick={onNewInvoice}>

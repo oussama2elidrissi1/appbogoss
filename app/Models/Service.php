@@ -17,10 +17,12 @@ class Service extends Model
         'price',
         'color',
         'is_active',
+        'requires_employee',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'requires_employee' => 'boolean',
         'price' => 'decimal:2',
         'duration_minutes' => 'integer',
     ];

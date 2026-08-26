@@ -16,6 +16,13 @@ import { Chip } from '@/components/ui/chip';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 
 const METHODS: Array<{ value: Pos2PaymentMethod; label: string; icon: typeof Banknote }> = [
     { value: 'especes', label: 'Espèces', icon: Banknote },
@@ -33,9 +40,13 @@ const TENDER_METHODS: Array<{ value: Pos2TenderMethod; label: string }> = [
 ];
 
 interface TipDraft {
+    /** Ligne associée — null = pourboire général (§8). */
+    itemId: number | null;
     employee_id: number | null;
     amount: string;
 }
+
+const GENERAL_TIP = '__general__';
 
 interface Pos2CheckoutDialogProps {
     open: boolean;
@@ -116,10 +127,20 @@ export function Pos2CheckoutDialog({
     const breakdownSum = Math.round(breakdownRows.reduce((sum, row) => sum + row.amount, 0) * 100) / 100;
     const breakdownRest = Math.round((total - breakdownSum) * 100) / 100;
 
+    // Une ligne associée impose son employé comme bénéficiaire (§8) — le
+    // backend le re-vérifie de toute façon.
+    const lineOptions = items.filter((item) => item.employee_id !== null);
     const tipRows: Pos2TipPayload[] = tips
-        .filter((tip) => tip.employee_id !== null)
-        .map((tip) => ({ employee_id: tip.employee_id as number, amount: Number(tip.amount.replace(',', '.')) }))
-        .filter((tip) => !Number.isNaN(tip.amount) && tip.amount > 0);
+        .map((tip) => {
+            const line = tip.itemId !== null ? lineOptions.find((item) => item.id === tip.itemId) : undefined;
+            const employeeId = line ? line.employee_id : tip.employee_id;
+            return {
+                employee_id: employeeId as number,
+                amount: Number(tip.amount.replace(',', '.')),
+                ...(line ? { prestation_item_id: line.id } : {}),
+            };
+        })
+        .filter((tip) => tip.employee_id != null && !Number.isNaN(tip.amount) && tip.amount > 0);
     const tipsTotal = tipRows.reduce((sum, tip) => sum + tip.amount, 0);
 
     const canSubmit =
@@ -390,54 +411,98 @@ export function Pos2CheckoutDialog({
                                     </span>
                                 )}
                             </div>
-                            {tips.map((tip, index) => (
-                                <div key={index} className="flex items-center gap-2">
-                                    <div className="flex flex-1 flex-wrap gap-1">
-                                        {employees.map((employee) => (
-                                            <Chip
-                                                key={employee.id}
-                                                size="sm"
-                                                selected={tip.employee_id === employee.id}
-                                                onClick={() =>
+                            {tips.map((tip, index) => {
+                                const linkedLine =
+                                    tip.itemId !== null
+                                        ? lineOptions.find((item) => item.id === tip.itemId)
+                                        : undefined;
+                                return (
+                                    <div key={index} className="space-y-1.5 rounded-md border border-tint/[0.07] bg-tint/[0.02] p-2.5">
+                                        <div className="flex items-center gap-2">
+                                            <Select
+                                                value={tip.itemId !== null ? String(tip.itemId) : GENERAL_TIP}
+                                                onValueChange={(value) =>
                                                     setTips((rows) =>
                                                         rows.map((r, i) =>
-                                                            i === index ? { ...r, employee_id: employee.id } : r,
+                                                            i === index
+                                                                ? {
+                                                                      ...r,
+                                                                      itemId: value === GENERAL_TIP ? null : Number(value),
+                                                                  }
+                                                                : r,
                                                         ),
                                                     )
                                                 }
                                             >
-                                                <span
-                                                    className="inline-block h-2 w-2 rounded-full"
-                                                    style={{ backgroundColor: employee.avatar_color }}
-                                                />
-                                                {employee.name}
-                                            </Chip>
-                                        ))}
+                                                <SelectTrigger className="h-9 flex-1 text-xs">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value={GENERAL_TIP}>Pourboire général</SelectItem>
+                                                    {lineOptions.map((item) => (
+                                                        <SelectItem key={item.id} value={String(item.id)}>
+                                                            {item.label} — {item.employee_name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <Input
+                                                inputMode="decimal"
+                                                value={tip.amount}
+                                                onChange={(event) =>
+                                                    setTips((rows) =>
+                                                        rows.map((r, i) =>
+                                                            i === index ? { ...r, amount: event.target.value } : r,
+                                                        ),
+                                                    )
+                                                }
+                                                placeholder="0"
+                                                className="h-9 w-20 text-right tabular-nums"
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-9 w-9 shrink-0 text-muted-foreground"
+                                                onClick={() => setTips((rows) => rows.filter((_, i) => i !== index))}
+                                            >
+                                                <Trash2 />
+                                            </Button>
+                                        </div>
+                                        {linkedLine ? (
+                                            <p className="text-[11px] text-muted-foreground">
+                                                Bénéficiaire : <span className="font-medium text-foreground">{linkedLine.employee_name}</span>{' '}
+                                                (employé de la ligne)
+                                            </p>
+                                        ) : (
+                                            <div className="flex flex-wrap gap-1">
+                                                {employees.map((employee) => (
+                                                    <Chip
+                                                        key={employee.id}
+                                                        size="sm"
+                                                        selected={tip.employee_id === employee.id}
+                                                        onClick={() =>
+                                                            setTips((rows) =>
+                                                                rows.map((r, i) =>
+                                                                    i === index
+                                                                        ? { ...r, employee_id: employee.id }
+                                                                        : r,
+                                                                ),
+                                                            )
+                                                        }
+                                                    >
+                                                        <span
+                                                            className="inline-block h-2 w-2 rounded-full"
+                                                            style={{ backgroundColor: employee.avatar_color }}
+                                                        />
+                                                        {employee.name}
+                                                    </Chip>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
-                                    <Input
-                                        inputMode="decimal"
-                                        value={tip.amount}
-                                        onChange={(event) =>
-                                            setTips((rows) =>
-                                                rows.map((r, i) =>
-                                                    i === index ? { ...r, amount: event.target.value } : r,
-                                                ),
-                                            )
-                                        }
-                                        placeholder="0"
-                                        className="h-10 w-20 text-right tabular-nums"
-                                    />
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-9 w-9 shrink-0 text-muted-foreground"
-                                        onClick={() => setTips((rows) => rows.filter((_, i) => i !== index))}
-                                    >
-                                        <Trash2 />
-                                    </Button>
-                                </div>
-                            ))}
+                                );
+                            })}
                             <Button
                                 type="button"
                                 variant="outline"
@@ -448,9 +513,11 @@ export function Pos2CheckoutDialog({
                                     setTips((rows) => [
                                         ...rows,
                                         {
+                                            itemId: lineOptions.length === 1 ? lineOptions[0].id : null,
                                             employee_id:
-                                                (invoice?.items ?? []).find((item) => item.employee_id)?.employee_id ??
-                                                null,
+                                                lineOptions.length === 1
+                                                    ? lineOptions[0].employee_id
+                                                    : (lineOptions[0]?.employee_id ?? null),
                                             amount: '',
                                         },
                                     ])

@@ -37,7 +37,9 @@ class PosCheckoutController extends Controller
             'discount_reason' => ['nullable', 'string', 'max:255'],
             'expected_total' => ['nullable', 'numeric', 'min:0'],
             'tips' => ['nullable', 'array', 'max:10'],
-            'tips.*.employee_id' => ['required', 'integer', 'exists:employees,id'],
+            // Nullable when tied to a line — PosService derives (and enforces)
+            // the line's own employee as beneficiary (§8).
+            'tips.*.employee_id' => ['nullable', 'integer', 'exists:employees,id'],
             'tips.*.amount' => ['required', 'numeric', 'min:0.01', 'max:99999'],
             'tips.*.prestation_item_id' => ['nullable', 'integer'],
             'tips.*.payment_method' => ['nullable', 'string', 'in:especes,carte,virement,autre'],

@@ -18,6 +18,7 @@ class PosInvoiceLineResource extends JsonResource
             'service_id' => $this->service_id,
             'service_name' => $this->service?->name,
             'category' => $this->service?->category,
+            'requires_employee' => $this->service_id !== null ? (bool) ($this->service?->requires_employee ?? true) : false,
             'label' => $this->label,
             'quantity' => (int) $this->quantity,
             'unit_price' => (float) $this->unit_price,
