@@ -222,7 +222,8 @@ class WorkDayService
                     'employee_name' => $group->first()['employee_name'] ?? 'Employe',
                     'total' => round((float) $group->sum('total'), 2),
                     'commission' => round((float) $group->sum('commission'), 2),
-                    'count' => (int) $group->sum('quantity'),
+                    'count' => (int) $group->sum('performed_count'),
+                    'sales_count' => (int) $group->sum('sales_count'),
                     'prestations' => $this->prestationRowsFromItems($group->groupBy('label'))
                         ->sortByDesc('total')
                         ->values()
@@ -390,11 +391,16 @@ class WorkDayService
             }
 
             $rows = $sale->items->values()->map(function (SaleItem $item, int $index) use ($sale) {
+                $isSaleLine = $this->isSaleCountedAsSale($sale, $item);
+                $quantity = (int) $item->quantity;
+
                 return [
                     'sale_id' => $sale->id,
                     'label' => $item->label,
-                    'quantity' => (int) $item->quantity,
-                    'total' => (float) $item->quantity * (float) $item->unit_price,
+                    'quantity' => $quantity,
+                    'performed_count' => $isSaleLine ? 0 : $quantity,
+                    'sales_count' => $isSaleLine ? $quantity : 0,
+                    'total' => (float) $quantity * (float) $item->unit_price,
                     'commission' => $index === 0 ? (float) ($sale->commission_amount ?? 0) : 0.0,
                     'employee_id' => $sale->employee_id,
                     'employee_name' => $sale->employee->name ?? 'Employe',
@@ -406,6 +412,8 @@ class WorkDayService
                     'sale_id' => $sale->id,
                     'label' => $sale->category ?? 'Vente',
                     'quantity' => 1,
+                    'performed_count' => $this->isSaleCountedAsSale($sale) ? 0 : 1,
+                    'sales_count' => $this->isSaleCountedAsSale($sale) ? 1 : 0,
                     'total' => (float) $sale->total,
                     'commission' => (float) ($sale->commission_amount ?? 0),
                     'employee_id' => $sale->employee_id,
@@ -431,6 +439,8 @@ class WorkDayService
                 'sale_id' => $sale->id,
                 'label' => $item->label,
                 'quantity' => (int) $item->quantity,
+                'performed_count' => $this->isPrestationItemCountedAsSale($item) ? 0 : (int) $item->quantity,
+                'sales_count' => $this->isPrestationItemCountedAsSale($item) ? (int) $item->quantity : 0,
                 'total' => $saleItem !== null
                     ? (float) $saleItem->quantity * (float) $saleItem->unit_price
                     : (float) $item->effectiveLineTotal(),
@@ -470,6 +480,8 @@ class WorkDayService
                     'sale_id' => $sale->id,
                     'label' => 'Commission',
                     'quantity' => 0,
+                    'performed_count' => 0,
+                    'sales_count' => 0,
                     'total' => 0.0,
                     'commission' => (float) $commission,
                     'employee_id' => (int) $employeeId,
@@ -485,6 +497,18 @@ class WorkDayService
         }
 
         return $rows->values();
+    }
+
+    private function isSaleCountedAsSale(Sale $sale, ?SaleItem $item = null): bool
+    {
+        return in_array($sale->category, ['boisson', 'vente', 'vitrine'], true)
+            || $item?->itemable_type === \App\Models\Product::class;
+    }
+
+    private function isPrestationItemCountedAsSale(PrestationItem $item): bool
+    {
+        return $item->product_id !== null
+            || in_array($item->service?->category, ['boisson', 'vente', 'vitrine'], true);
     }
 
     protected function prestationRows(Collection $sales): array

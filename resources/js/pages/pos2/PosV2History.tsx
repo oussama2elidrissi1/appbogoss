@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { ArrowLeft, BarChart3, ChevronLeft, ChevronRight, Clock3, Filter, type LucideIcon, ReceiptText, Search, Users, WalletCards } from 'lucide-react';
+import { ArrowLeft, BarChart3, ChevronLeft, ChevronRight, Clock3, Filter, type LucideIcon, ReceiptText, Search, ShoppingCart, WalletCards } from 'lucide-react';
 import { getEmployees, getServices } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { getPos2History, pos2Keys } from '@/lib/pos2Api';
@@ -100,6 +100,7 @@ export default function PosV2History() {
     const meta = data?.meta;
     const stats = meta?.stats;
     const performedTotal = stats?.employees.reduce((sum, employee) => sum + employee.performed_count, 0) ?? 0;
+    const salesTotal = stats?.employees.reduce((sum, employee) => sum + (employee.sales_count ?? 0), 0) ?? 0;
 
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-4">
@@ -288,7 +289,7 @@ export default function PosV2History() {
                         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                             <StatTile icon={WalletCards} label={t('CA encaissé')} value={formatCurrency(stats.paid_total)} />
                             <StatTile icon={ReceiptText} label={t('Prestations effectuées')} value={String(performedTotal)} />
-                            <StatTile icon={Users} label={t('Employés avec CA')} value={String(stats.employees.length)} />
+                            <StatTile icon={ShoppingCart} label={t('Ventes')} value={String(salesTotal)} />
                             <StatTile
                                 icon={BarChart3}
                                 label={t('Moyenne facture')}
@@ -314,6 +315,8 @@ export default function PosV2History() {
                                                     </p>
                                                     <p className="text-[11px] text-muted-foreground">
                                                         {employee.performed_count} {t(employee.performed_count > 1 ? 'prestations' : 'prestation')}
+                                                        {(employee.sales_count ?? 0) > 0 &&
+                                                            ` · ${employee.sales_count} ${t(employee.sales_count > 1 ? 'ventes' : 'vente')}`}
                                                     </p>
                                                 </div>
                                                 <p className="shrink-0 text-sm font-bold tabular-nums text-accent">

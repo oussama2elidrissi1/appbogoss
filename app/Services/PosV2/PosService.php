@@ -10,6 +10,7 @@ use App\Models\LoyaltyReward;
 use App\Models\Prestation;
 use App\Models\PrestationItem;
 use App\Models\PrestationStatusLog;
+use App\Models\Product;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\Service;
@@ -984,7 +985,7 @@ class PosService
             foreach ($invoice->items as $item) {
                 $lineEmployee = $item->employee;
 
-                if ($lineEmployee === null && $invoice->channel !== Prestation::CHANNEL_CAISSE_V2) {
+                if ($lineEmployee === null && ($invoice->channel !== Prestation::CHANNEL_CAISSE_V2 || $this->isSaleLine($item))) {
                     $lineEmployee = $invoice->employee ?? $invoice->sale?->employee;
                 }
 
@@ -997,15 +998,24 @@ class PosService
                     'employee_id' => $employeeId,
                     'employee_name' => $lineEmployee->name,
                     'performed_count' => 0,
+                    'sales_count' => 0,
+                    'sales_total' => 0.0,
                     'invoices_count' => 0,
                     'total' => 0.0,
                     'commission_total' => 0.0,
                     '_invoice_ids' => [],
                 ];
 
-                $entry['performed_count'] += max(1, (int) $item->quantity);
+                $itemCount = max(1, (int) $item->quantity);
                 $entry['_invoice_ids'][$invoice->id] = true;
-                $entry['total'] += (float) ($computed['lines'][$item->id]['total'] ?? $item->effectiveLineTotal());
+                $lineTotal = (float) ($computed['lines'][$item->id]['total'] ?? $item->effectiveLineTotal());
+                if ($this->isSaleLine($item)) {
+                    $entry['sales_count'] += $itemCount;
+                    $entry['sales_total'] += $lineTotal;
+                } else {
+                    $entry['performed_count'] += $itemCount;
+                }
+                $entry['total'] += $lineTotal;
 
                 $byEmployee[$employeeId] = $entry;
             }
@@ -1021,6 +1031,8 @@ class PosService
                     'employee_id' => $employeeId,
                     'employee_name' => $employee->name,
                     'performed_count' => 0,
+                    'sales_count' => 0,
+                    'sales_total' => 0.0,
                     'invoices_count' => 0,
                     'total' => 0.0,
                     'commission_total' => 0.0,
@@ -1048,6 +1060,8 @@ class PosService
                 'employee_id' => $employeeId,
                 'employee_name' => $employee->name,
                 'performed_count' => 0,
+                'sales_count' => 0,
+                'sales_total' => 0.0,
                 'invoices_count' => 0,
                 'total' => 0.0,
                 'commission_total' => 0.0,
@@ -1055,7 +1069,12 @@ class PosService
             ];
 
             $performedCount = (int) $sale->items->sum(fn (SaleItem $item) => max(1, (int) $item->quantity));
-            $entry['performed_count'] += max(1, $performedCount);
+            if ($this->isLegacySaleCountedAsSale($sale)) {
+                $entry['sales_count'] += max(1, $performedCount);
+                $entry['sales_total'] += (float) $sale->total;
+            } else {
+                $entry['performed_count'] += max(1, $performedCount);
+            }
             $entry['_invoice_ids']['sale:'.$sale->id] = true;
             $entry['total'] += (float) $sale->total;
             $entry['commission_total'] += (float) ($sale->commission_amount ?? 0);
@@ -1066,6 +1085,7 @@ class PosService
             ->map(function (array $entry) {
                 $entry['invoices_count'] = count($entry['_invoice_ids']);
                 $entry['total'] = round((float) $entry['total'], 2);
+                $entry['sales_total'] = round((float) $entry['sales_total'], 2);
                 $entry['commission_total'] = round((float) $entry['commission_total'], 2);
                 unset($entry['_invoice_ids']);
 
@@ -1087,6 +1107,18 @@ class PosService
             'v2_count' => $activeInvoices->filter(fn (Prestation $invoice) => $invoice->channel === Prestation::CHANNEL_CAISSE_V2)->count(),
             'employees' => $employees,
         ];
+    }
+
+    private function isSaleLine(PrestationItem $item): bool
+    {
+        return $item->product_id !== null
+            || in_array($item->service?->category, ['boisson', 'vente', 'vitrine'], true);
+    }
+
+    private function isLegacySaleCountedAsSale(Sale $sale): bool
+    {
+        return in_array($sale->category, ['boisson', 'vente', 'vitrine'], true)
+            || $sale->items->contains(fn (SaleItem $item) => $item->itemable_type === Product::class);
     }
 
     /** @return Builder<Sale> */

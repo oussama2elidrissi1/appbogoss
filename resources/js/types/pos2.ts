@@ -337,6 +337,8 @@ export interface Pos2HistoryResponse {
                 employee_id: number;
                 employee_name: string;
                 performed_count: number;
+                sales_count: number;
+                sales_total: number;
                 invoices_count: number;
                 total: number;
                 commission_total: number;

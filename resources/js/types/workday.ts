@@ -38,6 +38,7 @@ export interface RevenueByEmployee {
     total: number;
     commission: number;
     count: number;
+    sales_count?: number;
     prestations?: TopPrestation[];
 }
 
@@ -174,6 +175,7 @@ export interface SaleEmployeeBreakdown {
     employee_avatar_color: string | null;
     tickets_count: number;
     performed_count: number;
+    sales_count: number;
     total: number;
     commission: number;
 }

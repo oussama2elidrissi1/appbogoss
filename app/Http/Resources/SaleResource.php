@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Models\Commission;
 use App\Models\PrestationItem;
+use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -66,7 +67,8 @@ class SaleResource extends JsonResource
             'employee_name' => $this->employee?->name ?? 'Société',
             'employee_avatar_color' => $this->employee?->avatar_color ?? '#C8A24C',
             'tickets_count' => 1,
-            'performed_count' => max(1, (int) $this->items->sum(fn ($item) => (int) $item->quantity)),
+            'performed_count' => $this->isQuickSaleCountedAsSale() ? 0 : max(1, (int) $this->items->sum(fn ($item) => (int) $item->quantity)),
+            'sales_count' => $this->isQuickSaleCountedAsSale() ? max(1, (int) $this->items->sum(fn ($item) => (int) $item->quantity)) : 0,
             'total' => (float) $this->total,
             'commission' => (float) ($this->commission_amount ?? 0),
         ]];
@@ -92,6 +94,7 @@ class SaleResource extends JsonResource
                 ? (float) $saleItem->quantity * (float) $saleItem->unit_price
                 : (float) $item->effectiveLineTotal();
 
+            $isSaleLine = $this->isPrestationItemCountedAsSale($item);
             $this->addEmployeeBreakdownRow(
                 $rows,
                 (int) $employee->id,
@@ -99,7 +102,8 @@ class SaleResource extends JsonResource
                 $employee->avatar_color,
                 $total,
                 0.0,
-                max(1, (int) $item->quantity),
+                $isSaleLine ? 0 : max(1, (int) $item->quantity),
+                $isSaleLine ? max(1, (int) $item->quantity) : 0,
             );
         }
 
@@ -125,6 +129,7 @@ class SaleResource extends JsonResource
                     0.0,
                     (float) $commission->amount,
                     0,
+                    0,
                 );
             }
         } else {
@@ -142,6 +147,7 @@ class SaleResource extends JsonResource
                     $employee->avatar_color,
                     0.0,
                     (float) ($item->commission_amount ?? 0),
+                    0,
                     0,
                 );
             }
@@ -170,6 +176,7 @@ class SaleResource extends JsonResource
         float $total,
         float $commission,
         int $performedCount,
+        int $salesCount,
     ): void {
         $rows[$employeeId] ??= [
             'employee_id' => $employeeId,
@@ -177,12 +184,26 @@ class SaleResource extends JsonResource
             'employee_avatar_color' => $avatarColor,
             'tickets_count' => 1,
             'performed_count' => 0,
+            'sales_count' => 0,
             'total' => 0.0,
             'commission' => 0.0,
         ];
 
         $rows[$employeeId]['performed_count'] += $performedCount;
+        $rows[$employeeId]['sales_count'] += $salesCount;
         $rows[$employeeId]['total'] += $total;
         $rows[$employeeId]['commission'] += $commission;
+    }
+
+    private function isQuickSaleCountedAsSale(): bool
+    {
+        return in_array($this->category, ['boisson', 'vente', 'vitrine'], true)
+            || $this->items->contains(fn ($item) => $item->itemable_type === Product::class);
+    }
+
+    private function isPrestationItemCountedAsSale(PrestationItem $item): bool
+    {
+        return $item->product_id !== null
+            || in_array($item->service?->category, ['boisson', 'vente', 'vitrine'], true);
     }
 }

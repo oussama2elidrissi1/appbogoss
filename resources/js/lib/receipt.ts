@@ -197,6 +197,7 @@ export interface EmployeeDailySummary {
     /** 'YYYY-MM-DD' */
     date: string;
     salesCount: number;
+    saleItemsCount?: number;
     total: number;
     commissionTotal: number;
 }
@@ -228,6 +229,9 @@ function employeeSummaryHtml(summary: EmployeeDailySummary, format: TicketFormat
         <span>Prestations</span>
         <span class="amount">${summary.salesCount}</span>
     </section>
+    ${(summary.saleItemsCount ?? 0) > 0
+        ? `<section class="row"><span>Ventes</span><span class="amount">${summary.saleItemsCount}</span></section>`
+        : ''}
     <section class="row total">
         <span>Chiffre d'affaires</span>
         <span class="amount">${escapeHtml(formatCurrency(summary.total, { maximumFractionDigits: 2 }))}</span>
