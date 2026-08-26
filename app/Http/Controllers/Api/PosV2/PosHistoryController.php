@@ -26,6 +26,7 @@ class PosHistoryController extends Controller
             'category' => ['nullable', 'string', 'max:30'],
             'employee_id' => ['nullable', 'integer', 'exists:employees,id'],
             'client_id' => ['nullable', 'integer', 'exists:clients,id'],
+            'work_day_id' => ['nullable', 'integer', 'exists:work_days,id'],
             'subscription' => ['nullable'],
             'search' => ['nullable', 'string', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],

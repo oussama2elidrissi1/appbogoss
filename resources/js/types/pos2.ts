@@ -298,6 +298,7 @@ export interface Pos2HistoryFilters {
     category?: string;
     employee_id?: number;
     client_id?: number;
+    work_day_id?: number;
     subscription?: boolean;
     search?: string;
     page?: number;

@@ -469,6 +469,12 @@ class PosV2WorkflowTest extends TestCase
         ])->assertOk()->json('data');
 
         $this->assertSame($dayTwo->id, Sale::find($paid['sale_id'])->work_day_id);
+
+        $history = $this->getJson("/api/pos-v2/history?work_day_id={$dayTwo->id}")
+            ->assertOk()
+            ->json('data');
+        $this->assertCount(1, $history);
+        $this->assertSame($invoice['id'], $history[0]['id']);
     }
 
     // ------------------------------------------------------------------

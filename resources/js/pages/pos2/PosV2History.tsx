@@ -9,6 +9,7 @@ import { paymentMethodLabel } from '@/lib/receiptV2';
 import { pageFade } from '@/lib/motion';
 import { CATEGORIES } from '@/components/workday/categories';
 import { Pos2InvoiceDetailDrawer, STATUS_META } from '@/components/pos2/Pos2InvoiceDetailDrawer';
+import { useActiveWorkDay } from '@/hooks/useWorkDay';
 import { cn, formatCurrency } from '@/lib/utils';
 import type { Pos2HistoryFilters, Pos2InvoiceStatus } from '@/types/pos2';
 import { Badge } from '@/components/ui/badge';
@@ -37,6 +38,8 @@ const HOUR_PRESETS: Array<{ label: string; from?: string; to?: string }> = [
 ];
 
 const ALL = '__all__';
+const ACTIVE_DAY = 'active_day';
+const DATE_RANGE = 'date_range';
 
 /**
  * §34 — HISTORIQUE CAISSE V2 : filtres date/heure/service/catégorie/employé/
@@ -46,6 +49,7 @@ export default function PosV2History() {
     const today = new Date().toISOString().slice(0, 10);
     const [from, setFrom] = useState(today);
     const [to, setTo] = useState(today);
+    const [historyScope, setHistoryScope] = useState<typeof ACTIVE_DAY | typeof DATE_RANGE>(ACTIVE_DAY);
     const [hourPreset, setHourPreset] = useState(0);
     const [customHours, setCustomHours] = useState(false);
     const [timeFrom, setTimeFrom] = useState('');
@@ -60,14 +64,17 @@ export default function PosV2History() {
     const [page, setPage] = useState(1);
     const [detailId, setDetailId] = useState<number | null>(null);
 
+    const { data: activeWorkDay } = useActiveWorkDay();
     const { data: employees } = useQuery({ queryKey: ['employees'], queryFn: () => getEmployees(), staleTime: 5 * 60_000 });
     const { data: services } = useQuery({ queryKey: ['services', 'pos2', 'all'], queryFn: () => getServices(), staleTime: 5 * 60_000 });
 
     const filters: Pos2HistoryFilters = useMemo(() => {
         const preset = HOUR_PRESETS[hourPreset];
+        const useActiveDay = historyScope === ACTIVE_DAY && activeWorkDay?.id;
         return {
-            from,
-            to,
+            from: useActiveDay ? undefined : from,
+            to: useActiveDay ? undefined : to,
+            work_day_id: useActiveDay ? activeWorkDay.id : undefined,
             time_from: customHours ? timeFrom || undefined : preset?.from,
             time_to: customHours ? timeTo || undefined : preset?.to,
             status: status === ALL ? undefined : status,
@@ -79,7 +86,7 @@ export default function PosV2History() {
             search: search.trim() || undefined,
             page,
         };
-    }, [from, to, hourPreset, customHours, timeFrom, timeTo, status, paymentMethod, serviceId, category, employeeId, subscription, search, page]);
+    }, [activeWorkDay?.id, from, to, historyScope, hourPreset, customHours, timeFrom, timeTo, status, paymentMethod, serviceId, category, employeeId, subscription, search, page]);
 
     const { data, isPending } = useQuery({
         queryKey: pos2Keys.history(filters),
@@ -111,14 +118,43 @@ export default function PosV2History() {
             {/* -------------------------------------------------- filtres */}
             <Card>
                 <CardContent className="space-y-4 p-4">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        <Chip
+                            size="sm"
+                            selected={historyScope === ACTIVE_DAY}
+                            onClick={() => { setHistoryScope(ACTIVE_DAY); setPage(1); }}
+                        >
+                            Journée active{activeWorkDay?.date ? ` · ${activeWorkDay.date}` : ''}
+                        </Chip>
+                        <Chip
+                            size="sm"
+                            selected={historyScope === DATE_RANGE}
+                            onClick={() => { setHistoryScope(DATE_RANGE); setPage(1); }}
+                        >
+                            Par date
+                        </Chip>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-6">
                         <div className="space-y-1.5">
                             <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Du</Label>
-                            <Input type="date" value={from} onChange={(event) => { setFrom(event.target.value); setPage(1); }} className="h-10" />
+                            <Input
+                                type="date"
+                                value={from}
+                                disabled={historyScope === ACTIVE_DAY && Boolean(activeWorkDay?.id)}
+                                onChange={(event) => { setFrom(event.target.value); setPage(1); }}
+                                className="h-10"
+                            />
                         </div>
                         <div className="space-y-1.5">
                             <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">Au</Label>
-                            <Input type="date" value={to} onChange={(event) => { setTo(event.target.value); setPage(1); }} className="h-10" />
+                            <Input
+                                type="date"
+                                value={to}
+                                disabled={historyScope === ACTIVE_DAY && Boolean(activeWorkDay?.id)}
+                                onChange={(event) => { setTo(event.target.value); setPage(1); }}
+                                className="h-10"
+                            />
                         </div>
                         <FilterSelect
                             label="Statut"

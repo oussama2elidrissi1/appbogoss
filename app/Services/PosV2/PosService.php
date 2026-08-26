@@ -884,9 +884,21 @@ class PosService
             ->with(['employee', 'items.employee', 'items.service', 'items.product', 'client', 'confirmedBy', 'createdBy', 'tips.employee', 'sale'])
             ->orderByDesc('created_at');
 
-        $from = ! empty($filters['from']) ? $filters['from'] : now()->toDateString();
-        $to = ! empty($filters['to']) ? $filters['to'] : $from;
-        $query->whereDate('created_at', '>=', $from)->whereDate('created_at', '<=', $to);
+        if (! empty($filters['work_day_id'])) {
+            $workDayId = (int) $filters['work_day_id'];
+            $saleIdsForWorkDay = Sale::withTrashed()
+                ->select('id')
+                ->where('work_day_id', $workDayId);
+
+            $query->where(function (Builder $builder) use ($workDayId, $saleIdsForWorkDay) {
+                $builder->where('work_day_id', $workDayId)
+                    ->orWhereIn('sale_id', $saleIdsForWorkDay);
+            });
+        } else {
+            $from = ! empty($filters['from']) ? $filters['from'] : now()->toDateString();
+            $to = ! empty($filters['to']) ? $filters['to'] : $from;
+            $query->whereDate('created_at', '>=', $from)->whereDate('created_at', '<=', $to);
+        }
 
         if (! empty($filters['time_from'])) {
             $query->whereTime('created_at', '>=', $filters['time_from']);
