@@ -1,34 +1,44 @@
 import { dateFnsLocalizer } from 'react-big-calendar';
 import { format, getDay, parse, startOfWeek } from 'date-fns';
-import { fr } from 'date-fns/locale';
-import { t } from '@/lib/i18n';
+import { arMA, fr } from 'date-fns/locale';
+import { translate, type Lang } from '@/lib/i18n';
 
 export const agendaLocalizer = dateFnsLocalizer({
     format,
     parse,
     startOfWeek: (date: Date) => startOfWeek(date, { locale: fr }),
     getDay,
-    locales: { fr },
+    locales: { fr, ar: arMA },
 });
 
-// Message table built once at module load: the calendar chrome (view names,
-// navigation, "+N de plus"…) picks up the language active at startup, so a
-// language switch needs a page reload for these labels (accepted).
-export const AGENDA_MESSAGES = {
-    date: t('Date'),
-    time: t('Heure'),
-    event: t('Réservation'),
-    allDay: t('Journée'),
-    week: t('Semaine'),
-    work_week: t('Semaine travaillée'),
-    day: t('Jour'),
-    month: t('Mois'),
-    previous: t('Précédent'),
-    next: t('Suivant'),
-    yesterday: t('Hier'),
-    tomorrow: t('Demain'),
-    today: t("Aujourd'hui"),
-    agenda: t('Agenda'),
-    noEventsInRange: t('Aucune réservation sur cette période.'),
-    showMore: (total: number) => t('+{n} de plus', { n: total }),
-};
+/** Culture react-big-calendar (noms de jours/mois via date-fns) selon la langue de l'interface. */
+export function agendaCulture(lang: Lang): 'fr' | 'ar' {
+    return lang === 'ar' ? 'ar' : 'fr';
+}
+
+/**
+ * Libellés du calendrier (vues, navigation, « +N de plus »…) pour une langue
+ * donnée — recalculés par le composant à chaque changement de langue, sans
+ * rechargement de page.
+ */
+export function agendaMessages(lang: Lang) {
+    const tr = (text: string) => translate(text, lang);
+    return {
+        date: tr('Date'),
+        time: tr('Heure'),
+        event: tr('Réservation'),
+        allDay: tr('Journée'),
+        week: tr('Semaine'),
+        work_week: tr('Semaine travaillée'),
+        day: tr('Jour'),
+        month: tr('Mois'),
+        previous: tr('Précédent'),
+        next: tr('Suivant'),
+        yesterday: tr('Hier'),
+        tomorrow: tr('Demain'),
+        today: tr("Aujourd'hui"),
+        agenda: tr('Agenda'),
+        noEventsInRange: tr('Aucune réservation sur cette période.'),
+        showMore: (total: number) => tr('+{n} de plus').replace('{n}', String(total)),
+    };
+}

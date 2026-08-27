@@ -4,7 +4,7 @@ import withDragAndDrop, { type EventInteractionArgs } from 'react-big-calendar/l
 import { ChevronLeft, ChevronRight, UserRound } from 'lucide-react';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
-import { agendaLocalizer, AGENDA_MESSAGES } from './agendaLocalizer';
+import { agendaCulture, agendaLocalizer, agendaMessages } from './agendaLocalizer';
 import { buildAgendaEvents, UNASSIGNED_RESOURCE_ID, type AgendaEvent, type AgendaResource } from './agendaEvents';
 import { useI18n } from '@/lib/i18n';
 import { cn, formatTime } from '@/lib/utils';
@@ -57,6 +57,8 @@ export function AgendaCalendar({
         [employees],
     );
 
+    const { lang: uiLang } = useI18n();
+    const messages = useMemo(() => agendaMessages(uiLang), [uiLang]);
     const events = useMemo(() => buildAgendaEvents(appointments), [appointments]);
     // Resource-per-column only makes sense in Day view — tiling every employee across
     // a full week/month would multiply the date range by the employee count and become unreadable.
@@ -66,8 +68,8 @@ export function AgendaCalendar({
         <div className="agenda-calendar h-[calc(100vh-19rem)] min-h-[520px]">
             <DnDCalendar
                 localizer={agendaLocalizer}
-                culture="fr"
-                messages={AGENDA_MESSAGES}
+                culture={agendaCulture(uiLang)}
+                messages={messages}
                 events={events}
                 resources={showResources ? resources : undefined}
                 resourceIdAccessor="id"

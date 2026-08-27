@@ -33,7 +33,7 @@ import {
 } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useActiveWorkDay, useRefreshDay, workDayKeys } from '@/hooks/useWorkDay';
-import { t as translateStatic, useI18n } from '@/lib/i18n';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import type { Expense } from '@/types/workday';
 import { Button } from '@/components/ui/button';
@@ -93,12 +93,12 @@ function historyRangeFor(range: HistoryRange): { from: string; to: string } {
 }
 
 const schema = z.object({
-    label: z.string().trim().min(1, translateStatic('Indiquez un libellé.')).max(120, translateStatic('Libellé trop long.')),
-    category: z.string().min(1, translateStatic('Choisissez une catégorie.')),
+    label: z.string().trim().min(1, 'Indiquez un libellé.').max(120, 'Libellé trop long.'),
+    category: z.string().min(1, 'Choisissez une catégorie.'),
     amount: z
-        .number({ invalid_type_error: translateStatic('Indiquez un montant.') })
-        .positive(translateStatic('Le montant doit être supérieur à 0.')),
-    spent_on: z.string().min(1, translateStatic('Indiquez une date.')),
+        .number({ invalid_type_error: 'Indiquez un montant.' })
+        .positive('Le montant doit être supérieur à 0.'),
+    spent_on: z.string().min(1, 'Indiquez une date.'),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -508,7 +508,7 @@ export default function Depenses() {
                                     />
                                     {errors.label && (
                                         <p className="text-xs text-destructive">
-                                            {errors.label.message}
+                                            {t(errors.label.message ?? '')}
                                         </p>
                                     )}
                                 </div>
@@ -543,7 +543,7 @@ export default function Depenses() {
                                     </div>
                                     {errors.category && (
                                         <p className="text-xs text-destructive">
-                                            {errors.category.message}
+                                            {t(errors.category.message ?? '')}
                                         </p>
                                     )}
                                 </div>
@@ -563,7 +563,7 @@ export default function Depenses() {
                                         />
                                         {errors.amount && (
                                             <p className="text-xs text-destructive">
-                                                {errors.amount.message}
+                                                {t(errors.amount.message ?? '')}
                                             </p>
                                         )}
                                     </div>
@@ -577,7 +577,7 @@ export default function Depenses() {
                                         />
                                         {errors.spent_on && (
                                             <p className="text-xs text-destructive">
-                                                {errors.spent_on.message}
+                                                {t(errors.spent_on.message ?? '')}
                                             </p>
                                         )}
                                     </div>

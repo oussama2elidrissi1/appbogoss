@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { getEmployees, getErrorMessage, openWorkDay } from '@/lib/api';
 import { useRefreshDay, workDayKeys } from '@/hooks/useWorkDay';
-import { t as translateStatic, useI18n } from '@/lib/i18n';
+import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -17,14 +17,13 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmployeeAvatar } from './EmployeeAvatar';
 
-// Messages de validation traduits à la construction du schéma (module) —
-// un changement de langue s'applique à ces messages après rechargement.
+// Messages de validation en français (clés du dictionnaire) — traduits à l'affichage via t().
 const schema = z.object({
     opening_balance: z
-        .number({ invalid_type_error: translateStatic('Indiquez un montant.') })
-        .min(0, translateStatic('Le solde ne peut pas être négatif.')),
-    notes: z.string().max(500, translateStatic('Note trop longue.')).optional(),
-    employee_ids: z.array(z.number()).min(1, translateStatic('Sélectionnez au moins un employé présent.')),
+        .number({ invalid_type_error: 'Indiquez un montant.' })
+        .min(0, 'Le solde ne peut pas être négatif.'),
+    notes: z.string().max(500, 'Note trop longue.').optional(),
+    employee_ids: z.array(z.number()).min(1, 'Sélectionnez au moins un employé présent.'),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -132,7 +131,7 @@ export function OpenDayCard() {
                             />
                             {errors.opening_balance && (
                                 <p className="text-xs text-destructive">
-                                    {errors.opening_balance.message}
+                                    {t(errors.opening_balance.message ?? '')}
                                 </p>
                             )}
                         </div>
@@ -176,7 +175,7 @@ export function OpenDayCard() {
 
                             {errors.employee_ids && (
                                 <p className="text-xs text-destructive">
-                                    {errors.employee_ids.message}
+                                    {t(errors.employee_ids.message ?? '')}
                                 </p>
                             )}
                         </div>
@@ -191,7 +190,7 @@ export function OpenDayCard() {
                                 {...register('notes')}
                             />
                             {errors.notes && (
-                                <p className="text-xs text-destructive">{errors.notes.message}</p>
+                                <p className="text-xs text-destructive">{t(errors.notes.message ?? '')}</p>
                             )}
                         </div>
 

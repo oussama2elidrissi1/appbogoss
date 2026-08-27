@@ -24,7 +24,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { usePortalAuth } from '@/hooks/usePortalAuth';
 import { getErrorMessage, loginClient } from '@/lib/api';
-import { t as translateStatic, useI18n } from '@/lib/i18n';
+import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 /* ------------------------------------------------------------------ */
@@ -43,12 +43,12 @@ function isPhoneIdentifier(value: string): boolean {
 const loginSchema = z.object({
     identifier: z
         .string()
-        .min(1, translateStatic('L’email ou le téléphone est requis.'))
+        .min(1, 'L’email ou le téléphone est requis.')
         .refine(
             (value) => isPhoneIdentifier(value) || z.string().email().safeParse(value.trim()).success,
-            translateStatic('Saisissez un email valide (équipe) ou votre numéro de téléphone (client).'),
+            'Saisissez un email valide (équipe) ou votre numéro de téléphone (client).',
         ),
-    password: z.string().min(6, translateStatic('Le mot de passe doit contenir au moins 6 caractères.')),
+    password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères.'),
 });
 
 type LoginValues = z.infer<typeof loginSchema>;
@@ -770,7 +770,7 @@ export default function Login() {
                                 </p>
                             )}
                             {errors.identifier && (
-                                <p className="text-xs text-red-400">{errors.identifier.message}</p>
+                                <p className="text-xs text-red-400">{t(errors.identifier.message ?? '')}</p>
                             )}
                         </div>
 
@@ -808,7 +808,7 @@ export default function Login() {
                                 </button>
                             </div>
                             {errors.password && (
-                                <p className="text-xs text-red-400">{errors.password.message}</p>
+                                <p className="text-xs text-red-400">{t(errors.password.message ?? '')}</p>
                             )}
                         </div>
 

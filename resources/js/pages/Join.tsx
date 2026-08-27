@@ -7,24 +7,24 @@ import { motion } from 'framer-motion';
 import { AlertCircle, ArrowRight, Gift, Loader2, Lock, Scissors } from 'lucide-react';
 import { usePortalAuth } from '@/hooks/usePortalAuth';
 import { checkJoinAvailable, getErrorMessage, joinLoyaltyProgram } from '@/lib/api';
-import { t as translateStatic, useI18n } from '@/lib/i18n';
+import { useI18n } from '@/lib/i18n';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 const joinSchema = z
     .object({
-        first_name: z.string().min(1, translateStatic('Le prénom est requis.')),
-        last_name: z.string().min(1, translateStatic('Le nom est requis.')),
-        phone: z.string().min(9, translateStatic('Numéro de téléphone invalide.')),
-        password: z.string().min(8, translateStatic('Le mot de passe doit contenir au moins 8 caractères.')),
+        first_name: z.string().min(1, 'Le prénom est requis.'),
+        last_name: z.string().min(1, 'Le nom est requis.'),
+        phone: z.string().min(9, 'Numéro de téléphone invalide.'),
+        password: z.string().min(8, 'Le mot de passe doit contenir au moins 8 caractères.'),
         password_confirmation: z.string(),
-        email: z.string().email(translateStatic('Format d’email invalide.')).optional().or(z.literal('')),
-        terms_consent: z.boolean().refine((v) => v, { message: translateStatic('Vous devez accepter les conditions.') }),
+        email: z.string().email('Format d’email invalide.').optional().or(z.literal('')),
+        terms_consent: z.boolean().refine((v) => v, { message: 'Vous devez accepter les conditions.' }),
         marketing_consent: z.boolean().optional(),
     })
     .refine((values) => values.password === values.password_confirmation, {
-        message: translateStatic('Les mots de passe ne correspondent pas.'),
+        message: 'Les mots de passe ne correspondent pas.',
         path: ['password_confirmation'],
     });
 
@@ -147,12 +147,12 @@ export default function Join() {
                                 <div className="space-y-2">
                                     <Label htmlFor="first_name">{t('Prénom')}</Label>
                                     <Input id="first_name" autoComplete="given-name" {...register('first_name')} />
-                                    {errors.first_name && <p className="text-xs text-destructive">{errors.first_name.message}</p>}
+                                    {errors.first_name && <p className="text-xs text-destructive">{t(errors.first_name.message ?? '')}</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="last_name">{t('Nom')}</Label>
                                     <Input id="last_name" autoComplete="family-name" {...register('last_name')} />
-                                    {errors.last_name && <p className="text-xs text-destructive">{errors.last_name.message}</p>}
+                                    {errors.last_name && <p className="text-xs text-destructive">{t(errors.last_name.message ?? '')}</p>}
                                 </div>
                             </div>
 
@@ -165,13 +165,13 @@ export default function Join() {
                                     placeholder="06 12 34 56 78"
                                     {...register('phone')}
                                 />
-                                {errors.phone && <p className="text-xs text-destructive">{errors.phone.message}</p>}
+                                {errors.phone && <p className="text-xs text-destructive">{t(errors.phone.message ?? '')}</p>}
                             </div>
 
                             <div className="space-y-2">
                                 <Label htmlFor="email">{t('Email (optionnel)')}</Label>
                                 <Input id="email" type="email" autoComplete="email" {...register('email')} />
-                                {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+                                {errors.email && <p className="text-xs text-destructive">{t(errors.email.message ?? '')}</p>}
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
@@ -187,7 +187,7 @@ export default function Join() {
                                             {...register('password')}
                                         />
                                     </div>
-                                    {errors.password && <p className="text-xs text-destructive">{errors.password.message}</p>}
+                                    {errors.password && <p className="text-xs text-destructive">{t(errors.password.message ?? '')}</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="password_confirmation">{t('Confirmation')}</Label>
@@ -198,7 +198,7 @@ export default function Join() {
                                         {...register('password_confirmation')}
                                     />
                                     {errors.password_confirmation && (
-                                        <p className="text-xs text-destructive">{errors.password_confirmation.message}</p>
+                                        <p className="text-xs text-destructive">{t(errors.password_confirmation.message ?? '')}</p>
                                     )}
                                 </div>
                             </div>
@@ -209,7 +209,7 @@ export default function Join() {
                                     {t('J’accepte les conditions d’utilisation du programme de fidélité BOGOSLAND.')}
                                 </span>
                             </label>
-                            {errors.terms_consent && <p className="text-xs text-destructive">{errors.terms_consent.message}</p>}
+                            {errors.terms_consent && <p className="text-xs text-destructive">{t(errors.terms_consent.message ?? '')}</p>}
 
                             <label className="flex items-start gap-2.5 text-sm">
                                 <input type="checkbox" className="mt-0.5 h-4 w-4 rounded accent-accent" {...register('marketing_consent')} />

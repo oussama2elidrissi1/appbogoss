@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import arDictionary from '@/i18n/ar';
 
 /**
@@ -44,15 +44,20 @@ export function translate(text: string, lang: Lang = currentLang): string {
     return dictionary[text] ?? text;
 }
 
-/** Traduction + interpolation `{clé}`. Utilisable hors React (langue courante). */
-export function t(text: string, params?: Record<string, string | number>): string {
-    let out = translate(text);
+/** Traduction + interpolation `{clé}` dans une langue explicite. */
+function format(text: string, params: Record<string, string | number> | undefined, lang: Lang): string {
+    let out = translate(text, lang);
     if (params) {
         for (const [key, value] of Object.entries(params)) {
             out = out.split(`{${key}}`).join(String(value));
         }
     }
     return out;
+}
+
+/** Traduction + interpolation `{clé}`. Utilisable hors React (langue courante). */
+export function t(text: string, params?: Record<string, string | number>): string {
+    return format(text, params, currentLang);
 }
 
 interface I18nContextValue {
@@ -65,10 +70,25 @@ interface I18nContextValue {
 const I18nContext = createContext<I18nContextValue | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-    const [lang, setLang] = useState<Lang>(readInitialLang);
+    const [lang, setLangState] = useState<Lang>(readInitialLang);
+
+    // Mise à jour SYNCHRONE de la langue globale, pendant le rendu du provider
+    // (donc avant celui des enfants) : tout `t()` appelé dans ce même rendu —
+    // y compris depuis les modules hors React — voit déjà la nouvelle langue.
+    // Avec un useEffect (après le rendu), les textes restaient en français
+    // jusqu'au rechargement de la page alors que le sens de lecture changeait.
+    currentLang = lang;
+
+    const setLang = useCallback((next: Lang) => {
+        currentLang = next;
+        setLangState(next);
+    }, []);
+
+    // `t` lié à la langue du contexte : ne dépend pas du global, et change
+    // d'identité avec `lang` pour invalider les useMemo/useCallback qui en dépendent.
+    const boundT = useCallback<typeof t>((text, params) => format(text, params, lang), [lang]);
 
     useEffect(() => {
-        currentLang = lang;
         document.documentElement.lang = lang;
         document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
         try {
@@ -79,8 +99,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     }, [lang]);
 
     const value = useMemo<I18nContextValue>(
-        () => ({ lang, dir: lang === 'ar' ? 'rtl' : 'ltr', setLang, t }),
-        [lang],
+        () => ({ lang, dir: lang === 'ar' ? 'rtl' : 'ltr', setLang, t: boundT }),
+        [lang, setLang, boundT],
     );
 
     return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
