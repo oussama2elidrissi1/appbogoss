@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import QRCode from 'qrcode';
 import { Scissors } from 'lucide-react';
 import { getLoyaltyQr } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import type { LoyaltyQrPosterLanguage } from '@/types/loyalty';
 
 /**
@@ -121,6 +122,7 @@ function AnimatedWordmark() {
 }
 
 export default function LoyaltyQrDisplay() {
+    const { t } = useI18n();
     const [qrImage, setQrImage] = useState<string | null>(null);
     const qrQuery = useQuery({ queryKey: ['loyalty-qr'], queryFn: getLoyaltyQr });
 
@@ -247,7 +249,7 @@ export default function LoyaltyQrDisplay() {
                         {qrImage ? (
                             <img
                                 src={qrImage}
-                                alt="QR Code d'inscription BOGOSLAND"
+                                alt={t("QR Code d'inscription BOGOSLAND")}
                                 className="block h-[min(52vmin,340px)] w-[min(52vmin,340px)]"
                             />
                         ) : (

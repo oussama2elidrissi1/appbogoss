@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import QRCode from 'qrcode';
 import { AlertCircle, Download, Loader2, MonitorPlay, Power, Printer, QrCode as QrCodeIcon, RefreshCw } from 'lucide-react';
 import { getErrorMessage, getLoyaltyQr, regenerateLoyaltyQr, updateLoyaltySettings } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import type { LoyaltyQrPosterLanguage } from '@/types/loyalty';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -199,6 +200,7 @@ html, body {
 }
 
 export default function LoyaltyQr() {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const [qrImage, setQrImage] = useState<string | null>(null);
     const [regenerateOpen, setRegenerateOpen] = useState(false);
@@ -270,14 +272,14 @@ export default function LoyaltyQr() {
         <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
             <motion.div variants={item} className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                    <h2 className="text-2xl font-semibold tracking-tight">QR Code d’inscription</h2>
+                    <h2 className="text-2xl font-semibold tracking-tight">{t('QR Code d’inscription')}</h2>
                     <p className="mt-1.5 text-sm text-muted-foreground">
-                        À afficher ou imprimer au salon — les clients scannent pour rejoindre le programme de fidélité.
+                        {t('À afficher ou imprimer au salon — les clients scannent pour rejoindre le programme de fidélité.')}
                     </p>
                 </div>
                 {qrQuery.data && (
                     <Badge variant={qrQuery.data.enabled ? 'success' : 'outline'}>
-                        {qrQuery.data.enabled ? 'Inscriptions ouvertes' : 'Inscriptions fermées'}
+                        {qrQuery.data.enabled ? t('Inscriptions ouvertes') : t('Inscriptions fermées')}
                     </Badge>
                 )}
             </motion.div>
@@ -290,16 +292,15 @@ export default function LoyaltyQr() {
                     <AlertCircle className="h-5 w-5 shrink-0 text-accent" />
                     <div className="flex-1">
                         <p className="text-sm font-semibold text-foreground">
-                            Nouveau QR Code généré — les anciens ne fonctionnent plus.
+                            {t('Nouveau QR Code généré — les anciens ne fonctionnent plus.')}
                         </p>
                         <p className="mt-0.5 text-sm text-muted-foreground">
-                            Réimprimez la nouvelle affiche et remplacez tous les QR affichés au salon
-                            (comptoir, vitrine, cabines…).
+                            {t('Réimprimez la nouvelle affiche et remplacez tous les QR affichés au salon (comptoir, vitrine, cabines…).')}
                         </p>
                     </div>
                     <Button type="button" variant="accent" onClick={handlePrint} disabled={!qrImage}>
                         <Printer />
-                        Imprimer la nouvelle affiche
+                        {t('Imprimer la nouvelle affiche')}
                     </Button>
                 </div>
             )}
@@ -311,7 +312,7 @@ export default function LoyaltyQr() {
                     ) : (
                         <img
                             src={qrImage}
-                            alt="QR Code d'inscription BOGOSLAND"
+                            alt={t("QR Code d'inscription BOGOSLAND")}
                             className="h-[240px] w-[240px] rounded-md border border-tint/[0.08] bg-white p-3"
                         />
                     )}
@@ -319,11 +320,11 @@ export default function LoyaltyQr() {
                     <div className="flex w-full flex-col gap-2">
                         <Button type="button" variant="outline" onClick={handleDownload} disabled={!qrImage}>
                             <Download />
-                            Télécharger en PNG
+                            {t('Télécharger en PNG')}
                         </Button>
                         <Button type="button" variant="outline" onClick={handlePrint} disabled={!qrImage}>
                             <Printer />
-                            Imprimer l’affiche
+                            {t('Imprimer l’affiche')}
                         </Button>
                         <Button
                             type="button"
@@ -331,7 +332,7 @@ export default function LoyaltyQr() {
                             onClick={() => window.open('/loyalty-qr/affichage', '_blank')}
                         >
                             <MonitorPlay />
-                            Afficher à l’écran (animé)
+                            {t('Afficher à l’écran (animé)')}
                         </Button>
                         <Button
                             type="button"
@@ -340,7 +341,7 @@ export default function LoyaltyQr() {
                             disabled={regenerateMutation.isPending}
                         >
                             <RefreshCw />
-                            Régénérer le lien
+                            {t('Régénérer le lien')}
                         </Button>
                     </div>
                 </Card>
@@ -349,32 +350,30 @@ export default function LoyaltyQr() {
                     <Card className="p-5">
                         <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
                             <QrCodeIcon className="h-4 w-4 text-accent" />
-                            Lien d’inscription
+                            {t('Lien d’inscription')}
                         </h3>
                         <p className="mt-2 break-all rounded-md bg-tint/[0.03] px-3 py-2 font-mono text-xs text-muted-foreground">
                             {qrQuery.data ? joinUrl(qrQuery.data.token) : '…'}
                         </p>
                         <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-                            <span className="font-medium text-foreground">Ce QR est permanent</span> — il ne
-                            change jamais tout seul. Il n’est invalidé que si vous cliquez « Régénérer le
-                            lien », auquel cas toutes les affiches imprimées devront être remplacées — à
-                            réserver au cas où le QR aurait été compromis ou perdu.
+                            <span className="font-medium text-foreground">{t('Ce QR est permanent')}</span>{' '}
+                            {t('— il ne change jamais tout seul. Il n’est invalidé que si vous cliquez « Régénérer le lien », auquel cas toutes les affiches imprimées devront être remplacées — à réserver au cas où le QR aurait été compromis ou perdu.')}
                         </p>
                     </Card>
 
                     <Card className="p-5">
                         <div className="flex items-center justify-between gap-3">
                             <div>
-                                <h3 className="text-sm font-semibold text-foreground">Inscriptions publiques</h3>
+                                <h3 className="text-sm font-semibold text-foreground">{t('Inscriptions publiques')}</h3>
                                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                                    Désactivez temporairement le scan sans supprimer le lien (ex. maintenance).
+                                    {t('Désactivez temporairement le scan sans supprimer le lien (ex. maintenance).')}
                                 </p>
                             </div>
                             <Button
                                 type="button"
                                 size="icon"
                                 variant={qrQuery.data?.enabled ? 'accent' : 'outline'}
-                                aria-label={qrQuery.data?.enabled ? 'Désactiver les inscriptions' : 'Activer les inscriptions'}
+                                aria-label={qrQuery.data?.enabled ? t('Désactiver les inscriptions') : t('Activer les inscriptions')}
                                 disabled={toggleMutation.isPending || !qrQuery.data}
                                 onClick={() => qrQuery.data && toggleMutation.mutate(!qrQuery.data.enabled)}
                             >
@@ -388,9 +387,9 @@ export default function LoyaltyQr() {
             <ConfirmDialog
                 open={regenerateOpen}
                 onOpenChange={setRegenerateOpen}
-                title="Régénérer le QR Code ?"
-                description="Attention : si vous régénérez, tous les QR déjà imprimés cesseront immédiatement de fonctionner. Vous devrez réimprimer la nouvelle affiche et remplacer chaque QR affiché dans le salon (comptoir, vitrine, cabines…). Le QR actuel, lui, ne change jamais tant que vous ne le régénérez pas."
-                confirmLabel="Je comprends, régénérer"
+                title={t('Régénérer le QR Code ?')}
+                description={t('Attention : si vous régénérez, tous les QR déjà imprimés cesseront immédiatement de fonctionner. Vous devrez réimprimer la nouvelle affiche et remplacer chaque QR affiché dans le salon (comptoir, vitrine, cabines…). Le QR actuel, lui, ne change jamais tant que vous ne le régénérez pas.')}
+                confirmLabel={t('Je comprends, régénérer')}
                 variant="destructive"
                 loading={regenerateMutation.isPending}
                 onConfirm={() => regenerateMutation.mutate()}

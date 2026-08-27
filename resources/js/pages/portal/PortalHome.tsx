@@ -76,7 +76,7 @@ export default function PortalHome() {
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">
                             {home.next_reward.current} / {home.next_reward.threshold ?? '—'} —{' '}
-                            {t('encore {n} pour votre prochaine récompense', { n: home.next_reward.remaining })}
+                            {t('encore {n} pour votre prochaine récompense', { n: home.next_reward.remaining ?? 0 })}
                         </p>
                         <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-tint/[0.08]">
                             <div

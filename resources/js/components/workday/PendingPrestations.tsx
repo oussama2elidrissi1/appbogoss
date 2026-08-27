@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Loader2, Wallet } from 'lucide-react';
 import { confirmPrestationPayment, getErrorMessage, getPendingPrestations } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { formatCurrency, formatTime, cn } from '@/lib/utils';
 import { workDayKeys } from '@/hooks/useWorkDay';
 import { Badge } from '@/components/ui/badge';
@@ -28,6 +29,7 @@ const PAYMENT_METHODS: Array<{ value: PrestationPaymentMethod; label: string }> 
 ];
 
 export function PendingPrestations() {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const [confirming, setConfirming] = useState<Prestation | null>(null);
 
@@ -58,7 +60,7 @@ export function PendingPrestations() {
         <>
             <Card className="space-y-4 p-5">
                 <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-foreground">Prestations en attente de paiement</p>
+                    <p className="text-sm font-semibold text-foreground">{t('Prestations en attente de paiement')}</p>
                     <Badge variant="accent">{prestations.length}</Badge>
                 </div>
                 <div className="space-y-2">
@@ -72,7 +74,7 @@ export function PendingPrestations() {
                                     {prestation.reference} · {prestation.employee_name}
                                 </p>
                                 <p className="mt-0.5 text-xs text-muted-foreground">
-                                    {prestation.client_name ?? 'Client de passage'} · envoyée à{' '}
+                                    {prestation.client_name ?? t('Client de passage')} · {t('envoyée à')}{' '}
                                     {prestation.validated_at ? formatTime(prestation.validated_at) : '--:--'}
                                 </p>
                             </div>
@@ -82,7 +84,7 @@ export function PendingPrestations() {
                                 </span>
                                 <Button type="button" size="sm" variant="accent" onClick={() => setConfirming(prestation)}>
                                     <Wallet className="h-3.5 w-3.5" />
-                                    Encaisser
+                                    {t('Encaisser')}
                                 </Button>
                             </div>
                         </div>
@@ -113,6 +115,7 @@ function ConfirmPaymentDialog({
     onOpenChange: (open: boolean) => void;
     onConfirmed: () => void;
 }) {
+    const { t } = useI18n();
     const [method, setMethod] = useState<PrestationPaymentMethod>('especes');
     const [amountReceived, setAmountReceived] = useState('');
 
@@ -144,9 +147,9 @@ function ConfirmPaymentDialog({
         >
             <DialogContent className="max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Confirmer le paiement</DialogTitle>
+                    <DialogTitle>{t('Confirmer le paiement')}</DialogTitle>
                     <DialogDescription>
-                        {prestation?.reference} — {formatCurrency(total)} à encaisser.
+                        {prestation?.reference} — {formatCurrency(total)} {t('à encaisser.')}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -164,7 +167,7 @@ function ConfirmPaymentDialog({
                                         : 'border-tint/[0.08] bg-tint/[0.03] text-muted-foreground hover:border-accent/30',
                                 )}
                             >
-                                {option.label}
+                                {t(option.label)}
                             </button>
                         ))}
                     </div>
@@ -172,7 +175,7 @@ function ConfirmPaymentDialog({
                     {method === 'especes' && (
                         <div className="space-y-2">
                             <label className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                                Montant reçu
+                                {t('Montant reçu')}
                             </label>
                             <Input
                                 type="number"
@@ -185,7 +188,7 @@ function ConfirmPaymentDialog({
                             />
                             {amountReceived !== '' && (
                                 <p className="text-xs text-muted-foreground">
-                                    Monnaie à rendre : <span className="font-semibold text-foreground">{formatCurrency(change)}</span>
+                                    {t('Monnaie à rendre :')} <span className="font-semibold text-foreground">{formatCurrency(change)}</span>
                                 </p>
                             )}
                         </div>
@@ -201,11 +204,11 @@ function ConfirmPaymentDialog({
 
                 <DialogFooter>
                     <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                        Annuler
+                        {t('Annuler')}
                     </Button>
                     <Button type="button" variant="accent" disabled={mutation.isPending} onClick={() => mutation.mutate()}>
                         {mutation.isPending && <Loader2 className="animate-spin" />}
-                        Confirmer le paiement
+                        {t('Confirmer le paiement')}
                     </Button>
                 </DialogFooter>
             </DialogContent>

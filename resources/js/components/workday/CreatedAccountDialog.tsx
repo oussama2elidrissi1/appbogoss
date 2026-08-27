@@ -39,8 +39,8 @@ export function CreatedAccountDialog({
                 </DialogHeader>
 
                 <div className="space-y-3">
-                    <CredentialRow label="Email de connexion" value={account?.loginEmail ?? ''} />
-                    <CredentialRow label="Mot de passe" value={account?.temporaryPassword ?? ''} />
+                    <CredentialRow label={t('Email de connexion')} value={account?.loginEmail ?? ''} />
+                    <CredentialRow label={t('Mot de passe')} value={account?.temporaryPassword ?? ''} />
                 </div>
 
                 <DialogFooter>

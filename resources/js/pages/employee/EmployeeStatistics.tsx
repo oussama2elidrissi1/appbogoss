@@ -4,6 +4,7 @@ import { BarChart3, Clock, Sparkles, Star, Users } from 'lucide-react';
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { getEmployeeStatistics } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { formatCurrency } from '@/lib/utils';
 import { EmployeePageShell, EmployeePanel, EmployeePanelTitle } from '@/pages/employee/EmployeeLayout';
 
@@ -17,6 +18,7 @@ const periods = [
 const colors = ['#c8a24c', '#4ade80', '#60a5fa', '#f87171', '#a78bfa'];
 
 export default function EmployeeStatistics() {
+    const { t } = useI18n();
     const [period, setPeriod] = useState('month');
     const { data } = useQuery({
         queryKey: ['employee-workspace', 'statistics', period],
@@ -27,27 +29,27 @@ export default function EmployeeStatistics() {
         <EmployeePageShell>
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                    <h2 className="text-2xl font-semibold">Mes statistiques</h2>
-                    <p className="text-sm text-white/50">Performance individuelle sur la periode choisie.</p>
+                    <h2 className="text-2xl font-semibold">{t('Mes statistiques')}</h2>
+                    <p className="text-sm text-white/50">{t('Performance individuelle sur la periode choisie.')}</p>
                 </div>
                 <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-                    {periods.map((item) => <Button key={item.value} variant={period === item.value ? 'accent' : 'outline'} onClick={() => setPeriod(item.value)}>{item.label}</Button>)}
+                    {periods.map((item) => <Button key={item.value} variant={period === item.value ? 'accent' : 'outline'} onClick={() => setPeriod(item.value)}>{t(item.label)}</Button>)}
                 </div>
             </div>
 
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <Stat icon={Sparkles} label="Prestations" value={data?.kpis.prestations ?? 0} />
-                <Stat icon={BarChart3} label="CA genere" value={formatCurrency(data?.kpis.revenue ?? 0)} />
-                <Stat icon={BarChart3} label="Commission generee" value={formatCurrency(data?.kpis.commission_generated ?? 0)} />
-                <Stat icon={BarChart3} label="Commission payee" value={formatCurrency(data?.kpis.commission_paid ?? 0)} />
-                <Stat icon={Star} label="Note moyenne" value={data?.kpis.average_rating ?? '-'} />
-                <Stat icon={Users} label="Clients servis" value={data?.kpis.clients_served ?? 0} />
-                <Stat icon={Clock} label="Duree moyenne" value={`${data?.kpis.average_duration ?? 0} min`} />
+                <Stat icon={Sparkles} label={t('Prestations')} value={data?.kpis.prestations ?? 0} />
+                <Stat icon={BarChart3} label={t('CA genere')} value={formatCurrency(data?.kpis.revenue ?? 0)} />
+                <Stat icon={BarChart3} label={t('Commission generee')} value={formatCurrency(data?.kpis.commission_generated ?? 0)} />
+                <Stat icon={BarChart3} label={t('Commission payee')} value={formatCurrency(data?.kpis.commission_paid ?? 0)} />
+                <Stat icon={Star} label={t('Note moyenne')} value={data?.kpis.average_rating ?? '-'} />
+                <Stat icon={Users} label={t('Clients servis')} value={data?.kpis.clients_served ?? 0} />
+                <Stat icon={Clock} label={t('Duree moyenne')} value={t('{n} min', { n: data?.kpis.average_duration ?? 0 })} />
             </div>
 
             <div className="grid gap-5 xl:grid-cols-2">
                 <EmployeePanel>
-                    <EmployeePanelTitle title="Evolution mensuelle" icon={BarChart3} />
+                    <EmployeePanelTitle title={t('Evolution mensuelle')} icon={BarChart3} />
                     <div className="h-72 p-4">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={data?.commission_evolution ?? []}>
@@ -60,11 +62,11 @@ export default function EmployeeStatistics() {
                     </div>
                 </EmployeePanel>
                 <EmployeePanel>
-                    <EmployeePanelTitle title="Top services" icon={Sparkles} />
+                    <EmployeePanelTitle title={t('Top services')} icon={Sparkles} />
                     <div className="space-y-2 p-4">
-                        {data?.top_services.length === 0 ? <p className="py-8 text-center text-white/50">Aucune donnee.</p> : data?.top_services.map((row) => (
+                        {data?.top_services.length === 0 ? <p className="py-8 text-center text-white/50">{t('Aucune donnee.')}</p> : data?.top_services.map((row) => (
                             <div key={row.label} className="flex items-center justify-between gap-3 rounded-md border border-white/[0.06] bg-white/[0.035] px-4 py-3">
-                                <span className="min-w-0"><strong className="block truncate">{row.label}</strong><span className="text-sm text-white/45">{row.count} prestations</span></span>
+                                <span className="min-w-0"><strong className="block truncate">{row.label}</strong><span className="text-sm text-white/45">{row.count} {t('prestations')}</span></span>
                                 <span className="shrink-0 font-semibold text-[#d5b15d]">{formatCurrency(row.total)}</span>
                             </div>
                         ))}
@@ -73,7 +75,7 @@ export default function EmployeeStatistics() {
             </div>
 
             <EmployeePanel>
-                <EmployeePanelTitle title="Repartition des prestations" icon={Sparkles} />
+                <EmployeePanelTitle title={t('Repartition des prestations')} icon={Sparkles} />
                 <div className="grid gap-4 p-4 md:grid-cols-[220px_1fr]">
                     <div className="h-52">
                         <ResponsiveContainer width="100%" height="100%">

@@ -1,5 +1,6 @@
 import QRCode from 'qrcode';
 import type { Sale } from '@/types/workday';
+import { currentLanguage, t } from '@/lib/i18n';
 import { formatCurrency, formatTime } from '@/lib/utils';
 import { getCategoryLabel } from '@/components/workday/categories';
 
@@ -17,7 +18,11 @@ function escapeHtml(value: string): string {
 function clientName(sale: Sale): string {
     if (sale.client) return sale.client.name;
     if (sale.client_label) return sale.client_label;
-    return 'Client de passage';
+    return t('Client de passage');
+}
+
+function dateLocale(): string {
+    return currentLanguage() === 'ar' ? 'ar-MA' : 'fr-FR';
 }
 
 interface FormatSpec {
@@ -47,7 +52,7 @@ function documentShell(title: string, format: TicketFormat, bodyHtml: string): s
     const spec = FORMAT_SPECS[format];
 
     return `<!doctype html>
-<html lang="fr">
+<html lang="${currentLanguage()}" dir="${currentLanguage() === 'ar' ? 'rtl' : 'ltr'}">
 <head>
 <meta charset="utf-8">
 <title>${escapeHtml(title)}</title>
@@ -89,7 +94,7 @@ async function receiptHtml(sale: Sale, copyLabel: string, options: ReceiptOption
     const date = new Date(sale.created_at);
     const dateLabel = Number.isNaN(date.getTime())
         ? sale.created_at
-        : new Intl.DateTimeFormat('fr-FR', {
+        : new Intl.DateTimeFormat(dateLocale(), {
               day: '2-digit',
               month: '2-digit',
               year: 'numeric',
@@ -99,7 +104,7 @@ async function receiptHtml(sale: Sale, copyLabel: string, options: ReceiptOption
     const items = sale.items.length > 0 ? sale.items : [
         {
             id: sale.id,
-            label: getCategoryLabel(sale.category),
+            label: t(getCategoryLabel(sale.category)),
             quantity: 1,
             unit_price: sale.total,
         },
@@ -108,19 +113,19 @@ async function receiptHtml(sale: Sale, copyLabel: string, options: ReceiptOption
     const qr = await qrDataUrl(reference);
 
     const body = `
-    ${options.duplicata ? '<div class="duplicata">DUPLICATA</div>' : ''}
+    ${options.duplicata ? `<div class="duplicata">${escapeHtml(t('DUPLICATA'))}</div>` : ''}
     <section class="center">
         <div class="brand">BOGOSLAND</div>
-        <div class="muted">Ticket ${escapeHtml(copyLabel)}</div>
-        <div class="muted">No ${sale.id} - ${escapeHtml(dateLabel)}</div>
+        <div class="muted">${escapeHtml(t('Ticket {copy}', { copy: t(copyLabel) }))}</div>
+        <div class="muted">${escapeHtml(t('No'))} ${sale.id} - ${escapeHtml(dateLabel)}</div>
     </section>
     <div class="line"></div>
     <section>
-        <div>Employe: ${escapeHtml(sale.employee.name)}</div>
-        <div>Client: ${escapeHtml(clientName(sale))}</div>
-        <div>Categorie: ${escapeHtml(getCategoryLabel(sale.category))}</div>
-        <div>Paiement: ${escapeHtml(sale.payment_method)}</div>
-        <div>Heure: ${escapeHtml(formatTime(sale.created_at))}</div>
+        <div>${escapeHtml(t('Employe:'))} ${escapeHtml(sale.employee.name)}</div>
+        <div>${escapeHtml(t('Client:'))} ${escapeHtml(clientName(sale))}</div>
+        <div>${escapeHtml(t('Categorie:'))} ${escapeHtml(t(getCategoryLabel(sale.category)))}</div>
+        <div>${escapeHtml(t('Paiement:'))} ${escapeHtml(t(sale.payment_method))}</div>
+        <div>${escapeHtml(t('Heure:'))} ${escapeHtml(formatTime(sale.created_at))}</div>
     </section>
     <div class="line"></div>
     <section>
@@ -130,20 +135,20 @@ async function receiptHtml(sale: Sale, copyLabel: string, options: ReceiptOption
                 <span class="label">${escapeHtml(item.label)} x${item.quantity}</span>
                 <span class="amount">${escapeHtml(formatCurrency(item.quantity * item.unit_price, { maximumFractionDigits: 2 }))}</span>
             </div>
-            <div class="muted">${escapeHtml(formatCurrency(item.unit_price, { maximumFractionDigits: 2 }))} / unite</div>
+            <div class="muted">${escapeHtml(formatCurrency(item.unit_price, { maximumFractionDigits: 2 }))} ${escapeHtml(t('/ unite'))}</div>
         </div>`).join('')}
     </section>
     <div class="line"></div>
     <section class="row total">
-        <span>Total</span>
+        <span>${escapeHtml(t('Total'))}</span>
         <span class="amount">${escapeHtml(formatCurrency(sale.total, { maximumFractionDigits: 2 }))}</span>
     </section>
     ${sale.commission_amount !== null && sale.commission_amount > 0
-        ? `<section class="row muted"><span>Commission</span><span class="amount">${escapeHtml(formatCurrency(sale.commission_amount, { maximumFractionDigits: 2 }))}</span></section>`
+        ? `<section class="row muted"><span>${escapeHtml(t('Commission'))}</span><span class="amount">${escapeHtml(formatCurrency(sale.commission_amount, { maximumFractionDigits: 2 }))}</span></section>`
         : ''}
     <div class="line"></div>
     ${qr ? `<div class="qr"><img src="${qr}" alt="QR ${escapeHtml(reference)}"></div><section class="center muted">${escapeHtml(reference)}</section>` : ''}
-    <section class="center muted">Merci pour votre visite</section>`;
+    <section class="center muted">${escapeHtml(t('Merci pour votre visite'))}</section>`;
 
     return documentShell(`Ticket ${sale.id} - ${copyLabel}`, format, body);
 }
@@ -205,7 +210,7 @@ export interface EmployeeDailySummary {
 function formatSummaryDate(date: string): string {
     const parsed = new Date(`${date}T00:00:00`);
     if (Number.isNaN(parsed.getTime())) return date;
-    return new Intl.DateTimeFormat('fr-FR', {
+    return new Intl.DateTimeFormat(dateLocale(), {
         weekday: 'long',
         day: '2-digit',
         month: '2-digit',
@@ -217,7 +222,7 @@ function employeeSummaryHtml(summary: EmployeeDailySummary, format: TicketFormat
     const body = `
     <section class="center">
         <div class="brand">BOGOSLAND</div>
-        <div class="muted">Total du jour</div>
+        <div class="muted">${escapeHtml(t('Total du jour'))}</div>
         <div class="muted">${escapeHtml(formatSummaryDate(summary.date))}</div>
     </section>
     <div class="line"></div>
@@ -226,28 +231,28 @@ function employeeSummaryHtml(summary: EmployeeDailySummary, format: TicketFormat
     </section>
     <div class="line"></div>
     <section class="row">
-        <span>Prestations</span>
+        <span>${escapeHtml(t('Prestations'))}</span>
         <span class="amount">${summary.salesCount}</span>
     </section>
     ${(summary.saleItemsCount ?? 0) > 0
-        ? `<section class="row"><span>Ventes</span><span class="amount">${summary.saleItemsCount}</span></section>`
+        ? `<section class="row"><span>${escapeHtml(t('Ventes'))}</span><span class="amount">${summary.saleItemsCount}</span></section>`
         : ''}
     <section class="row total">
-        <span>Chiffre d'affaires</span>
+        <span>${escapeHtml(t("Chiffre d'affaires"))}</span>
         <span class="amount">${escapeHtml(formatCurrency(summary.total, { maximumFractionDigits: 2 }))}</span>
     </section>
     ${summary.commissionTotal > 0
-        ? `<section class="row muted"><span>Commission</span><span class="amount">${escapeHtml(formatCurrency(summary.commissionTotal, { maximumFractionDigits: 2 }))}</span></section>`
+        ? `<section class="row muted"><span>${escapeHtml(t('Commission'))}</span><span class="amount">${escapeHtml(formatCurrency(summary.commissionTotal, { maximumFractionDigits: 2 }))}</span></section>`
         : ''}
     <div class="line"></div>
-    <section class="center muted">Genere le ${escapeHtml(
-        new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date()),
+    <section class="center muted">${escapeHtml(t('Genere le'))} ${escapeHtml(
+        new Intl.DateTimeFormat(dateLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date()),
     )}</section>`;
 
-    return documentShell(`Total du jour - ${summary.employeeName}`, format, body);
+    return documentShell(`${t('Total du jour')} - ${summary.employeeName}`, format, body);
 }
 
 /** Prints a single ticket summarizing one employee's day — for the employee to sign or keep. */
 export function printEmployeeDailySummary(summary: EmployeeDailySummary, format: TicketFormat = '58mm'): void {
-    printHtmlDocument(employeeSummaryHtml(summary, format), `Total du jour - ${summary.employeeName}`);
+    printHtmlDocument(employeeSummaryHtml(summary, format), `${t('Total du jour')} - ${summary.employeeName}`);
 }

@@ -18,6 +18,7 @@ import {
     X,
 } from 'lucide-react';
 import { acceptProposal, declineProposal, getAppointment, getErrorMessage, updateAppointment } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate, formatTime } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -46,6 +47,7 @@ const STATUS_BADGE: Record<AppointmentStatus, 'outline' | 'success' | 'destructi
 };
 
 export default function PartnerReservationDetail() {
+    const { t } = useI18n();
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const location = useLocation();
@@ -93,10 +95,10 @@ export default function PartnerReservationDetail() {
             <Card className="mx-auto flex max-w-lg flex-col items-center justify-center px-6 py-12 text-center">
                 <AlertCircle className="h-5 w-5 text-destructive" />
                 <p className="mt-2 text-sm text-destructive">
-                    {error ? getErrorMessage(error) : 'Réservation introuvable.'}
+                    {error ? getErrorMessage(error) : t('Réservation introuvable.')}
                 </p>
                 <Button variant="outline" className="mt-4" onClick={() => navigate('/partner/reservations')}>
-                    Retour à mes réservations
+                    {t('Retour à mes réservations')}
                 </Button>
             </Card>
         );
@@ -107,12 +109,12 @@ export default function PartnerReservationDetail() {
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="mx-auto max-w-2xl space-y-6">
             <div className="flex items-center gap-3">
-                <Button variant="ghost" size="icon" onClick={() => navigate('/partner/reservations')} aria-label="Retour">
+                <Button variant="ghost" size="icon" onClick={() => navigate('/partner/reservations')} aria-label={t('Retour')}>
                     <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div>
                     <p className="font-mono text-xs text-muted-foreground">{reference}</p>
-                    <h1 className="text-xl font-semibold tracking-tight">Détail de la réservation</h1>
+                    <h1 className="text-xl font-semibold tracking-tight">{t('Détail de la réservation')}</h1>
                 </div>
             </div>
 
@@ -120,7 +122,7 @@ export default function PartnerReservationDetail() {
                 <Card className="flex items-center gap-3 border-success/30 bg-success/[0.08] p-4">
                     <PartyPopper className="h-5 w-5 shrink-0 text-success" />
                     <p className="text-sm text-success">
-                        Réservation {reference} créée avec succès — elle a été envoyée à BOGOSLAND pour confirmation.
+                        {t('Réservation {ref} créée avec succès — elle a été envoyée à BOGOSLAND pour confirmation.', { ref: reference })}
                     </p>
                 </Card>
             )}
@@ -128,29 +130,29 @@ export default function PartnerReservationDetail() {
             <Card className="p-5 sm:p-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <Badge variant={STATUS_BADGE[appointment.status]} className="text-xs">
-                        {STATUS_LABEL[appointment.status]}
+                        {t(STATUS_LABEL[appointment.status])}
                     </Badge>
                     {(appointment.status === 'pending' || appointment.status === 'confirmed') && (
                         <Button variant="outline" size="sm" onClick={() => setCancelOpen(true)}>
                             <Ban className="h-3.5 w-3.5" />
-                            Annuler
+                            {t('Annuler')}
                         </Button>
                     )}
                 </div>
 
                 <dl className="mt-5 space-y-3 divide-y divide-tint/[0.06]">
-                    <DetailRow icon={User} label="Client" value={appointment.client?.name ?? '—'} sub={appointment.client?.phone} />
-                    <DetailRow icon={Sparkles} label="Service" value={appointment.service?.name ?? '—'} />
-                    <DetailRow icon={Calendar} label="Date" value={formatDate(appointment.starts_at)} />
-                    <DetailRow icon={Clock} label="Heure" value={formatTime(appointment.starts_at)} />
+                    <DetailRow icon={User} label={t('Client')} value={appointment.client?.name ?? '—'} sub={appointment.client?.phone} />
+                    <DetailRow icon={Sparkles} label={t('Service')} value={appointment.service?.name ?? '—'} />
+                    <DetailRow icon={Calendar} label={t('Date')} value={formatDate(appointment.starts_at)} />
+                    <DetailRow icon={Clock} label={t('Heure')} value={formatTime(appointment.starts_at)} />
                     <DetailRow
                         icon={HandCoins}
-                        label="Montant"
+                        label={t('Montant')}
                         value={appointment.service ? formatCurrency(appointment.service.price) : '—'}
                     />
                     <DetailRow
                         icon={HandCoins}
-                        label="Commission estimée"
+                        label={t('Commission estimée')}
                         value={
                             appointment.partner_commission != null
                                 ? formatCurrency(appointment.partner_commission, { maximumFractionDigits: 2 })
@@ -166,9 +168,9 @@ export default function PartnerReservationDetail() {
                     <div className="flex items-start gap-2.5">
                         <CalendarPlus className="mt-0.5 h-4 w-4 shrink-0 text-sky-500" />
                         <div>
-                            <p className="text-sm font-semibold text-foreground">BOGOSLAND vous propose un autre créneau</p>
+                            <p className="text-sm font-semibold text-foreground">{t('BOGOSLAND vous propose un autre créneau')}</p>
                             <p className="mt-0.5 text-sm text-muted-foreground">
-                                {formatDate(appointment.proposed_starts_at!)} à {formatTime(appointment.proposed_starts_at!)}
+                                {formatDate(appointment.proposed_starts_at!)} {t('à')} {formatTime(appointment.proposed_starts_at!)}
                             </p>
                             {appointment.proposal_note && (
                                 <p className="mt-1 text-xs italic text-muted-foreground">« {appointment.proposal_note} »</p>
@@ -188,7 +190,7 @@ export default function PartnerReservationDetail() {
                             onClick={() => acceptProposalMutation.mutate()}
                         >
                             {acceptProposalMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                            Accepter
+                            {t('Accepter')}
                         </Button>
                         <Button
                             variant="outline"
@@ -197,20 +199,19 @@ export default function PartnerReservationDetail() {
                             onClick={() => declineProposalMutation.mutate()}
                         >
                             {declineProposalMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
-                            Refuser
+                            {t('Refuser')}
                         </Button>
                     </div>
                 </Card>
             )}
 
             <Card className="p-5 sm:p-6">
-                <h2 className="text-sm font-semibold uppercase tracking-[0.06em] text-muted-foreground">Suivi</h2>
+                <h2 className="text-sm font-semibold uppercase tracking-[0.06em] text-muted-foreground">{t('Suivi')}</h2>
                 <Timeline appointment={appointment} />
                 <p className="mt-4 rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3 py-2.5 text-xs text-muted-foreground">
-                    La commission ci-dessus est une estimation liée à cette réservation. La commission réellement
-                    gagnée (une fois le client reçu et le paiement encaissé au salon) apparaît dans{' '}
+                    {t('La commission ci-dessus est une estimation liée à cette réservation. La commission réellement gagnée (une fois le client reçu et le paiement encaissé au salon) apparaît dans')}{' '}
                     <Link to="/partner/commissions" className="font-medium text-accent hover:underline">
-                        Mes commissions
+                        {t('Mes commissions')}
                     </Link>
                     .
                 </p>
@@ -219,9 +220,9 @@ export default function PartnerReservationDetail() {
             <ConfirmDialog
                 open={cancelOpen}
                 onOpenChange={setCancelOpen}
-                title="Annuler cette réservation ?"
-                description={`${reference} sera marquée annulée. Cette action ne peut pas être défaite depuis cet espace.`}
-                confirmLabel="Annuler la réservation"
+                title={t('Annuler cette réservation ?')}
+                description={t('{ref} sera marquée annulée. Cette action ne peut pas être défaite depuis cet espace.', { ref: reference })}
+                confirmLabel={t('Annuler la réservation')}
                 loading={cancelMutation.isPending}
                 onConfirm={() => cancelMutation.mutate()}
             />
@@ -263,6 +264,7 @@ const TERMINAL_LABEL: Partial<Record<AppointmentStatus, string>> = {
 };
 
 function Timeline({ appointment }: { appointment: { status: AppointmentStatus; created_at?: string | null } }) {
+    const { t } = useI18n();
     const terminalLabel = TERMINAL_LABEL[appointment.status];
     const confirmed = appointment.status === 'confirmed' || appointment.status === 'completed';
     const completed = appointment.status === 'completed';
@@ -300,7 +302,7 @@ function Timeline({ appointment }: { appointment: { status: AppointmentStatus; c
                         {step.failed ? <X className="h-3 w-3" /> : step.done ? <Check className="h-3 w-3" /> : null}
                     </span>
                     <div className="pt-0.5">
-                        <p className={cn('text-sm font-medium', !step.done && 'text-muted-foreground')}>{step.label}</p>
+                        <p className={cn('text-sm font-medium', !step.done && 'text-muted-foreground')}>{t(step.label)}</p>
                         {step.date && (
                             <p className="mt-0.5 text-xs text-muted-foreground">
                                 {formatDate(step.date)} · {formatTime(step.date)}

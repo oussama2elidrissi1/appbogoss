@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { getErrorMessage, getPrestations } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { formatCurrency, formatDate, formatTime } from '@/lib/utils';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -19,6 +20,7 @@ const STATUS_META: Record<PrestationStatus, { label: string; variant: BadgeProps
 };
 
 export function MyPrestationsList() {
+    const { t } = useI18n();
     const { data: prestations, isPending, isError, error } = useQuery({
         queryKey: ['prestations', 'mine'],
         queryFn: () => getPrestations(),
@@ -47,8 +49,8 @@ export function MyPrestationsList() {
         return (
             <EmptyState
                 icon={Receipt}
-                title="Aucune prestation"
-                description="Vos prestations créées apparaîtront ici avec leur statut."
+                title={t('Aucune prestation')}
+                description={t('Vos prestations créées apparaîtront ici avec leur statut.')}
             />
         );
     }
@@ -61,17 +63,16 @@ export function MyPrestationsList() {
                     <Card key={prestation.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
                         <div className="min-w-0">
                             <p className="truncate text-sm font-medium text-foreground">
-                                {prestation.reference} · {prestation.client_name ?? 'Client de passage'}
+                                {prestation.reference} · {prestation.client_name ?? t('Client de passage')}
                             </p>
                             <p className="mt-0.5 text-xs text-muted-foreground">
                                 {formatDate(prestation.created_at)} {formatTime(prestation.created_at)} ·{' '}
-                                {prestation.items.length} service
-                                {prestation.items.length > 1 ? 's' : ''}
+                                {prestation.items.length} {t(prestation.items.length > 1 ? 'services' : 'service')}
                             </p>
                         </div>
                         <div className="flex items-center gap-3">
                             <span className="text-sm font-semibold tabular-nums">{formatCurrency(prestation.total)}</span>
-                            <Badge variant={meta.variant}>{meta.label}</Badge>
+                            <Badge variant={meta.variant}>{t(meta.label)}</Badge>
                         </div>
                     </Card>
                 );

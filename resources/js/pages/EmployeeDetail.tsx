@@ -17,6 +17,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { deleteEmployee, getEmployee, getErrorMessage, quickCreateEmployeeAccount, updateEmployee } from '@/lib/api';
 import { useActiveWorkDay, workDayKeys } from '@/hooks/useWorkDay';
+import { useI18n } from '@/lib/i18n';
 import type { Employee } from '@/types/workday';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,7 @@ import { EmployeePayroll } from '@/components/workday/EmployeePayroll';
 import { CreatedAccountDialog, type CreatedAccount } from '@/components/workday/CreatedAccountDialog';
 
 export default function EmployeeDetail() {
+    const { t } = useI18n();
     const { id } = useParams<{ id: string }>();
     const employeeId = Number(id);
     const navigate = useNavigate();
@@ -91,17 +93,17 @@ export default function EmployeeDetail() {
                 <span className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/[0.12]">
                     <AlertCircle className="h-5 w-5 text-destructive" />
                 </span>
-                <h2 className="mt-4 text-base font-semibold">Impossible de charger cette fiche</h2>
+                <h2 className="mt-4 text-base font-semibold">{t('Impossible de charger cette fiche')}</h2>
                 <p className="mt-1.5 max-w-[42ch] text-sm leading-relaxed text-muted-foreground">
                     {getErrorMessage(error)}
                 </p>
                 <div className="mt-6 flex items-center gap-2">
                     <Button variant="outline" onClick={() => navigate('/employees')}>
                         <ArrowLeft />
-                        Retour
+                        {t('Retour')}
                     </Button>
                     <Button variant="accent" onClick={() => void refetch()}>
-                        Réessayer
+                        {t('Réessayer')}
                     </Button>
                 </div>
             </Card>
@@ -123,7 +125,7 @@ export default function EmployeeDetail() {
                     onClick={() => navigate('/employees')}
                 >
                     <ArrowLeft className="h-4 w-4" />
-                    Retour à l’équipe
+                    {t('Retour à l’équipe')}
                 </Button>
 
                 {isPending || !employee ? (
@@ -153,7 +155,7 @@ export default function EmployeeDetail() {
                                 <div className="flex shrink-0 flex-wrap items-center gap-2">
                                     <Button variant="outline" size="sm" onClick={() => setDialogOpen(true)}>
                                         <Pencil className="h-3.5 w-3.5" />
-                                        Modifier
+                                        {t('Modifier')}
                                     </Button>
                                     <Button
                                         variant="outline"
@@ -162,7 +164,7 @@ export default function EmployeeDetail() {
                                         onClick={() => statusMutation.mutate(employee)}
                                     >
                                         <Power className="h-3.5 w-3.5" />
-                                        {employee.is_active ? 'Désactiver' : 'Activer'}
+                                        {employee.is_active ? t('Désactiver') : t('Activer')}
                                     </Button>
                                     <Button
                                         variant="outline"
@@ -172,7 +174,7 @@ export default function EmployeeDetail() {
                                         onClick={() => setDeleteOpen(true)}
                                     >
                                         <Trash2 className="h-3.5 w-3.5" />
-                                        Supprimer
+                                        {t('Supprimer')}
                                     </Button>
                                 </div>
                             )}
@@ -182,14 +184,14 @@ export default function EmployeeDetail() {
                             {employee.account && (
                                 <Badge variant={employee.account.system_role === 'admin' ? 'accent' : 'outline'}>
                                     <ShieldCheck className="mr-1 h-3 w-3" />
-                                    {employee.account.system_role === 'admin' ? 'Administrateur/Caissier' : 'Compte employé'}
+                                    {employee.account.system_role === 'admin' ? t('Administrateur/Caissier') : t('Compte employé')}
                                 </Badge>
                             )}
                             {employee.default_commission_rate !== null && (
-                                <Badge variant="accent">{employee.default_commission_rate}% commission</Badge>
+                                <Badge variant="accent">{employee.default_commission_rate}% {t('commission')}</Badge>
                             )}
                             <Badge variant={employee.is_active ? 'success' : 'outline'}>
-                                {employee.is_active ? 'Actif' : 'Inactif'}
+                                {employee.is_active ? t('Actif') : t('Inactif')}
                             </Badge>
                             {canManage && !employee.account && (
                                 <Button
@@ -205,7 +207,7 @@ export default function EmployeeDetail() {
                                     ) : (
                                         <UserPlus className="h-3 w-3" />
                                     )}
-                                    Créer un compte
+                                    {t('Créer un compte')}
                                 </Button>
                             )}
                         </div>
@@ -240,11 +242,11 @@ export default function EmployeeDetail() {
                 {employee && (
                     <Tabs defaultValue="advances" className="space-y-4">
                         <TabsList>
-                            <TabsTrigger value="advances">Avances</TabsTrigger>
+                            <TabsTrigger value="advances">{t('Avances')}</TabsTrigger>
                             {hasPermission('commissions.manage') && (
                                 <>
-                                    <TabsTrigger value="commissions">Commissions</TabsTrigger>
-                                    <TabsTrigger value="payroll">Paie</TabsTrigger>
+                                    <TabsTrigger value="commissions">{t('Commissions')}</TabsTrigger>
+                                    <TabsTrigger value="payroll">{t('Paie')}</TabsTrigger>
                                 </>
                             )}
                         </TabsList>
@@ -278,13 +280,13 @@ export default function EmployeeDetail() {
             <ConfirmDialog
                 open={deleteOpen}
                 onOpenChange={setDeleteOpen}
-                title="Supprimer cet employé ?"
+                title={t('Supprimer cet employé ?')}
                 description={
                     employee
-                        ? `${employee.name} sera définitivement supprimé(e). Cette action est irréversible.`
+                        ? t('{name} sera définitivement supprimé(e). Cette action est irréversible.', { name: employee.name })
                         : undefined
                 }
-                confirmLabel="Supprimer"
+                confirmLabel={t('Supprimer')}
                 loading={deleteMutation.isPending}
                 onConfirm={() => {
                     if (employee) deleteMutation.mutate(employee.id, { onSuccess: () => setDeleteOpen(false) });

@@ -202,6 +202,12 @@ const pos2: Record<string, string> = {
     'Employé': 'الموظف',
     'Pourboire': 'الإكرامية',
     'Commission': 'العمولة',
+    'Supprimée': 'محذوفة',
+    'Pourboires : {x} (inclus dans le total encaissé ; coiffure commissionnée à 50%).': 'الإكراميات: {x} (مضمَّنة في المبلغ المحصَّل؛ عمولة الحلاقة 50%).',
+    'TOTAL À ENCAISSER (services + pourboires)': 'المبلغ الواجب تحصيله (خدمات + إكراميات)',
+    'Total encaissé': 'المبلغ المحصَّل',
+    'Total pourboires {x} — inclus dans le montant à encaisser ; coiffure commissionnée à 50%.': 'مجموع الإكراميات {x} — مضمَّن في المبلغ الواجب تحصيله؛ عمولة الحلاقة 50%.',
+    'Pourboires : {x} — inclus dans le total encaissé ; coiffure commissionnée à 50%.': 'الإكراميات: {x} — مضمَّنة في المبلغ المحصَّل؛ عمولة الحلاقة 50%.',
 };
 
 export default pos2;

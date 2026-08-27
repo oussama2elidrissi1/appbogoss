@@ -9,10 +9,12 @@ import {
     getEmployeeSupportConversations,
     sendEmployeeSupportMessage,
 } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { formatRelativeTime } from '@/lib/utils';
 import { EmployeePageShell, EmployeePanel, EmployeePanelTitle } from '@/pages/employee/EmployeeLayout';
 
 export default function EmployeeSupport() {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const [subject, setSubject] = useState('');
@@ -51,12 +53,12 @@ export default function EmployeeSupport() {
     return (
         <EmployeePageShell>
             <div>
-                <h2 className="text-2xl font-semibold">Support</h2>
-                <p className="text-sm text-white/50">Ouvrez une conversation avec l'administration.</p>
+                <h2 className="text-2xl font-semibold">{t('Support')}</h2>
+                <p className="text-sm text-white/50">{t("Ouvrez une conversation avec l'administration.")}</p>
             </div>
             <div className="grid min-w-0 gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
                 <EmployeePanel>
-                    <EmployeePanelTitle title="Nouvelle conversation" icon={Headphones} />
+                    <EmployeePanelTitle title={t('Nouvelle conversation')} icon={Headphones} />
                     <form
                         className="space-y-3 p-4"
                         onSubmit={(event) => {
@@ -64,12 +66,12 @@ export default function EmployeeSupport() {
                             createMutation.mutate({ subject, category: category || null, body });
                         }}
                     >
-                        <Input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Sujet" className="border-white/[0.08] bg-white/[0.04] text-white" required />
-                        <Input value={category} onChange={(event) => setCategory(event.target.value)} placeholder="Categorie" className="border-white/[0.08] bg-white/[0.04] text-white" />
-                        <textarea value={body} onChange={(event) => setBody(event.target.value)} placeholder="Message" className="min-h-28 w-full rounded-md border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white" required />
+                        <Input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder={t('Sujet')} className="border-white/[0.08] bg-white/[0.04] text-white" required />
+                        <Input value={category} onChange={(event) => setCategory(event.target.value)} placeholder={t('Categorie')} className="border-white/[0.08] bg-white/[0.04] text-white" />
+                        <textarea value={body} onChange={(event) => setBody(event.target.value)} placeholder={t('Message')} className="min-h-28 w-full rounded-md border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-sm text-white" required />
                         <Button type="submit" variant="accent" disabled={createMutation.isPending || !subject || !body}>
                             {createMutation.isPending ? <Loader2 className="animate-spin" /> : <Send />}
-                            Envoyer
+                            {t('Envoyer')}
                         </Button>
                     </form>
                     <div className="border-t border-white/[0.07] p-3">
@@ -82,9 +84,9 @@ export default function EmployeeSupport() {
                     </div>
                 </EmployeePanel>
                 <EmployeePanel>
-                    <EmployeePanelTitle title={detail?.subject ?? 'Conversation'} icon={Headphones} />
+                    <EmployeePanelTitle title={detail?.subject ?? t('Conversation')} icon={Headphones} />
                     {!detail ? (
-                        <p className="p-10 text-center text-white/50">Selectionnez ou creez une conversation.</p>
+                        <p className="p-10 text-center text-white/50">{t('Selectionnez ou creez une conversation.')}</p>
                     ) : (
                         <div className="flex h-[min(620px,calc(100dvh-220px))] min-h-[420px] flex-col">
                             <div className="flex-1 space-y-3 overflow-y-auto p-4">
@@ -104,7 +106,7 @@ export default function EmployeeSupport() {
                                     if (selectedId && reply) replyMutation.mutate({ id: selectedId, message: reply });
                                 }}
                             >
-                                <Input value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Nouveau message" className="border-white/[0.08] bg-white/[0.04] text-white" />
+                                <Input value={reply} onChange={(event) => setReply(event.target.value)} placeholder={t('Nouveau message')} className="border-white/[0.08] bg-white/[0.04] text-white" />
                                 <Button type="submit" variant="accent" disabled={!reply || replyMutation.isPending}>
                                     {replyMutation.isPending ? <Loader2 className="animate-spin" /> : <Send />}
                                 </Button>

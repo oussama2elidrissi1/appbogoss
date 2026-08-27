@@ -26,6 +26,7 @@ import {
     updatePrestationItem,
 } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency } from '@/lib/utils';
 import { CATEGORIES, type CategoryConfig } from '@/components/workday/categories';
 import { ClientPicker, EMPTY_CLIENT_SELECTION, type ClientSelection } from '@/components/workday/ClientPicker';
@@ -75,6 +76,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export function NewPrestationPanel() {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const { user, hasPermission } = useAuth();
     const [clientSelection, setClientSelection] = useState<ClientSelection>(EMPTY_CLIENT_SELECTION);
@@ -335,14 +337,14 @@ export function NewPrestationPanel() {
     const pendingSection = pendingPrestations.length > 0 && (
         <div className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                En attente de confirmation ({pendingPrestations.length})
+                {t('En attente de confirmation')} ({pendingPrestations.length})
             </p>
             {pendingPrestations.map((prestation) => (
                 <Card key={prestation.id} className="space-y-2.5 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="min-w-0">
                             <p className="truncate text-sm font-medium text-foreground">
-                                {prestation.reference} · {prestation.client_name ?? 'Client de passage'}
+                                {prestation.reference} · {prestation.client_name ?? t('Client de passage')}
                             </p>
                             <p className="truncate text-xs text-muted-foreground">
                                 {prestation.items.map((item) => item.label).join(', ')}
@@ -352,12 +354,12 @@ export function NewPrestationPanel() {
                             <span className="text-sm font-semibold tabular-nums text-accent">
                                 {formatCurrency(prestation.total)}
                             </span>
-                            <Badge variant="accent">Envoyée à la caisse</Badge>
+                            <Badge variant="accent">{t('Envoyée à la caisse')}</Badge>
                         </div>
                     </div>
                     <div className="flex items-center justify-between border-t border-tint/[0.06] pt-2.5">
                         <p className="text-xs text-muted-foreground">
-                            En attente de confirmation de paiement par la caisse.
+                            {t('En attente de confirmation de paiement par la caisse.')}
                         </p>
                         <Button
                             type="button"
@@ -366,7 +368,7 @@ export function NewPrestationPanel() {
                             className="text-destructive hover:text-destructive"
                             onClick={() => setCancellingPendingId(prestation.id)}
                         >
-                            Annuler
+                            {t('Annuler')}
                         </Button>
                     </div>
                 </Card>
@@ -386,14 +388,14 @@ export function NewPrestationPanel() {
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                                Prestation en cours · {openPrestation.reference}
+                                {t('Prestation en cours')} · {openPrestation.reference}
                             </p>
                             <p className="mt-1 text-sm text-muted-foreground">
-                                {openPrestation.client_name ?? 'Client de passage'}
+                                {openPrestation.client_name ?? t('Client de passage')}
                             </p>
                         </div>
                         <Badge variant="success">
-                            {STATUS_LABELS[openPrestation.status] ?? openPrestation.status}
+                            {t(STATUS_LABELS[openPrestation.status] ?? openPrestation.status)}
                         </Badge>
                     </div>
 
@@ -402,7 +404,7 @@ export function NewPrestationPanel() {
                     <div className="space-y-2">
                         {openPrestation.items.length === 0 ? (
                             <p className="rounded-md border border-dashed border-tint/[0.08] px-4 py-5 text-center text-xs text-muted-foreground">
-                                Ajoutez un premier service ci-dessous.
+                                {t('Ajoutez un premier service ci-dessous.')}
                             </p>
                         ) : (
                             openPrestation.items.map((item) => {
@@ -419,12 +421,12 @@ export function NewPrestationPanel() {
                                                     <p className="truncate text-sm font-medium text-foreground">{item.label}</p>
                                                     {item.is_free && (
                                                         <Badge variant="accent" className="shrink-0">
-                                                            {item.loyalty_reward_id ? 'Récompense' : 'Abonnement'}
+                                                            {item.loyalty_reward_id ? t('Récompense') : t('Abonnement')}
                                                         </Badge>
                                                     )}
                                                 </div>
                                                 <p className="text-xs text-muted-foreground">
-                                                    Qté {item.quantity} · {formatCurrency(item.unit_price)}
+                                                    {t('Qté')} {item.quantity} · {formatCurrency(item.unit_price)}
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-1.5">
@@ -437,7 +439,7 @@ export function NewPrestationPanel() {
                                                             type="button"
                                                             size="icon"
                                                             variant="ghost"
-                                                            aria-label="Modifier le montant"
+                                                            aria-label={t('Modifier le montant')}
                                                             onClick={() =>
                                                                 isEditingPrice
                                                                     ? setEditingItemId(null)
@@ -450,7 +452,7 @@ export function NewPrestationPanel() {
                                                             type="button"
                                                             size="icon"
                                                             variant="ghost"
-                                                            aria-label="Retirer"
+                                                            aria-label={t('Retirer')}
                                                             disabled={removeItemMutation.isPending}
                                                             onClick={() => removeItemMutation.mutate(item.id)}
                                                         >
@@ -481,7 +483,7 @@ export function NewPrestationPanel() {
                                                     onClick={confirmEditPrice}
                                                 >
                                                     {updateItemMutation.isPending && <Loader2 className="animate-spin" />}
-                                                    Enregistrer
+                                                    {t('Enregistrer')}
                                                 </Button>
                                             </div>
                                         )}
@@ -492,7 +494,7 @@ export function NewPrestationPanel() {
                     </div>
 
                     <div className="flex items-center justify-between border-t border-tint/[0.06] pt-4">
-                        <span className="text-sm text-muted-foreground">Total</span>
+                        <span className="text-sm text-muted-foreground">{t('Total')}</span>
                         <span className="text-lg font-semibold tabular-nums">{formatCurrency(openPrestation.total)}</span>
                     </div>
 
@@ -512,17 +514,17 @@ export function NewPrestationPanel() {
                                 onClick={() => completeMutation.mutate()}
                             >
                                 {completeMutation.isPending ? <Loader2 className="animate-spin" /> : <CheckCircle2 />}
-                                Services terminés
+                                {t('Services terminés')}
                             </Button>
                         )}
                         {servicesDone && (
                             <Button type="button" variant="accent" disabled={sendMutation.isPending} onClick={() => sendMutation.mutate()}>
                                 {sendMutation.isPending ? <Loader2 className="animate-spin" /> : <SendHorizonal />}
-                                Envoyer à la caisse
+                                {t('Envoyer à la caisse')}
                             </Button>
                         )}
                         <Button type="button" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setCancelling(true)}>
-                            Annuler la prestation
+                            {t('Annuler la prestation')}
                         </Button>
                     </div>
                 </Card>
@@ -544,9 +546,9 @@ export function NewPrestationPanel() {
                 <ConfirmDialog
                     open={cancelling}
                     onOpenChange={setCancelling}
-                    title="Annuler cette prestation ?"
-                    description="Les services ajoutés seront perdus. Cette action est irréversible."
-                    confirmLabel="Annuler la prestation"
+                    title={t('Annuler cette prestation ?')}
+                    description={t('Les services ajoutés seront perdus. Cette action est irréversible.')}
+                    confirmLabel={t('Annuler la prestation')}
                     loading={cancelMutation.isPending}
                     onConfirm={() => cancelMutation.mutate()}
                 />
@@ -556,9 +558,9 @@ export function NewPrestationPanel() {
                     onOpenChange={(open) => {
                         if (!open) setCancellingPendingId(null);
                     }}
-                    title="Annuler cette prestation envoyée à la caisse ?"
-                    description="Le caissier ne pourra plus confirmer ce paiement. Cette action est irréversible."
-                    confirmLabel="Annuler la prestation"
+                    title={t('Annuler cette prestation envoyée à la caisse ?')}
+                    description={t('Le caissier ne pourra plus confirmer ce paiement. Cette action est irréversible.')}
+                    confirmLabel={t('Annuler la prestation')}
                     loading={cancelPendingMutation.isPending}
                     onConfirm={() => {
                         if (cancellingPendingId !== null) cancelPendingMutation.mutate(cancellingPendingId);
@@ -592,7 +594,7 @@ export function NewPrestationPanel() {
             {pendingSection}
 
             <Card className="space-y-4 p-6">
-                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Client</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t('Client')}</p>
                 <ClientPicker value={clientSelection} onChange={setClientSelection} />
                 {canRedeem && currentClientId != null && <ClientLoyaltyPanel status={loyaltyStatus} />}
             </Card>
@@ -621,9 +623,9 @@ export function NewPrestationPanel() {
                 onOpenChange={(open) => {
                     if (!open) setCancellingPendingId(null);
                 }}
-                title="Annuler cette prestation envoyée à la caisse ?"
-                description="Le caissier ne pourra plus confirmer ce paiement. Cette action est irréversible."
-                confirmLabel="Annuler la prestation"
+                title={t('Annuler cette prestation envoyée à la caisse ?')}
+                description={t('Le caissier ne pourra plus confirmer ce paiement. Cette action est irréversible.')}
+                confirmLabel={t('Annuler la prestation')}
                 loading={cancelPendingMutation.isPending}
                 onConfirm={() => {
                     if (cancellingPendingId !== null) cancelPendingMutation.mutate(cancellingPendingId);
@@ -653,18 +655,19 @@ export function NewPrestationPanel() {
 }
 
 function ClientLoyaltyPanel({ status }: { status: ClientLoyaltyStatus | undefined }) {
+    const { t } = useI18n();
     if (!status) return null;
     if (status.points_balance === 0 && status.rewards.length === 0 && status.subscriptions.length === 0) return null;
 
     return (
         <div className="space-y-2 rounded-md border border-accent/20 bg-accent/[0.04] p-3.5">
-            <p className="text-xs font-semibold uppercase tracking-[0.06em] text-accent">Compte fidélité</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.06em] text-accent">{t('Compte fidélité')}</p>
             <div className="flex flex-wrap gap-2">
-                {status.points_balance > 0 && <Badge variant="outline">{status.points_balance} points</Badge>}
+                {status.points_balance > 0 && <Badge variant="outline">{status.points_balance} {t('points')}</Badge>}
                 {status.rewards.map((reward) => (
                     <Badge key={reward.id} variant="accent">
                         <Gift className="h-3 w-3" />
-                        {reward.program_name ?? 'Récompense'} disponible
+                        {reward.program_name ?? t('Récompense')} {t('disponible')}
                     </Badge>
                 ))}
                 {status.subscriptions.map((subscription) => (
@@ -709,6 +712,7 @@ function AddServiceDialog({
     overrideReason: string;
     onOverrideReasonChange: (value: string) => void;
 }) {
+    const { t } = useI18n();
     const priceValue = Number.parseFloat(price.replace(',', '.'));
     const canConfirm =
         redemption === null
@@ -722,17 +726,17 @@ function AddServiceDialog({
                 <DialogHeader>
                     <DialogTitle>{service?.name}</DialogTitle>
                     <DialogDescription>
-                        Confirmez le montant de ce service avant de l’ajouter à la prestation.
+                        {t('Confirmez le montant de ce service avant de l’ajouter à la prestation.')}
                     </DialogDescription>
                 </DialogHeader>
 
                 {hasRedemptionOptions && (
                     <div className="space-y-2">
-                        <Label>Mode</Label>
+                        <Label>{t('Mode')}</Label>
                         <div className="flex flex-wrap gap-2">
                             <Chip size="sm" selected={redemption === null} onClick={() => onRedemptionChange(null)}>
                                 <Sparkles className="h-3.5 w-3.5" />
-                                Prix normal
+                                {t('Prix normal')}
                             </Chip>
                             {rewards.map((reward) => (
                                 <Chip
@@ -742,7 +746,7 @@ function AddServiceDialog({
                                     onClick={() => onRedemptionChange({ kind: 'reward', rewardId: reward.id })}
                                 >
                                     <Gift className="h-3.5 w-3.5" />
-                                    {reward.program_name ?? 'Récompense'}
+                                    {reward.program_name ?? t('Récompense')}
                                 </Chip>
                             ))}
                             {subscriptionOptions.map((option) => {
@@ -770,13 +774,13 @@ function AddServiceDialog({
                                         }
                                     >
                                         <CalendarClock className="h-3.5 w-3.5" />
-                                        {option.planName ?? 'Abonnement'}
+                                        {option.planName ?? t('Abonnement')}
                                         {lifetimeExhausted
-                                            ? ' — épuisé'
+                                            ? ` — ${t('épuisé')}`
                                             : periodExhausted
-                                              ? ' — quota atteint'
+                                              ? ` — ${t('quota atteint')}`
                                               : option.periodRemaining !== null
-                                                ? ` (${option.periodRemaining} restant${option.periodRemaining > 1 ? 's' : ''})`
+                                                ? ` (${option.periodRemaining} ${t(option.periodRemaining > 1 ? 'restants' : 'restant')})`
                                                 : ''}
                                     </Chip>
                                 );
@@ -787,7 +791,7 @@ function AddServiceDialog({
 
                 {redemption === null ? (
                     <div className="space-y-2">
-                        <Label htmlFor="add-service-price">Montant</Label>
+                        <Label htmlFor="add-service-price">{t('Montant')}</Label>
                         <Input
                             id="add-service-price"
                             type="number"
@@ -802,19 +806,19 @@ function AddServiceDialog({
                     </div>
                 ) : (
                     <div className="rounded-md border border-accent/30 bg-accent/[0.06] px-3.5 py-3 text-sm text-accent">
-                        Ligne gratuite —{' '}
-                        {redemption.kind === 'reward' ? 'récompense de fidélité.' : 'utilisation d’un abonnement.'}
+                        {t('Ligne gratuite —')}{' '}
+                        {redemption.kind === 'reward' ? t('récompense de fidélité.') : t('utilisation d’un abonnement.')}
                     </div>
                 )}
 
                 {redemption?.kind === 'subscription' && redemption.exceptionOverride && (
                     <div className="space-y-2">
-                        <Label htmlFor="override-reason">Motif de l’exception (quota déjà atteint)</Label>
+                        <Label htmlFor="override-reason">{t('Motif de l’exception (quota déjà atteint)')}</Label>
                         <Input
                             id="override-reason"
                             value={overrideReason}
                             onChange={(event) => onOverrideReasonChange(event.target.value)}
-                            placeholder="Geste commercial"
+                            placeholder={t('Geste commercial')}
                             autoFocus
                         />
                     </div>
@@ -829,11 +833,11 @@ function AddServiceDialog({
 
                 <DialogFooter>
                     <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                        Annuler
+                        {t('Annuler')}
                     </Button>
                     <Button type="button" variant="accent" disabled={!canConfirm || pending} onClick={onConfirm}>
                         {pending && <Loader2 className="animate-spin" />}
-                        Ajouter
+                        {t('Ajouter')}
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -862,10 +866,11 @@ function ServiceGrid({
     onSelect: (service: Service) => void;
     pending: boolean;
 }) {
+    const { t } = useI18n();
     return (
         <Card className="space-y-4 p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                Ajouter un service
+                {t('Ajouter un service')}
             </p>
 
             {categories.length > 1 && (
@@ -886,7 +891,7 @@ function ServiceGrid({
                                 )}
                             >
                                 <Icon className={cn('h-4 w-4', selected ? option.chip : 'text-muted-foreground')} />
-                                <span className="truncate text-xs font-medium">{option.label}</span>
+                                <span className="truncate text-xs font-medium">{t(option.label)}</span>
                                 <span className="absolute right-1.5 top-1.5 text-[10px] font-semibold text-muted-foreground/50">
                                     {index + 1}
                                 </span>
@@ -901,7 +906,7 @@ function ServiceGrid({
                 <Input
                     value={search}
                     onChange={(event) => onSearchChange(event.target.value)}
-                    placeholder={`Rechercher une prestation ${category.label.toLowerCase()}...`}
+                    placeholder={t('Rechercher une prestation {x}...', { x: t(category.label).toLowerCase() })}
                     className="pl-10"
                 />
             </div>
@@ -914,7 +919,7 @@ function ServiceGrid({
                 </div>
             ) : services.length === 0 ? (
                 <div className="rounded-md border border-dashed border-tint/[0.08] px-4 py-5 text-center text-xs text-muted-foreground">
-                    Aucun service dans cette catégorie.
+                    {t('Aucun service dans cette catégorie.')}
                 </div>
             ) : (
                 <div className="grid max-h-72 grid-cols-1 gap-2 overflow-y-auto pr-0.5 sm:grid-cols-2">
@@ -931,7 +936,7 @@ function ServiceGrid({
                         >
                             <span className="min-w-0">
                                 <span className="block truncate text-sm font-medium text-foreground">{service.name}</span>
-                                <span className="block text-xs text-muted-foreground">{service.duration_minutes} min</span>
+                                <span className="block text-xs text-muted-foreground">{t('{n} min', { n: service.duration_minutes })}</span>
                             </span>
                             <span className="shrink-0 text-sm font-semibold tabular-nums text-accent">
                                 {formatCurrency(service.price, { maximumFractionDigits: 2 })}

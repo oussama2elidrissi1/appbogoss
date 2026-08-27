@@ -5,6 +5,7 @@ import { Printer, ReceiptText, Trash2 } from 'lucide-react';
 import { deleteTransaction, getTransactions, recordTransactionPrint } from '@/lib/api';
 import { printEmployeeDailySummary, printSaleReceipt } from '@/lib/receipt';
 import { workDayKeys } from '@/hooks/useWorkDay';
+import { t as translate, useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatTime } from '@/lib/utils';
 import type { Sale } from '@/types/workday';
 import { Badge } from '@/components/ui/badge';
@@ -35,11 +36,12 @@ interface EmployeeSalesSummary {
 function clientName(sale: Sale): string {
     if (sale.client) return sale.client.name;
     if (sale.client_label) return sale.client_label;
-    return 'Client de passage';
+    return translate('Client de passage');
 }
 
 /** The running list of the day's encaissements, newest first. */
 export function DayLedger({ workDayId, date }: DayLedgerProps) {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const [deletingSale, setDeletingSale] = useState<Sale | null>(null);
     const { data: sales, isPending } = useQuery({
@@ -150,7 +152,7 @@ export function DayLedger({ workDayId, date }: DayLedgerProps) {
         <Card className="flex h-full flex-col">
             <CardHeader>
                 <div className="flex items-baseline justify-between gap-3">
-                    <CardTitle>Encaissements du jour</CardTitle>
+                    <CardTitle>{t('Encaissements du jour')}</CardTitle>
                     {!isPending && activeSales.length > 0 && (
                         <span className="text-sm font-semibold tabular-nums text-accent">
                             {formatCurrency(total, {
@@ -161,8 +163,8 @@ export function DayLedger({ workDayId, date }: DayLedgerProps) {
                 </div>
                 <p className="mt-1.5 text-sm text-muted-foreground">
                     {isPending
-                        ? 'Chargement...'
-                        : `${activeSales.length} ticket${activeSales.length > 1 ? 's' : ''} enregistré${activeSales.length > 1 ? 's' : ''}${deletedCount > 0 ? ` · ${deletedCount} supprimé${deletedCount > 1 ? 's' : ''}` : ''}`}
+                        ? t('Chargement...')
+                        : `${activeSales.length} ${t(activeSales.length > 1 ? 'tickets enregistrés' : 'ticket enregistré')}${deletedCount > 0 ? ` · ${deletedCount} ${t(deletedCount > 1 ? 'supprimés' : 'supprimé')}` : ''}`}
                 </p>
             </CardHeader>
 
@@ -183,8 +185,8 @@ export function DayLedger({ workDayId, date }: DayLedgerProps) {
                 ) : (sales ?? []).length === 0 ? (
                     <EmptyState
                         icon={ReceiptText}
-                        title="Aucun encaissement"
-                        description="Les tickets de la journée s'afficheront ici dès le premier enregistrement."
+                        title={t('Aucun encaissement')}
+                        description={t("Les tickets de la journée s'afficheront ici dès le premier enregistrement.")}
                     />
                 ) : (
                     <div className="space-y-4">
@@ -192,10 +194,10 @@ export function DayLedger({ workDayId, date }: DayLedgerProps) {
                             <section className="space-y-2">
                                 <div className="flex items-center justify-between gap-3">
                                     <h3 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                                        Par employé
+                                        {t('Par employé')}
                                     </h3>
                                     <span className="text-xs text-muted-foreground">
-                                        Hors tickets supprimés
+                                        {t('Hors tickets supprimés')}
                                     </span>
                                 </div>
 
@@ -216,8 +218,8 @@ export function DayLedger({ workDayId, date }: DayLedgerProps) {
                                                     {employee.name}
                                                 </p>
                                                 <p className="text-xs text-muted-foreground">
-                                                    {employee.performedCount} prestation
-                                                    {employee.performedCount > 1 ? 's' : ''}
+                                                    {employee.performedCount}{' '}
+                                                    {t(employee.performedCount > 1 ? 'prestations' : 'prestation')}
                                                 </p>
                                             </div>
 
@@ -231,7 +233,7 @@ export function DayLedger({ workDayId, date }: DayLedgerProps) {
                                                 type="button"
                                                 size="icon"
                                                 variant="ghost"
-                                                aria-label={`Imprimer le total du jour de ${employee.name}`}
+                                                aria-label={t('Imprimer le total du jour de {name}', { name: employee.name })}
                                                 className="h-8 w-8 shrink-0"
                                                 onClick={() => handlePrintEmployeeTotal(employee)}
                                             >
@@ -285,11 +287,11 @@ export function DayLedger({ workDayId, date }: DayLedgerProps) {
                                                             config.badge,
                                                         )}
                                                     >
-                                                        {config.label}
+                                                        {t(config.label)}
                                                     </span>
                                                     {deleted && (
                                                         <Badge variant="destructive">
-                                                            Supprimé
+                                                            {t('Supprimé')}
                                                         </Badge>
                                                     )}
                                                     <span
@@ -306,7 +308,7 @@ export function DayLedger({ workDayId, date }: DayLedgerProps) {
                                                                           : item.label,
                                                                   )
                                                                   .join(', ')
-                                                            : config.label}
+                                                            : t(config.label)}
                                                     </span>
                                                 </div>
                                                 <p className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -340,8 +342,8 @@ export function DayLedger({ workDayId, date }: DayLedgerProps) {
                                                         </p>
                                                     )}
                                                 <p className="mt-0.5 text-[11px] tabular-nums text-muted-foreground">
-                                                    {sale.printed_ticket_count ?? sale.print_count * 2} tickets
-                                                    {' '}Â· {sale.print_count} impr.
+                                                    {sale.printed_ticket_count ?? sale.print_count * 2} {t('tickets')}
+                                                    {' '}· {sale.print_count} {t('impr.')}
                                                 </p>
                                             </div>
 
@@ -351,7 +353,7 @@ export function DayLedger({ workDayId, date }: DayLedgerProps) {
                                                         type="button"
                                                         size="icon"
                                                         variant="ghost"
-                                                        aria-label="Réimprimer le ticket"
+                                                        aria-label={t('Réimprimer le ticket')}
                                                         disabled={printMutation.isPending}
                                                         onClick={() => handleReprint(sale)}
                                                         className="h-8 w-8"
@@ -362,7 +364,7 @@ export function DayLedger({ workDayId, date }: DayLedgerProps) {
                                                         type="button"
                                                         size="icon"
                                                         variant="ghost"
-                                                        aria-label="Supprimer le ticket"
+                                                        aria-label={t('Supprimer le ticket')}
                                                         disabled={deleteMutation.isPending}
                                                         onClick={() => handleDelete(sale)}
                                                         className="h-8 w-8"
@@ -384,13 +386,15 @@ export function DayLedger({ workDayId, date }: DayLedgerProps) {
         <ConfirmDialog
             open={deletingSale !== null}
             onOpenChange={(open) => { if (!open) setDeletingSale(null); }}
-            title="Supprimer ce ticket ?"
+            title={t('Supprimer ce ticket ?')}
             description={
                 deletingSale
-                    ? `Le ticket "${deletingSale.items[0]?.label ?? `#${deletingSale.id}`}" sera annulé et retiré du chiffre d'affaires du jour.`
+                    ? t('Le ticket "{label}" sera annulé et retiré du chiffre d\'affaires du jour.', {
+                          label: deletingSale.items[0]?.label ?? `#${deletingSale.id}`,
+                      })
                     : undefined
             }
-            confirmLabel="Supprimer"
+            confirmLabel={t('Supprimer')}
             loading={deleteMutation.isPending}
             onConfirm={confirmDelete}
         />

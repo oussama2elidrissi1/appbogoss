@@ -4,6 +4,7 @@ import { CalendarDays, Clock3, Phone, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { getEmployeeAgenda } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { formatCurrency, formatDate, formatTime } from '@/lib/utils';
 import type { EmployeeAgendaRow } from '@/types/employee-workspace';
 import { EmployeePageShell, EmployeePanel, EmployeePanelTitle } from '@/pages/employee/EmployeeLayout';
@@ -11,6 +12,7 @@ import { EmployeePageShell, EmployeePanel, EmployeePanelTitle } from '@/pages/em
 const views = ['today', 'day', 'week', 'month', 'list'] as const;
 
 export default function EmployeeAgenda() {
+    const { t } = useI18n();
     const [view, setView] = useState<(typeof views)[number]>('today');
     const [selected, setSelected] = useState<EmployeeAgendaRow | null>(null);
     const { data = [], isPending } = useQuery({
@@ -22,19 +24,19 @@ export default function EmployeeAgenda() {
         <EmployeePageShell>
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                    <h2 className="text-2xl font-semibold">Mon agenda</h2>
-                    <p className="text-sm text-white/50">Uniquement vos rendez-vous affectes.</p>
+                    <h2 className="text-2xl font-semibold">{t('Mon agenda')}</h2>
+                    <p className="text-sm text-white/50">{t('Uniquement vos rendez-vous affectes.')}</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    {views.map((item) => <Button key={item} variant={view === item ? 'accent' : 'outline'} onClick={() => setView(item)}>{label(item)}</Button>)}
+                    {views.map((item) => <Button key={item} variant={view === item ? 'accent' : 'outline'} onClick={() => setView(item)}>{t(label(item))}</Button>)}
                 </div>
             </div>
 
             <EmployeePanel>
-                <EmployeePanelTitle title="Planning" icon={CalendarDays} />
+                <EmployeePanelTitle title={t('Planning')} icon={CalendarDays} />
                 <div className="grid gap-2 p-4 md:grid-cols-2 xl:grid-cols-3">
-                    {isPending ? <p className="text-white/50">Chargement...</p> : data.length === 0 ? (
-                        <p className="col-span-full py-10 text-center text-white/50">Aucun rendez-vous sur cette periode.</p>
+                    {isPending ? <p className="text-white/50">{t('Chargement...')}</p> : data.length === 0 ? (
+                        <p className="col-span-full py-10 text-center text-white/50">{t('Aucun rendez-vous sur cette periode.')}</p>
                     ) : data.map((item) => (
                         <button key={item.id} type="button" onClick={() => setSelected(item)} className="rounded-md border border-white/[0.07] bg-white/[0.035] p-4 text-left transition hover:border-[#c8a24c]/40 hover:bg-[#c8a24c]/[0.07]">
                             <div className="flex items-start justify-between gap-3">
@@ -55,7 +57,7 @@ export default function EmployeeAgenda() {
                     {selected && (
                         <>
                             <DialogHeader>
-                                <DialogTitle>Detail du rendez-vous</DialogTitle>
+                                <DialogTitle>{t('Detail du rendez-vous')}</DialogTitle>
                             </DialogHeader>
                             <div className="space-y-4">
                                 <div className="rounded-md border border-white/[0.07] bg-white/[0.04] p-4">
@@ -63,15 +65,15 @@ export default function EmployeeAgenda() {
                                     {selected.client_phone && <p className="mt-1 flex items-center gap-2 text-sm text-white/55"><Phone className="h-3.5 w-3.5" />{selected.client_phone}</p>}
                                 </div>
                                 <div className="grid gap-3 sm:grid-cols-2">
-                                    <Fact label="Date" value={formatDate(selected.starts_at)} />
-                                    <Fact label="Heure" value={`${formatTime(selected.starts_at)} - ${formatTime(selected.ends_at)}`} />
-                                    <Fact label="Duree" value={`${selected.duration_minutes} min`} />
-                                    <Fact label="Montant" value={formatCurrency(selected.amount)} />
-                                    <Fact label="Statut" value={selected.status} />
-                                    <Fact label="Origine" value={selected.origin} />
+                                    <Fact label={t('Date')} value={formatDate(selected.starts_at)} />
+                                    <Fact label={t('Heure')} value={`${formatTime(selected.starts_at)} - ${formatTime(selected.ends_at)}`} />
+                                    <Fact label={t('Duree')} value={t('{n} min', { n: selected.duration_minutes })} />
+                                    <Fact label={t('Montant')} value={formatCurrency(selected.amount)} />
+                                    <Fact label={t('Statut')} value={selected.status} />
+                                    <Fact label={t('Origine')} value={selected.origin} />
                                 </div>
                                 <div className="rounded-md border border-white/[0.07] bg-white/[0.04] p-4">
-                                    <p className="text-xs uppercase tracking-[0.14em] text-white/38">Prestation(s)</p>
+                                    <p className="text-xs uppercase tracking-[0.14em] text-white/38">{t('Prestation(s)')}</p>
                                     <p className="mt-1 font-medium">{selected.service}</p>
                                 </div>
                                 {selected.notes && <div className="rounded-md border border-white/[0.07] bg-white/[0.04] p-4 text-sm text-white/70">{selected.notes}</div>}

@@ -24,6 +24,7 @@ import { NotificationsBell } from '@/components/layout/NotificationsBell';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
+import { useI18n } from '@/lib/i18n';
 import { cn, getInitials } from '@/lib/utils';
 
 const employeeNav = [
@@ -53,6 +54,7 @@ const mobileNav = [
 ];
 
 export function EmployeeLayout() {
+    const { t } = useI18n();
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
@@ -99,7 +101,7 @@ export function EmployeeLayout() {
                         {employeeNav.map((group) => (
                             <div key={group.section} className="mb-7">
                                 <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/38">
-                                    {group.section}
+                                    {t(group.section)}
                                 </p>
                                 <div className="space-y-1">
                                     {group.items.map((item) => (
@@ -120,7 +122,7 @@ export function EmployeeLayout() {
                                 </Avatar>
                                 <div className="min-w-0">
                                     <p className="truncate text-sm font-semibold">{user?.employee_name ?? user?.name}</p>
-                                    <p className="truncate text-xs text-white/52">Employe</p>
+                                    <p className="truncate text-xs text-white/52">{t('Employe')}</p>
                                 </div>
                             </div>
                             <Button
@@ -130,7 +132,7 @@ export function EmployeeLayout() {
                                 onClick={() => void handleLogout()}
                             >
                                 <LogOut />
-                                Deconnexion
+                                {t('Deconnexion')}
                             </Button>
                         </div>
                     </div>
@@ -139,7 +141,7 @@ export function EmployeeLayout() {
                 {mobileMenuOpen && (
                     <button
                         type="button"
-                        aria-label="Fermer le menu"
+                        aria-label={t('Fermer le menu')}
                         className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
                         onClick={() => setMobileMenuOpen(false)}
                     />
@@ -162,7 +164,7 @@ export function EmployeeLayout() {
                     <nav className="flex-1 overflow-y-auto px-3 py-4">
                         {employeeNav.map((group) => (
                             <div key={group.section} className="mb-6">
-                                <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/38">{group.section}</p>
+                                <p className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/38">{t(group.section)}</p>
                                 <div className="space-y-1">
                                     {group.items.map((item) => (
                                         <EmployeeNavLink key={item.to} item={item} />
@@ -179,7 +181,7 @@ export function EmployeeLayout() {
                             onClick={() => void handleLogout()}
                         >
                             <LogOut />
-                            Deconnexion
+                            {t('Deconnexion')}
                         </Button>
                     </div>
                 </motion.aside>
@@ -197,6 +199,7 @@ export function EmployeeLayout() {
 }
 
 function EmployeeHeader({ onOpenMenu }: { onOpenMenu: () => void }) {
+    const { t, lang } = useI18n();
     const { user } = useAuth();
     const now = new Date();
 
@@ -205,7 +208,7 @@ function EmployeeHeader({ onOpenMenu }: { onOpenMenu: () => void }) {
             <div className="flex items-center justify-between gap-2 sm:gap-4">
                 <button
                     type="button"
-                    aria-label="Ouvrir le menu"
+                    aria-label={t('Ouvrir le menu')}
                     className="rounded-md border border-white/[0.08] bg-white/[0.04] p-2 text-white/72 lg:hidden"
                     onClick={onOpenMenu}
                 >
@@ -213,15 +216,15 @@ function EmployeeHeader({ onOpenMenu }: { onOpenMenu: () => void }) {
                 </button>
                 <div className="min-w-0 flex-1">
                     <h1 className="truncate text-base font-semibold tracking-tight sm:text-xl">
-                        Bonjour {user?.employee_name ?? user?.name ?? ''}
+                        {t('Bonjour')} {user?.employee_name ?? user?.name ?? ''}
                     </h1>
                     <p className="mt-0.5 hidden text-sm text-white/52 sm:block">
-                        Voici un apercu de votre activite aujourd'hui.
+                        {t("Voici un apercu de votre activite aujourd'hui.")}
                     </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
                     <div className="hidden rounded-md border border-white/[0.08] bg-white/[0.04] px-3 py-2 text-xs text-white/68 md:block">
-                        {new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' }).format(now)}
+                        {new Intl.DateTimeFormat(lang === 'ar' ? 'ar-MA' : 'fr-FR', { weekday: 'long', day: '2-digit', month: 'long' }).format(now)}
                     </div>
                     <NotificationsBell />
                     <button className="flex items-center gap-2 rounded-md border border-white/[0.08] bg-white/[0.04] p-1.5 text-sm sm:pr-2">
@@ -240,6 +243,7 @@ function EmployeeHeader({ onOpenMenu }: { onOpenMenu: () => void }) {
 }
 
 function EmployeeNavLink({ item }: { item: { label: string; to: string; icon: LucideIcon } }) {
+    const { t } = useI18n();
     const location = useLocation();
     const active = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
     const Icon = item.icon;
@@ -255,12 +259,13 @@ function EmployeeNavLink({ item }: { item: { label: string; to: string; icon: Lu
             )}
         >
             <Icon className={cn('h-[18px] w-[18px]', active ? 'text-[#d5b15d]' : 'text-white/45 group-hover:text-white/75')} />
-            {item.label}
+            {t(item.label)}
         </NavLink>
     );
 }
 
 function MobileBottomNav() {
+    const { t } = useI18n();
     const location = useLocation();
 
     return (
@@ -280,7 +285,7 @@ function MobileBottomNav() {
                             )}
                         >
                             <Icon className="mb-1 h-5 w-5" />
-                            <span className="truncate">{item.label}</span>
+                            <span className="truncate">{t(item.label)}</span>
                         </NavLink>
                     );
                 })}

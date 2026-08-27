@@ -12,6 +12,7 @@ import {
 } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { workDayKeys } from '@/hooks/useWorkDay';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import type { Advance, Employee } from '@/types/workday';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,7 @@ function today(): string {
 
 /** Outstanding balance, history and the "donner une avance" inline form. */
 export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeAdvancesProps) {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const { hasRole } = useAuth();
     const isSuperAdmin = hasRole('super-admin');
@@ -207,7 +209,7 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
             <div className="flex items-center justify-between gap-3">
                 <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
                     <HandCoins className="h-4 w-4" />
-                    Avances en cours (total)
+                    {t('Avances en cours (total)')}
                 </span>
                 {isPending ? (
                     <Skeleton className="h-5 w-20" />
@@ -220,12 +222,16 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
             {periodMonth ? (
                 <div className="mt-1 space-y-1.5">
                     <p className="text-[10px] text-muted-foreground">
-                        Historique complet ci-dessous. Avances non soldées données pendant {periodMonth} : {formatCurrency(periodOutstandingTotal, { maximumFractionDigits: 2 })}.
+                        {t('Historique complet ci-dessous. Avances non soldées données pendant {month} : {amount}.', {
+                            month: periodMonth,
+                            amount: formatCurrency(periodOutstandingTotal, { maximumFractionDigits: 2 }),
+                        })}
                         {olderUnsettledTotal > 0 && (
                             <>
                                 {' '}
-                                Les {formatCurrency(olderUnsettledTotal, { maximumFractionDigits: 2 })} restants
-                                du total ci-dessus viennent de mois précédents, toujours non soldés.
+                                {t('Les {amount} restants du total ci-dessus viennent de mois précédents, toujours non soldés.', {
+                                    amount: formatCurrency(olderUnsettledTotal, { maximumFractionDigits: 2 }),
+                                })}
                             </>
                         )}
                     </p>
@@ -238,14 +244,15 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
                             disabled={settleBeforeMutation.isPending}
                             onClick={() => requestSettleBefore(`${periodMonth}-01`, olderUnsettledTotal)}
                         >
-                            Déjà remboursées → solder les {formatCurrency(olderUnsettledTotal, { maximumFractionDigits: 2 })} antérieures
+                            {t('Déjà remboursées → solder les {amount} antérieures', {
+                                amount: formatCurrency(olderUnsettledTotal, { maximumFractionDigits: 2 }),
+                            })}
                         </Button>
                     )}
                 </div>
             ) : (
                 <p className="mt-1 text-[10px] text-muted-foreground">
-                    Toutes les avances non soldées, quel que soit le mois où elles ont été données — elles
-                    restent dues jusqu'à ce que la commission de cet employé soit marquée payée.
+                    {t("Toutes les avances non soldées, quel que soit le mois où elles ont été données — elles restent dues jusqu'à ce que la commission de cet employé soit marquée payée.")}
                 </p>
             )}
 
@@ -257,7 +264,7 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
                 </div>
             ) : advances.length === 0 ? (
                 <p className="mt-3 rounded-md border border-dashed border-tint/[0.08] px-3 py-3 text-center text-xs text-muted-foreground">
-                    Aucune avance enregistrée.
+                    {t('Aucune avance enregistrée.')}
                 </p>
             ) : (
                 <ul className="mt-3 max-h-[34rem] space-y-1.5 overflow-y-auto pr-0.5">
@@ -296,12 +303,12 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
                                         onChange={(event) =>
                                             setEditForm((current) => ({ ...current, reason: event.target.value }))
                                         }
-                                        placeholder="Motif (optionnel)"
+                                        placeholder={t('Motif (optionnel)')}
                                         className="h-8"
                                     />
                                     <div className="space-y-1">
                                         <Label className="text-[10px] text-muted-foreground">
-                                            Journée de caisse
+                                            {t('Journée de caisse')}
                                         </Label>
                                         <Select
                                             value={editForm.work_day_id}
@@ -310,13 +317,13 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
                                             }
                                         >
                                             <SelectTrigger className="h-8">
-                                                <SelectValue placeholder="Aucune" />
+                                                <SelectValue placeholder={t('Aucune')} />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {(workDays ?? []).map((day) => (
                                                     <SelectItem key={day.id} value={String(day.id)}>
                                                         {formatDate(day.date)}
-                                                        {day.status === 'open' ? ' (ouverte)' : ''}
+                                                        {day.status === 'open' ? ` ${t('(ouverte)')}` : ''}
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
@@ -331,7 +338,7 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
                                             disabled={updateMutation.isPending}
                                         >
                                             <X className="h-3.5 w-3.5" />
-                                            Annuler
+                                            {t('Annuler')}
                                         </Button>
                                         <Button
                                             type="button"
@@ -341,7 +348,7 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
                                             disabled={updateMutation.isPending}
                                         >
                                             {updateMutation.isPending && <Loader2 className="animate-spin" />}
-                                            Enregistrer
+                                            {t('Enregistrer')}
                                         </Button>
                                     </div>
                                     {updateMutation.isError && (
@@ -363,7 +370,7 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
                                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
                                         {advance.given_on}
                                         {advance.work_day_date && advance.work_day_date !== advance.given_on
-                                            ? ` · caisse du ${formatDate(advance.work_day_date)}`
+                                            ? ` · ${t('caisse du')} ${formatDate(advance.work_day_date)}`
                                             : ''}
                                         {advance.reason ? ` · ${advance.reason}` : ''}
                                     </p>
@@ -375,22 +382,22 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
                                             className="inline-flex items-center gap-1 text-xs text-success"
                                             title={
                                                 advance.commission_payout_period
-                                                    ? `Soldée automatiquement via la paie de ${advance.commission_payout_period}`
+                                                    ? t('Soldée automatiquement via la paie de {period}', { period: advance.commission_payout_period })
                                                     : undefined
                                             }
                                         >
                                             <Check className="h-3.5 w-3.5" />
                                             {advance.commission_payout_period
-                                                ? `Réglée (paie ${advance.commission_payout_period})`
-                                                : 'Réglée'}
+                                                ? t('Réglée (paie {period})', { period: advance.commission_payout_period })
+                                                : t('Réglée')}
                                         </span>
                                     ) : (
                                         <span
                                             className="inline-flex items-center gap-1 text-xs text-muted-foreground"
-                                            title="Elle sera automatiquement déduite quand vous marquerez la commission du mois comme payée."
+                                            title={t('Elle sera automatiquement déduite quand vous marquerez la commission du mois comme payée.')}
                                         >
                                             <HandCoins className="h-3.5 w-3.5" />
-                                            Déduite à la paie
+                                            {t('Déduite à la paie')}
                                         </span>
                                     )}
                                     <Button
@@ -398,7 +405,7 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
                                         variant="ghost"
                                         size="icon"
                                         className="h-8 w-8"
-                                        aria-label="Modifier l'avance"
+                                        aria-label={t("Modifier l'avance")}
                                         onClick={() => startEdit(advance)}
                                     >
                                         <Pencil className="h-3.5 w-3.5" />
@@ -408,7 +415,7 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
                                         variant="ghost"
                                         size="icon"
                                         className="h-8 w-8"
-                                        aria-label="Supprimer l'avance"
+                                        aria-label={t("Supprimer l'avance")}
                                         onClick={() => {
                                             setPasswordError(null);
                                             if (isSuperAdmin) {
@@ -429,13 +436,13 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
 
             <div className="mt-4 space-y-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] p-3.5">
                 <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                    Donner une avance
+                    {t('Donner une avance')}
                 </p>
 
                 <div className="grid grid-cols-2 gap-2.5">
                     <div className="space-y-1.5">
                         <Label htmlFor={`advance-amount-${employee.id}`} className="text-xs">
-                            Montant
+                            {t('Montant')}
                         </Label>
                         <Input
                             id={`advance-amount-${employee.id}`}
@@ -451,7 +458,7 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
                     </div>
                     <div className="space-y-1.5">
                         <Label htmlFor={`advance-date-${employee.id}`} className="text-xs">
-                            Date
+                            {t('Date')}
                         </Label>
                         <Input
                             id={`advance-date-${employee.id}`}
@@ -465,36 +472,36 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
 
                 <div className="space-y-1.5">
                     <Label htmlFor={`advance-reason-${employee.id}`} className="text-xs">
-                        Motif <span className="font-normal">(optionnel)</span>
+                        {t('Motif')} <span className="font-normal">{t('(optionnel)')}</span>
                     </Label>
                     <Input
                         id={`advance-reason-${employee.id}`}
                         value={reason}
                         onChange={(event) => setReason(event.target.value)}
-                        placeholder="Ex. dépannage personnel"
+                        placeholder={t('Ex. dépannage personnel')}
                         className="h-9"
                     />
                 </div>
 
                 <div className="space-y-1.5">
                     <Label className="text-xs">
-                        Journée de caisse <span className="font-normal">(optionnel)</span>
+                        {t('Journée de caisse')} <span className="font-normal">{t('(optionnel)')}</span>
                     </Label>
                     <Select value={selectedWorkDayId} onValueChange={setSelectedWorkDayId}>
                         <SelectTrigger className="h-9">
-                            <SelectValue placeholder="Journée ouverte aujourd’hui" />
+                            <SelectValue placeholder={t('Journée ouverte aujourd’hui')} />
                         </SelectTrigger>
                         <SelectContent>
                             {(workDays ?? []).map((day) => (
                                 <SelectItem key={day.id} value={String(day.id)}>
                                     {formatDate(day.date)}
-                                    {day.status === 'open' ? ' (ouverte)' : ''}
+                                    {day.status === 'open' ? ` ${t('(ouverte)')}` : ''}
                                 </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
                     <p className="text-[10px] text-muted-foreground">
-                        Pour un versement rattrapant une avance d’une autre journée déjà clôturée.
+                        {t('Pour un versement rattrapant une avance d’une autre journée déjà clôturée.')}
                     </p>
                 </div>
 
@@ -515,7 +522,7 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
                     onClick={submit}
                 >
                     {createMutation.isPending && <Loader2 className="animate-spin" />}
-                    Enregistrer l’avance
+                    {t('Enregistrer l’avance')}
                 </Button>
             </div>
 
@@ -529,25 +536,30 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
                 }}
                 title={
                     pendingAction?.type === 'delete'
-                        ? 'Supprimer cette avance ?'
+                        ? t('Supprimer cette avance ?')
                         : pendingAction?.type === 'settle-before'
-                          ? 'Solder ces avances antérieures ?'
-                          : 'Confirmer la modification'
+                          ? t('Solder ces avances antérieures ?')
+                          : t('Confirmer la modification')
                 }
                 description={
                     pendingAction?.type === 'delete'
-                        ? `L'avance de ${formatCurrency(pendingAction.advance.amount, { maximumFractionDigits: 2 })} du ${pendingAction.advance.given_on} sera définitivement supprimée. Cette action nécessite le mot de passe patron.`
+                        ? t("L'avance de {amount} du {date} sera définitivement supprimée. Cette action nécessite le mot de passe patron.", {
+                              amount: formatCurrency(pendingAction.advance.amount, { maximumFractionDigits: 2 }),
+                              date: pendingAction.advance.given_on,
+                          })
                         : pendingAction?.type === 'edit'
-                          ? "Toute correction d'une avance nécessite le mot de passe patron."
+                          ? t("Toute correction d'une avance nécessite le mot de passe patron.")
                           : pendingAction?.type === 'settle-before'
-                            ? `${formatCurrency(pendingAction.total, { maximumFractionDigits: 2 })} d'avances antérieures à ce mois seront marquées réglées, sans créer de paiement de commission. À utiliser seulement si cet argent a déjà été remboursé en dehors de l'application. Cette action nécessite le mot de passe patron.`
+                            ? t("{amount} d'avances antérieures à ce mois seront marquées réglées, sans créer de paiement de commission. À utiliser seulement si cet argent a déjà été remboursé en dehors de l'application. Cette action nécessite le mot de passe patron.", {
+                                  amount: formatCurrency(pendingAction.total, { maximumFractionDigits: 2 }),
+                              })
                             : undefined
                 }
                 confirmLabel={
                     pendingAction?.type === 'edit'
-                        ? 'Enregistrer la correction'
+                        ? t('Enregistrer la correction')
                         : pendingAction?.type === 'settle-before'
-                          ? 'Solder ces avances'
+                          ? t('Solder ces avances')
                           : undefined
                 }
                 tone={pendingAction?.type === 'edit' ? 'accent' : 'destructive'}

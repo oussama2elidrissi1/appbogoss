@@ -20,6 +20,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { deleteEmployee, getEmployees, getErrorMessage, quickCreateEmployeeAccount, updateEmployee } from '@/lib/api';
 import { useActiveWorkDay, workDayKeys } from '@/hooks/useWorkDay';
+import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { Employee } from '@/types/workday';
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +45,7 @@ const item = {
 };
 
 export default function Employees() {
+    const { t } = useI18n();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const { hasPermission } = useAuth();
@@ -117,12 +119,12 @@ export default function Employees() {
                 <span className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/[0.12]">
                     <AlertCircle className="h-5 w-5 text-destructive" />
                 </span>
-                <h2 className="mt-4 text-base font-semibold">Impossible de charger l'équipe</h2>
+                <h2 className="mt-4 text-base font-semibold">{t("Impossible de charger l'équipe")}</h2>
                 <p className="mt-1.5 max-w-[42ch] text-sm leading-relaxed text-muted-foreground">
                     {getErrorMessage(error)}
                 </p>
                 <Button variant="accent" className="mt-6" onClick={() => void refetch()}>
-                    Réessayer
+                    {t('Réessayer')}
                 </Button>
             </Card>
         );
@@ -133,9 +135,9 @@ export default function Employees() {
             <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
                 <motion.div variants={item} className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                     <div>
-                        <h2 className="text-2xl font-semibold tracking-tight">Équipe</h2>
+                        <h2 className="text-2xl font-semibold tracking-tight">{t('Équipe')}</h2>
                         <p className="mt-1.5 text-sm text-muted-foreground">
-                            Fiches employés, statut, commissions et avances sur salaire.
+                            {t('Fiches employés, statut, commissions et avances sur salaire.')}
                         </p>
                     </div>
 
@@ -145,14 +147,14 @@ export default function Employees() {
                             <Input
                                 value={search}
                                 onChange={(event) => setSearch(event.target.value)}
-                                placeholder="Rechercher un employé..."
+                                placeholder={t('Rechercher un employé...')}
                                 className="pl-10"
                             />
                         </div>
                         {canManage && (
                             <Button variant="accent" onClick={openCreateDialog}>
                                 <Plus />
-                                Ajouter
+                                {t('Ajouter')}
                             </Button>
                         )}
                     </div>
@@ -160,15 +162,15 @@ export default function Employees() {
 
                 <motion.div variants={item} className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     <Card className="px-4 py-3">
-                        <p className="text-xs text-muted-foreground">Total</p>
+                        <p className="text-xs text-muted-foreground">{t('Total')}</p>
                         <p className="mt-1 text-xl font-semibold tabular-nums">{employees.length}</p>
                     </Card>
                     <Card className="px-4 py-3">
-                        <p className="text-xs text-muted-foreground">Actifs</p>
+                        <p className="text-xs text-muted-foreground">{t('Actifs')}</p>
                         <p className="mt-1 text-xl font-semibold tabular-nums text-success">{activeCount}</p>
                     </Card>
                     <Card className="px-4 py-3">
-                        <p className="text-xs text-muted-foreground">Inactifs</p>
+                        <p className="text-xs text-muted-foreground">{t('Inactifs')}</p>
                         <p className="mt-1 text-xl font-semibold tabular-nums text-muted-foreground">
                             {employees.length - activeCount}
                         </p>
@@ -192,8 +194,8 @@ export default function Employees() {
                 ) : employees.length === 0 ? (
                     <EmptyState
                         icon={UserSquare2}
-                        title="Aucun employé"
-                        description="Ajoutez une fiche employé pour ouvrir une journée et suivre les commissions."
+                        title={t('Aucun employé')}
+                        description={t('Ajoutez une fiche employé pour ouvrir une journée et suivre les commissions.')}
                     />
                 ) : (
                     <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -229,7 +231,7 @@ export default function Employees() {
                                                     type="button"
                                                     size="icon"
                                                     variant="ghost"
-                                                    aria-label="Modifier"
+                                                    aria-label={t('Modifier')}
                                                     onClick={(event) => openEditDialog(employee, event)}
                                                 >
                                                     <Pencil />
@@ -238,7 +240,7 @@ export default function Employees() {
                                                     type="button"
                                                     size="icon"
                                                     variant="ghost"
-                                                    aria-label={employee.is_active ? 'Désactiver' : 'Activer'}
+                                                    aria-label={employee.is_active ? t('Désactiver') : t('Activer')}
                                                     disabled={statusMutation.isPending}
                                                     onClick={(event) => {
                                                         event.stopPropagation();
@@ -251,7 +253,7 @@ export default function Employees() {
                                                     type="button"
                                                     size="icon"
                                                     variant="ghost"
-                                                    aria-label="Supprimer"
+                                                    aria-label={t('Supprimer')}
                                                     disabled={deleteMutation.isPending}
                                                     onClick={(event) => {
                                                         event.stopPropagation();
@@ -270,14 +272,14 @@ export default function Employees() {
                                         {employee.account && (
                                             <Badge variant={employee.account.system_role === 'admin' ? 'accent' : 'outline'}>
                                                 <ShieldCheck className="mr-1 h-3 w-3" />
-                                                {employee.account.system_role === 'admin' ? 'Administrateur/Caissier' : 'Compte employé'}
+                                                {employee.account.system_role === 'admin' ? t('Administrateur/Caissier') : t('Compte employé')}
                                             </Badge>
                                         )}
                                         {employee.default_commission_rate !== null && (
-                                            <Badge variant="accent">{employee.default_commission_rate}% commission</Badge>
+                                            <Badge variant="accent">{employee.default_commission_rate}% {t('commission')}</Badge>
                                         )}
                                         <Badge variant={employee.is_active ? 'success' : 'outline'}>
-                                            {employee.is_active ? 'Actif' : 'Inactif'}
+                                            {employee.is_active ? t('Actif') : t('Inactif')}
                                         </Badge>
                                     </div>
 
@@ -325,13 +327,13 @@ export default function Employees() {
                                                 ) : (
                                                     <UserPlus className="h-3 w-3" />
                                                 )}
-                                                Créer un compte
+                                                {t('Créer un compte')}
                                             </Button>
                                         ) : (
                                             <span />
                                         )}
                                         <span className="ml-auto flex items-center gap-1 text-xs font-medium text-accent">
-                                            Voir la fiche
+                                            {t('Voir la fiche')}
                                             <ChevronRight className="h-3.5 w-3.5" />
                                         </span>
                                     </div>
@@ -349,13 +351,13 @@ export default function Employees() {
                 onOpenChange={(open) => {
                     if (!open) setDeletingEmployee(null);
                 }}
-                title="Supprimer cet employé ?"
+                title={t('Supprimer cet employé ?')}
                 description={
                     deletingEmployee
-                        ? `${deletingEmployee.name} sera définitivement supprimé(e). Cette action est irréversible.`
+                        ? t('{name} sera définitivement supprimé(e). Cette action est irréversible.', { name: deletingEmployee.name })
                         : undefined
                 }
-                confirmLabel="Supprimer"
+                confirmLabel={t('Supprimer')}
                 loading={deleteMutation.isPending}
                 onConfirm={confirmDelete}
             />

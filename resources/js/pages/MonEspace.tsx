@@ -7,14 +7,16 @@ import { MyReportPanel } from '@/components/prestations/MyReportPanel';
 import { MyDashboardSummary } from '@/components/prestations/MyDashboardSummary';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { pageFade } from '@/lib/motion';
+import { useI18n } from '@/lib/i18n';
 
 export default function MonEspace() {
+    const { t } = useI18n();
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-6">
             <div>
-                <h2 className="text-2xl font-semibold tracking-tight">Mon espace</h2>
+                <h2 className="text-2xl font-semibold tracking-tight">{t('Mon espace')}</h2>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                    Créez vos prestations et suivez vos commissions.
+                    {t('Créez vos prestations et suivez vos commissions.')}
                 </p>
             </div>
 
@@ -22,11 +24,11 @@ export default function MonEspace() {
 
             <Tabs defaultValue="new" className="space-y-5">
                 <TabsList>
-                    <TabsTrigger value="new">Nouvelle prestation</TabsTrigger>
-                    <TabsTrigger value="mine">Mes prestations</TabsTrigger>
-                    <TabsTrigger value="commissions">Mes commissions</TabsTrigger>
-                    <TabsTrigger value="advances">Mes avances</TabsTrigger>
-                    <TabsTrigger value="report">Mon rapport</TabsTrigger>
+                    <TabsTrigger value="new">{t('Nouvelle prestation')}</TabsTrigger>
+                    <TabsTrigger value="mine">{t('Mes prestations')}</TabsTrigger>
+                    <TabsTrigger value="commissions">{t('Mes commissions')}</TabsTrigger>
+                    <TabsTrigger value="advances">{t('Mes avances')}</TabsTrigger>
+                    <TabsTrigger value="report">{t('Mon rapport')}</TabsTrigger>
                 </TabsList>
                 <TabsContent value="new" className="space-y-5">
                     <NewPrestationPanel />

@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { CalendarDays, Lock, Receipt, Users, Wallet } from 'lucide-react';
 import type { WorkDay } from '@/types/workday';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDayLabel } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -52,6 +53,7 @@ function Stat({
 
 /** Persistent status bar for the open day, pinned above the checkout. */
 export function DayHeader({ workDay, revenueSoFar, salesCount, onClose }: DayHeaderProps) {
+    const { t } = useI18n();
     const present = workDay.employees.filter((employee) => employee.present);
 
     return (
@@ -62,7 +64,7 @@ export function DayHeader({ workDay, revenueSoFar, salesCount, onClose }: DayHea
                 <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2.5">
                         <h2 className="text-lg font-semibold tracking-tight">
-                            Journée du {formatDayLabel(workDay.date)}
+                            {t('Journée du {date}', { date: formatDayLabel(workDay.date) })}
                         </h2>
                         <Badge variant="success" className="gap-1.5">
                             <motion.span
@@ -71,15 +73,15 @@ export function DayHeader({ workDay, revenueSoFar, salesCount, onClose }: DayHea
                                 animate={{ opacity: [1, 0.25, 1] }}
                                 transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
                             />
-                            Ouverte
+                            {t('Ouverte')}
                         </Badge>
                     </div>
 
                     <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
                         <CalendarDays className="h-3.5 w-3.5" />
                         {workDay.opened_by
-                            ? `Ouvert par ${workDay.opened_by.name}`
-                            : 'Ouverture enregistrée'}
+                            ? t('Ouvert par {name}', { name: workDay.opened_by.name })
+                            : t('Ouverture enregistrée')}
                         {workDay.notes && (
                             <>
                                 <span aria-hidden className="text-muted-foreground/40">
@@ -104,7 +106,7 @@ export function DayHeader({ workDay, revenueSoFar, salesCount, onClose }: DayHea
                                 ))}
                             </div>
                             <span className="text-xs text-muted-foreground">
-                                {present.length} en service
+                                {present.length} {t('en service')}
                             </span>
                         </div>
                     )}
@@ -113,22 +115,22 @@ export function DayHeader({ workDay, revenueSoFar, salesCount, onClose }: DayHea
                 <div className="flex flex-wrap items-center gap-x-8 gap-y-4">
                     <Stat
                         icon={Wallet}
-                        label="Solde initial"
+                        label={t('Solde initial')}
                         value={formatCurrency(workDay.opening_balance, {
                             maximumFractionDigits: 2,
                         })}
                     />
                     <Stat
                         icon={Receipt}
-                        label="Encaissé"
+                        label={t('Encaissé')}
                         value={formatCurrency(revenueSoFar, { maximumFractionDigits: 2 })}
                         accent
                     />
-                    <Stat icon={Users} label="Tickets" value={String(salesCount)} />
+                    <Stat icon={Users} label={t('Tickets')} value={String(salesCount)} />
 
                     <Button variant="outline" onClick={onClose}>
                         <Lock />
-                        Clôturer la journée
+                        {t('Clôturer la journée')}
                     </Button>
                 </div>
             </div>

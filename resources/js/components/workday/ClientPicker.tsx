@@ -5,6 +5,7 @@ import { AlertCircle, Check, Loader2, Search, Sparkles, UserPlus, UserRound, X }
 import { createClient, getClients, getErrorMessage } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { workDayKeys } from '@/hooks/useWorkDay';
+import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { Client } from '@/types/workday';
 import { Button } from '@/components/ui/button';
@@ -41,6 +42,7 @@ interface ClientPickerProps {
  * dropdown's own open/closed state.
  */
 export function ClientPicker({ value, onChange }: ClientPickerProps) {
+    const { t } = useI18n();
     const { hasPermission } = useAuth();
     const queryClient = useQueryClient();
     const [search, setSearch] = useState('');
@@ -139,16 +141,16 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
                     onClick={() => setWalkIn(false)}
                 >
                     <UserRound />
-                    Client fiché
+                    {t('Client fiché')}
                 </Chip>
                 <Chip size="sm" selected={value.mode === 'walkin'} onClick={() => setWalkIn(true)}>
                     <Sparkles />
-                    Client de passage
+                    {t('Client de passage')}
                 </Chip>
                 {canCreateClient && (
                     <Chip size="sm" selected={creating} onClick={() => (creating ? cancelCreating() : startCreating())}>
                         <UserPlus />
-                        Nouveau client
+                        {t('Nouveau client')}
                     </Chip>
                 )}
             </div>
@@ -157,19 +159,19 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
                 <div className="space-y-2.5 rounded-md border border-accent/30 bg-accent/[0.04] p-3.5">
                     <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                         <div className="space-y-1.5">
-                            <Label htmlFor="new-client-name" className="text-xs">Nom</Label>
+                            <Label htmlFor="new-client-name" className="text-xs">{t('Nom')}</Label>
                             <Input
                                 id="new-client-name"
                                 value={newName}
                                 onChange={(event) => setNewName(event.target.value)}
-                                placeholder="Nom du client"
+                                placeholder={t('Nom du client')}
                                 className="h-9"
                                 autoFocus
                             />
                         </div>
                         <div className="space-y-1.5">
                             <Label htmlFor="new-client-phone" className="text-xs">
-                                Téléphone <span className="font-normal">(optionnel)</span>
+                                {t('Téléphone')} <span className="font-normal">{t('(optionnel)')}</span>
                             </Label>
                             <Input
                                 id="new-client-phone"
@@ -188,7 +190,7 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
                     )}
                     <div className="flex items-center justify-end gap-2">
                         <Button type="button" variant="ghost" size="sm" onClick={cancelCreating}>
-                            Annuler
+                            {t('Annuler')}
                         </Button>
                         <Button
                             type="button"
@@ -198,13 +200,13 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
                             onClick={submitCreate}
                         >
                             {createMutation.isPending && <Loader2 className="animate-spin" />}
-                            Créer le client
+                            {t('Créer le client')}
                         </Button>
                     </div>
                 </div>
             ) : value.mode === 'walkin' ? (
                 <Input
-                    placeholder="Nom du client (optionnel)"
+                    placeholder={t('Nom du client (optionnel)')}
                     value={value.label}
                     onChange={(event) =>
                         onChange({ mode: 'walkin', client: null, label: event.target.value })
@@ -233,7 +235,7 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
                         className="rounded-sm p-1 text-muted-foreground transition-colors duration-200 hover:bg-tint/[0.06] hover:text-foreground"
                     >
                         <X className="h-4 w-4" />
-                        <span className="sr-only">Retirer le client</span>
+                        <span className="sr-only">{t('Retirer le client')}</span>
                     </button>
                 </div>
             ) : (
@@ -246,7 +248,7 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
                             setOpen(true);
                         }}
                         onFocus={() => setOpen(true)}
-                        placeholder="Rechercher un client…"
+                        placeholder={t('Rechercher un client…')}
                         className="pl-10"
                     />
                     {isFetching && (
@@ -265,10 +267,10 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
                                 {(clients ?? []).length === 0 ? (
                                     <li className="px-3 py-3 text-center text-xs text-muted-foreground">
                                         {isFetching
-                                            ? 'Recherche…'
+                                            ? t('Recherche…')
                                             : canCreateClient
-                                              ? 'Aucun client trouvé.'
-                                              : 'Aucun client trouvé — utilisez « Client de passage ».'}
+                                              ? t('Aucun client trouvé.')
+                                              : t('Aucun client trouvé — utilisez « Client de passage ».')}
                                     </li>
                                 ) : (
                                     (clients ?? []).map((client) => (
@@ -304,7 +306,7 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
                                             className="flex w-full items-center gap-2 rounded-sm px-3 py-2.5 text-left text-sm font-medium text-accent transition-colors duration-150 hover:bg-tint/[0.06]"
                                         >
                                             <UserPlus className="h-3.5 w-3.5" />
-                                            Créer un nouveau client
+                                            {t('Créer un nouveau client')}
                                             {search.trim() ? ` « ${search.trim()} »` : ''}
                                         </button>
                                     </li>

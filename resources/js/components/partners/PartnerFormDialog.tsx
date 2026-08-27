@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { getErrorMessage } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency } from '@/lib/utils';
 import type { Partner, PartnerCommissionType, PartnerPayload, Service } from '@/types/workday';
 import { getCategoryLabel } from '@/components/workday/categories';
@@ -57,6 +58,7 @@ export function PartnerFormDialog({
     error,
     onSubmit,
 }: PartnerFormDialogProps) {
+    const { t } = useI18n();
     const [form, setForm] = useState(emptyForm);
     const [commissions, setCommissions] = useState<Record<number, CommissionDraft>>({});
 
@@ -158,48 +160,47 @@ export function PartnerFormDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>{partner ? 'Modifier le partenaire' : 'Nouveau partenaire'}</DialogTitle>
+                    <DialogTitle>{partner ? t('Modifier le partenaire') : t('Nouveau partenaire')}</DialogTitle>
                     <DialogDescription>
-                        Le partenaire pourra se connecter et créer des réservations dans votre agenda. Sa
-                        commission est définie service par service — montant fixe ou pourcentage du prix.
+                        {t('Le partenaire pourra se connecter et créer des réservations dans votre agenda. Sa commission est définie service par service — montant fixe ou pourcentage du prix.')}
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <Field label="Nom du partenaire *">
+                        <Field label={t('Nom du partenaire *')}>
                             <Input
                                 value={form.name}
                                 onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                                placeholder="Hôtel Atlas, Riad Yasmine..."
+                                placeholder={t('Hôtel Atlas, Riad Yasmine...')}
                             />
                         </Field>
-                        <Field label="Nom commercial">
+                        <Field label={t('Nom commercial')}>
                             <Input
                                 value={form.trade_name}
                                 onChange={(event) =>
                                     setForm((current) => ({ ...current, trade_name: event.target.value }))
                                 }
-                                placeholder="Nom affiché sur l'espace partenaire"
+                                placeholder={t("Nom affiché sur l'espace partenaire")}
                             />
                         </Field>
-                        <Field label="Personne de contact">
+                        <Field label={t('Personne de contact')}>
                             <Input
                                 value={form.contact_name}
                                 onChange={(event) =>
                                     setForm((current) => ({ ...current, contact_name: event.target.value }))
                                 }
-                                placeholder="Nom du contact"
+                                placeholder={t('Nom du contact')}
                             />
                         </Field>
-                        <Field label="Téléphone">
+                        <Field label={t('Téléphone')}>
                             <Input
                                 value={form.phone}
                                 onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
                                 placeholder="06 XX XX XX XX"
                             />
                         </Field>
-                        <Field label="Email de contact">
+                        <Field label={t('Email de contact')}>
                             <Input
                                 type="email"
                                 value={form.email}
@@ -209,20 +210,20 @@ export function PartnerFormDialog({
                         </Field>
                     </div>
 
-                    <Field label="Adresse">
+                    <Field label={t('Adresse')}>
                         <Input
                             value={form.address}
                             onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))}
-                            placeholder="Adresse de l'établissement"
+                            placeholder={t("Adresse de l'établissement")}
                         />
                     </Field>
 
                     <div className="rounded-md border border-tint/[0.08] bg-tint/[0.02] p-3.5">
                         <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                            Compte de connexion
+                            {t('Compte de connexion')}
                         </p>
                         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <Field label="Email de connexion *">
+                            <Field label={t('Email de connexion *')}>
                                 <Input
                                     type="email"
                                     value={form.login_email}
@@ -232,7 +233,7 @@ export function PartnerFormDialog({
                                     placeholder="partenaire@bogosland.com"
                                 />
                             </Field>
-                            <Field label={partner ? 'Nouveau mot de passe' : 'Mot de passe'}>
+                            <Field label={partner ? t('Nouveau mot de passe') : t('Mot de passe')}>
                                 <Input
                                     type="password"
                                     value={form.login_password}
@@ -240,7 +241,7 @@ export function PartnerFormDialog({
                                         setForm((current) => ({ ...current, login_password: event.target.value }))
                                     }
                                     placeholder={
-                                        partner ? 'Laisser vide pour ne pas changer' : 'Vide = généré automatiquement'
+                                        partner ? t('Laisser vide pour ne pas changer') : t('Vide = généré automatiquement')
                                     }
                                 />
                             </Field>
@@ -250,23 +251,23 @@ export function PartnerFormDialog({
                     <div>
                         <div className="flex items-center justify-between">
                             <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                                Commissions par service
+                                {t('Commissions par service')}
                             </p>
                             <span className="text-xs text-muted-foreground">
-                                {enabledCount} service{enabledCount > 1 ? 's' : ''} commissionné
-                                {enabledCount > 1 ? 's' : ''}
+                                {t(enabledCount > 1 ? '{n} services commissionnés' : '{n} service commissionné', {
+                                    n: enabledCount,
+                                })}
                             </span>
                         </div>
                         <p className="mt-1 text-xs text-muted-foreground">
-                            Activez les services que ce partenaire peut apporter et fixez sa rémunération —
-                            en % du prix ou en montant fixe (MAD).
+                            {t('Activez les services que ce partenaire peut apporter et fixez sa rémunération — en % du prix ou en montant fixe (MAD).')}
                         </p>
 
                         <div className="mt-3 max-h-72 space-y-4 overflow-y-auto pr-1">
                             {servicesByCategory.map(([category, categoryServices]) => (
                                 <div key={category}>
                                     <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/70">
-                                        {getCategoryLabel(category)}
+                                        {t(getCategoryLabel(category))}
                                     </p>
                                     <div className="space-y-1.5">
                                         {categoryServices.map((service) => {
@@ -358,11 +359,11 @@ export function PartnerFormDialog({
                         </div>
                     </div>
 
-                    <Field label="Notes">
+                    <Field label={t('Notes')}>
                         <textarea
                             value={form.notes}
                             onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
-                            placeholder="Conditions particulières, mode de règlement des commissions..."
+                            placeholder={t('Conditions particulières, mode de règlement des commissions...')}
                             className={cn(
                                 'flex min-h-20 w-full resize-y rounded-md border border-input bg-tint/[0.03] px-3.5 py-3 text-sm text-foreground shadow-sm transition-all duration-200',
                                 'focus-visible:border-accent/60 focus-visible:bg-tint/[0.05] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/10',
@@ -380,11 +381,11 @@ export function PartnerFormDialog({
 
                 <DialogFooter>
                     <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                        Annuler
+                        {t('Annuler')}
                     </Button>
                     <Button type="button" variant="accent" disabled={!canSubmit || saving} onClick={submit}>
                         {saving && <Loader2 className="animate-spin" />}
-                        {partner ? 'Enregistrer' : 'Créer le partenaire'}
+                        {partner ? t('Enregistrer') : t('Créer le partenaire')}
                     </Button>
                 </DialogFooter>
             </DialogContent>

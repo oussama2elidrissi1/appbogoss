@@ -133,13 +133,13 @@ export function AdvancesReportPanel() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                    <ReportStat label="Total avances" value={formatCurrency(report?.total ?? 0, { maximumFractionDigits: 2 })} />
+                    <ReportStat label={t('Total avances')} value={formatCurrency(report?.total ?? 0, { maximumFractionDigits: 2 })} />
                     <ReportStat
-                        label="Réglées"
+                        label={t('Réglées')}
                         value={formatCurrency(report?.settled_total ?? 0, { maximumFractionDigits: 2 })}
                     />
                     <ReportStat
-                        label="En cours"
+                        label={t('En cours')}
                         value={formatCurrency(report?.outstanding_total ?? 0, { maximumFractionDigits: 2 })}
                     />
                 </div>

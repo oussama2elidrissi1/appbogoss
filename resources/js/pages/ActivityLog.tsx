@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { AlertCircle, History } from 'lucide-react';
 import { getActivityLogs, getErrorMessage } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { formatDate, formatTime } from '@/lib/utils';
 import { pageFade } from '@/lib/motion';
 import { Card } from '@/components/ui/card';
@@ -46,6 +47,7 @@ function today(): string {
 }
 
 export default function ActivityLog() {
+    const { t } = useI18n();
     const [from, setFrom] = useState(firstOfMonth());
     const [to, setTo] = useState(today());
 
@@ -57,15 +59,15 @@ export default function ActivityLog() {
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-6">
             <div>
-                <h2 className="text-2xl font-semibold tracking-tight">Journal d'activité</h2>
+                <h2 className="text-2xl font-semibold tracking-tight">{t("Journal d'activité")}</h2>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                    Historique des actions sensibles : connexions, employés, prestations, commissions, caisse.
+                    {t('Historique des actions sensibles : connexions, employés, prestations, commissions, caisse.')}
                 </p>
             </div>
 
             <Card className="flex flex-wrap items-end gap-4 p-4">
                 <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                    Du
+                    {t('Du')}
                     <input
                         type="date"
                         value={from}
@@ -74,7 +76,7 @@ export default function ActivityLog() {
                     />
                 </label>
                 <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                    Au
+                    {t('Au')}
                     <input
                         type="date"
                         value={to}
@@ -98,15 +100,15 @@ export default function ActivityLog() {
             ) : !logs || logs.length === 0 ? (
                 <EmptyState
                     icon={History}
-                    title="Aucune activité"
-                    description="Ajustez la période pour élargir la recherche."
+                    title={t('Aucune activité')}
+                    description={t('Ajustez la période pour élargir la recherche.')}
                 />
             ) : (
                 <Card className="divide-y divide-tint/[0.05] overflow-hidden">
                     {logs.map((log) => (
                         <div key={log.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                             <div className="min-w-0">
-                                <p className="text-sm font-medium text-foreground">{actionLabel(log.action)}</p>
+                                <p className="text-sm font-medium text-foreground">{t(actionLabel(log.action))}</p>
                                 <p className="mt-0.5 text-xs text-muted-foreground">
                                     {log.user_name}
                                     {log.subject_type && (

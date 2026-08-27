@@ -2,10 +2,12 @@ import { useQuery } from '@tanstack/react-query';
 import { Phone, UsersRound } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { getEmployeeClients } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { formatDate, getInitials } from '@/lib/utils';
 import { EmployeePageShell, EmployeePanel, EmployeePanelTitle } from '@/pages/employee/EmployeeLayout';
 
 export default function EmployeeClients() {
+    const { t } = useI18n();
     const { data = [], isPending } = useQuery({
         queryKey: ['employee-workspace', 'clients'],
         queryFn: getEmployeeClients,
@@ -14,14 +16,14 @@ export default function EmployeeClients() {
     return (
         <EmployeePageShell>
             <div>
-                <h2 className="text-2xl font-semibold">Mes clients</h2>
-                <p className="text-sm text-white/50">Clients que vous avez reellement servis.</p>
+                <h2 className="text-2xl font-semibold">{t('Mes clients')}</h2>
+                <p className="text-sm text-white/50">{t('Clients que vous avez reellement servis.')}</p>
             </div>
             <EmployeePanel>
-                <EmployeePanelTitle title="Clients servis" icon={UsersRound} />
+                <EmployeePanelTitle title={t('Clients servis')} icon={UsersRound} />
                 <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
-                    {isPending ? <p className="text-white/50">Chargement...</p> : data.length === 0 ? (
-                        <p className="col-span-full py-10 text-center text-white/50">Aucun client servi pour le moment.</p>
+                    {isPending ? <p className="text-white/50">{t('Chargement...')}</p> : data.length === 0 ? (
+                        <p className="col-span-full py-10 text-center text-white/50">{t('Aucun client servi pour le moment.')}</p>
                     ) : data.map((client) => (
                         <div key={client.id} className="rounded-md border border-white/[0.07] bg-white/[0.035] p-4">
                             <div className="flex items-center gap-3">
@@ -36,8 +38,8 @@ export default function EmployeeClients() {
                                 </div>
                             </div>
                             <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-                                <Fact label="Prestations" value={client.prestations_count} />
-                                <Fact label="Derniere visite" value={client.last_visit_at ? formatDate(client.last_visit_at) : '-'} />
+                                <Fact label={t('Prestations')} value={client.prestations_count} />
+                                <Fact label={t('Derniere visite')} value={client.last_visit_at ? formatDate(client.last_visit_at) : '-'} />
                             </div>
                             {client.usual_services.length > 0 && (
                                 <div className="mt-3 flex flex-wrap gap-1.5">

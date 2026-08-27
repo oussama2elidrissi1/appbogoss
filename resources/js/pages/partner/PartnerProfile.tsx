@@ -10,6 +10,7 @@ import {
     updatePartnerPortalProfile,
     uploadPartnerPortalLogo,
 } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { getInitials } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -36,6 +37,7 @@ const EMPTY_FORM: PartnerProfilePayload = {
 };
 
 export default function PartnerProfile() {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [form, setForm] = useState<PartnerProfilePayload>(EMPTY_FORM);
@@ -108,9 +110,9 @@ export default function PartnerProfile() {
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="mx-auto max-w-2xl space-y-6">
             <div>
-                <h1 className="text-2xl font-semibold tracking-tight">Mon profil</h1>
+                <h1 className="text-2xl font-semibold tracking-tight">{t('Mon profil')}</h1>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                    Identité, entreprise et informations de paiement.
+                    {t('Identité, entreprise et informations de paiement.')}
                 </p>
             </div>
 
@@ -124,7 +126,7 @@ export default function PartnerProfile() {
                 </span>
                 <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">{profile.trade_name || profile.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">Logo affiché dans votre espace</p>
+                    <p className="truncate text-xs text-muted-foreground">{t('Logo affiché dans votre espace')}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
                     <input
@@ -146,14 +148,14 @@ export default function PartnerProfile() {
                         onClick={() => fileInputRef.current?.click()}
                     >
                         {logoMutation.isPending ? <Loader2 className="animate-spin" /> : <Camera className="h-3.5 w-3.5" />}
-                        Changer
+                        {t('Changer')}
                     </Button>
                     {profile.logo_url && (
                         <Button
                             type="button"
                             variant="ghost"
                             size="icon"
-                            aria-label="Retirer le logo"
+                            aria-label={t('Retirer le logo')}
                             disabled={removeLogoMutation.isPending}
                             onClick={() => removeLogoMutation.mutate()}
                         >
@@ -164,44 +166,44 @@ export default function PartnerProfile() {
             </Card>
 
             <Card className="space-y-4 p-5 sm:p-6">
-                <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Identité</h2>
+                <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t('Identité')}</h2>
                 <div className="grid gap-3 sm:grid-cols-2">
-                    <FormField label="Nom du contact" id="contact_name" {...field('contact_name')} />
-                    <FormField label="Téléphone" id="phone" {...field('phone')} />
-                    <FormField label="Email" id="email" type="email" {...field('email')} />
-                    <FormField label="Email de connexion" id="login_email" value={profile.login_email ?? ''} disabled />
+                    <FormField label={t('Nom du contact')} id="contact_name" {...field('contact_name')} />
+                    <FormField label={t('Téléphone')} id="phone" {...field('phone')} />
+                    <FormField label={t('Email')} id="email" type="email" {...field('email')} />
+                    <FormField label={t('Email de connexion')} id="login_email" value={profile.login_email ?? ''} disabled />
                 </div>
             </Card>
 
             <Card className="space-y-4 p-5 sm:p-6">
                 <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                    Entreprise / activité
+                    {t('Entreprise / activité')}
                 </h2>
                 <div className="grid gap-3 sm:grid-cols-2">
-                    <FormField label="Nom commercial" id="trade_name" {...field('trade_name')} />
-                    <FormField label="Raison sociale" id="legal_name" {...field('legal_name')} />
-                    <FormField label="ICE" id="ice" {...field('ice')} />
-                    <FormField label="Ville" id="city" {...field('city')} />
-                    <FormField label="Adresse" id="address" className="sm:col-span-2" {...field('address')} />
-                    <FormField label="Pays" id="country" {...field('country')} />
+                    <FormField label={t('Nom commercial')} id="trade_name" {...field('trade_name')} />
+                    <FormField label={t('Raison sociale')} id="legal_name" {...field('legal_name')} />
+                    <FormField label={t('ICE')} id="ice" {...field('ice')} />
+                    <FormField label={t('Ville')} id="city" {...field('city')} />
+                    <FormField label={t('Adresse')} id="address" className="sm:col-span-2" {...field('address')} />
+                    <FormField label={t('Pays')} id="country" {...field('country')} />
                 </div>
             </Card>
 
             <Card className="space-y-4 p-5 sm:p-6">
                 <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                    Informations de paiement
+                    {t('Informations de paiement')}
                 </h2>
                 <p className="text-xs text-muted-foreground">
-                    Visibles uniquement par vous et les administrateurs BOGOSLAND autorisés.
+                    {t('Visibles uniquement par vous et les administrateurs BOGOSLAND autorisés.')}
                 </p>
                 <div className="grid gap-3 sm:grid-cols-2">
-                    <FormField label="Titulaire du compte" id="payment_holder_name" {...field('payment_holder_name')} />
-                    <FormField label="Banque" id="payment_bank_name" {...field('payment_bank_name')} />
-                    <FormField label="RIB / IBAN" id="payment_iban" className="sm:col-span-2" {...field('payment_iban')} />
+                    <FormField label={t('Titulaire du compte')} id="payment_holder_name" {...field('payment_holder_name')} />
+                    <FormField label={t('Banque')} id="payment_bank_name" {...field('payment_bank_name')} />
+                    <FormField label={t('RIB / IBAN')} id="payment_iban" className="sm:col-span-2" {...field('payment_iban')} />
                     <FormField
-                        label="Méthode préférée"
+                        label={t('Méthode préférée')}
                         id="payment_method_preference"
-                        placeholder="Virement, chèque..."
+                        placeholder={t('Virement, chèque...')}
                         {...field('payment_method_preference')}
                     />
                 </div>
@@ -222,7 +224,7 @@ export default function PartnerProfile() {
                     onClick={() => saveMutation.mutate()}
                 >
                     {saveMutation.isPending ? <Loader2 className="animate-spin" /> : saved ? <Check className="h-4 w-4" /> : null}
-                    {saved ? 'Enregistré' : 'Enregistrer les modifications'}
+                    {saved ? t('Enregistré') : t('Enregistrer les modifications')}
                 </Button>
             </div>
 
@@ -259,6 +261,7 @@ function FormField({
 }
 
 function PasswordCard() {
+    const { t } = useI18n();
     const [currentPassword, setCurrentPassword] = useState('');
     const [password, setPassword] = useState('');
     const [confirmation, setConfirmation] = useState('');
@@ -286,25 +289,25 @@ function PasswordCard() {
         <Card className="space-y-4 p-5 sm:p-6">
             <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                 <KeyRound className="h-3.5 w-3.5" />
-                Mot de passe
+                {t('Mot de passe')}
             </h2>
             <div className="grid gap-3 sm:grid-cols-3">
                 <FormField
-                    label="Mot de passe actuel"
+                    label={t('Mot de passe actuel')}
                     id="current_password"
                     type="password"
                     value={currentPassword}
                     onChange={(event) => setCurrentPassword(event.target.value)}
                 />
                 <FormField
-                    label="Nouveau mot de passe"
+                    label={t('Nouveau mot de passe')}
                     id="new_password"
                     type="password"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                 />
                 <FormField
-                    label="Confirmer"
+                    label={t('Confirmer')}
                     id="confirm_password"
                     type="password"
                     value={confirmation}
@@ -314,7 +317,7 @@ function PasswordCard() {
             {mutation.isError && <p className="text-xs text-destructive">{getErrorMessage(mutation.error)}</p>}
             <Button type="button" variant="outline" disabled={!canSubmit || mutation.isPending} onClick={() => mutation.mutate()}>
                 {mutation.isPending ? <Loader2 className="animate-spin" /> : done ? <Check className="h-4 w-4" /> : null}
-                {done ? 'Modifié' : 'Modifier le mot de passe'}
+                {done ? t('Modifié') : t('Modifier le mot de passe')}
             </Button>
         </Card>
     );

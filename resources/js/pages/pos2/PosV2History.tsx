@@ -448,7 +448,7 @@ export default function PosV2History() {
                                                                 0,
                                                             );
                                                         return invoice.status === 'paid' && commission > 0
-                                                            ? ` · comm. ${formatCurrency(commission)}`
+                                                            ? ` · ${t('comm. {x}', { x: formatCurrency(commission) })}`
                                                             : '';
                                                     })()}
                                                 </p>
@@ -459,8 +459,8 @@ export default function PosV2History() {
                                                     : STATUS_META[invoice.status as Pos2InvoiceStatus]?.variant ?? 'outline'}
                                             >
                                                 {invoice.sale_deleted
-                                                    ? 'Supprimée'
-                                                    : STATUS_META[invoice.status as Pos2InvoiceStatus]?.label ?? invoice.status}
+                                                    ? t('Supprimée')
+                                                    : t(STATUS_META[invoice.status as Pos2InvoiceStatus]?.label ?? invoice.status)}
                                             </Badge>
                                         </div>
                                     </button>

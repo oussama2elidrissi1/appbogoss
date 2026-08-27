@@ -114,15 +114,15 @@ function MonthlyReportPanel({ month }: { month: string }) {
 
             <CardContent className="space-y-5">
                 <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
-                    <ReportStat label="CA" value={formatCurrency(totals.revenue_total)} />
-                    <ReportStat label="Depenses" value={formatCurrency(totals.expenses_total)} />
-                    <ReportStat label="Avances" value={formatCurrency(totals.advances_total)} />
-                    <ReportStat label="Resultat de la caisse" value={formatCurrency(totals.net_result)} />
-                    <ReportStat label="Tickets" value={String(totals.ticket_count ?? 0)} />
+                    <ReportStat label={t('CA')} value={formatCurrency(totals.revenue_total)} />
+                    <ReportStat label={t('Depenses')} value={formatCurrency(totals.expenses_total)} />
+                    <ReportStat label={t('Avances')} value={formatCurrency(totals.advances_total)} />
+                    <ReportStat label={t('Resultat de la caisse')} value={formatCurrency(totals.net_result)} />
+                    <ReportStat label={t('Tickets')} value={String(totals.ticket_count ?? 0)} />
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                    <ReportTable title="Employes par CA et prestation">
+                    <ReportTable title={t('Employes par CA et prestation')}>
                         {employees.map((row) => (
                             <div key={row.employee_id} className="flex items-start justify-between gap-3 border-b border-tint/[0.06] py-2 last:border-0">
                                 <div className="min-w-0">
@@ -136,7 +136,7 @@ function MonthlyReportPanel({ month }: { month: string }) {
                         ))}
                     </ReportTable>
 
-                    <ReportTable title="Prestations par employe">
+                    <ReportTable title={t('Prestations par employe')}>
                         {prestations.map((row) => (
                             <div key={row.label} className="flex items-start justify-between gap-3 border-b border-tint/[0.06] py-2 last:border-0">
                                 <div className="min-w-0">
@@ -152,7 +152,7 @@ function MonthlyReportPanel({ month }: { month: string }) {
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                    <ReportTable title="Depenses detaillees">
+                    <ReportTable title={t('Depenses detaillees')}>
                         {(totals.expense_details ?? []).map((expense) => (
                             <div key={expense.id ?? `${expense.spent_on}-${expense.label}`} className="flex items-center justify-between gap-3 border-b border-tint/[0.06] py-2 last:border-0">
                                 <div className="min-w-0"><p className="truncate text-sm">{expense.label}</p><p className="text-xs text-muted-foreground">{expense.spent_on} - {expense.category}</p></div>
@@ -162,7 +162,7 @@ function MonthlyReportPanel({ month }: { month: string }) {
                         {(totals.expense_details ?? []).length === 0 && <p className="py-2 text-sm text-muted-foreground">{t('Aucune depense.')}</p>}
                     </ReportTable>
 
-                    <ReportTable title="Avances detaillees">
+                    <ReportTable title={t('Avances detaillees')}>
                         {(totals.advance_details ?? []).map((advance) => (
                             <div key={advance.id ?? `${advance.given_on}-${advance.employee_id}`} className="flex items-center justify-between gap-3 border-b border-tint/[0.06] py-2 last:border-0">
                                 <div className="min-w-0"><p className="truncate text-sm">{advance.employee_name}</p><p className="text-xs text-muted-foreground">{advance.given_on} - {advance.reason || t('Sans motif')} - {t(advance.settled_at ? 'Reglee' : 'Non reglee')}</p></div>
@@ -173,7 +173,7 @@ function MonthlyReportPanel({ month }: { month: string }) {
                     </ReportTable>
                 </div>
 
-                <ReportTable title="Historique journee par journee">
+                <ReportTable title={t('Historique journee par journee')}>
                     <div className="overflow-x-auto">
                         <table className="w-full min-w-[720px] text-left text-sm">
                             <thead className="text-xs uppercase tracking-[0.08em] text-muted-foreground">
@@ -409,25 +409,25 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                         <>
                             <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
                                 <ReportStat
-                                    label="CA"
+                                    label={t('CA')}
                                     value={formatCurrency(report.revenue_total, {
                                         maximumFractionDigits: 2,
                                     })}
                                 />
                                 <ReportStat
-                                    label="Dépenses"
+                                    label={t('Dépenses')}
                                     value={formatCurrency(report.expenses_total, {
                                         maximumFractionDigits: 2,
                                     })}
                                 />
                                 <ReportStat
-                                    label="Avances"
+                                    label={t('Avances')}
                                     value={formatCurrency(report.advances_total, {
                                         maximumFractionDigits: 2,
                                     })}
                                 />
                                 <ReportStat
-                                    label="Résultat de la caisse"
+                                    label={t('Résultat de la caisse')}
                                     value={formatCurrency(report.net_result, {
                                         maximumFractionDigits: 2,
                                     })}
@@ -772,14 +772,14 @@ export default function Reports() {
             </Card>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                <ReportStat label="Journées" value={String(totals.days)} />
-                <ReportStat label="Clôturées" value={String(totals.closedDays)} />
+                <ReportStat label={t('Journées')} value={String(totals.days)} />
+                <ReportStat label={t('Clôturées')} value={String(totals.closedDays)} />
                 <ReportStat
-                    label="CA historique"
+                    label={t('CA historique')}
                     value={formatCurrency(totals.revenue, { maximumFractionDigits: 2 })}
                 />
                 <ReportStat
-                    label="Résultat historique"
+                    label={t('Résultat historique')}
                     value={formatCurrency(totals.net, { maximumFractionDigits: 2 })}
                 />
             </div>

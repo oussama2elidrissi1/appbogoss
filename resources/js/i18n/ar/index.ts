@@ -14,6 +14,24 @@ import fideliteB from './fideliteB';
 import pagesPortails from './pagesPortails';
 import portailsA from './portailsA';
 import portailsB from './portailsB';
+import caisseV1c from './caisseV1c';
+import gestionE from './gestionE';
+import gestionF from './gestionF';
+import employeeA from './employeeA';
+import employeeB from './employeeB';
+import gestionG from './gestionG';
+import employeeC from './employeeC';
+import gestionH from './gestionH';
+import gestionI from './gestionI';
+import gestionJ from './gestionJ';
+import partnersC from './partnersC';
+import partnersD from './partnersD';
+import missingA from './missingA';
+import missingB from './missingB';
+import missingC from './missingC';
+import missingD from './missingD';
+import loginA from './loginA';
+import missingE from './missingE';
 
 /**
  * Dictionnaire français → arabe, fusionné par domaine. La CLÉ est la chaîne
@@ -39,6 +57,24 @@ const ar: Record<string, string> = {
     ...pagesPortails,
     ...portailsA,
     ...portailsB,
+    ...caisseV1c,
+    ...gestionE,
+    ...gestionF,
+    ...employeeA,
+    ...employeeB,
+    ...gestionG,
+    ...employeeC,
+    ...gestionH,
+    ...gestionI,
+    ...gestionJ,
+    ...partnersC,
+    ...partnersD,
+    ...missingA,
+    ...missingB,
+    ...missingC,
+    ...missingD,
+    ...loginA,
+    ...missingE,
 };
 
 export default ar;

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { AlertCircle, KeyRound, ShieldCheck } from 'lucide-react';
 import { getErrorMessage, getUsers, resetUserPassword, updateUserAccess } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
+import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import type { User } from '@/types/dashboard';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +32,7 @@ const ROLE_BADGE_VARIANT: Record<string, 'accent' | 'success' | 'outline'> = {
 };
 
 export default function Comptes() {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const { user: currentUser } = useAuth();
     const [resetTarget, setResetTarget] = useState<User | null>(null);
@@ -77,10 +79,9 @@ export default function Comptes() {
         <>
             <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-6">
                 <div>
-                    <h2 className="text-2xl font-semibold tracking-tight">Comptes &amp; accès</h2>
+                    <h2 className="text-2xl font-semibold tracking-tight">{t('Comptes & accès')}</h2>
                     <p className="mt-1.5 text-sm text-muted-foreground">
-                        Tous les comptes de connexion de l’application — rôle, statut et mot de passe. Réservé au
-                        Super Admin.
+                        {t('Tous les comptes de connexion de l’application — rôle, statut et mot de passe. Réservé au Super Admin.')}
                     </p>
                 </div>
 
@@ -95,14 +96,14 @@ export default function Comptes() {
                         <AlertCircle className="h-5 w-5 text-destructive" />
                         <p className="mt-2 text-sm text-destructive">{getErrorMessage(error)}</p>
                         <Button variant="accent" className="mt-4" onClick={() => void refetch()}>
-                            Réessayer
+                            {t('Réessayer')}
                         </Button>
                     </Card>
                 ) : !users || users.length === 0 ? (
                     <EmptyState
                         icon={ShieldCheck}
-                        title="Aucun compte"
-                        description="Les comptes de connexion apparaîtront ici."
+                        title={t('Aucun compte')}
+                        description={t('Les comptes de connexion apparaîtront ici.')}
                     />
                 ) : (
                     <div className="space-y-2">
@@ -124,7 +125,7 @@ export default function Comptes() {
                                             {user.name}
                                             {isSelf && (
                                                 <span className="text-[10px] font-normal uppercase tracking-[0.06em] text-muted-foreground">
-                                                    (vous)
+                                                    {t('(vous)')}
                                                 </span>
                                             )}
                                         </p>
@@ -144,20 +145,20 @@ export default function Comptes() {
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="employee">{ROLE_LABEL.employee}</SelectItem>
-                                                <SelectItem value="partner">{ROLE_LABEL.partner}</SelectItem>
-                                                <SelectItem value="admin">{ROLE_LABEL.admin}</SelectItem>
-                                                <SelectItem value="super-admin">{ROLE_LABEL['super-admin']}</SelectItem>
+                                                <SelectItem value="employee">{t(ROLE_LABEL.employee)}</SelectItem>
+                                                <SelectItem value="partner">{t(ROLE_LABEL.partner)}</SelectItem>
+                                                <SelectItem value="admin">{t(ROLE_LABEL.admin)}</SelectItem>
+                                                <SelectItem value="super-admin">{t(ROLE_LABEL['super-admin'])}</SelectItem>
                                             </SelectContent>
                                         </Select>
                                     </div>
 
                                     <Badge variant={ROLE_BADGE_VARIANT[user.role] ?? 'outline'} className="shrink-0">
-                                        {ROLE_LABEL[user.role] ?? user.role}
+                                        {t(ROLE_LABEL[user.role] ?? user.role)}
                                     </Badge>
 
                                     <Badge variant={user.is_active ? 'success' : 'outline'} className="shrink-0">
-                                        {user.is_active ? 'Actif' : 'Désactivé'}
+                                        {user.is_active ? t('Actif') : t('Désactivé')}
                                     </Badge>
 
                                     <div className="flex shrink-0 items-center gap-2">
@@ -172,7 +173,7 @@ export default function Comptes() {
                                             }}
                                         >
                                             <KeyRound className="h-3.5 w-3.5" />
-                                            Réinitialiser
+                                            {t('Réinitialiser')}
                                         </Button>
                                         <Button
                                             type="button"
@@ -181,7 +182,7 @@ export default function Comptes() {
                                             disabled={isSelf || statusMutation.isPending}
                                             onClick={() => statusMutation.mutate(user)}
                                         >
-                                            {user.is_active ? 'Désactiver' : 'Activer'}
+                                            {user.is_active ? t('Désactiver') : t('Activer')}
                                         </Button>
                                     </div>
                                 </Card>

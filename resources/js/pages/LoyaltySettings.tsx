@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { AlertCircle, Bell, Gift, QrCode, Save, Settings as SettingsIcon, ShieldCheck, Timer } from 'lucide-react';
 import { getErrorMessage, getLoyaltySettingsFull, updateLoyaltySettings } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { pageFade } from '@/lib/motion';
 import type { LoyaltyNotificationEventSetting, LoyaltyQrPosterLanguage } from '@/types/loyalty';
 import { Button } from '@/components/ui/button';
@@ -74,6 +75,7 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (val
 }
 
 export default function LoyaltySettings() {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const settingsQuery = useQuery({ queryKey: ['loyalty-settings'], queryFn: getLoyaltySettingsFull });
     const [form, setForm] = useState<FormState>(emptyForm);
@@ -105,7 +107,7 @@ export default function LoyaltySettings() {
     const mutation = useMutation({
         mutationFn: updateLoyaltySettings,
         onSuccess: () => {
-            setFeedback('Paramètres de fidélité enregistrés.');
+            setFeedback(t('Paramètres de fidélité enregistrés.'));
             void queryClient.invalidateQueries({ queryKey: ['loyalty-settings'] });
         },
         onError: (e) => setFeedback(getErrorMessage(e)),
@@ -160,7 +162,7 @@ export default function LoyaltySettings() {
         return (
             <Card className="flex flex-col items-center justify-center px-6 py-16 text-center">
                 <AlertCircle className="h-6 w-6 text-destructive" />
-                <h2 className="mt-4 text-base font-semibold">Impossible de charger les paramètres</h2>
+                <h2 className="mt-4 text-base font-semibold">{t('Impossible de charger les paramètres')}</h2>
                 <p className="mt-2 text-sm text-muted-foreground">{getErrorMessage(settingsQuery.error)}</p>
             </Card>
         );
@@ -171,9 +173,9 @@ export default function LoyaltySettings() {
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-6">
             <div>
-                <h2 className="text-2xl font-semibold tracking-tight">Fidélité — Paramètres</h2>
+                <h2 className="text-2xl font-semibold tracking-tight">{t('Fidélité — Paramètres')}</h2>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                    Réglages du programme de fidélité, de l’inscription publique, de l’OTP et des notifications.
+                    {t('Réglages du programme de fidélité, de l’inscription publique, de l’OTP et des notifications.')}
                 </p>
             </div>
 
@@ -186,24 +188,24 @@ export default function LoyaltySettings() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <SettingsIcon className="h-4 w-4 text-accent" />
-                            Général
+                            {t('Général')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="flex items-center justify-between">
                             <div>
-                                <Label>Programme de fidélité actif</Label>
-                                <p className="mt-1 text-xs text-muted-foreground">Coupe l’accrual global si désactivé.</p>
+                                <Label>{t('Programme de fidélité actif')}</Label>
+                                <p className="mt-1 text-xs text-muted-foreground">{t('Coupe l’accrual global si désactivé.')}</p>
                             </div>
                             <Toggle
                                 checked={form.loyalty_enabled}
                                 onChange={(v) => setForm({ ...form, loyalty_enabled: v })}
-                                label="Programme actif"
+                                label={t('Programme actif')}
                             />
                         </div>
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <div className="space-y-2">
-                                <Label htmlFor="prefix">Préfixe du numéro fidélité</Label>
+                                <Label htmlFor="prefix">{t('Préfixe du numéro fidélité')}</Label>
                                 <Input
                                     id="prefix"
                                     value={form.loyalty_number_prefix}
@@ -212,7 +214,7 @@ export default function LoyaltySettings() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="tz">Fuseau horaire</Label>
+                                <Label htmlFor="tz">{t('Fuseau horaire')}</Label>
                                 <Input
                                     id="tz"
                                     value={form.loyalty_timezone}
@@ -227,29 +229,29 @@ export default function LoyaltySettings() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <QrCode className="h-4 w-4 text-accent" />
-                            QR & inscription
+                            {t('QR & inscription')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="flex items-center justify-between">
-                            <Label>Inscriptions publiques ouvertes</Label>
+                            <Label>{t('Inscriptions publiques ouvertes')}</Label>
                             <Toggle
                                 checked={form.loyalty_qr_registration_enabled}
                                 onChange={(v) => setForm({ ...form, loyalty_qr_registration_enabled: v })}
-                                label="Inscriptions ouvertes"
+                                label={t('Inscriptions ouvertes')}
                             />
                         </div>
                         <div className="flex items-center justify-between">
-                            <Label>QR personnel d’identification client actif</Label>
+                            <Label>{t('QR personnel d’identification client actif')}</Label>
                             <Toggle
                                 checked={form.loyalty_personal_qr_enabled}
                                 onChange={(v) => setForm({ ...form, loyalty_personal_qr_enabled: v })}
-                                label="QR personnel actif"
+                                label={t('QR personnel actif')}
                             />
                         </div>
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_200px]">
                             <div className="space-y-2">
-                                <Label htmlFor="qr-message">Message affiché sur l’affiche QR</Label>
+                                <Label htmlFor="qr-message">{t('Message affiché sur l’affiche QR')}</Label>
                                 <Input
                                     id="qr-message"
                                     value={form.loyalty_qr_message}
@@ -258,7 +260,7 @@ export default function LoyaltySettings() {
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="qr-lang">Langue de l’affiche</Label>
+                                <Label htmlFor="qr-lang">{t('Langue de l’affiche')}</Label>
                                 <Select
                                     value={form.loyalty_qr_poster_language}
                                     onValueChange={(v) => setForm({ ...form, loyalty_qr_poster_language: v as LoyaltyQrPosterLanguage })}
@@ -269,7 +271,7 @@ export default function LoyaltySettings() {
                                     <SelectContent>
                                         {(Object.keys(POSTER_LANGUAGE_LABELS) as LoyaltyQrPosterLanguage[]).map((lang) => (
                                             <SelectItem key={lang} value={lang}>
-                                                {POSTER_LANGUAGE_LABELS[lang]}
+                                                {t(POSTER_LANGUAGE_LABELS[lang])}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -277,8 +279,7 @@ export default function LoyaltySettings() {
                             </div>
                         </div>
                         <p className="text-xs leading-relaxed text-muted-foreground">
-                            Le message ci-dessus reste tel que vous le tapez (français ou arabe) ; la langue choisie
-                            ici ne change que les textes fixes de l’affiche imprimable (titre, indication de scan).
+                            {t('Le message ci-dessus reste tel que vous le tapez (français ou arabe) ; la langue choisie ici ne change que les textes fixes de l’affiche imprimable (titre, indication de scan).')}
                         </p>
                     </CardContent>
                 </Card>
@@ -287,32 +288,32 @@ export default function LoyaltySettings() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Timer className="h-4 w-4 text-accent" />
-                            Vérification par code (OTP)
+                            {t('Vérification par code (OTP)')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
                             <div className="space-y-2">
-                                <Label htmlFor="otp-ttl">Durée de validité (s)</Label>
+                                <Label htmlFor="otp-ttl">{t('Durée de validité (s)')}</Label>
                                 <Input id="otp-ttl" type="number" min={60} max={1800} value={form.otp_ttl_seconds} onChange={(e) => setForm({ ...form, otp_ttl_seconds: e.target.value })} />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="otp-attempts">Tentatives max</Label>
+                                <Label htmlFor="otp-attempts">{t('Tentatives max')}</Label>
                                 <Input id="otp-attempts" type="number" min={1} max={10} value={form.otp_max_attempts} onChange={(e) => setForm({ ...form, otp_max_attempts: e.target.value })} />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="otp-cooldown">Délai avant renvoi (s)</Label>
+                                <Label htmlFor="otp-cooldown">{t('Délai avant renvoi (s)')}</Label>
                                 <Input id="otp-cooldown" type="number" min={10} max={600} value={form.otp_resend_cooldown_seconds} onChange={(e) => setForm({ ...form, otp_resend_cooldown_seconds: e.target.value })} />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="otp-hourly">Plafond par heure</Label>
+                                <Label htmlFor="otp-hourly">{t('Plafond par heure')}</Label>
                                 <Input id="otp-hourly" type="number" min={1} max={20} value={form.otp_max_sends_per_hour} onChange={(e) => setForm({ ...form, otp_max_sends_per_hour: e.target.value })} />
                             </div>
                         </div>
                         <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-                            Fournisseur actif : journal serveur (mode démo, aucun SMS réel envoyé). Le code apparaît dans
+                            {t('Fournisseur actif : journal serveur (mode démo, aucun SMS réel envoyé). Le code apparaît dans')}
                             <code className="mx-1 rounded bg-tint/[0.05] px-1 py-0.5">storage/logs/laravel.log</code>
-                            et dans la réponse API en développement.
+                            {t('et dans la réponse API en développement.')}
                         </p>
                     </CardContent>
                 </Card>
@@ -321,34 +322,34 @@ export default function LoyaltySettings() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Gift className="h-4 w-4 text-accent" />
-                            Récompenses & abonnements
+                            {t('Récompenses & abonnements')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
-                                <Label htmlFor="reward-expiry">Expiration par défaut des récompenses (jours)</Label>
+                                <Label htmlFor="reward-expiry">{t('Expiration par défaut des récompenses (jours)')}</Label>
                                 <Input id="reward-expiry" type="number" min={0} max={365} value={form.loyalty_reward_default_expiry_days} onChange={(e) => setForm({ ...form, loyalty_reward_default_expiry_days: e.target.value })} />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="sub-alert">Alerte d’expiration d’abonnement (jours avant)</Label>
+                                <Label htmlFor="sub-alert">{t('Alerte d’expiration d’abonnement (jours avant)')}</Label>
                                 <Input id="sub-alert" type="number" min={1} max={60} value={form.subscription_expiry_alert_days} onChange={(e) => setForm({ ...form, subscription_expiry_alert_days: e.target.value })} />
                             </div>
                         </div>
                         <div className="flex items-center justify-between">
-                            <Label>Suspension autorisée par défaut (nouveaux plans)</Label>
+                            <Label>{t('Suspension autorisée par défaut (nouveaux plans)')}</Label>
                             <Toggle
                                 checked={form.subscription_allow_suspension_default}
                                 onChange={(v) => setForm({ ...form, subscription_allow_suspension_default: v })}
-                                label="Suspension par défaut"
+                                label={t('Suspension par défaut')}
                             />
                         </div>
                         <div className="flex items-center justify-between">
-                            <Label>Renouvellement autorisé par défaut (nouveaux plans)</Label>
+                            <Label>{t('Renouvellement autorisé par défaut (nouveaux plans)')}</Label>
                             <Toggle
                                 checked={form.subscription_allow_renewal_default}
                                 onChange={(v) => setForm({ ...form, subscription_allow_renewal_default: v })}
-                                label="Renouvellement par défaut"
+                                label={t('Renouvellement par défaut')}
                             />
                         </div>
                     </CardContent>
@@ -358,7 +359,7 @@ export default function LoyaltySettings() {
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Bell className="h-4 w-4 text-accent" />
-                            Notifications
+                            {t('Notifications')}
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -369,7 +370,7 @@ export default function LoyaltySettings() {
                                 const mailOn = (setting?.channels ?? ['database']).includes('mail');
                                 return (
                                     <div key={key} className="flex items-center justify-between gap-4 py-3">
-                                        <span className="text-sm text-foreground">{label}</span>
+                                        <span className="text-sm text-foreground">{t(label)}</span>
                                         <div className="flex items-center gap-4">
                                             <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                                 <input
@@ -379,9 +380,9 @@ export default function LoyaltySettings() {
                                                     disabled={!enabled}
                                                     onChange={() => toggleEvent(key, 'mail')}
                                                 />
-                                                Aussi par email
+                                                {t('Aussi par email')}
                                             </label>
-                                            <Toggle checked={enabled} onChange={() => toggleEvent(key, 'enabled')} label={label} />
+                                            <Toggle checked={enabled} onChange={() => toggleEvent(key, 'enabled')} label={t(label)} />
                                         </div>
                                     </div>
                                 );
@@ -393,11 +394,11 @@ export default function LoyaltySettings() {
                 <div className="flex items-center justify-between rounded-md border border-tint/[0.06] bg-tint/[0.02] px-4 py-3">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                         <ShieldCheck className="h-4 w-4 text-accent" />
-                        Réservé au Super Admin.
+                        {t('Réservé au Super Admin.')}
                     </div>
                     <Button type="submit" variant="accent" disabled={mutation.isPending}>
                         <Save />
-                        {mutation.isPending ? 'Enregistrement…' : 'Enregistrer'}
+                        {mutation.isPending ? t('Enregistrement…') : t('Enregistrer')}
                     </Button>
                 </div>
             </form>

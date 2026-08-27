@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, HandCoins } from 'lucide-react';
 import { getErrorMessage, getMyCommissions } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -42,6 +43,7 @@ const QUICK_OPTIONS: Array<{ value: QuickRange; label: string }> = [
 ];
 
 export function MyCommissionsList() {
+    const { t } = useI18n();
     const [quick, setQuick] = useState<QuickRange>('month');
     const range = useMemo(() => rangeFor(quick), [quick]);
 
@@ -69,12 +71,12 @@ export function MyCommissionsList() {
                                     : 'border-tint/[0.08] text-muted-foreground hover:border-accent/30',
                             )}
                         >
-                            {option.label}
+                            {t(option.label)}
                         </button>
                     ))}
                 </div>
                 <p className="text-sm text-muted-foreground">
-                    Total : <span className="font-semibold text-accent">{formatCurrency(total)}</span>
+                    {t('Total :')} <span className="font-semibold text-accent">{formatCurrency(total)}</span>
                 </p>
             </div>
 
@@ -92,8 +94,8 @@ export function MyCommissionsList() {
             ) : !rows || rows.length === 0 ? (
                 <EmptyState
                     icon={HandCoins}
-                    title="Aucune commission"
-                    description="Vos commissions générées à la confirmation des paiements apparaîtront ici."
+                    title={t('Aucune commission')}
+                    description={t('Vos commissions générées à la confirmation des paiements apparaîtront ici.')}
                 />
             ) : (
                 <div className="space-y-2">
@@ -112,11 +114,11 @@ export function MyCommissionsList() {
                                         row.is_deleted && 'text-muted-foreground',
                                     )}
                                 >
-                                    {row.service_name ?? 'Service'} · {row.prestation_reference}
+                                    {row.service_name ?? t('Service')} · {row.prestation_reference}
                                 </p>
                                 <p className="mt-0.5 text-xs text-muted-foreground">
                                     {formatDate(row.date)} · {row.type === 'percentage' ? `${row.rate_or_amount}%` : formatCurrency(row.rate_or_amount)}{' '}
-                                    sur {formatCurrency(row.base_amount)}
+                                    {t('sur')} {formatCurrency(row.base_amount)}
                                 </p>
                             </div>
                             <div className="flex items-center gap-3">
@@ -129,10 +131,10 @@ export function MyCommissionsList() {
                                     {formatCurrency(row.amount)}
                                 </span>
                                 {row.is_deleted ? (
-                                    <Badge variant="destructive">Supprimé</Badge>
+                                    <Badge variant="destructive">{t('Supprimé')}</Badge>
                                 ) : (
                                     <Badge variant={row.status === 'validated' ? 'success' : 'outline'}>
-                                        {row.status === 'validated' ? 'Validée' : 'Annulée'}
+                                        {row.status === 'validated' ? t('Validée') : t('Annulée')}
                                     </Badge>
                                 )}
                             </div>

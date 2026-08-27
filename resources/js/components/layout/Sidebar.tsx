@@ -44,7 +44,7 @@ export function Sidebar({ collapsed, onToggle, variant = 'desktop', onNavigate }
                 )}
             >
                 <span className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-accent/[0.14] ring-1 ring-accent/25">
-                    {settings?.logo_url ? <img src={settings.logo_url} alt="Logo" className="h-full w-full object-contain p-1" /> : <Scissors className="h-[18px] w-[18px] text-accent" />}
+                    {settings?.logo_url ? <img src={settings.logo_url} alt={t('Logo')} className="h-full w-full object-contain p-1" /> : <Scissors className="h-[18px] w-[18px] text-accent" />}
                 </span>
 
                 <AnimatePresence initial={false}>

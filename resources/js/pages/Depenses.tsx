@@ -33,6 +33,7 @@ import {
 } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useActiveWorkDay, useRefreshDay, workDayKeys } from '@/hooks/useWorkDay';
+import { t as translateStatic, useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import type { Expense } from '@/types/workday';
 import { Button } from '@/components/ui/button';
@@ -92,12 +93,12 @@ function historyRangeFor(range: HistoryRange): { from: string; to: string } {
 }
 
 const schema = z.object({
-    label: z.string().trim().min(1, 'Indiquez un libellé.').max(120, 'Libellé trop long.'),
-    category: z.string().min(1, 'Choisissez une catégorie.'),
+    label: z.string().trim().min(1, translateStatic('Indiquez un libellé.')).max(120, translateStatic('Libellé trop long.')),
+    category: z.string().min(1, translateStatic('Choisissez une catégorie.')),
     amount: z
-        .number({ invalid_type_error: 'Indiquez un montant.' })
-        .positive('Le montant doit être supérieur à 0.'),
-    spent_on: z.string().min(1, 'Indiquez une date.'),
+        .number({ invalid_type_error: translateStatic('Indiquez un montant.') })
+        .positive(translateStatic('Le montant doit être supérieur à 0.')),
+    spent_on: z.string().min(1, translateStatic('Indiquez une date.')),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -114,6 +115,7 @@ const item = {
 
 /** "No day open" notice — dépenses are always attached to a work day. */
 function NoDayNotice() {
+    const { t } = useI18n();
     return (
         <div className="flex min-h-[70vh] items-center justify-center">
             <motion.div
@@ -132,14 +134,14 @@ function NoDayNotice() {
                     </div>
 
                     <h2 className="relative mt-5 text-xl font-semibold tracking-tight">
-                        Aucune journée ouverte
+                        {t('Aucune journée ouverte')}
                     </h2>
                     <p className="relative mt-2.5 text-sm leading-relaxed text-muted-foreground">
-                        Ouvrez la journée dans Caisse pour enregistrer des dépenses.
+                        {t('Ouvrez la journée dans Caisse pour enregistrer des dépenses.')}
                     </p>
 
                     <Button asChild variant="accent" className="relative mt-8">
-                        <Link to="/pos">Aller à la caisse</Link>
+                        <Link to="/pos">{t('Aller à la caisse')}</Link>
                     </Button>
                 </Card>
             </motion.div>
@@ -148,6 +150,7 @@ function NoDayNotice() {
 }
 
 export default function Depenses() {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const refreshDay = useRefreshDay();
     const { hasRole } = useAuth();
@@ -309,11 +312,11 @@ export default function Depenses() {
                     <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-foreground">{expense.label}</p>
                         <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                            {CATEGORY_LABELS[expense.category] ?? expense.category}
+                            {t(CATEGORY_LABELS[expense.category] ?? expense.category)}
                             {' · '}
                             {expense.spent_on}
                             {expense.work_day_date && expense.work_day_date !== expense.spent_on
-                                ? ` · caisse du ${formatDate(expense.work_day_date)}`
+                                ? ` · ${t('caisse du')} ${formatDate(expense.work_day_date)}`
                                 : ''}
                         </p>
                     </div>
@@ -322,8 +325,8 @@ export default function Depenses() {
                             <>
                                 <button
                                     type="button"
-                                    title="Déplacer vers une autre journée de caisse"
-                                    aria-label="Déplacer vers une autre journée de caisse"
+                                    title={t('Déplacer vers une autre journée de caisse')}
+                                    aria-label={t('Déplacer vers une autre journée de caisse')}
                                     onClick={() => {
                                         if (isMoving) {
                                             setMovingExpense(null);
@@ -342,8 +345,8 @@ export default function Depenses() {
                                 </button>
                                 <button
                                     type="button"
-                                    title="Convertir en avance sur salaire"
-                                    aria-label="Convertir en avance sur salaire"
+                                    title={t('Convertir en avance sur salaire')}
+                                    aria-label={t('Convertir en avance sur salaire')}
                                     onClick={() => {
                                         if (isConverting) {
                                             setConvertingExpense(null);
@@ -362,8 +365,8 @@ export default function Depenses() {
                                 </button>
                                 <button
                                     type="button"
-                                    title="Supprimer cette dépense"
-                                    aria-label="Supprimer cette dépense"
+                                    title={t('Supprimer cette dépense')}
+                                    aria-label={t('Supprimer cette dépense')}
                                     onClick={() => {
                                         setDeletingExpense(expense);
                                         setMovingExpense(null);
@@ -384,18 +387,18 @@ export default function Depenses() {
                 {isMoving && (
                     <div className="mt-2.5 space-y-2 border-t border-tint/[0.06] pt-2.5">
                         <p className="text-xs text-muted-foreground">
-                            Rattacher cette dépense à la journée de caisse du :
+                            {t('Rattacher cette dépense à la journée de caisse du :')}
                         </p>
                         <div className="flex flex-wrap items-center gap-2">
                             <Select value={moveWorkDayId} onValueChange={setMoveWorkDayId}>
                                 <SelectTrigger className="h-8 flex-1">
-                                    <SelectValue placeholder="Choisir une journée…" />
+                                    <SelectValue placeholder={t('Choisir une journée…')} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {(workDays ?? []).map((day) => (
                                         <SelectItem key={day.id} value={String(day.id)}>
                                             {formatDate(day.date)}
-                                            {day.status === 'open' ? ' (ouverte)' : ''}
+                                            {day.status === 'open' ? ` ${t('(ouverte)')}` : ''}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -413,7 +416,7 @@ export default function Depenses() {
                                 }
                             >
                                 {moveMutation.isPending && <Loader2 className="animate-spin" />}
-                                Déplacer
+                                {t('Déplacer')}
                             </Button>
                         </div>
                         {moveMutation.isError && (
@@ -424,11 +427,11 @@ export default function Depenses() {
 
                 {isConverting && (
                     <div className="mt-2.5 space-y-2 border-t border-tint/[0.06] pt-2.5">
-                        <p className="text-xs text-muted-foreground">En réalité une avance sur salaire pour :</p>
+                        <p className="text-xs text-muted-foreground">{t('En réalité une avance sur salaire pour :')}</p>
                         <div className="flex flex-wrap items-center gap-2">
                             <Select value={convertEmployeeId} onValueChange={setConvertEmployeeId}>
                                 <SelectTrigger className="h-8 flex-1">
-                                    <SelectValue placeholder="Choisir un employé…" />
+                                    <SelectValue placeholder={t('Choisir un employé…')} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {(employees ?? []).map((option) => (
@@ -451,7 +454,7 @@ export default function Depenses() {
                                 }
                             >
                                 {convertMutation.isPending && <Loader2 className="animate-spin" />}
-                                Convertir
+                                {t('Convertir')}
                             </Button>
                         </div>
                         {convertMutation.isError && (
@@ -466,10 +469,9 @@ export default function Depenses() {
     return (
         <motion.div variants={container} initial="hidden" animate="show" className="space-y-6">
             <motion.div variants={item}>
-                <h2 className="text-2xl font-semibold tracking-tight">Dépenses du jour</h2>
+                <h2 className="text-2xl font-semibold tracking-tight">{t('Dépenses du jour')}</h2>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                    Chaque sortie de caisse est rattachée à la journée en cours et déduite du
-                    résultat net.
+                    {t('Chaque sortie de caisse est rattachée à la journée en cours et déduite du résultat net.')}
                 </p>
             </motion.div>
 
@@ -489,19 +491,19 @@ export default function Depenses() {
                         </AnimatePresence>
 
                         <CardHeader>
-                            <CardTitle>Nouvelle dépense</CardTitle>
+                            <CardTitle>{t('Nouvelle dépense')}</CardTitle>
                             <p className="mt-1.5 text-sm text-muted-foreground">
-                                Libellé, catégorie et montant — trois champs, c’est tout.
+                                {t('Libellé, catégorie et montant — trois champs, c’est tout.')}
                             </p>
                         </CardHeader>
 
                         <CardContent>
                             <form onSubmit={onSubmit} className="space-y-5">
                                 <div className="space-y-2">
-                                    <Label htmlFor="expense-label">Libellé</Label>
+                                    <Label htmlFor="expense-label">{t('Libellé')}</Label>
                                     <Input
                                         id="expense-label"
-                                        placeholder="Ex. Serviettes, recharge gaz…"
+                                        placeholder={t('Ex. Serviettes, recharge gaz…')}
                                         {...register('label')}
                                     />
                                     {errors.label && (
@@ -512,7 +514,7 @@ export default function Depenses() {
                                 </div>
 
                                 <div className="space-y-2.5">
-                                    <Label>Catégorie</Label>
+                                    <Label>{t('Catégorie')}</Label>
                                     <div className="grid grid-cols-3 gap-2">
                                         {EXPENSE_CATEGORIES.map((option) => {
                                             const Icon = option.icon;
@@ -534,7 +536,7 @@ export default function Depenses() {
                                                                 : 'text-muted-foreground',
                                                         )}
                                                     />
-                                                    <span className="text-xs">{option.label}</span>
+                                                    <span className="text-xs">{t(option.label)}</span>
                                                 </Chip>
                                             );
                                         })}
@@ -548,7 +550,7 @@ export default function Depenses() {
 
                                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                     <div className="space-y-2">
-                                        <Label htmlFor="expense-amount">Montant</Label>
+                                        <Label htmlFor="expense-amount">{t('Montant')}</Label>
                                         <Input
                                             id="expense-amount"
                                             type="number"
@@ -567,7 +569,7 @@ export default function Depenses() {
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label htmlFor="expense-date">Date</Label>
+                                        <Label htmlFor="expense-date">{t('Date')}</Label>
                                         <Input
                                             id="expense-date"
                                             type="date"
@@ -583,25 +585,23 @@ export default function Depenses() {
 
                                 <div className="space-y-2">
                                     <Label>
-                                        Journée de caisse <span className="font-normal">(optionnel)</span>
+                                        {t('Journée de caisse')} <span className="font-normal">{t('(optionnel)')}</span>
                                     </Label>
                                     <Select value={newExpenseWorkDayId} onValueChange={setNewExpenseWorkDayId}>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Journée ouverte aujourd’hui" />
+                                            <SelectValue placeholder={t('Journée ouverte aujourd’hui')} />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {(workDays ?? []).map((day) => (
                                                 <SelectItem key={day.id} value={String(day.id)}>
                                                     {formatDate(day.date)}
-                                                    {day.status === 'open' ? ' (ouverte)' : ''}
+                                                    {day.status === 'open' ? ` ${t('(ouverte)')}` : ''}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
                                     <p className="text-[10px] text-muted-foreground">
-                                        Pour une dépense d’une journée déjà clôturée — sinon elle est
-                                        automatiquement rattachée à la journée en cours, quelle que soit la
-                                        date choisie ci-dessus.
+                                        {t('Pour une dépense d’une journée déjà clôturée — sinon elle est automatiquement rattachée à la journée en cours, quelle que soit la date choisie ci-dessus.')}
                                     </p>
                                 </div>
 
@@ -623,8 +623,8 @@ export default function Depenses() {
                                 >
                                     {mutation.isPending && <Loader2 className="animate-spin" />}
                                     {mutation.isPending
-                                        ? 'Enregistrement…'
-                                        : 'Enregistrer la dépense'}
+                                        ? t('Enregistrement…')
+                                        : t('Enregistrer la dépense')}
                                 </Button>
                             </form>
                         </CardContent>
@@ -635,7 +635,7 @@ export default function Depenses() {
                     <Card className="h-full">
                         <CardHeader>
                             <div className="flex items-baseline justify-between gap-3">
-                                <CardTitle>Dépenses enregistrées</CardTitle>
+                                <CardTitle>{t('Dépenses enregistrées')}</CardTitle>
                                 {(expenses?.length ?? 0) > 0 && (
                                     <span className="text-sm font-semibold tabular-nums text-destructive">
                                         {formatCurrency(total, { maximumFractionDigits: 2 })}
@@ -643,7 +643,7 @@ export default function Depenses() {
                                 )}
                             </div>
                             <p className="mt-1.5 text-sm text-muted-foreground">
-                                Total cumulé sur la journée en cours
+                                {t('Total cumulé sur la journée en cours')}
                             </p>
                         </CardHeader>
 
@@ -657,8 +657,8 @@ export default function Depenses() {
                             ) : (expenses ?? []).length === 0 ? (
                                 <EmptyState
                                     icon={Receipt}
-                                    title="Aucune dépense"
-                                    description="Les sorties de caisse de la journée apparaîtront ici."
+                                    title={t('Aucune dépense')}
+                                    description={t('Les sorties de caisse de la journée apparaîtront ici.')}
                                 />
                             ) : (
                                 <ul className="max-h-[520px] space-y-2 overflow-y-auto pr-0.5">
@@ -678,7 +678,7 @@ export default function Depenses() {
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <div className="flex items-center gap-2">
                                 <History className="h-4 w-4 text-muted-foreground" />
-                                <CardTitle>Historique des dépenses</CardTitle>
+                                <CardTitle>{t('Historique des dépenses')}</CardTitle>
                             </div>
                             <div className="flex flex-wrap gap-2">
                                 {(['week', 'month', 'all'] as HistoryRange[]).map((option) => (
@@ -693,14 +693,13 @@ export default function Depenses() {
                                                 : 'border-tint/[0.08] text-muted-foreground hover:border-accent/30',
                                         )}
                                     >
-                                        {option === 'week' ? 'Cette semaine' : option === 'month' ? 'Ce mois' : 'Tout'}
+                                        {option === 'week' ? t('Cette semaine') : option === 'month' ? t('Ce mois') : t('Tout')}
                                     </button>
                                 ))}
                             </div>
                         </div>
                         <p className="mt-1.5 text-sm text-muted-foreground">
-                            Toutes les dépenses de la période, quelle que soit leur journée de caisse — de quoi
-                            retrouver et corriger une dépense passée.
+                            {t('Toutes les dépenses de la période, quelle que soit leur journée de caisse — de quoi retrouver et corriger une dépense passée.')}
                         </p>
                     </CardHeader>
 
@@ -714,8 +713,8 @@ export default function Depenses() {
                         ) : (historyExpenses ?? []).length === 0 ? (
                             <EmptyState
                                 icon={History}
-                                title="Aucune dépense sur cette période"
-                                description="Élargissez la période pour retrouver une dépense passée."
+                                title={t('Aucune dépense sur cette période')}
+                                description={t('Élargissez la période pour retrouver une dépense passée.')}
                             />
                         ) : (
                             <ul className="max-h-[520px] space-y-2 overflow-y-auto pr-0.5">
@@ -733,13 +732,16 @@ export default function Depenses() {
                 onOpenChange={(open) => {
                     if (!open) setDeletingExpense(null);
                 }}
-                title="Supprimer cette dépense ?"
+                title={t('Supprimer cette dépense ?')}
                 description={
                     deletingExpense
-                        ? `« ${deletingExpense.label} » (−${formatCurrency(deletingExpense.amount, { maximumFractionDigits: 2 })}) sera définitivement supprimée — le résultat de sa journée de caisse sera recalculé sans elle.`
+                        ? t('« {label} » (−{amount}) sera définitivement supprimée — le résultat de sa journée de caisse sera recalculé sans elle.', {
+                              label: deletingExpense.label,
+                              amount: formatCurrency(deletingExpense.amount, { maximumFractionDigits: 2 }),
+                          })
                         : undefined
                 }
-                confirmLabel="Supprimer"
+                confirmLabel={t('Supprimer')}
                 loading={deleteMutation.isPending}
                 onConfirm={() => deletingExpense && deleteMutation.mutate(deletingExpense.id)}
             />

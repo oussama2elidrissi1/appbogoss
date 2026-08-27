@@ -17,6 +17,7 @@ import { Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAx
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getEmployeeWorkspaceDashboard } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatTime } from '@/lib/utils';
 import type { EmployeePrestationRow } from '@/types/employee-workspace';
 import type { PrestationStatus } from '@/types/prestation';
@@ -35,6 +36,7 @@ const statusMeta: Record<PrestationStatus | string, { label: string; className: 
 const donutColors = ['#c8a24c', '#4ade80', '#60a5fa', '#f87171', '#a78bfa', '#fbbf24'];
 
 export default function EmployeeDashboard() {
+    const { t } = useI18n();
     const { data, isPending } = useQuery({
         queryKey: ['employee-workspace', 'dashboard'],
         queryFn: getEmployeeWorkspaceDashboard,
@@ -58,25 +60,25 @@ export default function EmployeeDashboard() {
     return (
         <EmployeePageShell>
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                <Kpi icon={ReceiptText} label="Prestations aujourd'hui" value={data.today.prestations_count} hint={`${data.today.prestations_delta >= 0 ? '+' : ''}${data.today.prestations_delta} vs hier`} />
-                <Kpi icon={TrendingUp} label="Chiffre d'affaires" value={formatCurrency(data.today.revenue)} hint="Prestations payees" />
-                <Kpi icon={HandCoins} label="Commission du jour" value={formatCurrency(data.today.commission)} hint="Validee" />
-                <Kpi icon={WalletCards} label="Commission du mois" value={formatCurrency(data.today.monthly_commission)} hint="Mois courant" />
-                <Kpi icon={CheckCircle2} label="Commission payee" value={formatCurrency(data.today.paid_commission)} hint="Mois courant" />
+                <Kpi icon={ReceiptText} label={t("Prestations aujourd'hui")} value={data.today.prestations_count} hint={`${data.today.prestations_delta >= 0 ? '+' : ''}${data.today.prestations_delta} ${t('vs hier')}`} />
+                <Kpi icon={TrendingUp} label={t("Chiffre d'affaires")} value={formatCurrency(data.today.revenue)} hint={t('Prestations payees')} />
+                <Kpi icon={HandCoins} label={t('Commission du jour')} value={formatCurrency(data.today.commission)} hint={t('Validee')} />
+                <Kpi icon={WalletCards} label={t('Commission du mois')} value={formatCurrency(data.today.monthly_commission)} hint={t('Mois courant')} />
+                <Kpi icon={CheckCircle2} label={t('Commission payee')} value={formatCurrency(data.today.paid_commission)} hint={t('Mois courant')} />
             </div>
 
             {data.next_appointment && (
                 <EmployeePanel className="border-[#c8a24c]/22 bg-[#c8a24c]/[0.075] p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d5b15d]">Prochain client</p>
+                            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#d5b15d]">{t('Prochain client')}</p>
                             <h2 className="mt-1 text-xl font-semibold">{data.next_appointment.client_name}</h2>
                             <p className="text-sm text-white/62">
                                 {formatTime(data.next_appointment.starts_at)} - {data.next_appointment.service}
                             </p>
                         </div>
                         <Link to="/employee/agenda" className="inline-flex items-center gap-2 rounded-md bg-[#c8a24c] px-4 py-2 text-sm font-semibold text-[#07101d]">
-                            Ouvrir l'agenda
+                            {t("Ouvrir l'agenda")}
                             <ArrowRight className="h-4 w-4" />
                         </Link>
                     </div>
@@ -85,26 +87,26 @@ export default function EmployeeDashboard() {
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(330px,0.75fr)]">
                 <EmployeePanel>
-                    <EmployeePanelTitle title="Mes prestations aujourd'hui" icon={ReceiptText} action={<Link to="/employee/prestations" className="text-xs font-semibold text-[#d5b15d]">Voir toutes <ArrowRight className="inline h-3 w-3" /></Link>} />
+                    <EmployeePanelTitle title={t("Mes prestations aujourd'hui")} icon={ReceiptText} action={<Link to="/employee/prestations" className="text-xs font-semibold text-[#d5b15d]">{t('Voir toutes')} <ArrowRight className="inline h-3 w-3" /></Link>} />
                     <div className="space-y-2 p-3 sm:hidden">
                         {data.prestations_today.length === 0 ? (
-                            <p className="py-8 text-center text-sm text-white/48">Aucune prestation creee aujourd'hui.</p>
+                            <p className="py-8 text-center text-sm text-white/48">{t("Aucune prestation creee aujourd'hui.")}</p>
                         ) : data.prestations_today.map((row) => <PrestationCard key={row.id} row={row} />)}
                     </div>
                     <div className="hidden overflow-x-auto sm:block">
                         <table className="w-full min-w-[720px] text-sm">
                             <thead className="text-left text-xs uppercase tracking-[0.12em] text-white/38">
                                 <tr>
-                                    <th className="px-4 py-3">Client</th>
-                                    <th className="px-4 py-3">Prestation</th>
-                                    <th className="px-4 py-3">Heure</th>
-                                    <th className="px-4 py-3 text-right">Montant</th>
-                                    <th className="px-4 py-3 text-right">Statut</th>
+                                    <th className="px-4 py-3">{t('Client')}</th>
+                                    <th className="px-4 py-3">{t('Prestation')}</th>
+                                    <th className="px-4 py-3">{t('Heure')}</th>
+                                    <th className="px-4 py-3 text-right">{t('Montant')}</th>
+                                    <th className="px-4 py-3 text-right">{t('Statut')}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {data.prestations_today.length === 0 ? (
-                                    <tr><td colSpan={5} className="px-4 py-10 text-center text-white/48">Aucune prestation creee aujourd'hui.</td></tr>
+                                    <tr><td colSpan={5} className="px-4 py-10 text-center text-white/48">{t("Aucune prestation creee aujourd'hui.")}</td></tr>
                                 ) : data.prestations_today.map((row) => <PrestationLine key={row.id} row={row} />)}
                             </tbody>
                         </table>
@@ -112,10 +114,10 @@ export default function EmployeeDashboard() {
                 </EmployeePanel>
 
                 <EmployeePanel>
-                    <EmployeePanelTitle title="Mon agenda" icon={CalendarDays} action={<Link to="/employee/agenda" className="text-xs font-semibold text-[#d5b15d]">Complet <ArrowRight className="inline h-3 w-3" /></Link>} />
+                    <EmployeePanelTitle title={t('Mon agenda')} icon={CalendarDays} action={<Link to="/employee/agenda" className="text-xs font-semibold text-[#d5b15d]">{t('Complet')} <ArrowRight className="inline h-3 w-3" /></Link>} />
                     <div className="max-h-[430px] space-y-1 overflow-y-auto p-4">
                         {data.agenda_today.length === 0 ? (
-                            <p className="py-10 text-center text-sm text-white/48">Aucun rendez-vous aujourd'hui.</p>
+                            <p className="py-10 text-center text-sm text-white/48">{t("Aucun rendez-vous aujourd'hui.")}</p>
                         ) : data.agenda_today.map((item) => (
                             <div key={item.id} className="relative grid grid-cols-[54px_1fr] gap-3 rounded-md px-2 py-2.5 hover:bg-white/[0.045]">
                                 <span className="text-sm font-semibold tabular-nums text-[#d5b15d]">{formatTime(item.starts_at)}</span>
@@ -133,7 +135,7 @@ export default function EmployeeDashboard() {
 
             <div className="grid gap-5 xl:grid-cols-3">
                 <EmployeePanel className="xl:col-span-2">
-                    <EmployeePanelTitle title="Evolution de mes commissions" icon={TrendingUp} />
+                    <EmployeePanelTitle title={t('Evolution de mes commissions')} icon={TrendingUp} />
                     <div className="h-72 p-4">
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={data.commission_evolution}>
@@ -147,7 +149,7 @@ export default function EmployeeDashboard() {
                 </EmployeePanel>
 
                 <EmployeePanel>
-                    <EmployeePanelTitle title="Repartition de mes prestations" icon={Sparkles} />
+                    <EmployeePanelTitle title={t('Repartition de mes prestations')} icon={Sparkles} />
                     <div className="grid gap-2 p-4 sm:grid-cols-[150px_1fr] xl:grid-cols-1">
                         <div className="relative h-40">
                             <ResponsiveContainer width="100%" height="100%">
@@ -159,7 +161,7 @@ export default function EmployeeDashboard() {
                             </ResponsiveContainer>
                             <div className="absolute inset-0 flex flex-col items-center justify-center">
                                 <span className="text-2xl font-bold">{totalDistribution}</span>
-                                <span className="text-[11px] text-white/45">Prestations</span>
+                                <span className="text-[11px] text-white/45">{t('Prestations')}</span>
                             </div>
                         </div>
                         <div className="space-y-2">
@@ -169,7 +171,7 @@ export default function EmployeeDashboard() {
                                     <span className="shrink-0 text-white/55">{row.count} - {row.percent}%</span>
                                 </div>
                             ))}
-                            {data.service_distribution.length === 0 && <p className="py-8 text-center text-sm text-white/48">Aucune donnee.</p>}
+                            {data.service_distribution.length === 0 && <p className="py-8 text-center text-sm text-white/48">{t('Aucune donnee.')}</p>}
                         </div>
                     </div>
                 </EmployeePanel>
@@ -177,17 +179,17 @@ export default function EmployeeDashboard() {
 
             <div className="grid gap-5 lg:grid-cols-2">
                 <EmployeePanel>
-                    <EmployeePanelTitle title="Avis clients" icon={Star} action={<Link to="/employee/reviews" className="text-xs font-semibold text-[#d5b15d]">Voir tous <ArrowRight className="inline h-3 w-3" /></Link>} />
+                    <EmployeePanelTitle title={t('Avis clients')} icon={Star} action={<Link to="/employee/reviews" className="text-xs font-semibold text-[#d5b15d]">{t('Voir tous')} <ArrowRight className="inline h-3 w-3" /></Link>} />
                     <div className="p-4">
                         {data.reviews.count === 0 ? (
                             <p className="rounded-md border border-white/[0.06] bg-white/[0.035] px-4 py-8 text-center text-sm text-white/50">
-                                Vous n'avez pas encore recu d'avis.
+                                {t("Vous n'avez pas encore recu d'avis.")}
                             </p>
                         ) : (
                             <div>
                                 <p className="text-4xl font-bold">{data.reviews.average} <span className="text-base text-white/45">/ 5</span></p>
                                 <p className="mt-1 text-sm text-[#d5b15d]">{'★'.repeat(Math.round(data.reviews.average ?? 0))}</p>
-                                <p className="text-sm text-white/50">Base sur {data.reviews.count} avis</p>
+                                <p className="text-sm text-white/50">{t('Base sur {n} avis', { n: data.reviews.count })}</p>
                                 {data.reviews.latest && (
                                     <blockquote className="mt-4 rounded-md border border-white/[0.06] bg-white/[0.035] p-4 text-sm text-white/78">
                                         <strong>{data.reviews.latest.client_name}</strong>
@@ -199,7 +201,7 @@ export default function EmployeeDashboard() {
                     </div>
                 </EmployeePanel>
                 <EmployeePanel>
-                    <EmployeePanelTitle title="Conseil du jour" icon={MessageSquareText} />
+                    <EmployeePanelTitle title={t('Conseil du jour')} icon={MessageSquareText} />
                     <div className="p-5">
                         <p className="text-lg leading-relaxed text-white/78">{data.daily_tip}</p>
                     </div>
@@ -227,6 +229,7 @@ function Kpi({ icon: Icon, label, value, hint }: { icon: typeof ReceiptText; lab
 }
 
 function PrestationLine({ row }: { row: EmployeePrestationRow }) {
+    const { t } = useI18n();
     const meta = statusMeta[row.status] ?? statusMeta.draft;
     return (
         <tr className="border-t border-white/[0.06] text-white/78">
@@ -234,12 +237,13 @@ function PrestationLine({ row }: { row: EmployeePrestationRow }) {
             <td className="max-w-[260px] truncate px-4 py-3">{row.service}</td>
             <td className="px-4 py-3 tabular-nums"><Clock3 className="mr-1 inline h-3.5 w-3.5 text-white/35" />{row.time}</td>
             <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatCurrency(row.amount)}</td>
-            <td className="px-4 py-3 text-right"><Badge className={cn('justify-center', meta.className)}>{meta.label}</Badge></td>
+            <td className="px-4 py-3 text-right"><Badge className={cn('justify-center', meta.className)}>{t(meta.label)}</Badge></td>
         </tr>
     );
 }
 
 function PrestationCard({ row }: { row: EmployeePrestationRow }) {
+    const { t } = useI18n();
     const meta = statusMeta[row.status] ?? statusMeta.draft;
 
     return (
@@ -249,7 +253,7 @@ function PrestationCard({ row }: { row: EmployeePrestationRow }) {
                     <p className="truncate text-sm font-semibold text-white">{row.client_name}</p>
                     <p className="mt-1 line-clamp-2 text-sm text-white/58">{row.service}</p>
                 </div>
-                <Badge className={cn('shrink-0 justify-center', meta.className)}>{meta.label}</Badge>
+                <Badge className={cn('shrink-0 justify-center', meta.className)}>{t(meta.label)}</Badge>
             </div>
             <div className="mt-3 flex items-center justify-between gap-3 text-sm">
                 <span className="text-white/48"><Clock3 className="mr-1 inline h-3.5 w-3.5" />{row.time}</span>

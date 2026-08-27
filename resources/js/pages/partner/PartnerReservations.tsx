@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { AlertCircle, CalendarPlus, Search } from 'lucide-react';
 import { getAppointments, getErrorMessage } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate, formatTime } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ function defaultRange(): { from: string; to: string } {
 }
 
 export default function PartnerReservations() {
+    const { t } = useI18n();
     const navigate = useNavigate();
     const [search, setSearch] = useState('');
     const [status, setStatus] = useState<string>('all');
@@ -69,15 +71,15 @@ export default function PartnerReservations() {
         <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-6">
             <div className="flex flex-wrap items-end justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-semibold tracking-tight">Mes réservations</h1>
+                    <h1 className="text-2xl font-semibold tracking-tight">{t('Mes réservations')}</h1>
                     <p className="mt-1.5 text-sm text-muted-foreground">
-                        Le suivi de toutes les réservations que vous avez apportées.
+                        {t('Le suivi de toutes les réservations que vous avez apportées.')}
                     </p>
                 </div>
                 <Button variant="accent" asChild>
                     <Link to="/partner/reservations/new">
                         <CalendarPlus className="h-4 w-4" />
-                        Nouvelle réservation
+                        {t('Nouvelle réservation')}
                     </Link>
                 </Button>
             </div>
@@ -88,35 +90,35 @@ export default function PartnerReservations() {
                     <Input
                         value={search}
                         onChange={(event) => setSearch(event.target.value)}
-                        placeholder="Client, service..."
+                        placeholder={t('Client, service...')}
                         className="pl-10"
                     />
                 </div>
                 <div className="space-y-1.5">
                     <label className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                        Du
+                        {t('Du')}
                     </label>
                     <Input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} className="h-10" />
                 </div>
                 <div className="space-y-1.5">
                     <label className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                        Au
+                        {t('Au')}
                     </label>
                     <Input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} className="h-10" />
                 </div>
                 <div className="space-y-1.5">
                     <label className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                        Statut
+                        {t('Statut')}
                     </label>
                     <Select value={status} onValueChange={setStatus}>
                         <SelectTrigger className="h-10 w-40">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">Tous</SelectItem>
+                            <SelectItem value="all">{t('Tous')}</SelectItem>
                             {Object.entries(STATUS_META).map(([key, meta]) => (
                                 <SelectItem key={key} value={key}>
-                                    {meta.label}
+                                    {t(meta.label)}
                                 </SelectItem>
                             ))}
                         </SelectContent>
@@ -135,14 +137,14 @@ export default function PartnerReservations() {
                     <AlertCircle className="h-5 w-5 text-destructive" />
                     <p className="mt-2 text-sm text-destructive">{getErrorMessage(error)}</p>
                     <Button variant="accent" className="mt-4" onClick={() => void refetch()}>
-                        Réessayer
+                        {t('Réessayer')}
                     </Button>
                 </Card>
             ) : filtered.length === 0 ? (
                 <EmptyState
                     icon={CalendarPlus}
-                    title="Aucune réservation"
-                    description="Créez votre première réservation pour un client."
+                    title={t('Aucune réservation')}
+                    description={t('Créez votre première réservation pour un client.')}
                 />
             ) : (
                 <>
@@ -151,14 +153,14 @@ export default function PartnerReservations() {
                         <table className="w-full text-sm">
                             <thead className="border-b border-tint/[0.06] bg-tint/[0.02] text-left text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
                                 <tr>
-                                    <th className="px-4 py-3 font-medium">Réf.</th>
-                                    <th className="px-4 py-3 font-medium">Client</th>
-                                    <th className="px-4 py-3 font-medium">Service</th>
-                                    <th className="px-4 py-3 font-medium">Date</th>
-                                    <th className="px-4 py-3 font-medium">Heure</th>
-                                    <th className="px-4 py-3 text-right font-medium">Montant</th>
-                                    <th className="px-4 py-3 font-medium">Statut</th>
-                                    <th className="px-4 py-3 text-right font-medium">Commission</th>
+                                    <th className="px-4 py-3 font-medium">{t('Réf.')}</th>
+                                    <th className="px-4 py-3 font-medium">{t('Client')}</th>
+                                    <th className="px-4 py-3 font-medium">{t('Service')}</th>
+                                    <th className="px-4 py-3 font-medium">{t('Date')}</th>
+                                    <th className="px-4 py-3 font-medium">{t('Heure')}</th>
+                                    <th className="px-4 py-3 text-right font-medium">{t('Montant')}</th>
+                                    <th className="px-4 py-3 font-medium">{t('Statut')}</th>
+                                    <th className="px-4 py-3 text-right font-medium">{t('Commission')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -183,7 +185,7 @@ export default function PartnerReservations() {
                                             <td className="px-4 py-3">
                                                 <Badge variant={meta.variant} className="gap-1.5">
                                                     <span className={cn('h-1.5 w-1.5 rounded-full', meta.dot)} />
-                                                    {meta.label}
+                                                    {t(meta.label)}
                                                 </Badge>
                                             </td>
                                             <td className="px-4 py-3 text-right tabular-nums text-accent">
@@ -214,7 +216,7 @@ export default function PartnerReservations() {
                                             </div>
                                             <Badge variant={meta.variant} className="shrink-0 gap-1.5">
                                                 <span className={cn('h-1.5 w-1.5 rounded-full', meta.dot)} />
-                                                {meta.label}
+                                                {t(meta.label)}
                                             </Badge>
                                         </div>
                                         <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">

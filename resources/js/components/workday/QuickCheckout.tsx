@@ -410,12 +410,12 @@ export function QuickCheckout({
 
                 <Step
                     index={4}
-                    title="Prestation"
-                    hint={category ? undefined : 'Choisissez une catégorie'}
+                    title={t('Prestation')}
+                    hint={category ? undefined : t('Choisissez une catégorie')}
                 >
                     {!category ? (
                         <div className="rounded-md border border-dashed border-tint/[0.08] px-4 py-6 text-center text-xs text-muted-foreground">
-                            Sélectionnez d’abord une catégorie.
+                            {t('Sélectionnez d’abord une catégorie.')}
                         </div>
                     ) : usesCatalog ? (
                         <div className="space-y-2.5">
@@ -426,8 +426,8 @@ export function QuickCheckout({
                                     onChange={(event) => setServiceSearch(event.target.value)}
                                     placeholder={
                                         usesProductCatalog
-                                            ? 'Rechercher un produit...'
-                                            : `Rechercher une prestation ${category.label.toLowerCase()}...`
+                                            ? t('Rechercher un produit...')
+                                            : t('Rechercher une prestation {x}...', { x: t(category.label).toLowerCase() })
                                     }
                                     className="pl-10"
                                 />
@@ -446,8 +446,7 @@ export function QuickCheckout({
                                 </div>
                             ) : filteredServices.length === 0 ? (
                                 <div className="rounded-md border border-dashed border-tint/[0.08] px-4 py-5 text-center text-xs text-muted-foreground">
-                                    Aucun élément au catalogue — saisissez le libellé et le prix
-                                    manuellement ci-dessous.
+                                    {t('Aucun élément au catalogue — saisissez le libellé et le prix manuellement ci-dessous.')}
                                 </div>
                             ) : (
                                 <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto pr-0.5 sm:grid-cols-2">
@@ -472,8 +471,8 @@ export function QuickCheckout({
                                                 </span>
                                                 <span className="block text-xs text-muted-foreground">
                                                     {'duration_minutes' in service
-                                                        ? `${service.duration_minutes} min`
-                                                        : `${service.stock_quantity} en stock`}
+                                                        ? t('{n} min', { n: service.duration_minutes })
+                                                        : t('{n} en stock', { n: service.stock_quantity })}
                                                 </span>
                                             </span>
                                             <span className="shrink-0 text-sm font-semibold tabular-nums text-accent">
@@ -495,8 +494,8 @@ export function QuickCheckout({
                                 readOnly={usesProductCatalog}
                                 placeholder={
                                     usesProductCatalog
-                                        ? 'Libellé du produit'
-                                        : 'Libellé de la prestation'
+                                        ? t('Libellé du produit')
+                                        : t('Libellé de la prestation')
                                 }
                             />
                         </div>
@@ -506,17 +505,17 @@ export function QuickCheckout({
                             onChange={(event) => setLabel(event.target.value)}
                             placeholder={
                                 category.value === 'boisson'
-                                    ? 'Ex. Thé à la menthe'
+                                    ? t('Ex. Thé à la menthe')
                                     : category.value === 'vitrine'
-                                      ? 'Ex. Shampooing argan 250ml'
-                                      : 'Libellé'
+                                      ? t('Ex. Shampooing argan 250ml')
+                                      : t('Libellé')
                             }
                         />
                     )}
                 </Step>
 
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                    <Step index={5} title="Prix">
+                    <Step index={5} title={t('Prix')}>
                         <Input
                             type="number"
                             step="0.01"
@@ -535,11 +534,11 @@ export function QuickCheckout({
 
                     <Step
                         index={6}
-                        title="Commission"
+                        title={t('Commission')}
                         hint={
                             selectedEmployee?.default_commission_rate
-                                ? `${selectedEmployee.default_commission_rate}% suggéré`
-                                : 'Optionnel'
+                                ? t('{x}% suggéré', { x: selectedEmployee.default_commission_rate })
+                                : t('Optionnel')
                         }
                     >
                         <Input
@@ -574,10 +573,10 @@ export function QuickCheckout({
                 >
                     {mutation.isPending && <Loader2 className="animate-spin" />}
                     {mutation.isPending
-                        ? 'Enregistrement…'
+                        ? t('Enregistrement…')
                         : hasValidPrice
-                          ? `Enregistrer · ${formatCurrency(priceValue, { maximumFractionDigits: 2 })}`
-                          : 'Enregistrer'}
+                          ? t('Enregistrer · {x}', { x: formatCurrency(priceValue, { maximumFractionDigits: 2 }) })
+                          : t('Enregistrer')}
                 </Button>
             </div>
         </Card>

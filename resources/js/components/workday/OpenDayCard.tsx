@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { getEmployees, getErrorMessage, openWorkDay } from '@/lib/api';
 import { useRefreshDay, workDayKeys } from '@/hooks/useWorkDay';
+import { t as translateStatic, useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -16,12 +17,14 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmployeeAvatar } from './EmployeeAvatar';
 
+// Messages de validation traduits à la construction du schéma (module) —
+// un changement de langue s'applique à ces messages après rechargement.
 const schema = z.object({
     opening_balance: z
-        .number({ invalid_type_error: 'Indiquez un montant.' })
-        .min(0, 'Le solde ne peut pas être négatif.'),
-    notes: z.string().max(500, 'Note trop longue.').optional(),
-    employee_ids: z.array(z.number()).min(1, 'Sélectionnez au moins un employé présent.'),
+        .number({ invalid_type_error: translateStatic('Indiquez un montant.') })
+        .min(0, translateStatic('Le solde ne peut pas être négatif.')),
+    notes: z.string().max(500, translateStatic('Note trop longue.')).optional(),
+    employee_ids: z.array(z.number()).min(1, translateStatic('Sélectionnez au moins un employé présent.')),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -31,6 +34,7 @@ type FormValues = z.infer<typeof schema>;
  * work day. Every other screen in this module is gated behind it.
  */
 export function OpenDayCard() {
+    const { t } = useI18n();
     const refreshDay = useRefreshDay();
 
     const { data: employees, isPending: employeesPending } = useQuery({
@@ -105,17 +109,16 @@ export function OpenDayCard() {
                         </span>
 
                         <h2 className="mt-5 text-xl font-semibold tracking-tight">
-                            Ouvrir la journée
+                            {t('Ouvrir la journée')}
                         </h2>
                         <p className="mt-2 max-w-[44ch] text-sm leading-relaxed text-muted-foreground">
-                            Renseignez le fond de caisse et l’équipe présente pour démarrer les
-                            encaissements.
+                            {t('Renseignez le fond de caisse et l’équipe présente pour démarrer les encaissements.')}
                         </p>
                     </div>
 
                     <form onSubmit={onSubmit} className="relative mt-8 space-y-6">
                         <div className="space-y-2">
-                            <Label htmlFor="opening_balance">Solde initial</Label>
+                            <Label htmlFor="opening_balance">{t('Solde initial')}</Label>
                             <Input
                                 id="opening_balance"
                                 type="number"
@@ -136,11 +139,10 @@ export function OpenDayCard() {
 
                         <div className="space-y-2.5">
                             <div className="flex items-center justify-between">
-                                <Label>Employés présents</Label>
+                                <Label>{t('Employés présents')}</Label>
                                 <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                                     <Users className="h-3.5 w-3.5" />
-                                    {selectedIds.length} sélectionné
-                                    {selectedIds.length > 1 ? 's' : ''}
+                                    {selectedIds.length} {t(selectedIds.length > 1 ? 'sélectionnés' : 'sélectionné')}
                                 </span>
                             </div>
 
@@ -181,11 +183,11 @@ export function OpenDayCard() {
 
                         <div className="space-y-2">
                             <Label htmlFor="notes">
-                                Notes <span className="font-normal">(optionnel)</span>
+                                {t('Notes')} <span className="font-normal">{t('(optionnel)')}</span>
                             </Label>
                             <Input
                                 id="notes"
-                                placeholder="Remarque sur la journée…"
+                                placeholder={t('Remarque sur la journée…')}
                                 {...register('notes')}
                             />
                             {errors.notes && (
@@ -214,7 +216,7 @@ export function OpenDayCard() {
                             disabled={mutation.isPending}
                         >
                             {mutation.isPending && <Loader2 className="animate-spin" />}
-                            {mutation.isPending ? 'Ouverture…' : 'Ouvrir la journée'}
+                            {mutation.isPending ? t('Ouverture…') : t('Ouvrir la journée')}
                         </Button>
                     </form>
                 </Card>

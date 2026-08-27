@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, CheckCircle2, ChevronDown, Loader2, Plus, RefreshCw, Trash2, Wrench } from 'lucide-react';
 import { api, getErrorMessage, getServices } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import type { Employee } from '@/types/workday';
 import { Button } from '@/components/ui/button';
@@ -49,6 +50,7 @@ const emptyForm = {
 
 /** Per-employee, per-service commission rules — the priority override above the flat default rate. */
 export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const [form, setForm] = useState(emptyForm);
     const [recalculatedCount, setRecalculatedCount] = useState<number | null>(null);
@@ -147,16 +149,16 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
     const servicesById = new Map((services ?? []).map((service) => [service.id, service.name]));
     const serviceTriggerLabel =
         form.service_ids.length === 0
-            ? 'Choisir…'
+            ? t('Choisir…')
             : form.service_ids.length === 1
-              ? (servicesById.get(form.service_ids[0]) ?? '1 service')
-              : `${form.service_ids.length} services sélectionnés`;
+              ? (servicesById.get(form.service_ids[0]) ?? t('1 service'))
+              : t('{n} services sélectionnés', { n: form.service_ids.length });
 
     return (
         <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
                 <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
-                    Commissions par service
+                    {t('Commissions par service')}
                 </p>
                 {!isPending && rules && rules.length > 0 && (
                     <button
@@ -167,10 +169,10 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
                             recalculateAllMutation.mutate();
                         }}
                         className="flex items-center gap-1.5 rounded-md border border-tint/[0.08] px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-accent/30 hover:text-accent disabled:pointer-events-none disabled:opacity-60"
-                        title="Recalculer l'historique de toutes les règles de cet employé"
+                        title={t("Recalculer l'historique de toutes les règles de cet employé")}
                     >
                         <RefreshCw className={cn('h-3 w-3', recalculateAllMutation.isPending && 'animate-spin')} />
-                        Tout recalculer
+                        {t('Tout recalculer')}
                     </button>
                 )}
             </div>
@@ -192,13 +194,13 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
                             <span className="min-w-0 truncate">
                                 {rule.service_name} —{' '}
                                 {rule.type === 'percentage' ? `${rule.value}%` : formatCurrency(rule.value)}
-                                <span className="text-muted-foreground"> depuis {formatDate(rule.starts_on)}</span>
+                                <span className="text-muted-foreground"> {t('depuis')} {formatDate(rule.starts_on)}</span>
                             </span>
                             <span className="flex shrink-0 items-center gap-2">
                                 <button
                                     type="button"
-                                    aria-label="Recalculer l'historique avec cette règle"
-                                    title="Recalculer l'historique avec cette règle"
+                                    aria-label={t("Recalculer l'historique avec cette règle")}
+                                    title={t("Recalculer l'historique avec cette règle")}
                                     disabled={recalculateMutation.isPending}
                                     onClick={() => {
                                         setRecalculatedCount(null);
@@ -216,7 +218,7 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
                                 </button>
                                 <button
                                     type="button"
-                                    aria-label="Supprimer la règle"
+                                    aria-label={t('Supprimer la règle')}
                                     disabled={deleteMutation.isPending}
                                     onClick={() => deleteMutation.mutate(rule.id)}
                                 >
@@ -228,14 +230,14 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
                 </ul>
             ) : (
                 <p className="text-xs text-muted-foreground">
-                    Aucune règle spécifique — la commission par défaut de l’employé s’applique.
+                    {t('Aucune règle spécifique — la commission par défaut de l’employé s’applique.')}
                 </p>
             )}
 
             <div className="grid grid-cols-2 gap-2.5">
                 <div className="space-y-1.5">
                     <Label className="text-xs">
-                        Service{form.service_ids.length > 1 ? 's' : ''}
+                        {t(form.service_ids.length > 1 ? 'Services' : 'Service')}
                     </Label>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -253,7 +255,7 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent className="max-h-64 w-[--radix-dropdown-menu-trigger-width] overflow-y-auto">
                             {(services ?? []).length === 0 ? (
-                                <p className="px-2 py-1.5 text-xs text-muted-foreground">Aucun service</p>
+                                <p className="px-2 py-1.5 text-xs text-muted-foreground">{t('Aucun service')}</p>
                             ) : (
                                 (services ?? []).map((service) => (
                                     <DropdownMenuCheckboxItem
@@ -270,7 +272,7 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
                     </DropdownMenu>
                 </div>
                 <div className="space-y-1.5">
-                    <Label className="text-xs">Type</Label>
+                    <Label className="text-xs">{t('Type')}</Label>
                     <Select
                         value={form.type}
                         onValueChange={(value) =>
@@ -281,13 +283,13 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="percentage">Pourcentage</SelectItem>
-                            <SelectItem value="fixed">Montant fixe</SelectItem>
+                            <SelectItem value="percentage">{t('Pourcentage')}</SelectItem>
+                            <SelectItem value="fixed">{t('Montant fixe')}</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
                 <div className="space-y-1.5">
-                    <Label className="text-xs">Valeur</Label>
+                    <Label className="text-xs">{t('Valeur')}</Label>
                     <Input
                         type="number"
                         min="0"
@@ -299,7 +301,7 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
                     />
                 </div>
                 <div className="space-y-1.5">
-                    <Label className="text-xs">Depuis le</Label>
+                    <Label className="text-xs">{t('Depuis le')}</Label>
                     <Input
                         type="date"
                         value={form.starts_on}
@@ -320,9 +322,12 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
                 <div className="flex items-start gap-2 rounded-md border border-success/25 bg-success/[0.10] px-3 py-2">
                     <CheckCircle2 className="mt-px h-3.5 w-3.5 shrink-0 text-success" />
                     <p className="text-xs text-success">
-                        {recalculatedCount} prestation{recalculatedCount > 1 ? 's' : ''} déjà payée
-                        {recalculatedCount > 1 ? 's' : ''} {recalculatedCount > 1 ? 'ont' : 'a'} été recalculée
-                        {recalculatedCount > 1 ? 's' : ''} avec ce taux.
+                        {t(
+                            recalculatedCount > 1
+                                ? '{n} prestations déjà payées ont été recalculées avec ce taux.'
+                                : '{n} prestation déjà payée a été recalculée avec ce taux.',
+                            { n: recalculatedCount },
+                        )}
                     </p>
                 </div>
             )}
@@ -338,7 +343,7 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
                 }}
             >
                 {createMutation.isPending ? <Loader2 className="animate-spin" /> : <Plus />}
-                Ajouter la règle
+                {t('Ajouter la règle')}
             </Button>
 
             {/* TEMPORARY — remove this block, its mutation above and the
@@ -346,12 +351,10 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
             <div className="space-y-2 rounded-md border border-dashed border-tint/[0.12] p-3">
                 <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                     <Wrench className="h-3.5 w-3.5" />
-                    Régularisation (temporaire)
+                    {t('Régularisation (temporaire)')}
                 </p>
                 <p className="text-[11px] text-muted-foreground">
-                    Écrase la commission de TOUT l’historique de cet employé (prestations payées et ventes
-                    de caisse) avec un taux fixe — à utiliser une seule fois pour remettre les anciennes
-                    données à niveau, sans tenir compte des règles par service.
+                    {t('Écrase la commission de TOUT l’historique de cet employé (prestations payées et ventes de caisse) avec un taux fixe — à utiliser une seule fois pour remettre les anciennes données à niveau, sans tenir compte des règles par service.')}
                 </p>
                 <div className="flex items-center gap-2">
                     <div className="relative w-24">
@@ -378,7 +381,7 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
                             setRegularizeConfirming(true);
                         }}
                     >
-                        Régulariser tout l’historique
+                        {t('Régulariser tout l’historique')}
                     </Button>
                 </div>
 
@@ -393,9 +396,9 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
                     <div className="flex items-start gap-2 rounded-md border border-success/25 bg-success/[0.10] px-3 py-2">
                         <CheckCircle2 className="mt-px h-3.5 w-3.5 shrink-0 text-success" />
                         <p className="text-xs text-success">
-                            {regularizeResult.items} prestation{regularizeResult.items > 1 ? 's' : ''} et{' '}
-                            {regularizeResult.sales} vente{regularizeResult.sales > 1 ? 's' : ''} mise
-                            {regularizeResult.items + regularizeResult.sales > 1 ? 's' : ''} à {regularizeRate}%.
+                            {regularizeResult.items} {t(regularizeResult.items > 1 ? 'prestations' : 'prestation')} {t('et')}{' '}
+                            {regularizeResult.sales} {t(regularizeResult.sales > 1 ? 'ventes' : 'vente')}{' '}
+                            {t(regularizeResult.items + regularizeResult.sales > 1 ? 'mises à' : 'mise à')} {regularizeRate}%.
                         </p>
                     </div>
                 )}
@@ -404,9 +407,12 @@ export function EmployeeCommissionRules({ employee }: { employee: Employee }) {
             <ConfirmDialog
                 open={regularizeConfirming}
                 onOpenChange={setRegularizeConfirming}
-                title={`Écraser tout l’historique à ${regularizeRate}% ?`}
-                description={`Toutes les commissions déjà enregistrées pour ${employee.name} (prestations payées et ventes de caisse) seront remplacées par ${regularizeRate}% du montant, sans distinction de service. Cette action est irréversible.`}
-                confirmLabel="Écraser et régulariser"
+                title={t('Écraser tout l’historique à {rate}% ?', { rate: regularizeRate })}
+                description={t(
+                    'Toutes les commissions déjà enregistrées pour {name} (prestations payées et ventes de caisse) seront remplacées par {rate}% du montant, sans distinction de service. Cette action est irréversible.',
+                    { name: employee.name, rate: regularizeRate },
+                )}
+                confirmLabel={t('Écraser et régulariser')}
                 variant="destructive"
                 loading={regularizeMutation.isPending}
                 onConfirm={() => regularizeMutation.mutate()}

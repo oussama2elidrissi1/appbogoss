@@ -24,7 +24,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { usePortalAuth } from '@/hooks/usePortalAuth';
 import { getErrorMessage, loginClient } from '@/lib/api';
-import { useI18n } from '@/lib/i18n';
+import { t as translateStatic, useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 /* ------------------------------------------------------------------ */
@@ -43,12 +43,12 @@ function isPhoneIdentifier(value: string): boolean {
 const loginSchema = z.object({
     identifier: z
         .string()
-        .min(1, 'L’email ou le téléphone est requis.')
+        .min(1, translateStatic('L’email ou le téléphone est requis.'))
         .refine(
             (value) => isPhoneIdentifier(value) || z.string().email().safeParse(value.trim()).success,
-            'Saisissez un email valide (équipe) ou votre numéro de téléphone (client).',
+            translateStatic('Saisissez un email valide (équipe) ou votre numéro de téléphone (client).'),
         ),
-    password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caractères.'),
+    password: z.string().min(6, translateStatic('Le mot de passe doit contenir au moins 6 caractères.')),
 });
 
 type LoginValues = z.infer<typeof loginSchema>;
@@ -396,6 +396,7 @@ function DashboardMockup({ animate }: { animate: boolean }) {
 /* ------------------------------------------------------------------ */
 
 export default function Login() {
+    const { t } = useI18n();
     const { user, isLoading, login } = useAuth();
     const { setClient: setPortalClient } = usePortalAuth();
     const navigate = useNavigate();
@@ -470,8 +471,8 @@ export default function Login() {
                 getErrorMessage(
                     error,
                     isPhoneIdentifier(values.identifier)
-                        ? 'Numéro de téléphone ou mot de passe incorrect.'
-                        : 'Identifiants incorrects.',
+                        ? t('Numéro de téléphone ou mot de passe incorrect.')
+                        : t('Identifiants incorrects.'),
                 ),
             );
         }
@@ -574,7 +575,7 @@ export default function Login() {
                                 animate={{ y: 0 }}
                                 transition={{ duration: 0.7, delay: 0.15, ease: EASE }}
                             >
-                                Le salon,
+                                {t('Le salon,')}
                             </motion.span>
                         </span>
                         <span className="block overflow-hidden pb-4">
@@ -587,7 +588,7 @@ export default function Login() {
                                 animate={{ y: 0 }}
                                 transition={{ duration: 0.7, delay: 0.28, ease: EASE }}
                             >
-                                piloté au détail près.
+                                {t('piloté au détail près.')}
                             </motion.span>
                         </span>
                     </h1>
@@ -598,8 +599,7 @@ export default function Login() {
                         transition={{ duration: 0.6, delay: 0.45, ease: EASE }}
                         className="mt-4 max-w-[400px] text-[15px] leading-relaxed text-white/55"
                     >
-                        Rendez-vous, encaissements, stock et performance de l'équipe — réunis dans une
-                        interface pensée pour aller vite.
+                        {t("Rendez-vous, encaissements, stock et performance de l'équipe — réunis dans une interface pensée pour aller vite.")}
                     </motion.p>
 
                     <ul className="mt-8 space-y-5">
@@ -620,8 +620,8 @@ export default function Login() {
                                         <Icon className="h-[18px] w-[18px]" style={{ color: GOLD }} />
                                     </span>
                                     <span className="max-w-[220px] text-sm leading-snug">
-                                        <span className="block font-semibold text-[#F2EDE3]">{feature.title}</span>
-                                        <span className="block text-white/50">{feature.text}</span>
+                                        <span className="block font-semibold text-[#F2EDE3]">{t(feature.title)}</span>
+                                        <span className="block text-white/50">{t(feature.text)}</span>
                                     </span>
                                 </motion.li>
                             );
@@ -658,7 +658,7 @@ export default function Login() {
                     transition={{ duration: 0.6, delay: 1 }}
                     className="relative z-10 mt-auto text-xs text-white/30"
                 >
-                    © {new Date().getFullYear()} BOGOSLAND. Tous droits réservés.
+                    © {new Date().getFullYear()} BOGOSLAND. {t('Tous droits réservés.')}
                 </motion.p>
             </div>
 
@@ -727,11 +727,11 @@ export default function Login() {
                         </motion.div>
 
                         <h2 className="mt-5 text-center text-[30px] font-semibold tracking-tight">
-                            Bon <span style={{ color: GOLD }}>retour</span>{' '}
+                            {t('Bon')} <span style={{ color: GOLD }}>{t('retour')}</span>{' '}
                             <span aria-hidden>👋</span>
                         </h2>
                         <p className="mt-2 text-center text-sm leading-relaxed text-white/50">
-                            Connectez-vous pour accéder à votre tableau de bord.
+                            {t('Connectez-vous pour accéder à votre tableau de bord.')}
                         </p>
                     </div>
 
@@ -742,7 +742,7 @@ export default function Login() {
                                 htmlFor="identifier"
                                 className="text-[13px] font-medium text-white/70"
                             >
-                                Email ou téléphone
+                                {t('Email ou téléphone')}
                             </label>
                             <div className="group relative">
                                 {looksLikePhone ? (
@@ -766,7 +766,7 @@ export default function Login() {
                             </div>
                             {looksLikePhone && !errors.identifier && (
                                 <p className="text-xs" style={{ color: GOLD }}>
-                                    Connexion client — vous serez dirigé vers votre espace « Mon BOGOSLAND ».
+                                    {t('Connexion client — vous serez dirigé vers votre espace « Mon BOGOSLAND ».')}
                                 </p>
                             )}
                             {errors.identifier && (
@@ -780,7 +780,7 @@ export default function Login() {
                                 htmlFor="password"
                                 className="text-[13px] font-medium text-white/70"
                             >
-                                Mot de passe
+                                {t('Mot de passe')}
                             </label>
                             <div className="group relative">
                                 <Lock className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35 transition-all duration-300 group-focus-within:scale-110 group-focus-within:text-[#D8B45A]" />
@@ -801,7 +801,7 @@ export default function Login() {
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword((current) => !current)}
-                                    aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                                    aria-label={showPassword ? t('Masquer le mot de passe') : t('Afficher le mot de passe')}
                                     className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-white/35 transition-colors hover:text-[#D8B45A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8B45A]/50"
                                 >
                                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -838,7 +838,7 @@ export default function Login() {
                                         strokeWidth={3.5}
                                     />
                                 </span>
-                                <span className="text-[13px] text-white/55">Se souvenir de moi</span>
+                                <span className="text-[13px] text-white/55">{t('Se souvenir de moi')}</span>
                             </label>
                             <button
                                 type="button"
@@ -846,7 +846,7 @@ export default function Login() {
                                 className="text-[13px] font-medium transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8B45A]/50"
                                 style={{ color: GOLD }}
                             >
-                                Mot de passe oublié ?
+                                {t('Mot de passe oublié ?')}
                             </button>
                         </div>
 
@@ -857,8 +857,7 @@ export default function Login() {
                                 transition={{ duration: 0.25 }}
                                 className="rounded-xl border border-[#D8B45A]/20 bg-[#D8B45A]/[0.06] px-4 py-3 text-xs leading-relaxed text-white/60"
                             >
-                                Votre mot de passe est géré par le salon : contactez votre administrateur
-                                pour le réinitialiser en quelques secondes.
+                                {t('Votre mot de passe est géré par le salon : contactez votre administrateur pour le réinitialiser en quelques secondes.')}
                             </motion.p>
                         )}
 
@@ -895,11 +894,11 @@ export default function Login() {
                             {isSubmitting ? (
                                 <>
                                     <Loader2 className="h-[18px] w-[18px] animate-spin" />
-                                    Connexion en cours…
+                                    {t('Connexion en cours…')}
                                 </>
                             ) : (
                                 <>
-                                    Se connecter
+                                    {t('Se connecter')}
                                     <ArrowRight className="h-[18px] w-[18px] transition-transform duration-300 group-hover:translate-x-1" />
                                 </>
                             )}
@@ -907,9 +906,9 @@ export default function Login() {
                     </form>
 
                     <p className="mt-7 text-center text-[13px] text-white/45">
-                        Besoin d'aide ?{' '}
+                        {t("Besoin d'aide ?")}{' '}
                         <span className="font-medium" style={{ color: GOLD }}>
-                            Contactez votre administrateur.
+                            {t('Contactez votre administrateur.')}
                         </span>
                     </p>
 
@@ -930,7 +929,7 @@ export default function Login() {
 
                     {/* Mobile-only copyright */}
                     <p className="mt-8 text-center text-[11px] text-white/25 lg:hidden">
-                        © {new Date().getFullYear()} BOGOSLAND. Tous droits réservés.
+                        © {new Date().getFullYear()} BOGOSLAND. {t('Tous droits réservés.')}
                     </p>
                 </motion.div>
             </div>

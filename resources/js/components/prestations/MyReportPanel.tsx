@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Download } from 'lucide-react';
 import { getErrorMessage, getMyReport, myReportExportUrl } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,7 @@ const STATUS_VARIANT: Record<string, BadgeProps['variant']> = {
 };
 
 export function MyReportPanel() {
+    const { t } = useI18n();
     const [quick, setQuick] = useState<QuickRange>('month');
     const range = useMemo(() => rangeFor(quick), [quick]);
 
@@ -65,19 +67,19 @@ export function MyReportPanel() {
                             )}
                         >
                             {option === 'day'
-                                ? "Aujourd'hui"
+                                ? t("Aujourd'hui")
                                 : option === 'week'
-                                  ? 'Cette semaine'
+                                  ? t('Cette semaine')
                                   : option === 'month'
-                                    ? 'Ce mois'
-                                    : 'Tout'}
+                                    ? t('Ce mois')
+                                    : t('Tout')}
                         </button>
                     ))}
                 </div>
                 <Button variant="outline" size="sm" asChild>
                     <a href={myReportExportUrl(range)} download>
                         <Download className="h-3.5 w-3.5" />
-                        Exporter (CSV)
+                        {t('Exporter (CSV)')}
                     </a>
                 </Button>
             </div>
@@ -96,17 +98,17 @@ export function MyReportPanel() {
             ) : report ? (
                 <>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                        <Kpi label="Chiffre d'affaires" value={formatCurrency(report.revenue_total)} />
-                        <Kpi label="Commissions" value={formatCurrency(report.commission_total)} accent />
-                        <Kpi label="Prestations payées" value={String(report.paid_count)} />
-                        <Kpi label="Ticket moyen" value={formatCurrency(report.average_ticket)} />
-                        <Kpi label="Clients servis" value={String(report.clients_count)} />
-                        <Kpi label="Annulées / remboursées" value={String(report.cancelled_count)} />
+                        <Kpi label={t("Chiffre d'affaires")} value={formatCurrency(report.revenue_total)} />
+                        <Kpi label={t('Commissions')} value={formatCurrency(report.commission_total)} accent />
+                        <Kpi label={t('Prestations payées')} value={String(report.paid_count)} />
+                        <Kpi label={t('Ticket moyen')} value={formatCurrency(report.average_ticket)} />
+                        <Kpi label={t('Clients servis')} value={String(report.clients_count)} />
+                        <Kpi label={t('Annulées / remboursées')} value={String(report.cancelled_count)} />
                     </div>
 
                     {report.top_services.length > 0 && (
                         <Card className="space-y-3 p-5">
-                            <p className="text-sm font-semibold text-foreground">Top services</p>
+                            <p className="text-sm font-semibold text-foreground">{t('Top services')}</p>
                             <div className="space-y-1.5">
                                 {report.top_services.map((service) => (
                                     <div key={service.label} className="flex items-center justify-between text-sm">
@@ -121,7 +123,7 @@ export function MyReportPanel() {
                     )}
 
                     <Card className="space-y-2 p-5">
-                        <p className="text-sm font-semibold text-foreground">Détail des prestations</p>
+                        <p className="text-sm font-semibold text-foreground">{t('Détail des prestations')}</p>
                         <div className="space-y-1.5">
                             {report.details.map((row) => (
                                 <div
@@ -159,7 +161,7 @@ export function MyReportPanel() {
                                             </span>
                                         )}
                                         {row.is_deleted ? (
-                                            <Badge variant="destructive">Supprimé</Badge>
+                                            <Badge variant="destructive">{t('Supprimé')}</Badge>
                                         ) : (
                                             <Badge variant={STATUS_VARIANT[row.status] ?? 'default'}>{row.status}</Badge>
                                         )}

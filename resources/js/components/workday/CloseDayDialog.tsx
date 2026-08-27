@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { AlertCircle, Download, Loader2, Lock } from 'lucide-react';
 import { closeWorkDay, getErrorMessage, getWorkDayPdfUrl } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDayLabel } from '@/lib/utils';
 import type { ClosingReport, WorkDay } from '@/types/workday';
 import { Button } from '@/components/ui/button';
@@ -67,49 +68,50 @@ function Report({
     variance?: number | null;
     comment?: string | null;
 }) {
+    const { t } = useI18n();
     const categoryMax = Math.max(1, ...report.revenue_by_category.map((row) => row.total));
 
     return (
         <div className="max-h-[60vh] space-y-6 overflow-y-auto pr-1">
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
                 <Metric
-                    label="Chiffre d'affaires"
+                    label={t("Chiffre d'affaires")}
                     value={formatCurrency(report.revenue_total, { maximumFractionDigits: 2 })}
                     tone="accent"
                 />
                 <Metric
-                    label="Dépenses"
+                    label={t('Dépenses')}
                     value={formatCurrency(report.expenses_total, { maximumFractionDigits: 2 })}
                     tone="destructive"
                 />
                 <Metric
-                    label="Avances"
+                    label={t('Avances')}
                     value={formatCurrency(report.advances_total, { maximumFractionDigits: 2 })}
                 />
                 <Metric
-                    label="Résultat de la caisse"
+                    label={t('Résultat de la caisse')}
                     value={formatCurrency(report.net_result, { maximumFractionDigits: 2 })}
                     tone={report.net_result >= 0 ? 'success' : 'destructive'}
                 />
                 <Metric
-                    label="Panier moyen"
+                    label={t('Panier moyen')}
                     value={formatCurrency(report.average_ticket, { maximumFractionDigits: 2 })}
                 />
                 {report.cash_expected !== undefined && (
                     <Metric
-                        label="Solde attendu"
+                        label={t('Solde attendu')}
                         value={formatCurrency(report.cash_expected, { maximumFractionDigits: 2 })}
                     />
                 )}
                 {actualBalance !== undefined && actualBalance !== null && (
                     <Metric
-                        label="Solde compté"
+                        label={t('Solde compté')}
                         value={formatCurrency(actualBalance, { maximumFractionDigits: 2 })}
                     />
                 )}
                 {variance !== undefined && variance !== null && (
                     <Metric
-                        label="Écart de caisse"
+                        label={t('Écart de caisse')}
                         value={formatCurrency(variance, { maximumFractionDigits: 2 })}
                         tone={variance === 0 ? 'success' : Math.abs(variance) < 5 ? 'default' : 'destructive'}
                     />
@@ -123,19 +125,19 @@ function Report({
             )}
 
             <p className="text-sm text-muted-foreground">
-                {report.clients_count} client{report.clients_count > 1 ? 's' : ''} servi
-                {report.clients_count > 1 ? 's' : ''} aujourd’hui.
+                {report.clients_count}{' '}
+                {t(report.clients_count > 1 ? 'clients servis aujourd’hui.' : 'client servi aujourd’hui.')}
             </p>
 
             {report.revenue_by_category.length > 0 && (
                 <section>
-                    <h4 className="text-sm font-semibold text-foreground">Par catégorie</h4>
+                    <h4 className="text-sm font-semibold text-foreground">{t('Par catégorie')}</h4>
                     <ul className="mt-3 space-y-2.5">
                         {report.revenue_by_category.map((row) => (
                             <li key={row.category}>
                                 <div className="flex items-baseline justify-between gap-3 text-sm">
                                     <span className="truncate text-foreground">
-                                        {getCategoryLabel(row.category)}
+                                        {t(getCategoryLabel(row.category))}
                                         <span className="ml-1.5 text-xs text-muted-foreground">
                                             ({row.count})
                                         </span>
@@ -162,14 +164,14 @@ function Report({
 
             {report.revenue_by_employee.length > 0 && (
                 <section>
-                    <h4 className="text-sm font-semibold text-foreground">Par employé</h4>
+                    <h4 className="text-sm font-semibold text-foreground">{t('Par employé')}</h4>
                     <table className="mt-3 w-full text-sm">
                         <thead>
                             <tr className="text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
-                                <th className="pb-2 text-left font-medium">Employé</th>
-                                <th className="pb-2 text-right font-medium">Tickets</th>
-                                <th className="pb-2 text-right font-medium">CA</th>
-                                <th className="pb-2 text-right font-medium">Commission</th>
+                                <th className="pb-2 text-left font-medium">{t('Employé')}</th>
+                                <th className="pb-2 text-right font-medium">{t('Tickets')}</th>
+                                <th className="pb-2 text-right font-medium">{t('CA')}</th>
+                                <th className="pb-2 text-right font-medium">{t('Commission')}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -200,7 +202,7 @@ function Report({
             {report.top_prestations.length > 0 && (
                 <section>
                     <h4 className="text-sm font-semibold text-foreground">
-                        Prestations les plus vendues
+                        {t('Prestations les plus vendues')}
                     </h4>
                     <ol className="mt-3 space-y-2">
                         {report.top_prestations.map((prestation, index) => (
@@ -240,6 +242,7 @@ function Report({
  * handing the page back to the "Ouvrir la journée" state at that point.
  */
 export function CloseDayDialog({ open, onOpenChange, workDay, onClosed }: CloseDayDialogProps) {
+    const { t } = useI18n();
     const [actualBalance, setActualBalance] = useState('');
     const [comment, setComment] = useState('');
 
@@ -277,13 +280,13 @@ export function CloseDayDialog({ open, onOpenChange, workDay, onClosed }: CloseD
                 <DialogHeader>
                     <DialogTitle>
                         {closed
-                            ? `Journée du ${formatDayLabel(closed.date)} clôturée`
-                            : 'Clôturer la journée ?'}
+                            ? t('Journée du {date} clôturée', { date: formatDayLabel(closed.date) })
+                            : t('Clôturer la journée ?')}
                     </DialogTitle>
                     <DialogDescription>
                         {closed
-                            ? 'Récapitulatif définitif de la journée. Téléchargez le PDF pour vos archives.'
-                            : 'Plus aucun encaissement ne pourra être enregistré sur cette journée. Le rapport de clôture sera généré immédiatement.'}
+                            ? t('Récapitulatif définitif de la journée. Téléchargez le PDF pour vos archives.')
+                            : t('Plus aucun encaissement ne pourra être enregistré sur cette journée. Le rapport de clôture sera généré immédiatement.')}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -296,24 +299,24 @@ export function CloseDayDialog({ open, onOpenChange, workDay, onClosed }: CloseD
                     />
                 ) : closed ? (
                     <p className="text-sm text-muted-foreground">
-                        La journée est clôturée. Le rapport détaillé est disponible dans le PDF.
+                        {t('La journée est clôturée. Le rapport détaillé est disponible dans le PDF.')}
                     </p>
                 ) : (
                     <>
                         <Separator />
                         <p className="text-sm text-muted-foreground">
                             {workDay.employees.filter((employee) => employee.present).length}{' '}
-                            employé(s) en service · solde initial{' '}
+                            {t('employé(s) en service · solde initial')}{' '}
                             {formatCurrency(workDay.opening_balance, { maximumFractionDigits: 2 })}
                             {expectedCash !== undefined && (
-                                <> · solde attendu {formatCurrency(expectedCash, { maximumFractionDigits: 2 })}</>
+                                <> · {t('solde attendu')} {formatCurrency(expectedCash, { maximumFractionDigits: 2 })}</>
                             )}
                             .
                         </p>
 
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div className="space-y-1.5">
-                                <Label htmlFor="closing-actual-balance">Solde compté (optionnel)</Label>
+                                <Label htmlFor="closing-actual-balance">{t('Solde compté (optionnel)')}</Label>
                                 <Input
                                     id="closing-actual-balance"
                                     type="number"
@@ -335,17 +338,17 @@ export function CloseDayDialog({ open, onOpenChange, workDay, onClosed }: CloseD
                                                   : 'text-destructive',
                                         )}
                                     >
-                                        Écart : {formatCurrency(previewVariance, { maximumFractionDigits: 2 })}
+                                        {t('Écart :')} {formatCurrency(previewVariance, { maximumFractionDigits: 2 })}
                                     </p>
                                 )}
                             </div>
                             <div className="space-y-1.5">
-                                <Label htmlFor="closing-comment">Commentaire de clôture (optionnel)</Label>
+                                <Label htmlFor="closing-comment">{t('Commentaire de clôture (optionnel)')}</Label>
                                 <Input
                                     id="closing-comment"
                                     value={comment}
                                     onChange={(event) => setComment(event.target.value)}
-                                    placeholder="Ex. écart justifié par..."
+                                    placeholder={t('Ex. écart justifié par...')}
                                 />
                             </div>
                         </div>
@@ -363,7 +366,7 @@ export function CloseDayDialog({ open, onOpenChange, workDay, onClosed }: CloseD
                     {closed ? (
                         <>
                             <Button variant="outline" onClick={() => handleOpenChange(false)}>
-                                Fermer
+                                {t('Fermer')}
                             </Button>
                             <Button
                                 variant="accent"
@@ -372,7 +375,7 @@ export function CloseDayDialog({ open, onOpenChange, workDay, onClosed }: CloseD
                                 }
                             >
                                 <Download />
-                                Télécharger le PDF
+                                {t('Télécharger le PDF')}
                             </Button>
                         </>
                     ) : (
@@ -382,7 +385,7 @@ export function CloseDayDialog({ open, onOpenChange, workDay, onClosed }: CloseD
                                 onClick={() => handleOpenChange(false)}
                                 disabled={mutation.isPending}
                             >
-                                Annuler
+                                {t('Annuler')}
                             </Button>
                             <Button
                                 variant="accent"
@@ -390,7 +393,7 @@ export function CloseDayDialog({ open, onOpenChange, workDay, onClosed }: CloseD
                                 disabled={mutation.isPending}
                             >
                                 {mutation.isPending ? <Loader2 className="animate-spin" /> : <Lock />}
-                                {mutation.isPending ? 'Clôture…' : 'Clôturer'}
+                                {mutation.isPending ? t('Clôture…') : t('Clôturer')}
                             </Button>
                         </>
                     )}

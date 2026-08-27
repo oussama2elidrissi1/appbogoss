@@ -331,37 +331,37 @@ td { padding: 9px 4px; border-bottom: 1px solid #eceae4; vertical-align: top; }
         )}</div>
     </div>
     <div class="docmeta">
-        <div class="ref">FACTURE ${escapeHtml(invoice.reference)}</div>
+        <div class="ref">${escapeHtml(t('FACTURE'))} ${escapeHtml(invoice.reference)}</div>
         <div class="muted">${escapeHtml(dateLabel)}${timeLabel ? ` — ${escapeHtml(timeLabel)}` : ''}</div>
-        ${invoice.status === 'refunded' ? '<div class="muted" style="color:#C32228;font-weight:700">REMBOURSÉE</div>' : ''}
+        ${invoice.status === 'refunded' ? `<div class="muted" style="color:#C32228;font-weight:700">${escapeHtml(t('REMBOURSÉE'))}</div>` : ''}
     </div>
 </div>
 
-<div class="client">Client : <strong>${escapeHtml(invoice.client_name ?? 'Client de passage')}</strong>${
+<div class="client">${escapeHtml(t('Client :'))} <strong>${escapeHtml(invoice.client_name ?? t('Client de passage'))}</strong>${
         invoice.client_phone ? ` — ${escapeHtml(invoice.client_phone)}` : ''
     }</div>
 
 <table>
-    <thead><tr><th>Prestation</th><th class="num">Montant</th></tr></thead>
+    <thead><tr><th>${escapeHtml(t('Prestation'))}</th><th class="num">${escapeHtml(t('Montant'))}</th></tr></thead>
     <tbody>${rows}</tbody>
 </table>
 
 <div class="totals">
-    <div class="row muted"><span>Sous-total</span><span>${escapeHtml(money(invoice.subtotal))}</span></div>
-    ${lineDiscounts > 0 ? `<div class="row muted"><span>Remises lignes</span><span>−${escapeHtml(money(lineDiscounts))}</span></div>` : ''}
-    ${invoiceDiscount > 0 ? `<div class="row muted"><span>Remise</span><span>−${escapeHtml(money(invoiceDiscount))}</span></div>` : ''}
-    <div class="row grand"><span>TOTAL</span><span>${escapeHtml(money(invoice.total_collected ?? invoice.total))}</span></div>
+    <div class="row muted"><span>${escapeHtml(t('Sous-total'))}</span><span>${escapeHtml(money(invoice.subtotal))}</span></div>
+    ${lineDiscounts > 0 ? `<div class="row muted"><span>${escapeHtml(t('Remises lignes'))}</span><span>−${escapeHtml(money(lineDiscounts))}</span></div>` : ''}
+    ${invoiceDiscount > 0 ? `<div class="row muted"><span>${escapeHtml(t('Remise'))}</span><span>−${escapeHtml(money(invoiceDiscount))}</span></div>` : ''}
+    <div class="row grand"><span>${escapeHtml(t('TOTAL'))}</span><span>${escapeHtml(money(invoice.total_collected ?? invoice.total))}</span></div>
 </div>
 <div class="pay">
-    Paiement : ${escapeHtml(paymentMethodLabel(invoice.payment_method))}
+    ${escapeHtml(t('Paiement :'))} ${escapeHtml(t(paymentMethodLabel(invoice.payment_method)))}
     ${(invoice.payment_breakdown ?? [])
-        .map((row) => `<br>${escapeHtml(paymentMethodLabel(row.method))} : ${escapeHtml(money(row.amount))}`)
+        .map((row) => `<br>${escapeHtml(t(paymentMethodLabel(row.method)))} : ${escapeHtml(money(row.amount))}`)
         .join('')}
 </div>
 
 ${
     tipsTotal > 0
-        ? `<div class="tipnote">Pourboires : ${escapeHtml(money(tipsTotal))} (inclus dans le total encaissé ; coiffure commissionnée à 50%).</div>`
+        ? `<div class="tipnote">${escapeHtml(t('Pourboires : {x} (inclus dans le total encaissé ; coiffure commissionnée à 50%).', { x: money(tipsTotal) }))}</div>`
         : ''
 }
 

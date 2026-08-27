@@ -5,6 +5,7 @@ import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'rec
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { getEmployeeWorkspaceCommissions } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { EmployeePageShell, EmployeePanel, EmployeePanelTitle } from '@/pages/employee/EmployeeLayout';
 
@@ -17,6 +18,7 @@ const ranges = [
 ];
 
 export default function EmployeeCommissions() {
+    const { t } = useI18n();
     const [range, setRange] = useState('month');
     const { data, isPending } = useQuery({
         queryKey: ['employee-workspace', 'commissions', range],
@@ -26,8 +28,8 @@ export default function EmployeeCommissions() {
     return (
         <EmployeePageShell>
             <div>
-                <h2 className="text-2xl font-semibold">Mes commissions</h2>
-                <p className="text-sm text-white/50">Lecture seule, calculee depuis les prestations validees.</p>
+                <h2 className="text-2xl font-semibold">{t('Mes commissions')}</h2>
+                <p className="text-sm text-white/50">{t('Lecture seule, calculee depuis les prestations validees.')}</p>
             </div>
 
             <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -40,16 +42,16 @@ export default function EmployeeCommissions() {
                     'En attente': data.summary.pending,
                 }).map(([label, value]) => (
                     <EmployeePanel key={label} className="p-4">
-                        <p className="text-xs uppercase tracking-[0.12em] text-white/40">{label}</p>
+                        <p className="text-xs uppercase tracking-[0.12em] text-white/40">{t(label)}</p>
                         <p className="mt-3 text-xl font-semibold text-[#d5b15d]">{formatCurrency(value)}</p>
                     </EmployeePanel>
                 ))}
             </div>
 
             <EmployeePanel>
-                <EmployeePanelTitle title="Evolution de mes commissions" icon={WalletCards} action={
+                <EmployeePanelTitle title={t('Evolution de mes commissions')} icon={WalletCards} action={
                     <div className="flex flex-wrap gap-1">
-                        {ranges.map((item) => <Button key={item.value} size="sm" variant={range === item.value ? 'accent' : 'ghost'} onClick={() => setRange(item.value)}>{item.label}</Button>)}
+                        {ranges.map((item) => <Button key={item.value} size="sm" variant={range === item.value ? 'accent' : 'ghost'} onClick={() => setRange(item.value)}>{t(item.label)}</Button>)}
                     </div>
                 } />
                 <div className="h-72 p-4">
@@ -65,10 +67,10 @@ export default function EmployeeCommissions() {
             </EmployeePanel>
 
             <EmployeePanel>
-                <EmployeePanelTitle title="Historique" icon={HandCoins} />
+                <EmployeePanelTitle title={t('Historique')} icon={HandCoins} />
                 <div className="space-y-2 p-3 sm:hidden">
-                    {isPending ? <p className="px-4 py-8 text-center text-white/50">Chargement...</p> : data?.rows.length === 0 ? (
-                        <p className="px-4 py-8 text-center text-white/50">Aucune commission.</p>
+                    {isPending ? <p className="px-4 py-8 text-center text-white/50">{t('Chargement...')}</p> : data?.rows.length === 0 ? (
+                        <p className="px-4 py-8 text-center text-white/50">{t('Aucune commission.')}</p>
                     ) : data?.rows.map((row) => (
                         <CommissionMobileCard key={row.id} row={row} />
                     ))}
@@ -77,18 +79,18 @@ export default function EmployeeCommissions() {
                     <table className="w-full min-w-[820px] text-sm">
                         <thead className="text-left text-xs uppercase tracking-[0.12em] text-white/38">
                             <tr>
-                                <th className="px-4 py-3">Date</th>
-                                <th className="px-4 py-3">Client</th>
-                                <th className="px-4 py-3">Service</th>
-                                <th className="px-4 py-3 text-right">Prix service</th>
-                                <th className="px-4 py-3">Type</th>
-                                <th className="px-4 py-3 text-right">Commission</th>
-                                <th className="px-4 py-3 text-right">Statut</th>
+                                <th className="px-4 py-3">{t('Date')}</th>
+                                <th className="px-4 py-3">{t('Client')}</th>
+                                <th className="px-4 py-3">{t('Service')}</th>
+                                <th className="px-4 py-3 text-right">{t('Prix service')}</th>
+                                <th className="px-4 py-3">{t('Type')}</th>
+                                <th className="px-4 py-3 text-right">{t('Commission')}</th>
+                                <th className="px-4 py-3 text-right">{t('Statut')}</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {isPending ? <tr><td colSpan={7} className="px-4 py-8 text-center text-white/50">Chargement...</td></tr> : data?.rows.length === 0 ? (
-                                <tr><td colSpan={7} className="px-4 py-8 text-center text-white/50">Aucune commission.</td></tr>
+                            {isPending ? <tr><td colSpan={7} className="px-4 py-8 text-center text-white/50">{t('Chargement...')}</td></tr> : data?.rows.length === 0 ? (
+                                <tr><td colSpan={7} className="px-4 py-8 text-center text-white/50">{t('Aucune commission.')}</td></tr>
                             ) : data?.rows.map((row) => (
                                 <tr key={row.id} className="border-t border-white/[0.06] text-white/72">
                                     <td className="px-4 py-3">{formatDate(row.date)}</td>
@@ -107,13 +109,13 @@ export default function EmployeeCommissions() {
 
             <div className="grid gap-5 xl:grid-cols-2">
                 <EmployeePanel>
-                    <EmployeePanelTitle title="Historique des avances" icon={HandCoins} />
+                    <EmployeePanelTitle title={t('Historique des avances')} icon={HandCoins} />
                     <div className="max-h-[34rem] overflow-y-auto">
                         <div className="space-y-2 p-3 sm:hidden">
                             {isPending ? (
-                                <p className="px-4 py-8 text-center text-white/50">Chargement...</p>
+                                <p className="px-4 py-8 text-center text-white/50">{t('Chargement...')}</p>
                             ) : data?.advances.length === 0 ? (
-                                <p className="px-4 py-8 text-center text-white/50">Aucune avance en historique.</p>
+                                <p className="px-4 py-8 text-center text-white/50">{t('Aucune avance en historique.')}</p>
                             ) : data?.advances.map((advance) => (
                                 <div key={advance.id} className="rounded-md border border-white/[0.07] bg-white/[0.035] p-3">
                                     <div className="flex items-start justify-between gap-3">
@@ -127,10 +129,10 @@ export default function EmployeeCommissions() {
                                         {advance.settled_at ? (
                                             <Badge className="border-emerald-400/25 bg-emerald-400/10 text-emerald-200">
                                                 <CheckCircle2 className="h-3 w-3" />
-                                                Reglee{advance.commission_payout_period ? ` paie ${advance.commission_payout_period}` : ''}
+                                                {advance.commission_payout_period ? t('Reglee paie {period}', { period: advance.commission_payout_period }) : t('Reglee')}
                                             </Badge>
                                         ) : (
-                                            <Badge className="border-[#c8a24c]/25 bg-[#c8a24c]/10 text-[#f0d27b]">En cours</Badge>
+                                            <Badge className="border-[#c8a24c]/25 bg-[#c8a24c]/10 text-[#f0d27b]">{t('En cours')}</Badge>
                                         )}
                                     </div>
                                 </div>
@@ -139,17 +141,17 @@ export default function EmployeeCommissions() {
                         <table className="hidden w-full min-w-[620px] text-sm sm:table">
                             <thead className="text-left text-xs uppercase tracking-[0.12em] text-white/38">
                                 <tr>
-                                    <th className="px-4 py-3">Date</th>
-                                    <th className="px-4 py-3 text-right">Montant</th>
-                                    <th className="px-4 py-3">Motif</th>
-                                    <th className="px-4 py-3 text-right">Statut</th>
+                                    <th className="px-4 py-3">{t('Date')}</th>
+                                    <th className="px-4 py-3 text-right">{t('Montant')}</th>
+                                    <th className="px-4 py-3">{t('Motif')}</th>
+                                    <th className="px-4 py-3 text-right">{t('Statut')}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {isPending ? (
-                                    <tr><td colSpan={4} className="px-4 py-8 text-center text-white/50">Chargement...</td></tr>
+                                    <tr><td colSpan={4} className="px-4 py-8 text-center text-white/50">{t('Chargement...')}</td></tr>
                                 ) : data?.advances.length === 0 ? (
-                                    <tr><td colSpan={4} className="px-4 py-8 text-center text-white/50">Aucune avance en historique.</td></tr>
+                                    <tr><td colSpan={4} className="px-4 py-8 text-center text-white/50">{t('Aucune avance en historique.')}</td></tr>
                                 ) : data?.advances.map((advance) => (
                                     <tr key={advance.id} className="border-t border-white/[0.06] text-white/72">
                                         <td className="px-4 py-3">{advance.given_on ? formatDate(advance.given_on) : '-'}</td>
@@ -159,10 +161,10 @@ export default function EmployeeCommissions() {
                                             {advance.settled_at ? (
                                                 <Badge className="border-emerald-400/25 bg-emerald-400/10 text-emerald-200">
                                                     <CheckCircle2 className="h-3 w-3" />
-                                                    Reglee{advance.commission_payout_period ? ` paie ${advance.commission_payout_period}` : ''}
+                                                    {advance.commission_payout_period ? t('Reglee paie {period}', { period: advance.commission_payout_period }) : t('Reglee')}
                                                 </Badge>
                                             ) : (
-                                                <Badge className="border-[#c8a24c]/25 bg-[#c8a24c]/10 text-[#f0d27b]">En cours</Badge>
+                                                <Badge className="border-[#c8a24c]/25 bg-[#c8a24c]/10 text-[#f0d27b]">{t('En cours')}</Badge>
                                             )}
                                         </td>
                                     </tr>
@@ -173,13 +175,13 @@ export default function EmployeeCommissions() {
                 </EmployeePanel>
 
                 <EmployeePanel>
-                    <EmployeePanelTitle title="Historique des paiements" icon={WalletCards} />
+                    <EmployeePanelTitle title={t('Historique des paiements')} icon={WalletCards} />
                     <div className="max-h-[34rem] overflow-y-auto">
                         <div className="space-y-2 p-3 sm:hidden">
                             {isPending ? (
-                                <p className="px-4 py-8 text-center text-white/50">Chargement...</p>
+                                <p className="px-4 py-8 text-center text-white/50">{t('Chargement...')}</p>
                             ) : data?.payouts.length === 0 ? (
-                                <p className="px-4 py-8 text-center text-white/50">Aucun paiement de commission.</p>
+                                <p className="px-4 py-8 text-center text-white/50">{t('Aucun paiement de commission.')}</p>
                             ) : data?.payouts.map((payout) => (
                                 <div key={payout.id} className="rounded-md border border-white/[0.07] bg-white/[0.035] p-3">
                                     <div className="flex items-start justify-between gap-3">
@@ -190,8 +192,8 @@ export default function EmployeeCommissions() {
                                         <p className="text-sm font-semibold text-emerald-300">{formatCurrency(payout.net_amount)}</p>
                                     </div>
                                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                                        <MobileAmount label="Commission" value={formatCurrency(payout.commission_total)} />
-                                        <MobileAmount label="Avances soldees" value={formatCurrency(payout.advances_deducted)} />
+                                        <MobileAmount label={t('Commission')} value={formatCurrency(payout.commission_total)} />
+                                        <MobileAmount label={t('Avances soldees')} value={formatCurrency(payout.advances_deducted)} />
                                     </div>
                                 </div>
                             ))}
@@ -199,17 +201,17 @@ export default function EmployeeCommissions() {
                         <table className="hidden w-full min-w-[620px] text-sm sm:table">
                             <thead className="text-left text-xs uppercase tracking-[0.12em] text-white/38">
                                 <tr>
-                                    <th className="px-4 py-3">Periode</th>
-                                    <th className="px-4 py-3 text-right">Commission</th>
-                                    <th className="px-4 py-3 text-right">Avances soldees</th>
-                                    <th className="px-4 py-3 text-right">Net paye</th>
+                                    <th className="px-4 py-3">{t('Periode')}</th>
+                                    <th className="px-4 py-3 text-right">{t('Commission')}</th>
+                                    <th className="px-4 py-3 text-right">{t('Avances soldees')}</th>
+                                    <th className="px-4 py-3 text-right">{t('Net paye')}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {isPending ? (
-                                    <tr><td colSpan={4} className="px-4 py-8 text-center text-white/50">Chargement...</td></tr>
+                                    <tr><td colSpan={4} className="px-4 py-8 text-center text-white/50">{t('Chargement...')}</td></tr>
                                 ) : data?.payouts.length === 0 ? (
-                                    <tr><td colSpan={4} className="px-4 py-8 text-center text-white/50">Aucun paiement de commission.</td></tr>
+                                    <tr><td colSpan={4} className="px-4 py-8 text-center text-white/50">{t('Aucun paiement de commission.')}</td></tr>
                                 ) : data?.payouts.map((payout) => (
                                     <tr key={payout.id} className="border-t border-white/[0.06] text-white/72">
                                         <td className="px-4 py-3">
@@ -240,6 +242,7 @@ function CommissionMobileCard({ row }: { row: {
     amount: number;
     status: string;
 } }) {
+    const { t } = useI18n();
     return (
         <div className="rounded-md border border-white/[0.07] bg-white/[0.035] p-3">
             <div className="flex items-start justify-between gap-3">
@@ -251,9 +254,9 @@ function CommissionMobileCard({ row }: { row: {
                 <Badge variant="outline" className="shrink-0">{row.status}</Badge>
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                <MobileAmount label="Prix" value={formatCurrency(row.service_price)} />
-                <MobileAmount label="Type" value={row.type} />
-                <MobileAmount label="Commission" value={formatCurrency(row.amount)} accent />
+                <MobileAmount label={t('Prix')} value={formatCurrency(row.service_price)} />
+                <MobileAmount label={t('Type')} value={row.type} />
+                <MobileAmount label={t('Commission')} value={formatCurrency(row.amount)} accent />
             </div>
         </div>
     );

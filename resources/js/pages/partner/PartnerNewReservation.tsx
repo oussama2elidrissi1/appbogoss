@@ -26,6 +26,7 @@ import {
     getPartnerPortalClients,
     getPartnerPortalServices,
 } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import { generateIndicativeSlots } from '@/lib/indicativeSlots';
 import { useReservationCart } from '@/components/agenda/useReservationCart';
@@ -48,6 +49,7 @@ function todayIso(): string {
 }
 
 export default function PartnerNewReservation() {
+    const { t } = useI18n();
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const [step, setStep] = useState(0);
@@ -141,9 +143,9 @@ export default function PartnerNewReservation() {
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="mx-auto max-w-2xl space-y-6">
             <div>
-                <h1 className="text-2xl font-semibold tracking-tight">Nouvelle réservation</h1>
+                <h1 className="text-2xl font-semibold tracking-tight">{t('Nouvelle réservation')}</h1>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                    Réservez pour vos clients en quelques clics — plusieurs personnes, plusieurs prestations.
+                    {t('Réservez pour vos clients en quelques clics — plusieurs personnes, plusieurs prestations.')}
                 </p>
             </div>
 
@@ -207,7 +209,7 @@ export default function PartnerNewReservation() {
                         disabled={step === 0}
                         onClick={() => setStep((s) => Math.max(0, s - 1))}
                     >
-                        Précédent
+                        {t('Précédent')}
                     </Button>
 
                     {step < STEPS.length - 1 ? (
@@ -217,7 +219,7 @@ export default function PartnerNewReservation() {
                             disabled={!canGoNext}
                             onClick={() => setStep((s) => Math.min(STEPS.length - 1, s + 1))}
                         >
-                            Suivant
+                            {t('Suivant')}
                             <ChevronRight className="h-4 w-4" />
                         </Button>
                     ) : (
@@ -229,7 +231,7 @@ export default function PartnerNewReservation() {
                         >
                             {createMutation.isPending && <Loader2 className="animate-spin" />}
                             <Check className="h-4 w-4" />
-                            Confirmer la réservation
+                            {t('Confirmer la réservation')}
                         </Button>
                     )}
                 </div>
@@ -251,6 +253,7 @@ function toCartService(service: PartnerBookableService): Service {
 }
 
 function StepIndicator({ step }: { step: number }) {
+    const { t } = useI18n();
     return (
         <div className="flex items-center gap-1.5">
             {STEPS.map((label, index) => (
@@ -273,7 +276,7 @@ function StepIndicator({ step }: { step: number }) {
                             index <= step ? 'text-foreground' : 'text-muted-foreground',
                         )}
                     >
-                        {label}
+                        {t(label)}
                     </span>
                     {index < STEPS.length - 1 && <div className="h-px flex-1 bg-tint/[0.08]" />}
                 </div>
@@ -283,6 +286,7 @@ function StepIndicator({ step }: { step: number }) {
 }
 
 function ClientStep({ value, onChange }: { value: ContactClient | null; onChange: (client: ContactClient) => void }) {
+    const { t } = useI18n();
     const [search, setSearch] = useState('');
     const [creating, setCreating] = useState(false);
     const [newName, setNewName] = useState('');
@@ -305,11 +309,10 @@ function ClientStep({ value, onChange }: { value: ContactClient | null; onChange
         <div className="space-y-4">
             <div>
                 <h2 className="text-sm font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                    Étape 1 — Client
+                    {t('Étape 1 — Client')}
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                    Choisissez le contact principal dans votre portefeuille, ou ajoutez-en un nouveau. Ses
-                    coordonnées serviront pour tout le groupe.
+                    {t('Choisissez le contact principal dans votre portefeuille, ou ajoutez-en un nouveau. Ses coordonnées serviront pour tout le groupe.')}
                 </p>
             </div>
 
@@ -320,7 +323,7 @@ function ClientStep({ value, onChange }: { value: ContactClient | null; onChange
                         <Input
                             value={search}
                             onChange={(event) => setSearch(event.target.value)}
-                            placeholder="Rechercher parmi vos clients..."
+                            placeholder={t('Rechercher parmi vos clients...')}
                             className="pl-10"
                         />
                     </div>
@@ -349,7 +352,7 @@ function ClientStep({ value, onChange }: { value: ContactClient | null; onChange
                                     <span className="min-w-0 flex-1">
                                         <span className="block truncate text-sm font-medium">{candidate.name}</span>
                                         <span className="block truncate text-xs text-muted-foreground">
-                                            {candidate.phone ?? 'Aucun téléphone'}
+                                            {candidate.phone ?? t('Aucun téléphone')}
                                         </span>
                                     </span>
                                     {value?.id === candidate.id && <Check className="h-4 w-4 shrink-0 text-accent" />}
@@ -357,24 +360,24 @@ function ClientStep({ value, onChange }: { value: ContactClient | null; onChange
                             ))
                         ) : (
                             <p className="rounded-md border border-dashed border-tint/[0.1] px-3 py-6 text-center text-xs text-muted-foreground">
-                                Aucun client ne correspond dans votre portefeuille.
+                                {t('Aucun client ne correspond dans votre portefeuille.')}
                             </p>
                         )}
                     </div>
 
                     <Button type="button" variant="outline" className="w-full" onClick={() => setCreating(true)}>
                         <Plus className="h-4 w-4" />
-                        Nouveau client
+                        {t('Nouveau client')}
                     </Button>
                 </>
             ) : (
                 <div className="space-y-3 rounded-md border border-tint/[0.08] bg-tint/[0.02] p-4">
                     <div className="space-y-1.5">
-                        <Label htmlFor="new-client-name">Nom</Label>
-                        <Input id="new-client-name" value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="Nom du client" />
+                        <Label htmlFor="new-client-name">{t('Nom')}</Label>
+                        <Input id="new-client-name" value={newName} onChange={(event) => setNewName(event.target.value)} placeholder={t('Nom du client')} />
                     </div>
                     <div className="space-y-1.5">
-                        <Label htmlFor="new-client-phone">Téléphone</Label>
+                        <Label htmlFor="new-client-phone">{t('Téléphone')}</Label>
                         <Input id="new-client-phone" value={newPhone} onChange={(event) => setNewPhone(event.target.value)} placeholder="06 00 00 00 00" />
                     </div>
                     {createMutation.isError && (
@@ -382,7 +385,7 @@ function ClientStep({ value, onChange }: { value: ContactClient | null; onChange
                     )}
                     <div className="flex items-center gap-2">
                         <Button type="button" variant="ghost" onClick={() => setCreating(false)} disabled={createMutation.isPending}>
-                            Annuler
+                            {t('Annuler')}
                         </Button>
                         <Button
                             type="button"
@@ -392,7 +395,7 @@ function ClientStep({ value, onChange }: { value: ContactClient | null; onChange
                             onClick={() => createMutation.mutate()}
                         >
                             {createMutation.isPending && <Loader2 className="animate-spin" />}
-                            Ajouter ce client
+                            {t('Ajouter ce client')}
                         </Button>
                     </div>
                 </div>
@@ -414,15 +417,15 @@ function ParticipantsStep({
     onRemovePerson: (index: number) => void;
     onRenamePerson: (index: number, name: string) => void;
 }) {
+    const { t } = useI18n();
     return (
         <div className="space-y-4">
             <div>
                 <h2 className="text-sm font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                    Étape 2 — Participants
+                    {t('Étape 2 — Participants')}
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                    Une réservation peut concerner plusieurs personnes — ajoutez-les ici. Elles n'ont pas besoin
-                    d'être des clients enregistrés, un simple prénom suffit.
+                    {t("Une réservation peut concerner plusieurs personnes — ajoutez-les ici. Elles n'ont pas besoin d'être des clients enregistrés, un simple prénom suffit.")}
                 </p>
             </div>
 
@@ -434,9 +437,9 @@ function ParticipantsStep({
                         </span>
                         {index === 0 ? (
                             <div className="flex h-11 flex-1 items-center rounded-md border border-tint/[0.08] bg-tint/[0.03] px-3.5 text-sm">
-                                <span className="truncate font-medium">{contactName ?? 'Client titulaire'}</span>
+                                <span className="truncate font-medium">{contactName ?? t('Client titulaire')}</span>
                                 <span className="ml-2 shrink-0 rounded-full bg-accent/[0.12] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
-                                    Contact principal
+                                    {t('Contact principal')}
                                 </span>
                             </div>
                         ) : (
@@ -444,13 +447,13 @@ function ParticipantsStep({
                                 <Input
                                     value={person.name ?? ''}
                                     onChange={(event) => onRenamePerson(index, event.target.value)}
-                                    placeholder={`Prénom de la personne ${index + 1} (facultatif)`}
+                                    placeholder={t('Prénom de la personne {n} (facultatif)', { n: index + 1 })}
                                 />
                                 <Button
                                     type="button"
                                     size="icon"
                                     variant="ghost"
-                                    aria-label="Retirer cette personne"
+                                    aria-label={t('Retirer cette personne')}
                                     onClick={() => onRemovePerson(index)}
                                 >
                                     <XCircle className="text-destructive" />
@@ -461,7 +464,7 @@ function ParticipantsStep({
                 ))}
                 <Button type="button" variant="outline" className="w-full" disabled={people.length >= 20} onClick={onAddPerson}>
                     <UserPlus className="h-4 w-4" />
-                    Ajouter une personne
+                    {t('Ajouter une personne')}
                 </Button>
             </div>
         </div>
@@ -495,6 +498,7 @@ function ServicesStep({
     onDuplicateToAll: () => void;
     canDuplicate: boolean;
 }) {
+    const { t } = useI18n();
     const activeItems = itemsOfPerson(activePerson);
     const subtotal = activeItems.reduce((total, { item }) => total + (bookableById.get(item.service_id)?.price ?? 0), 0);
 
@@ -502,10 +506,10 @@ function ServicesStep({
         <div className="space-y-4">
             <div>
                 <h2 className="text-sm font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                    Étape 3 — Prestations par personne
+                    {t('Étape 3 — Prestations par personne')}
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                    Uniquement les prestations que BOGOSLAND vous autorise à réserver.
+                    {t('Uniquement les prestations que BOGOSLAND vous autorise à réserver.')}
                 </p>
             </div>
 
@@ -547,7 +551,7 @@ function ServicesStep({
                 </div>
             ) : bookableServices.length === 0 ? (
                 <p className="rounded-md border border-dashed border-tint/[0.1] px-3 py-6 text-center text-xs text-muted-foreground">
-                    Aucune offre ne vous a encore été attribuée — contactez BOGOSLAND.
+                    {t('Aucune offre ne vous a encore été attribuée — contactez BOGOSLAND.')}
                 </p>
             ) : (
                 <div className="grid max-h-56 gap-2 overflow-y-auto pr-0.5 sm:grid-cols-2">
@@ -572,11 +576,11 @@ function ServicesStep({
                                 )}
                                 <span className="text-sm font-medium">{service.name}</span>
                                 <span className="text-xs text-muted-foreground">
-                                    {formatCurrency(service.price)} · {service.duration_minutes} min
+                                    {formatCurrency(service.price)} · {t('{n} min', { n: service.duration_minutes })}
                                 </span>
                                 <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-accent">
                                     <HandCoins className="h-3 w-3" />
-                                    Commission {formatCurrency(service.commission_preview, { maximumFractionDigits: 2 })}
+                                    {t('Commission')} {formatCurrency(service.commission_preview, { maximumFractionDigits: 2 })}
                                 </span>
                             </button>
                         );
@@ -587,17 +591,17 @@ function ServicesStep({
             <div className="space-y-2 rounded-md border border-tint/[0.07] bg-tint/[0.02] p-3">
                 <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold text-foreground">
-                        Prestations de {personLabel(activePerson)}
+                        {t('Prestations de {name}', { name: personLabel(activePerson) })}
                     </p>
                     {canDuplicate && (
                         <Button type="button" size="sm" variant="ghost" onClick={onDuplicateToAll}>
                             <Copy className="h-3.5 w-3.5" />
-                            Appliquer à tous
+                            {t('Appliquer à tous')}
                         </Button>
                     )}
                 </div>
                 {activeItems.length === 0 ? (
-                    <p className="py-2 text-center text-xs text-muted-foreground">Aucune prestation sélectionnée.</p>
+                    <p className="py-2 text-center text-xs text-muted-foreground">{t('Aucune prestation sélectionnée.')}</p>
                 ) : (
                     <div className="space-y-1.5">
                         {activeItems.map(({ item, itemIndex }) => {
@@ -607,14 +611,14 @@ function ServicesStep({
                                     key={itemIndex}
                                     className="flex items-center justify-between gap-2 rounded-md border border-tint/[0.06] bg-background/40 px-3 py-2 text-sm"
                                 >
-                                    <span className="truncate">{service?.name ?? 'Prestation'}</span>
+                                    <span className="truncate">{service?.name ?? t('Prestation')}</span>
                                     <div className="flex shrink-0 items-center gap-2">
                                         <span className="text-xs text-muted-foreground">{formatCurrency(service?.price ?? 0)}</span>
                                         <Button
                                             type="button"
                                             size="icon"
                                             variant="ghost"
-                                            aria-label="Retirer cette prestation"
+                                            aria-label={t('Retirer cette prestation')}
                                             onClick={() => onRemoveItem(itemIndex)}
                                         >
                                             <XCircle className="h-3.5 w-3.5 text-destructive" />
@@ -624,7 +628,7 @@ function ServicesStep({
                             );
                         })}
                         <div className="flex items-center justify-between pt-1 text-xs font-semibold text-foreground">
-                            <span>Sous-total</span>
+                            <span>{t('Sous-total')}</span>
                             <span className="text-accent">{formatCurrency(subtotal)}</span>
                         </div>
                     </div>
@@ -645,21 +649,22 @@ function SlotStep({
     onDateChange: (value: string) => void;
     onTimeChange: (value: string) => void;
 }) {
+    const { t } = useI18n();
     const slots = useMemo(() => generateIndicativeSlots(date, 30), [date]);
 
     return (
         <div className="space-y-4">
             <div>
                 <h2 className="text-sm font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                    Étape 4 — Date & créneau
+                    {t('Étape 4 — Date & créneau')}
                 </h2>
-                <p className="mt-1 text-xs text-muted-foreground">Quand votre client sera-t-il attendu au salon ?</p>
+                <p className="mt-1 text-xs text-muted-foreground">{t('Quand votre client sera-t-il attendu au salon ?')}</p>
             </div>
 
             <div className="space-y-1.5">
                 <Label htmlFor="reservation-date">
                     <CalendarIcon className="mr-1 inline h-3.5 w-3.5" />
-                    Date
+                    {t('Date')}
                 </Label>
                 <Input
                     id="reservation-date"
@@ -676,7 +681,7 @@ function SlotStep({
             <div className="space-y-1.5">
                 <Label htmlFor="reservation-time">
                     <Clock className="mr-1 inline h-3.5 w-3.5" />
-                    Heure
+                    {t('Heure')}
                 </Label>
                 <Input
                     id="reservation-time"
@@ -688,7 +693,7 @@ function SlotStep({
 
             {slots.length > 0 && (
                 <div className="space-y-1.5">
-                    <Label>Suggestions</Label>
+                    <Label>{t('Suggestions')}</Label>
                     <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
                         {slots.map((slot) => (
                             <button
@@ -711,8 +716,7 @@ function SlotStep({
 
             <div className="flex items-start gap-2 rounded-md border border-accent/25 bg-accent/[0.06] px-3 py-2.5 text-xs text-muted-foreground">
                 <Info className="mt-px h-3.5 w-3.5 shrink-0 text-accent" />
-                Ce créneau est indicatif — BOGOSLAND confirmera la disponibilité réelle au traitement de votre
-                demande, et peut vous proposer un autre horaire si besoin.
+                {t('Ce créneau est indicatif — BOGOSLAND confirmera la disponibilité réelle au traitement de votre demande, et peut vous proposer un autre horaire si besoin.')}
             </div>
         </div>
     );
@@ -739,20 +743,21 @@ function ReviewStep({
     totalPrice: number;
     commissionTotal: number;
 }) {
+    const { t } = useI18n();
     return (
         <div className="space-y-4">
             <div>
                 <h2 className="text-sm font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                    Étape 5 — Récapitulatif
+                    {t('Étape 5 — Récapitulatif')}
                 </h2>
-                <p className="mt-1 text-xs text-muted-foreground">Vérifiez les informations avant de confirmer.</p>
+                <p className="mt-1 text-xs text-muted-foreground">{t('Vérifiez les informations avant de confirmer.')}</p>
             </div>
 
             <div className="space-y-3 rounded-md border border-tint/[0.07] bg-tint/[0.02] p-4">
                 <div className="flex items-center justify-between gap-3 text-sm">
                     <span className="flex items-center gap-2 text-muted-foreground">
                         <User className="h-3.5 w-3.5" />
-                        Contact
+                        {t('Contact')}
                     </span>
                     <span className="font-medium text-foreground">
                         {client.name}
@@ -763,7 +768,7 @@ function ReviewStep({
                 <div className="border-t border-tint/[0.06] pt-3">
                     <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                         <Sparkles className="h-3.5 w-3.5" />
-                        {people.length} participant{people.length > 1 ? 's' : ''}
+                        {t(people.length > 1 ? '{n} participants' : '{n} participant', { n: people.length })}
                     </p>
                     <div className="space-y-2.5">
                         {people.map((_, index) => {
@@ -804,18 +809,17 @@ function ReviewStep({
 
                 <div className="border-t border-tint/[0.06] pt-2" />
                 <div className="flex items-center justify-between gap-3 text-sm">
-                    <span className="text-muted-foreground">Total</span>
+                    <span className="text-muted-foreground">{t('Total')}</span>
                     <span className="font-semibold">{formatCurrency(totalPrice)}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3 text-sm">
-                    <span className="text-muted-foreground">Commission estimée</span>
+                    <span className="text-muted-foreground">{t('Commission estimée')}</span>
                     <Badge variant="success">{formatCurrency(commissionTotal, { maximumFractionDigits: 2 })}</Badge>
                 </div>
             </div>
 
             <p className="text-xs text-muted-foreground">
-                La réservation sera envoyée à BOGOSLAND pour confirmation — une référence unique lui sera
-                attribuée dès sa création.
+                {t('La réservation sera envoyée à BOGOSLAND pour confirmation — une référence unique lui sera attribuée dès sa création.')}
             </p>
         </div>
     );

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Check, HandCoins } from 'lucide-react';
 import { getErrorMessage, getMyAdvances } from '@/lib/api';
+import { currentLanguage, useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import type { Advance } from '@/types/workday';
 import { Card } from '@/components/ui/card';
@@ -11,7 +12,10 @@ import { EmptyState } from '@/components/dashboard/EmptyState';
 function monthLabel(yearMonth: string): string {
     const date = new Date(`${yearMonth}-01T00:00:00`);
     if (Number.isNaN(date.getTime())) return yearMonth;
-    const label = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(date);
+    const label = new Intl.DateTimeFormat(currentLanguage() === 'ar' ? 'ar-MA' : 'fr-FR', {
+        month: 'long',
+        year: 'numeric',
+    }).format(date);
     return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
@@ -36,6 +40,7 @@ function groupByMonth(advances: Advance[]): Array<{ month: string; total: number
 
 /** Read-only — an employee can see their own advances but never create, edit, settle or delete one; that stays admin/patron-only. */
 export function MyAdvancesList() {
+    const { t } = useI18n();
     const { data, isPending, isError, error } = useQuery({
         queryKey: ['me', 'advances'],
         queryFn: getMyAdvances,
@@ -49,7 +54,7 @@ export function MyAdvancesList() {
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
                     <HandCoins className="h-4 w-4" />
-                    Avances en cours
+                    {t('Avances en cours')}
                 </span>
                 {isPending ? (
                     <Skeleton className="h-5 w-20" />
@@ -74,8 +79,8 @@ export function MyAdvancesList() {
             ) : advances.length === 0 ? (
                 <EmptyState
                     icon={HandCoins}
-                    title="Aucune avance"
-                    description="Les avances sur salaire qui vous sont données apparaîtront ici."
+                    title={t('Aucune avance')}
+                    description={t('Les avances sur salaire qui vous sont données apparaîtront ici.')}
                 />
             ) : (
                 <div className="space-y-5">
@@ -105,7 +110,7 @@ export function MyAdvancesList() {
                                         <p className="mt-0.5 truncate text-xs text-muted-foreground">
                                             {formatDate(advance.given_on)}
                                             {advance.work_day_date && advance.work_day_date !== advance.given_on
-                                                ? ` · caisse du ${formatDate(advance.work_day_date)}`
+                                                ? ` · ${t('caisse du')} ${formatDate(advance.work_day_date)}`
                                                 : ''}
                                             {advance.reason ? ` · ${advance.reason}` : ''}
                                         </p>
@@ -115,17 +120,17 @@ export function MyAdvancesList() {
                                             className="inline-flex items-center gap-1 text-xs text-success"
                                             title={
                                                 advance.commission_payout_period
-                                                    ? `Soldée automatiquement via la paie de ${advance.commission_payout_period}`
+                                                    ? t('Soldée automatiquement via la paie de {period}', { period: advance.commission_payout_period })
                                                     : undefined
                                             }
                                         >
                                             <Check className="h-3.5 w-3.5" />
                                             {advance.commission_payout_period
-                                                ? `Réglée (paie ${advance.commission_payout_period})`
-                                                : 'Réglée'}
+                                                ? t('Réglée (paie {period})', { period: advance.commission_payout_period })
+                                                : t('Réglée')}
                                         </span>
                                     ) : (
-                                        <span className="text-xs text-muted-foreground">Non réglée</span>
+                                        <span className="text-xs text-muted-foreground">{t('Non réglée')}</span>
                                     )}
                                 </Card>
                             ))}

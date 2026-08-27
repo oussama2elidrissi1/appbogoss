@@ -20,6 +20,7 @@ import {
     getSettings,
     sendPartnerSupportMessage,
 } from '@/lib/api';
+import { useI18n } from '@/lib/i18n';
 import { cn, formatRelativeTime } from '@/lib/utils';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -62,6 +63,7 @@ const STATUS_META: Record<SupportConversationStatus, { label: string; variant: B
 };
 
 export default function PartnerSupport() {
+    const { t } = useI18n();
     const { user } = useAuth();
     const [activeId, setActiveId] = useState<number | null>(null);
     const [creating, setCreating] = useState(false);
@@ -73,9 +75,9 @@ export default function PartnerSupport() {
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="mx-auto max-w-2xl space-y-6">
             <div>
-                <h1 className="text-2xl font-semibold tracking-tight">Support</h1>
+                <h1 className="text-2xl font-semibold tracking-tight">{t('Support')}</h1>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                    Bonjour {user?.partner_name ?? ''}, comment pouvons-nous vous aider ?
+                    {t('Bonjour {name}, comment pouvons-nous vous aider ?', { name: user?.partner_name ?? '' })}
                 </p>
             </div>
 
@@ -91,34 +93,34 @@ export default function PartnerSupport() {
                 <>
                     <Card className="flex flex-col items-start justify-between gap-3 p-5 sm:flex-row sm:items-center sm:p-6">
                         <div>
-                            <h2 className="text-sm font-semibold text-foreground">Contacter BOGOSLAND</h2>
+                            <h2 className="text-sm font-semibold text-foreground">{t('Contacter BOGOSLAND')}</h2>
                             <p className="mt-1 text-xs text-muted-foreground">
-                                Réservation, commission, paiement, client, problème technique…
+                                {t('Réservation, commission, paiement, client, problème technique…')}
                             </p>
                         </div>
                         <Button type="button" variant="accent" onClick={() => setCreating(true)}>
                             <MessageCircle className="h-4 w-4" />
-                            Ouvrir une conversation
+                            {t('Ouvrir une conversation')}
                         </Button>
                     </Card>
 
                     <ConversationList onSelect={setActiveId} />
 
                     <Card className="p-5 sm:p-6">
-                        <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Contact</h2>
+                        <h2 className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">{t('Contact')}</h2>
                         <ContactInfo />
                     </Card>
 
                     <Card className="p-5 sm:p-6">
                         <h2 className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
                             <HelpCircle className="h-3.5 w-3.5" />
-                            Questions fréquentes
+                            {t('Questions fréquentes')}
                         </h2>
                         <div className="mt-4 space-y-4">
                             {FAQ.map((item) => (
                                 <div key={item.q}>
-                                    <p className="text-sm font-medium text-foreground">{item.q}</p>
-                                    <p className="mt-1 text-sm text-muted-foreground">{item.a}</p>
+                                    <p className="text-sm font-medium text-foreground">{t(item.q)}</p>
+                                    <p className="mt-1 text-sm text-muted-foreground">{t(item.a)}</p>
                                 </div>
                             ))}
                         </div>
@@ -166,6 +168,7 @@ function ContactInfo() {
 }
 
 function ConversationList({ onSelect }: { onSelect: (id: number) => void }) {
+    const { t } = useI18n();
     const { data: conversations, isPending } = useQuery({
         queryKey: ['partner-portal', 'support', 'conversations'],
         queryFn: getPartnerSupportConversations,
@@ -197,7 +200,7 @@ function ConversationList({ onSelect }: { onSelect: (id: number) => void }) {
                             >
                                 <div className="min-w-0">
                                     <p className="flex items-center gap-2 truncate text-sm font-medium text-foreground">
-                                        {conversation.subject ?? 'Conversation'}
+                                        {conversation.subject ?? t('Conversation')}
                                         {conversation.unread && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />}
                                     </p>
                                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
@@ -206,7 +209,7 @@ function ConversationList({ onSelect }: { onSelect: (id: number) => void }) {
                                 </div>
                                 <div className="flex shrink-0 flex-col items-end gap-1">
                                     <Badge variant={status.variant} className="text-[10px]">
-                                        {status.label}
+                                        {t(status.label)}
                                     </Badge>
                                     {conversation.last_message_at && (
                                         <span className="text-[11px] text-muted-foreground">
@@ -224,6 +227,7 @@ function ConversationList({ onSelect }: { onSelect: (id: number) => void }) {
 }
 
 function NewConversationCard({ onCreated, onCancel }: { onCreated: (id: number) => void; onCancel: () => void }) {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const [subject, setSubject] = useState(SUBJECTS[0]);
     const [body, setBody] = useState('');
@@ -238,10 +242,10 @@ function NewConversationCard({ onCreated, onCancel }: { onCreated: (id: number) 
 
     return (
         <Card className="space-y-4 p-5 sm:p-6">
-            <h2 className="text-sm font-semibold text-foreground">Nouvelle conversation</h2>
+            <h2 className="text-sm font-semibold text-foreground">{t('Nouvelle conversation')}</h2>
 
             <div className="space-y-1.5">
-                <Label>Sujet</Label>
+                <Label>{t('Sujet')}</Label>
                 <div className="flex flex-wrap gap-2">
                     {SUBJECTS.map((option) => (
                         <button
@@ -255,19 +259,19 @@ function NewConversationCard({ onCreated, onCancel }: { onCreated: (id: number) 
                                     : 'border-tint/[0.08] bg-tint/[0.02] text-muted-foreground hover:border-accent/30 hover:text-foreground',
                             )}
                         >
-                            {option}
+                            {t(option)}
                         </button>
                     ))}
                 </div>
             </div>
 
             <div className="space-y-1.5">
-                <Label htmlFor="support-message">Message</Label>
+                <Label htmlFor="support-message">{t('Message')}</Label>
                 <textarea
                     id="support-message"
                     value={body}
                     onChange={(event) => setBody(event.target.value)}
-                    placeholder="Décrivez votre question..."
+                    placeholder={t('Décrivez votre question...')}
                     rows={5}
                     className="flex w-full rounded-md border border-input bg-tint/[0.03] px-3.5 py-2.5 text-sm text-foreground shadow-sm transition-all duration-200 focus-visible:border-accent/60 focus-visible:bg-tint/[0.05] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-accent/10"
                 />
@@ -282,7 +286,7 @@ function NewConversationCard({ onCreated, onCancel }: { onCreated: (id: number) 
 
             <div className="flex items-center gap-2">
                 <Button type="button" variant="outline" onClick={onCancel} disabled={mutation.isPending}>
-                    Annuler
+                    {t('Annuler')}
                 </Button>
                 <Button
                     type="button"
@@ -293,7 +297,7 @@ function NewConversationCard({ onCreated, onCancel }: { onCreated: (id: number) 
                 >
                     {mutation.isPending && <Loader2 className="animate-spin" />}
                     <Send className="h-4 w-4" />
-                    Envoyer
+                    {t('Envoyer')}
                 </Button>
             </div>
         </Card>
@@ -301,6 +305,7 @@ function NewConversationCard({ onCreated, onCancel }: { onCreated: (id: number) 
 }
 
 function ThreadView({ id, onBack }: { id: number; onBack: () => void }) {
+    const { t } = useI18n();
     const queryClient = useQueryClient();
     const [draft, setDraft] = useState('');
 
@@ -323,18 +328,18 @@ function ThreadView({ id, onBack }: { id: number; onBack: () => void }) {
     return (
         <motion.div variants={pageFade} initial="hidden" animate="show" className="mx-auto flex max-w-2xl flex-col gap-4">
             <div className="flex items-center gap-3">
-                <Button type="button" variant="ghost" size="icon" onClick={onBack} aria-label="Retour">
+                <Button type="button" variant="ghost" size="icon" onClick={onBack} aria-label={t('Retour')}>
                     <ArrowLeft className="h-4 w-4" />
                 </Button>
                 <div className="min-w-0 flex-1">
                     <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">BOGOSLAND Support</p>
                     <h1 className="truncate text-lg font-semibold text-foreground">
-                        {conversation?.subject ?? 'Conversation'}
+                        {conversation?.subject ?? t('Conversation')}
                     </h1>
                 </div>
                 {conversation && (
                     <Badge variant={STATUS_META[conversation.status].variant}>
-                        {STATUS_META[conversation.status].label}
+                        {t(STATUS_META[conversation.status].label)}
                     </Badge>
                 )}
             </div>
@@ -348,7 +353,7 @@ function ThreadView({ id, onBack }: { id: number; onBack: () => void }) {
                             ))}
                         </div>
                     ) : !conversation || conversation.messages.length === 0 ? (
-                        <EmptyState icon={MessageCircle} title="Aucun message" description="Écrivez le premier message." />
+                        <EmptyState icon={MessageCircle} title={t('Aucun message')} description={t('Écrivez le premier message.')} />
                     ) : (
                         conversation.messages.map((message) => (
                             <div key={message.id} className={cn('flex', message.is_staff ? 'justify-start' : 'justify-end')}>
@@ -362,7 +367,7 @@ function ThreadView({ id, onBack }: { id: number; onBack: () => void }) {
                                 >
                                     <p className="whitespace-pre-line">{message.body}</p>
                                     <p className="mt-1 text-[11px] text-muted-foreground">
-                                        {message.is_staff ? message.author ?? 'BOGOSLAND' : 'Vous'} ·{' '}
+                                        {message.is_staff ? message.author ?? 'BOGOSLAND' : t('Vous')} ·{' '}
                                         {message.created_at ? formatRelativeTime(message.created_at) : ''}
                                     </p>
                                 </div>
@@ -375,7 +380,7 @@ function ThreadView({ id, onBack }: { id: number; onBack: () => void }) {
                     <Input
                         value={draft}
                         onChange={(event) => setDraft(event.target.value)}
-                        placeholder="Écrire un message..."
+                        placeholder={t('Écrire un message...')}
                         onKeyDown={(event) => {
                             if (event.key === 'Enter' && draft.trim() && !sendMutation.isPending) {
                                 sendMutation.mutate();
@@ -388,7 +393,7 @@ function ThreadView({ id, onBack }: { id: number; onBack: () => void }) {
                         size="icon"
                         disabled={!draft.trim() || sendMutation.isPending}
                         onClick={() => sendMutation.mutate()}
-                        aria-label="Envoyer"
+                        aria-label={t('Envoyer')}
                     >
                         {sendMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                     </Button>

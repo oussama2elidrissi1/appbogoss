@@ -113,8 +113,8 @@ export function CommissionsReportPanel() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <ReportStat label="Total commissions" value={formatCurrency(report?.total ?? 0)} />
-                    <ReportStat label="Commissions annulées" value={formatCurrency(report?.cancelled_total ?? 0)} />
+                    <ReportStat label={t('Total commissions')} value={formatCurrency(report?.total ?? 0)} />
+                    <ReportStat label={t('Commissions annulées')} value={formatCurrency(report?.cancelled_total ?? 0)} />
                 </div>
             )}
 
