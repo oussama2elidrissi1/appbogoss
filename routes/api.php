@@ -150,6 +150,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('permission:reports.view_all')->group(function () {
         Route::get('/dashboard', [DashboardController::class, 'index']);
         Route::get('/reports/monthly', [ReportController::class, 'monthly']);
+        // Miroir jeton du PDF servi par routes/web.php sous le guard de session.
+        // Meme controleur, meme service, meme permission (reports.view_all) :
+        // seule l'authentification change, pour qu'un client Bearer puisse le
+        // recuperer. Aucun montant n'est recalcule ici.
+        Route::get('/reports/monthly/pdf', [ReportController::class, 'monthlyPdf']);
         Route::get('/reports/advances', [ReportController::class, 'advances']);
         Route::get('/reports/commissions', [ReportController::class, 'commissions']);
         Route::get('/reports/prestations', [ReportController::class, 'prestations']);
