@@ -15,6 +15,28 @@ Header always set X-LiteSpeed-Cache-Control "no-cache"
 
     RewriteEngine On
 
+    # Force HTTPS. Constate en production : http://app.bogosland.com/api/me
+    # repondait 401 en clair, sans redirection — un jeton Bearer ou un cookie
+    # de session pouvait donc transiter en clair sur le reseau.
+    #
+    # Les trois conditions evitent toute boucle de redirection : sur un cPanel
+    # ou TLS est termine par un proxy en amont (LiteSpeed/CloudLinux),
+    # %{HTTPS} vaut "off" cote PHP alors que la requete EST chiffree. On ne
+    # redirige que si AUCUN des trois indicateurs ne signale HTTPS.
+    # %{HTTP_HOST} preserve le sous-domaine appele (app. ou www.app.) au lieu
+    # de coder un domaine en dur.
+    # Exclut les hotes de developpement : servi via Apache/XAMPP en local, la
+    # redirection enverrait vers un https://localhost sans certificat et
+    # rendrait le site inaccessible. (php artisan serve ignore de toute facon
+    # ce fichier.)
+    RewriteCond %{HTTP_HOST} !^localhost [NC]
+    RewriteCond %{HTTP_HOST} !^127\.0\.0\.1 [NC]
+    RewriteCond %{HTTP_HOST} !\.(test|local|localhost)$ [NC]
+    RewriteCond %{HTTPS} !=on
+    RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+    RewriteCond %{HTTP:X-Forwarded-SSL} !=on
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
