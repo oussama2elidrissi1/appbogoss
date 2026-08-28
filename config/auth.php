@@ -48,6 +48,41 @@ return [
             'driver' => 'session',
             'provider' => 'clients',
         ],
+
+        // Staff token guard, used by the Flutter app. Declared EXPLICITLY —
+        // and this declaration is a security control, not boilerplate.
+        // SanctumServiceProvider::register() otherwise registers this guard
+        // with 'provider' => null, and Guard::hasValidProvider() returns true
+        // unconditionally when the provider is null. With Client now carrying
+        // HasApiTokens, a *customer* token would therefore satisfy
+        // `auth:sanctum` and reach every staff route that has no additional
+        // `permission:` gate. Pinning the provider to `users` makes
+        // hasValidProvider() assert `$tokenable instanceof User`, so a client
+        // token fails the staff guard outright.
+        //
+        // No effect on the web SPA: Guard::__invoke() resolves the `web`
+        // session first (config('sanctum.guard') === ['web']) and never
+        // reaches the token branch where the provider is checked.
+        'sanctum' => [
+            'driver' => 'sanctum',
+            'provider' => 'users',
+        ],
+
+        // Token counterpart of the `client` session guard above, for the
+        // mobile customer app. Pinned to `clients` for the same reason and in
+        // the same direction: a staff token can never satisfy it.
+        //
+        // Caveat this guard CANNOT fix on its own: Guard::__invoke() loops
+        // over the global config('sanctum.guard') (['web']) before looking at
+        // the bearer token, for every sanctum guard instance alike. A browser
+        // carrying a staff `web` session therefore satisfies `client-api` too.
+        // That is why every route using this guard is additionally wrapped in
+        // the `client.account` middleware, which asserts the resolved account
+        // really is a Client.
+        'client-api' => [
+            'driver' => 'sanctum',
+            'provider' => 'clients',
+        ],
     ],
 
     /*

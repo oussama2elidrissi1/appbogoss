@@ -25,6 +25,8 @@ use App\Http\Controllers\Api\LoyaltyReportController;
 use App\Http\Controllers\Api\LoyaltySettingsController;
 use App\Http\Controllers\Api\MarketingSegmentController;
 use App\Http\Controllers\Api\MeController;
+use App\Http\Controllers\Api\Mobile\MobileAuthController;
+use App\Http\Controllers\Api\Mobile\MobileClientAuthController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\Partner\PartnerClientController;
 use App\Http\Controllers\Api\Partner\PartnerCommissionController as PartnerPortalCommissionController;
@@ -37,6 +39,7 @@ use App\Http\Controllers\Api\PartnerController;
 use App\Http\Controllers\Api\Portal\PortalController;
 use App\Http\Controllers\Api\Portal\PortalLoyaltyController;
 use App\Http\Controllers\Api\Portal\PortalPrestationsController;
+use App\Http\Controllers\Api\Portal\PortalQrController;
 use App\Http\Controllers\Api\PosV2\PosAppointmentController;
 use App\Http\Controllers\Api\PosV2\PosCheckoutController;
 use App\Http\Controllers\Api\PosV2\PosClientContextController;
@@ -90,15 +93,44 @@ Route::middleware('throttle:otp')->prefix('public')->group(function () {
     Route::post('/login', [ClientLoginController::class, 'login']);
 });
 
+// Mobile (Flutter) authentication. Additive surface: it mints Sanctum
+// personal access tokens, where /api/login above establishes a cookie session
+// and returns none. Everything past login reuses the existing endpoints —
+// `auth:sanctum` already resolves a bearer token into the same User the
+// session guard produces, so permissions/policies apply unchanged.
+Route::prefix('mobile')->group(function () {
+    Route::middleware('throttle:mobile-login')->group(function () {
+        Route::post('/login', [MobileAuthController::class, 'login']);
+        Route::post('/client/login', [MobileClientAuthController::class, 'login']);
+    });
+
+    // Both guards, staff first. A client token fails `sanctum` on the provider
+    // check (config/auth.php) and falls through to `client-api`.
+    Route::middleware('auth:sanctum,client-api')->group(function () {
+        Route::get('/me', [MobileAuthController::class, 'me']);
+        Route::post('/logout', [MobileAuthController::class, 'logout']);
+    });
+});
+
 // Customer portal ("Mon BOGOSLAND") — separate `client` guard, no spatie
 // permissions (a Client isn't staff, see AuthServiceProvider's
 // Gate::before which only special-cases super-admin Users).
-Route::middleware('auth:client')->prefix('client')->group(function () {
+//
+// `client-api` is the token twin of `client`, added for the mobile app; the
+// cookie guard stays first so the web portal resolves exactly as before.
+// `client.account` is NOT optional here: Sanctum's Guard consults the global
+// config('sanctum.guard') (['web']) before the bearer token, so a staff
+// browser session would otherwise satisfy `client-api` and be handed to these
+// controllers as a customer. See App\Http\Middleware\EnsureClientAccount.
+Route::middleware(['auth:client,client-api', 'client.account'])->prefix('client')->group(function () {
     Route::get('/me', [PortalController::class, 'me']);
     Route::put('/me', [PortalController::class, 'updateProfile']);
     Route::post('/logout', [PortalController::class, 'logout']);
 
     Route::get('/home', [PortalLoyaltyController::class, 'home']);
+    // Carte client (QR d'identification personnelle) — lecture seule, voir
+    // PortalQrController pour le détail des choix.
+    Route::get('/qr', [PortalQrController::class, 'show']);
     Route::get('/loyalty', [PortalLoyaltyController::class, 'programs']);
     Route::get('/rewards', [PortalLoyaltyController::class, 'rewards']);
     Route::get('/subscriptions', [PortalLoyaltyController::class, 'subscriptions']);

@@ -35,6 +35,14 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::perMinute(10)->by($request->ip());
         });
 
+        // Mobile credential endpoints. Unlike the web /api/login — which sits
+        // behind a browser, a CSRF token and a stateful origin — these accept
+        // raw credentials from anywhere, so they get their own IP budget on
+        // top of the per-account lockouts enforced in the controllers.
+        RateLimiter::for('mobile-login', function (Request $request) {
+            return Limit::perMinute(10)->by($request->ip());
+        });
+
         $this->routes(function () {
             Route::middleware('api')
                 ->prefix('api')

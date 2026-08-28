@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php -v)",
+      "Bash(npm -v)",
+      "Bash(php artisan *)",
+      "Bash(npm install *)",
+      "PowerShell(Get-PSDrive -PSProvider FileSystem | Select-Object Name, @{n='UsedGB';e={[math]::Round\\($_.Used/1GB,2\\)}}, @{n='FreeGB';e={[math]::Round\\($_.Free/1GB,2\\)}})",
+      "PowerShell($c='C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\npm-cache'; if \\(Test-Path $c\\) { $s=\\(Get-ChildItem $c -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum\\).Sum; \"npm-cache: $\\([math]::Round\\($s/1GB,2\\)\\) GB\" } else { \"no npm cache\" })",
+      "PowerShell($src='C:\\\\Users\\\\oussa\\\\AppData\\\\Local\\\\npm-cache'; $dst='D:\\\\npm-cache'; if \\(Test-Path $src\\) { Move-Item -Path $src -Destination $dst -Force -ErrorAction Stop; 'moved' } else { 'src missing' }; Get-PSDrive C | Select-Object @{n='FreeGB';e={[math]::Round\\($_.Free/1GB,2\\)}})",
+      "Bash(composer dump-autoload *)",
+      "Bash(npm config *)",
+      "Bash(grep -rl \"return \\\\[\\\\s*//\\\\s*\\\\]\" app/Models app/Http database/factories)",
+      "Bash(npx tsc *)",
+      "Bash(node scripts/validate_palette.js \"#C8A24C,#E5484D\" --mode dark --surface \"#132238\")",
+      "Bash(npm run *)",
+      "Bash(composer install *)",
+      "Bash(curl -s -o /dev/null -w \"vite localhost: %{http_code}\\\\n\" http://localhost:5173/)",
+      "Bash(curl -s http://127.0.0.1:8000/)",
+      "Read(//c/Users/oussa/.claude/plugins/cache/anthropic-agent-skills/example-skills/9d2f1ae18723/skills/webapp-testing/**)",
+      "Bash(python -c \"import playwright\")",
+      "Bash(pip install *)",
+      "Bash(python -m playwright install chromium)"
+    ]
+  }
+}

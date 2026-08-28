@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
 /**
  * Implements Authenticatable so the customer portal can log a Client in via
@@ -19,10 +20,17 @@ use Illuminate\Notifications\Notifiable;
  * registration (App\Services\CustomerRegistrationService) — checked via
  * ClientLoginController for returning visits. No "remember me" (no
  * remember_token column), so login() is always called without its second arg.
+ *
+ * HasApiTokens is what lets the mobile app authenticate a customer with a
+ * bearer token instead of a session cookie (`client-api` guard). It is only
+ * safe because config/auth.php pins the `sanctum` staff guard to the `users`
+ * provider — without that, Guard::hasValidProvider() would accept a Client
+ * token on every staff route. See the comments there before touching either.
  */
 class Client extends Model implements Authenticatable
 {
     use AuthenticatableTrait;
+    use HasApiTokens;
     use HasFactory;
     use Notifiable;
 
