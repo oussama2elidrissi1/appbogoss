@@ -35,7 +35,7 @@ class EmployeeWorkspaceService
 
         $todayPrestations = $this->prestations($employee)
             ->whereDate('created_at', $today)
-            ->with(['items', 'client', 'commissions'])
+            ->with(['items', 'client', 'commissions', 'tips'])
             ->get();
         $yesterdayPrestations = $this->prestations($employee)
             ->whereDate('created_at', $yesterday)
@@ -51,6 +51,11 @@ class EmployeeWorkspaceService
             ->values();
 
         $commissionsToday = $this->commissionSum($employee, $today->copy()->startOfDay(), $today->copy()->endOfDay());
+        // Pourboires : l'argent laissé par le client (jamais du CA, §40) et la
+        // moitié qui revient à l'employé en commission — les deux affichés,
+        // sinon un pourboire encaissé reste invisible pour lui.
+        $tipsToday = $this->earnings->tipsTotal($employee->id, $today->copy()->startOfDay(), $today->copy()->endOfDay());
+        $tipCommissionToday = $this->earnings->tipCommissionTotal($employee->id, $today->copy()->startOfDay(), $today->copy()->endOfDay());
         $monthPreview = $this->payouts->preview($employee, Carbon::now()->format('Y-m'));
 
         // Prestations whose caisse ticket was voided ("supprimé"): their
@@ -73,6 +78,8 @@ class EmployeeWorkspaceService
                     ->reject(fn (Prestation $prestation) => $prestation->sale_id !== null && $voidedSaleIds->has($prestation->sale_id))
                     ->sum(fn (Prestation $prestation) => $this->revenueShare($prestation, $employee)) + (float) $legacySalesToday->sum('total'), 2),
                 'commission' => round($commissionsToday, 2),
+                'tips' => $tipsToday,
+                'tips_commission' => $tipCommissionToday,
                 'monthly_commission' => $monthPreview['commission_total'],
                 'paid_commission' => round($monthPreview['paid_net_total'] + $monthPreview['paid_advances_total'], 2),
             ],
@@ -95,7 +102,7 @@ class EmployeeWorkspaceService
 
     public function prestationRows(Employee $employee, array $filters): array
     {
-        $query = $this->prestations($employee)->with(['items', 'client', 'commissions']);
+        $query = $this->prestations($employee)->with(['items', 'client', 'commissions', 'tips']);
 
         if (! empty($filters['from'])) {
             $query->whereDate('created_at', '>=', $filters['from']);
@@ -170,6 +177,7 @@ class EmployeeWorkspaceService
         $today = Carbon::today();
         $weekStart = Carbon::now()->startOfWeek();
         $monthStart = Carbon::now()->startOfMonth();
+        $monthEnd = Carbon::now()->endOfDay();
         $monthPreview = $this->payouts->preview($employee, Carbon::now()->format('Y-m'));
 
         return [
@@ -180,6 +188,9 @@ class EmployeeWorkspaceService
                 'validated' => $monthPreview['commission_total'],
                 'paid' => round($monthPreview['paid_net_total'] + $monthPreview['paid_advances_total'], 2),
                 'pending' => $monthPreview['net_amount'],
+                // Pourboires du mois + la part déjà comprise dans 'month'.
+                'tips' => $this->earnings->tipsTotal($employee->id, $monthStart, $monthEnd),
+                'tips_commission' => $this->earnings->tipCommissionTotal($employee->id, $monthStart, $monthEnd),
             ],
             'evolution' => $this->commissionEvolution($employee, $filters['range'] ?? 'month'),
             'rows' => $rows,
@@ -239,6 +250,8 @@ class EmployeeWorkspaceService
                     ->reject(fn (Prestation $prestation) => $prestation->sale_id !== null && $statsVoidedSaleIds->has($prestation->sale_id))
                     ->sum(fn (Prestation $prestation) => $this->revenueShare($prestation, $employee)) + (float) $legacySales->sum('total'), 2),
                 'commission_generated' => round($this->commissionSum($employee, $from, $to), 2),
+                'tips' => $this->earnings->tipsTotal($employee->id, $from, $to),
+                'tips_commission' => $this->earnings->tipCommissionTotal($employee->id, $from, $to),
                 'commission_paid' => round((float) CommissionPayout::where('employee_id', $employee->id)->whereBetween('paid_at', [$from, $to])->get()->sum(fn (CommissionPayout $payout) => (float) $payout->net_amount + (float) $payout->advances_deducted), 2),
                 'average_rating' => $reviews->count() > 0 ? round((float) $reviews->avg('rating'), 1) : null,
                 'clients_served' => $paid->pluck('client_id')->concat($legacySales->pluck('client_id'))->filter()->unique()->count(),
@@ -374,7 +387,7 @@ class EmployeeWorkspaceService
 
     private function prestationRow(Prestation $prestation, Employee $employee, ?Collection $voidedSaleIds = null): array
     {
-        $prestation->loadMissing(['items', 'client', 'commissions']);
+        $prestation->loadMissing(['items', 'client', 'commissions', 'tips']);
 
         $saleVoided = $voidedSaleIds !== null
             && $prestation->sale_id !== null
@@ -400,6 +413,11 @@ class EmployeeWorkspaceService
             'commission' => $saleVoided ? 0.0 : round((float) $prestation->commissions
                 ->where('employee_id', $employee->id)
                 ->where('status', Commission::STATUS_VALIDATED)
+                ->sum('amount'), 2),
+            // Le pourboire de CET employé sur ce ticket : il ne gonfle pas le
+            // montant encaissé, mais il lui appartient et doit se voir.
+            'tips' => $saleVoided ? 0.0 : round((float) $prestation->tips
+                ->where('employee_id', $employee->id)
                 ->sum('amount'), 2),
             'status' => $prestation->status,
             'sale_deleted' => $saleVoided,
@@ -472,6 +490,7 @@ class EmployeeWorkspaceService
             'duration_minutes' => 0,
             'amount' => (float) $sale->total,
             'commission' => round((float) $sale->commission_amount, 2),
+            'tips' => 0.0,
             'status' => Prestation::STATUS_PAID,
         ];
     }

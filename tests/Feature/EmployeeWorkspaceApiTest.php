@@ -376,4 +376,64 @@ class EmployeeWorkspaceApiTest extends TestCase
             ->assertJsonCount(2, 'data.advances')
             ->assertJsonPath('data.payouts.0.period', '2026-08');
     }
+
+    /**
+     * Un pourboire encaissé pour l'employé doit se voir dans SON espace :
+     * le montant reçu (qui n'entre jamais dans le CA, §40) et la moitié qui
+     * lui revient en commission.
+     */
+    public function test_employee_workspace_shows_tips_and_the_commission_they_generate(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+        \App\Models\WorkDay::factory()->create(['status' => 'open']);
+
+        $omarUser = User::factory()->create(['role' => 'employee']);
+        $omarUser->assignRole('employee');
+        $omar = Employee::factory()->create([
+            'user_id' => $omarUser->id,
+            'name' => 'Omar',
+            'default_commission_rate' => 50,
+        ]);
+
+        $coupe = \App\Models\Service::factory()->create(['category' => 'coiffure', 'price' => 100]);
+        $soin = \App\Models\Service::factory()->create(['category' => 'coiffure', 'price' => 120]);
+
+        $admin = User::factory()->create(['role' => 'super-admin']);
+        $admin->assignRole('super-admin');
+        Sanctum::actingAs($admin);
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [
+                ['service_id' => $coupe->id, 'employee_id' => $omar->id],
+                ['service_id' => $soin->id, 'employee_id' => $omar->id],
+            ],
+        ])->assertCreated()->json('data');
+
+        // Pourboire global (aucune ligne visée), comme la caisse l'envoie
+        // dès qu'un employé tient plusieurs lignes du ticket.
+        $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", [
+            'payment_method' => 'especes',
+            'tips' => [['employee_id' => $omar->id, 'amount' => 60]],
+        ])->assertOk();
+
+        Sanctum::actingAs($omarUser);
+
+        $dashboard = $this->getJson('/api/me/workspace/dashboard')->assertOk()->json('data');
+        $this->assertEquals(60, $dashboard['today']['tips']);
+        $this->assertEquals(30, $dashboard['today']['tips_commission']);
+        // 110 sur les 220 de services + 30 sur les 60 de pourboire.
+        $this->assertEquals(140, $dashboard['today']['commission']);
+        // Le pourboire ne gonfle pas le CA de l'employé.
+        $this->assertEquals(220, $dashboard['today']['revenue']);
+        $this->assertEquals(60, $dashboard['prestations_today'][0]['tips']);
+
+        $commissions = $this->getJson('/api/me/workspace/commissions')->assertOk()->json('data');
+        $this->assertEquals(60, $commissions['summary']['tips']);
+        $this->assertEquals(30, $commissions['summary']['tips_commission']);
+        $this->assertEquals(140, $commissions['summary']['today']);
+
+        $statistics = $this->getJson('/api/me/workspace/statistics')->assertOk()->json('data');
+        $this->assertEquals(60, $statistics['kpis']['tips']);
+        $this->assertEquals(140, $statistics['kpis']['commission_generated']);
+    }
 }

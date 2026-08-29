@@ -170,7 +170,14 @@ function PrestationRow({ row, onComplete, onSend, completing, sending }: {
             <td className="max-w-[260px] truncate px-4 py-3">{row.service}</td>
             <td className="px-4 py-3 text-right">{t('{n} min', { n: row.duration_minutes })}</td>
             <td className="px-4 py-3 text-right font-semibold">{formatCurrency(row.amount)}</td>
-            <td className="px-4 py-3 text-right text-[#d5b15d]">{formatCurrency(row.commission)}</td>
+            <td className="px-4 py-3 text-right text-[#d5b15d]">
+                {formatCurrency(row.commission)}
+                {row.tips > 0 && (
+                    <span className="block text-[11px] text-white/50">
+                        {t('+ {x} de pourboire', { x: formatCurrency(row.tips) })}
+                    </span>
+                )}
+            </td>
             <td className="px-4 py-3 text-right"><Badge variant="outline">{t(statusLabel(row.status))}</Badge></td>
             <td className="px-4 py-3 text-right">
                 {row.status === 'in_progress' && (
@@ -212,6 +219,7 @@ function PrestationMobileCard({ row, onComplete, onSend, completing, sending }: 
                 <MobileFact label={t('Duree')} value={t('{n} min', { n: row.duration_minutes })} />
                 <MobileFact label={t('Montant')} value={formatCurrency(row.amount)} />
                 <MobileFact label={t('Commission')} value={formatCurrency(row.commission)} accent />
+                {row.tips > 0 && <MobileFact label={t('Pourboire')} value={formatCurrency(row.tips)} />}
             </div>
             {(row.status === 'in_progress' || row.status === 'services_done') && (
                 <div className="mt-3 flex justify-end">

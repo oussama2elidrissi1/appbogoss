@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { BarChart3, Clock, Sparkles, Star, Users } from 'lucide-react';
+import { BarChart3, Clock, Coins, Sparkles, Star, Users } from 'lucide-react';
 import { Bar, BarChart, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { getEmployeeStatistics } from '@/lib/api';
@@ -40,6 +40,7 @@ export default function EmployeeStatistics() {
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <Stat icon={Sparkles} label={t('Prestations')} value={data?.kpis.prestations ?? 0} />
                 <Stat icon={BarChart3} label={t('CA genere')} value={formatCurrency(data?.kpis.revenue ?? 0)} />
+                <Stat icon={Coins} label={t('Pourboires')} value={formatCurrency(data?.kpis.tips ?? 0)} />
                 <Stat icon={BarChart3} label={t('Commission generee')} value={formatCurrency(data?.kpis.commission_generated ?? 0)} />
                 <Stat icon={BarChart3} label={t('Commission payee')} value={formatCurrency(data?.kpis.commission_paid ?? 0)} />
                 <Stat icon={Star} label={t('Note moyenne')} value={data?.kpis.average_rating ?? '-'} />

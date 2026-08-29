@@ -15,6 +15,10 @@ export interface EmployeeKpis {
     prestations_delta: number;
     revenue: number;
     commission: number;
+    /** Pourboires reçus (jamais comptés dans revenue — §40). */
+    tips: number;
+    /** Part des pourboires déjà comprise dans commission (50% coiffure). */
+    tips_commission: number;
     monthly_commission: number;
     paid_commission: number;
 }
@@ -31,6 +35,7 @@ export interface EmployeePrestationRow {
     duration_minutes: number;
     amount: number;
     commission: number;
+    tips: number;
     status: PrestationStatus;
 }
 
@@ -100,6 +105,8 @@ export interface EmployeeCommissionsResponse {
         validated: number;
         paid: number;
         pending: number;
+        tips: number;
+        tips_commission: number;
     };
     evolution: EmployeeCommissionPoint[];
     rows: Array<{
@@ -137,6 +144,8 @@ export interface EmployeeStatisticsResponse {
     kpis: {
         prestations: number;
         revenue: number;
+        tips: number;
+        tips_commission: number;
         commission_generated: number;
         commission_paid: number;
         average_rating: number | null;

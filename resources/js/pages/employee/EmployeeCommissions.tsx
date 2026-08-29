@@ -48,6 +48,26 @@ export default function EmployeeCommissions() {
                 ))}
             </div>
 
+            {data && (data.summary.tips > 0 || data.summary.tips_commission > 0) && (
+                <EmployeePanel className="p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p className="text-xs uppercase tracking-[0.12em] text-white/40">
+                                {t('Pourboires du mois')}
+                            </p>
+                            <p className="mt-2 text-xl font-semibold text-[#d5b15d]">
+                                {formatCurrency(data.summary.tips)}
+                            </p>
+                        </div>
+                        <p className="max-w-[46ch] text-sm text-white/58">
+                            {t('Dont {x} pour vous (50% sur la coiffure), deja comptes dans vos commissions du mois.', {
+                                x: formatCurrency(data.summary.tips_commission),
+                            })}
+                        </p>
+                    </div>
+                </EmployeePanel>
+            )}
+
             <EmployeePanel>
                 <EmployeePanelTitle title={t('Evolution de mes commissions')} icon={WalletCards} action={
                     <div className="flex flex-wrap gap-1">
@@ -97,7 +117,7 @@ export default function EmployeeCommissions() {
                                     <td className="px-4 py-3 font-medium text-white">{row.client_name}</td>
                                     <td className="px-4 py-3">{row.service_name}</td>
                                     <td className="px-4 py-3 text-right">{formatCurrency(row.service_price)}</td>
-                                    <td className="px-4 py-3">{row.type}</td>
+                                    <td className="px-4 py-3">{t(commissionTypeLabel(row.type))}</td>
                                     <td className="px-4 py-3 text-right font-semibold text-[#d5b15d]">{formatCurrency(row.amount)}</td>
                                     <td className="px-4 py-3 text-right"><Badge variant="outline">{row.status}</Badge></td>
                                 </tr>
@@ -232,6 +252,15 @@ export default function EmployeeCommissions() {
     );
 }
 
+/** Le type brut de la ligne ('tip_percentage'...) n'est pas lisible en caisse. */
+function commissionTypeLabel(type: string): string {
+    if (type === 'tip_percentage') return 'Pourboire 50%';
+    if (type === 'percentage') return 'Pourcentage';
+    if (type === 'fixed') return 'Montant fixe';
+    if (type === 'none') return 'Aucune';
+    return type;
+}
+
 function CommissionMobileCard({ row }: { row: {
     id: number;
     date: string;
@@ -255,7 +284,7 @@ function CommissionMobileCard({ row }: { row: {
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
                 <MobileAmount label={t('Prix')} value={formatCurrency(row.service_price)} />
-                <MobileAmount label={t('Type')} value={row.type} />
+                <MobileAmount label={t('Type')} value={t(commissionTypeLabel(row.type))} />
                 <MobileAmount label={t('Commission')} value={formatCurrency(row.amount)} accent />
             </div>
         </div>

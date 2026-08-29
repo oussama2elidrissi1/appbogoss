@@ -6,6 +6,7 @@ use App\Models\Commission;
 use App\Models\Employee;
 use App\Models\Prestation;
 use App\Models\Sale;
+use App\Models\Tip;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -95,6 +96,49 @@ class EmployeeEarningsService
             fn (Commission $commission) => $commission->prestation?->sale_id !== null
                 && $deletedSaleIds->has($commission->prestation->sale_id),
         );
+    }
+
+    /**
+     * Tips this employee was given over a date range — the pourboire money
+     * itself, which never enters the salon's CA (§40) but is theirs to see.
+     * Refunded invoices soft-delete their tips, and a ticket voided at the
+     * caisse is excluded here too, so the figure can never contradict what
+     * the caisse shows.
+     *
+     * @return Collection<int, Tip>
+     */
+    public function activeTips(int $employeeId, Carbon $from, Carbon $to): Collection
+    {
+        $tips = Tip::where('employee_id', $employeeId)
+            ->whereBetween('created_at', [$from, $to])
+            ->with('prestation:id,sale_id')
+            ->get();
+
+        $deletedSaleIds = $this->deletedSaleIds(
+            $tips->pluck('prestation.sale_id')->filter()->values(),
+        );
+
+        return $tips->reject(
+            fn (Tip $tip) => $tip->prestation?->sale_id !== null
+                && $deletedSaleIds->has($tip->prestation->sale_id),
+        );
+    }
+
+    public function tipsTotal(int $employeeId, Carbon $from, Carbon $to): float
+    {
+        return round((float) $this->activeTips($employeeId, $from, $to)->sum('amount'), 2);
+    }
+
+    /**
+     * The share of commissionEarnedTotal() that comes from tips (50% of each
+     * coiffure pourboire) — shown as a breakdown so an employee can tell
+     * service commission from tip commission.
+     */
+    public function tipCommissionTotal(int $employeeId, Carbon $from, Carbon $to): float
+    {
+        return round((float) $this->activeValidatedCommissions($employeeId, from: $from, to: $to)
+            ->where('type', Commission::TYPE_TIP)
+            ->sum('amount'), 2);
     }
 
     /**

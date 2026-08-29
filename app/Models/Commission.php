@@ -10,6 +10,9 @@ class Commission extends Model
     public const STATUS_VALIDATED = 'validated';
     public const STATUS_CANCELLED = 'cancelled';
 
+    /** Half of a coiffure tip, earned by the employee on top of the service. */
+    public const TYPE_TIP = 'tip_percentage';
+
     protected $fillable = [
         'prestation_id',
         'prestation_item_id',

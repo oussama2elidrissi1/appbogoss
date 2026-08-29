@@ -5,6 +5,7 @@ import {
     CalendarDays,
     CheckCircle2,
     Clock3,
+    Coins,
     HandCoins,
     MessageSquareText,
     ReceiptText,
@@ -59,10 +60,25 @@ export default function EmployeeDashboard() {
 
     return (
         <EmployeePageShell>
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
                 <Kpi icon={ReceiptText} label={t("Prestations aujourd'hui")} value={data.today.prestations_count} hint={`${data.today.prestations_delta >= 0 ? '+' : ''}${data.today.prestations_delta} ${t('vs hier')}`} />
                 <Kpi icon={TrendingUp} label={t("Chiffre d'affaires")} value={formatCurrency(data.today.revenue)} hint={t('Prestations payees')} />
-                <Kpi icon={HandCoins} label={t('Commission du jour')} value={formatCurrency(data.today.commission)} hint={t('Validee')} />
+                <Kpi
+                    icon={Coins}
+                    label={t('Pourboires du jour')}
+                    value={formatCurrency(data.today.tips)}
+                    hint={t('Dont {x} pour vous', { x: formatCurrency(data.today.tips_commission) })}
+                />
+                <Kpi
+                    icon={HandCoins}
+                    label={t('Commission du jour')}
+                    value={formatCurrency(data.today.commission)}
+                    hint={
+                        data.today.tips_commission > 0
+                            ? t('Dont {x} de pourboires', { x: formatCurrency(data.today.tips_commission) })
+                            : t('Validee')
+                    }
+                />
                 <Kpi icon={WalletCards} label={t('Commission du mois')} value={formatCurrency(data.today.monthly_commission)} hint={t('Mois courant')} />
                 <Kpi icon={CheckCircle2} label={t('Commission payee')} value={formatCurrency(data.today.paid_commission)} hint={t('Mois courant')} />
             </div>

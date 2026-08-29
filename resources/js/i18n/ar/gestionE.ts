@@ -38,6 +38,19 @@ const gestionE: Record<string, string> = {
     'Commission du jour': 'عمولة اليوم',
     'Commission du mois': 'عمولة الشهر',
 
+    // --- pourboires (espace employé) ---
+    'Pourboires du jour': 'إكراميات اليوم',
+    'Pourboires du mois': 'إكراميات الشهر',
+    'Dont {x} pour vous': 'منها {x} لك',
+    'Dont {x} de pourboires': 'منها {x} من الإكراميات',
+    '+ {x} de pourboire': '+ {x} إكرامية',
+    'Dont {x} pour vous (50% sur la coiffure), deja comptes dans vos commissions du mois.':
+        'منها {x} لك (50% على الحلاقة)، محتسبة مسبقًا ضمن عمولات الشهر.',
+    'Pourboire 50%': 'إكرامية 50%',
+    'Pourcentage': 'نسبة مئوية',
+    'Montant fixe': 'مبلغ ثابت',
+    'Aucune': 'لا شيء',
+
     // --- prestations/MyPrestationsList ---
     'Brouillon': 'مسودة',
     'En cours': 'قيد الإنجاز',
