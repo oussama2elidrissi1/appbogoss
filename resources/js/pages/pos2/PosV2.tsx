@@ -3,16 +3,15 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
-    AlertCircle,
     CalendarCheck,
     HandCoins,
     History,
+    Lock,
     PauseCircle,
     Plus,
     ReceiptText,
     ScanLine,
     ShoppingCart,
-    Sparkles,
     Wallet,
     X,
 } from 'lucide-react';
@@ -39,6 +38,7 @@ import { printInvoiceA4, printInvoiceReceipt } from '@/lib/receiptV2';
 import { pageFade } from '@/lib/motion';
 import { cn, formatCurrency } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
+import { useActiveWorkDay, useRefreshDay } from '@/hooks/useWorkDay';
 import type { Client, Product, Service } from '@/types/workday';
 import type {
     Pos2CheckoutPayload,
@@ -57,16 +57,19 @@ import { Pos2PendingPrestations } from '@/components/pos2/Pos2PendingPrestations
 import { Pos2QrScannerDialog } from '@/components/pos2/Pos2QrScannerDialog';
 import { Pos2ReservationsDialog } from '@/components/pos2/Pos2ReservationsDialog';
 import { Pos2SuccessDialog } from '@/components/pos2/Pos2SuccessDialog';
-import { Badge } from '@/components/ui/badge';
+import { CloseDayDialog } from '@/components/workday/CloseDayDialog';
+import { OpenDayCard } from '@/components/workday/OpenDayCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
 /**
- * CAISSE V2 — BOGOSLAND POS. Lives at /pos-v2 alongside the untouched V1
- * caisse (/pos): left = catalog (employé actif, catégories, recherche,
- * services), right = the always-visible invoice panel. On mobile the panel
- * becomes a bottom sheet behind a sticky total bar (§46).
+ * CAISSE — BOGOSLAND POS, l'unique caisse du salon depuis sa validation :
+ * elle vit sur /pos et pilote tout le cycle, de l'ouverture de la journée à
+ * sa clôture. Gauche = catalogue (employé actif, catégories, recherche,
+ * services), droite = le panneau facture toujours visible. Sur mobile le
+ * panneau devient une feuille en bas derrière une barre de total (§46).
+ * L'ancienne caisse (/pos-v1) n'est plus au menu.
  */
 export default function PosV2() {
     const queryClient = useQueryClient();
@@ -85,6 +88,11 @@ export default function PosV2() {
     const [reservationsOpen, setReservationsOpen] = useState(false);
     const [mobileCartOpen, setMobileCartOpen] = useState(false);
     const [actionError, setActionError] = useState<string | null>(null);
+    const [closeDayOpen, setCloseDayOpen] = useState(false);
+
+    // La journée de caisse : ouverte et clôturée depuis cet écran.
+    const { data: workDay } = useActiveWorkDay();
+    const refreshDay = useRefreshDay();
 
     const { data: dashboard, isPending: dashboardPending } = useQuery({
         queryKey: pos2Keys.dashboard,
@@ -389,6 +397,20 @@ export default function PosV2() {
     const itemsCount = currentInvoice?.items?.length ?? 0;
     const noWorkDay = dashboard !== undefined && dashboard.work_day === null;
 
+    if (noWorkDay) {
+        return (
+            <motion.div variants={pageFade} initial="hidden" animate="show" className="space-y-4">
+                <div>
+                    <h2 className="font-display text-2xl font-semibold tracking-tight">{t('Caisse')}</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        {t('Ouvrez la journée pour encaisser — factures, abonnements et pourboires suivent.')}
+                    </p>
+                </div>
+                <OpenDayCard />
+            </motion.div>
+        );
+    }
+
     const panel = (
         <Pos2InvoicePanel
             invoice={currentInvoice}
@@ -424,13 +446,7 @@ export default function PosV2() {
             {/* ---------------------------------------------------- header */}
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                    <h2 className="flex items-center gap-2.5 font-display text-2xl font-semibold tracking-tight">
-                        {t('Caisse V2')}
-                        <Badge variant="accent" className="translate-y-px">
-                            <Sparkles className="mr-1 h-3 w-3" />
-                            {t('Nouveau')}
-                        </Badge>
-                    </h2>
+                    <h2 className="font-display text-2xl font-semibold tracking-tight">{t('Caisse')}</h2>
                     <p className="mt-1 text-sm text-muted-foreground">
                         {t('Factures ouvertes, employé par service, abonnements et pourboires.')}
                     </p>
@@ -445,11 +461,17 @@ export default function PosV2() {
                         {t('Scanner QR')}
                     </Button>
                     <Button type="button" variant="outline" asChild>
-                        <Link to="/pos-v2/historique">
+                        <Link to="/pos/historique">
                             <History />
                             {t('Historique')}
                         </Link>
                     </Button>
+                    {workDay && (
+                        <Button type="button" variant="outline" onClick={() => setCloseDayOpen(true)}>
+                            <Lock />
+                            {t('Clôturer la journée')}
+                        </Button>
+                    )}
                     <Button type="button" variant="accent" disabled={busy} onClick={() => openMutation.mutate({})}>
                         <Plus />
                         {t('Nouvelle facture')}
@@ -475,7 +497,13 @@ export default function PosV2() {
                         icon={ReceiptText}
                         label={t('Tickets')}
                         value={`${dashboard.ticket_count}`}
-                        hint={t('{n} via V2', { n: dashboard.v2_ticket_count })}
+                        hint={
+                            dashboard.ticket_count > dashboard.v2_ticket_count
+                                ? t('{n} ancienne caisse', {
+                                      n: dashboard.ticket_count - dashboard.v2_ticket_count,
+                                  })
+                                : undefined
+                        }
                     />
                     <StatCard
                         icon={ShoppingCart}
@@ -495,20 +523,6 @@ export default function PosV2() {
                     />
                 </div>
             ) : null}
-
-            {noWorkDay && (
-                <Card className="border-destructive/25 bg-destructive/[0.05]">
-                    <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-                        <p className="flex items-center gap-2 text-sm text-destructive">
-                            <AlertCircle className="h-4 w-4 shrink-0" />
-                            {t("Aucune journée ouverte — la caisse utilise le même cycle d'ouverture/clôture que la Caisse V1.")}
-                        </p>
-                        <Button type="button" variant="outline" size="sm" asChild>
-                            <Link to="/pos">{t('Ouvrir la journée')}</Link>
-                        </Button>
-                    </CardContent>
-                </Card>
-            )}
 
             {/* ---------------------- prestations envoyées par les employés (V1) */}
             <Pos2PendingPrestations
@@ -650,6 +664,14 @@ export default function PosV2() {
                     setCurrentInvoiceId(invoice.id);
                 }}
             />
+            {workDay && (
+                <CloseDayDialog
+                    open={closeDayOpen}
+                    onOpenChange={setCloseDayOpen}
+                    workDay={workDay}
+                    onClosed={refreshDay}
+                />
+            )}
         </motion.div>
     );
 }

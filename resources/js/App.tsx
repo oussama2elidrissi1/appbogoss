@@ -67,7 +67,6 @@ const realRoutes = new Set([
     '/dashboard',
     '/agenda',
     '/pos',
-    '/pos-v2',
     '/expenses',
     '/mon-espace',
     '/partenaires',
@@ -177,19 +176,23 @@ export default function App() {
                     </Route>
 
                     <Route element={<ProtectedRoute permission="caisse.manage" />}>
-                        <Route path="/pos" element={<Caisse />} />
+                        {/* Ancienne caisse (V1) : retirée du menu, gardée
+                            joignable par URL le temps de la bascule. */}
+                        <Route path="/pos-v1" element={<Caisse />} />
                         <Route path="/expenses" element={<Depenses />} />
                         <Route path="/stock" element={<Stock />} />
                         <Route path="/clients" element={<Clients />} />
                         <Route path="/clients/:id" element={<ClientDetail />} />
                     </Route>
 
-                    {/* Caisse V2 — parallel POS, test-phase gated on its own
-                        permission (super-admin only until the switch is decided).
-                        V1 (/pos) above stays fully operational. */}
+                    {/* La caisse : validée, elle occupe /pos et pilote tout le
+                        cycle (ouverture, factures, encaissement, clôture).
+                        Les anciennes URL /pos-v2 restent redirigées. */}
                     <Route element={<ProtectedRoute permission="caisse_v2.access" />}>
-                        <Route path="/pos-v2" element={<PosV2 />} />
-                        <Route path="/pos-v2/historique" element={<PosV2History />} />
+                        <Route path="/pos" element={<PosV2 />} />
+                        <Route path="/pos/historique" element={<PosV2History />} />
+                        <Route path="/pos-v2" element={<Navigate to="/pos" replace />} />
+                        <Route path="/pos-v2/historique" element={<Navigate to="/pos/historique" replace />} />
                     </Route>
 
                     <Route element={<ProtectedRoute permission="employees.manage" />}>

@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { getActiveWorkDay } from '@/lib/api';
+import { pos2Keys } from '@/lib/pos2Api';
 import type { WorkDay } from '@/types/workday';
 
 /**
@@ -34,7 +35,8 @@ export function useActiveWorkDay(): UseQueryResult<WorkDay | null> {
 
 /**
  * Refreshes everything a day-level mutation can affect — including the
- * dashboard, which mirrors the open day's running totals.
+ * dashboard, which mirrors the open day's running totals, and the caisse,
+ * whose own dashboard decides whether a day is open at all.
  */
 export function useRefreshDay() {
     const queryClient = useQueryClient();
@@ -42,5 +44,6 @@ export function useRefreshDay() {
     return useCallback(() => {
         void queryClient.invalidateQueries({ queryKey: workDayKeys.all });
         void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+        void queryClient.invalidateQueries({ queryKey: pos2Keys.all });
     }, [queryClient]);
 }

@@ -20,7 +20,6 @@ const nav: Record<string, string> = {
     'Support partenaires': 'دعم الشركاء',
     'Paie': 'الأجور',
     'Caisse': 'الصندوق',
-    'Caisse V2 — Nouveau': 'الصندوق V2 — جديد',
     'Stock': 'المخزون',
     'Dépenses': 'المصاريف',
     'Programmes de fidélité': 'برامج الوفاء',
@@ -48,6 +47,8 @@ const nav: Record<string, string> = {
     'Conversations de support avec les partenaires.': 'محادثات الدعم مع الشركاء.',
     'Commissions à payer chaque mois, nettes des avances sur salaire.': 'العمولات المستحقة شهريًا بعد خصم السلف على الأجر.',
     'Encaissement rapide, tickets et moyens de paiement.': 'تحصيل سريع وتذاكر ووسائل الدفع.',
+    'Ouverture de journée, factures, encaissement, pourboires et clôture.':
+        'فتح اليومية، الفواتير، التحصيل، الإكراميات والإغلاق.',
     'POS professionnel : factures ouvertes, employé par service, abonnements, pourboires.': 'نقطة بيع احترافية: فواتير مفتوحة، موظف لكل خدمة، اشتراكات وإكراميات.',
     'Inventaire produits, seuils d’alerte et réapprovisionnement.': 'جرد المنتجات وحدود التنبيه وإعادة التموين.',
     'Charges, fournisseurs et suivi budgétaire mensuel.': 'التكاليف والموردون والمتابعة الشهرية للميزانية.',

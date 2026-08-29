@@ -1,15 +1,16 @@
-/** Caisse V2 (POS, historique, tickets) — français → arabe. */
+/** Caisse (POS, historique, tickets) — français → arabe. */
 const pos2: Record<string, string> = {
     // Page principale
-    'Caisse V2': 'الصندوق V2',
     'Nouveau': 'جديد',
     'Factures ouvertes, employé par service, abonnements et pourboires.': 'فواتير مفتوحة، موظف لكل خدمة، اشتراكات وإكراميات.',
     'Scanner QR': 'مسح QR',
     'Nouvelle facture': 'فاتورة جديدة',
     "CA aujourd'hui": 'مداخيل اليوم',
-    '{n} via V2': '{n} عبر V2',
+    '{n} ancienne caisse': '{n} من الصندوق القديم',
+    'Ancienne caisse': 'الصندوق القديم',
     'Factures ouvertes': 'الفواتير المفتوحة',
-    "Aucune journée ouverte — la caisse utilise le même cycle d'ouverture/clôture que la Caisse V1.": 'لا توجد يومية مفتوحة — يعتمد الصندوق نفس دورة الفتح والإغلاق الخاصة بالصندوق V1.',
+    'Ouvrez la journée pour encaisser — factures, abonnements et pourboires suivent.':
+        'افتح اليومية لتبدأ التحصيل — الفواتير والاشتراكات والإكراميات تأتي بعدها.',
     'Ouvrir la journée': 'فتح اليومية',
     'service': 'خدمة',
     'services': 'خدمات',
@@ -146,7 +147,8 @@ const pos2: Record<string, string> = {
 
     // Historique
     'Historique caisse': 'سجل الصندوق',
-    'Factures Caisse V2 — filtrez par heure, service, employé ou moyen de paiement.': 'فواتير الصندوق V2 — رشّح حسب الساعة أو الخدمة أو الموظف أو وسيلة الدفع.',
+    'Toutes les factures encaissées — filtrez par heure, service, employé ou moyen de paiement.':
+        'كل الفواتير المحصّلة — رشّح حسب الساعة أو الخدمة أو الموظف أو وسيلة الدفع.',
     'Retour à la caisse': 'العودة إلى الصندوق',
     'Du': 'من',
     'Au': 'إلى',

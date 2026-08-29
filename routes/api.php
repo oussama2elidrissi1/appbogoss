@@ -426,12 +426,11 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // ------------------------------------------------------------------
-    // CAISSE V2 — parallel POS surface. V1 (/transactions, /prestations,
-    // /work-days) is untouched above; everything here is additive and lives
-    // behind its own permission so it can be enabled per role/user during
-    // the test phase (§51-§52: super-admin only for now). Money-moving
-    // actions re-check caisse_v2.checkout / .discount / .cancel / .refund
-    // inside the controllers.
+    // CAISSE — the validated POS surface (front-end: /pos). The legacy
+    // register (/transactions, /prestations, /work-days) is untouched above
+    // and still serves the day cycle these routes read; the pos-v2 prefix is
+    // kept as-is so no client breaks. Money-moving actions re-check
+    // caisse_v2.checkout / .discount / .cancel / .refund in the controllers.
     // ------------------------------------------------------------------
     Route::middleware('permission:caisse_v2.access')->prefix('pos-v2')->group(function () {
         Route::get('/dashboard', PosDashboardController::class);

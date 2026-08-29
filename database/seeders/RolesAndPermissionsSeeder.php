@@ -76,10 +76,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'loyalty.settings.manage',
             'loyalty.qr.manage',
 
-            // Caisse V2 (POS) — TEST PHASE: granted to super-admin only
-            // (§52). Widening to admin/caissiers is a deliberate later step,
-            // not something this seeder does implicitly. Kept in sync with
-            // the 2026_08_25_100006_seed_caisse_v2_permissions migration.
+            // Caisse (POS) — validée : c'est désormais LA caisse du salon
+            // (/pos), l'ancienne n'étant plus au menu. Les noms de
+            // permissions restent caisse_v2.* pour ne rien casser. Gardé en
+            // phase avec 2026_08_25_100006_seed_caisse_v2_permissions.
             'caisse_v2.access',
             'caisse_v2.checkout',
             'caisse_v2.discount',
@@ -121,9 +121,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'loyalty.reports.view',
             'loyalty.qr.manage',
 
-            // Caisse V2 — test phase widened to admins (V2.1 §17): the
-            // operational set only. caisse_v2.refund stays super-admin,
-            // mirroring prestations.edit_paid.
+            // Caisse — jeu opérationnel complet pour les admins.
+            // caisse_v2.refund reste super-admin, comme prestations.edit_paid.
             'caisse_v2.access',
             'caisse_v2.checkout',
             'caisse_v2.discount',

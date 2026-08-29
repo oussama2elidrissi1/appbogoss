@@ -43,7 +43,7 @@ const ACTIVE_DAY = 'active_day';
 const DATE_RANGE = 'date_range';
 
 /**
- * §34 — HISTORIQUE CAISSE V2 : filtres date/heure/service/catégorie/employé/
+ * §34 — HISTORIQUE CAISSE : filtres date/heure/service/catégorie/employé/
  * statut/paiement/abonnement + recherche, liste et drawer de détail.
  */
 export default function PosV2History() {
@@ -109,11 +109,11 @@ export default function PosV2History() {
                 <div>
                     <h2 className="font-display text-2xl font-semibold tracking-tight">{t('Historique caisse')}</h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                        {t('Factures Caisse V2 — filtrez par heure, service, employé ou moyen de paiement.')}
+                        {t('Toutes les factures encaissées — filtrez par heure, service, employé ou moyen de paiement.')}
                     </p>
                 </div>
                 <Button type="button" variant="outline" asChild>
-                    <Link to="/pos-v2">
+                    <Link to="/pos">
                         <ArrowLeft />
                         {t('Retour à la caisse')}
                     </Link>
@@ -282,9 +282,11 @@ export default function PosV2History() {
                                     {t('Calculées sur toutes les factures du filtre, pas seulement la page affichée.')}
                                 </p>
                             </div>
-                            <Badge variant="outline">
-                                V1 {stats.v1_count} · V2 {stats.v2_count}
-                            </Badge>
+                            {stats.v1_count > 0 && (
+                                <Badge variant="outline">
+                                    {t('{n} ancienne caisse', { n: stats.v1_count })}
+                                </Badge>
+                            )}
                         </div>
 
                         <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -406,12 +408,11 @@ export default function PosV2History() {
                                                 <span className="font-semibold tabular-nums text-foreground">
                                                     {invoice.reference}
                                                 </span>
-                                                <Badge
-                                                    variant={invoice.channel === 'caisse_v2' ? 'outline' : 'accent'}
-                                                    className="px-1.5 py-0 text-[10px]"
-                                                >
-                                                    {invoice.channel === 'caisse_v2' ? 'V2' : 'V1'}
-                                                </Badge>
+                                                {invoice.channel !== 'caisse_v2' && (
+                                                    <Badge variant="accent" className="px-1.5 py-0 text-[10px]">
+                                                        {t('Ancienne caisse')}
+                                                    </Badge>
+                                                )}
                                                 <span className="tabular-nums text-muted-foreground">
                                                     {invoice.opened_time}
                                                 </span>
