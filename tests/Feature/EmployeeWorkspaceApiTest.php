@@ -286,7 +286,9 @@ class EmployeeWorkspaceApiTest extends TestCase
 
         $this->getJson('/api/me/workspace/dashboard')
             ->assertOk()
-            ->assertJsonPath('data.today.prestations_count', 2)
+            // 2 tickets caisse de 2 articles : 4 prestations effectuées, le
+            // compte même que la carte employé de la caisse.
+            ->assertJsonPath('data.today.prestations_count', 4)
             ->assertJsonPath('data.today.revenue', 700)
             ->assertJsonPath('data.today.commission', 350)
             ->assertJsonFragment(['reference' => 'CAISSE-'.$saleA->id])
@@ -435,5 +437,91 @@ class EmployeeWorkspaceApiTest extends TestCase
         $statistics = $this->getJson('/api/me/workspace/statistics')->assertOk()->json('data');
         $this->assertEquals(60, $statistics['kpis']['tips']);
         $this->assertEquals(140, $statistics['kpis']['commission_generated']);
+    }
+
+    /**
+     * Facture partagée : la caisse compte ligne par ligne (« CA par employé »).
+     * L'espace employé doit dire EXACTEMENT la même chose — avant, il filtrait
+     * sur le propriétaire du ticket : le collègue ne voyait rien et le
+     * propriétaire encaissait le CA des lignes des autres.
+     */
+    public function test_employee_figures_match_the_caisse_on_a_shared_invoice(): void
+    {
+        $this->seed(RolesAndPermissionsSeeder::class);
+        \App\Models\WorkDay::factory()->create(['status' => 'open']);
+
+        $omarUser = User::factory()->create(['role' => 'employee']);
+        $omarUser->assignRole('employee');
+        $omar = Employee::factory()->create([
+            'user_id' => $omarUser->id,
+            'name' => 'Omar',
+            'default_commission_rate' => 50,
+        ]);
+
+        $kamalUser = User::factory()->create(['role' => 'employee']);
+        $kamalUser->assignRole('employee');
+        $kamal = Employee::factory()->create([
+            'user_id' => $kamalUser->id,
+            'name' => 'Kamal',
+            'default_commission_rate' => 50,
+        ]);
+
+        $coupe = \App\Models\Service::factory()->create(['category' => 'coiffure', 'price' => 100]);
+        $soin = \App\Models\Service::factory()->create(['category' => 'coiffure', 'price' => 120]);
+        $barbe = \App\Models\Service::factory()->create(['category' => 'coiffure', 'price' => 80]);
+
+        $admin = User::factory()->create(['role' => 'super-admin']);
+        $admin->assignRole('super-admin');
+        Sanctum::actingAs($admin);
+
+        // Un seul ticket : 2 lignes pour Omar (qui en tient l'en-tête), 1 pour Kamal.
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [
+                ['service_id' => $coupe->id, 'employee_id' => $omar->id],
+                ['service_id' => $soin->id, 'employee_id' => $omar->id],
+                ['service_id' => $barbe->id, 'employee_id' => $kamal->id],
+            ],
+        ])->assertCreated()->json('data');
+
+        $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", [
+            'payment_method' => 'especes',
+        ])->assertOk();
+
+        // --- ce que dit la caisse
+        $stats = $this->getJson('/api/pos-v2/history')->assertOk()->json('meta.stats.employees');
+        $caisse = collect($stats)->keyBy('employee_name');
+        $this->assertEquals(220, $caisse['Omar']['total']);
+        $this->assertEquals(2, $caisse['Omar']['performed_count']);
+        $this->assertEquals(110, $caisse['Omar']['commission_total']);
+        $this->assertEquals(80, $caisse['Kamal']['total']);
+        $this->assertEquals(1, $caisse['Kamal']['performed_count']);
+        $this->assertEquals(40, $caisse['Kamal']['commission_total']);
+
+        // --- ce que voit Omar : sa part, pas les 300 du ticket
+        Sanctum::actingAs($omarUser);
+        $omarDashboard = $this->getJson('/api/me/workspace/dashboard')->assertOk()->json('data');
+        $this->assertEquals(220, $omarDashboard['today']['revenue']);
+        $this->assertEquals(2, $omarDashboard['today']['prestations_count']);
+        $this->assertEquals(110, $omarDashboard['today']['commission']);
+        $this->assertEquals(220, $omarDashboard['prestations_today'][0]['amount']);
+        $this->assertEquals(300, $omarDashboard['prestations_today'][0]['invoice_total']);
+
+        // --- ce que voit Kamal : la ligne faite sur le ticket d'un collègue
+        Sanctum::actingAs($kamalUser);
+        $kamalDashboard = $this->getJson('/api/me/workspace/dashboard')->assertOk()->json('data');
+        $this->assertEquals(80, $kamalDashboard['today']['revenue']);
+        $this->assertEquals(1, $kamalDashboard['today']['prestations_count']);
+        $this->assertEquals(40, $kamalDashboard['today']['commission']);
+        $this->assertCount(1, $kamalDashboard['prestations_today']);
+        $this->assertEquals(80, $kamalDashboard['prestations_today'][0]['amount']);
+
+        $kamalRows = $this->getJson('/api/me/workspace/prestations')->assertOk()->json('data');
+        $this->assertCount(1, $kamalRows);
+        $this->assertEquals(80, $kamalRows[0]['amount']);
+        $this->assertEquals(1, $kamalRows[0]['services_count']);
+
+        $kamalStats = $this->getJson('/api/me/workspace/statistics')->assertOk()->json('data');
+        $this->assertEquals(80, $kamalStats['kpis']['revenue']);
+        $this->assertEquals(1, $kamalStats['kpis']['prestations']);
     }
 }

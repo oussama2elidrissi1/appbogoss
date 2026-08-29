@@ -1147,8 +1147,7 @@ class PosService
 
     private function isSaleLine(PrestationItem $item): bool
     {
-        return $item->product_id !== null
-            || in_array($item->service?->category, ['boisson', 'vente', 'vitrine'], true);
+        return $item->isRegisterSale();
     }
 
     private function saleAreaForItem(PrestationItem $item): ?string

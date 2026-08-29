@@ -43,6 +43,8 @@ export default function EmployeePrestations() {
     const { data = [], isPending, isError, error } = useQuery({
         queryKey: ['employee-workspace', 'prestations', period, status, search],
         queryFn: () => getEmployeePrestations({ ...period, status: status || undefined, search: search || undefined }),
+        refetchInterval: 30_000,
+        refetchOnWindowFocus: true,
     });
 
     const completeMutation = useMutation({
@@ -169,7 +171,14 @@ function PrestationRow({ row, onComplete, onSend, completing, sending }: {
             <td className="px-4 py-3 font-medium text-white">{row.client_name}</td>
             <td className="max-w-[260px] truncate px-4 py-3">{row.service}</td>
             <td className="px-4 py-3 text-right">{t('{n} min', { n: row.duration_minutes })}</td>
-            <td className="px-4 py-3 text-right font-semibold">{formatCurrency(row.amount)}</td>
+            <td className="px-4 py-3 text-right font-semibold">
+                {formatCurrency(row.amount)}
+                {row.invoice_total > row.amount && (
+                    <span className="block text-[11px] font-normal text-white/45">
+                        {t('sur {x} au ticket', { x: formatCurrency(row.invoice_total) })}
+                    </span>
+                )}
+            </td>
             <td className="px-4 py-3 text-right text-[#d5b15d]">
                 {formatCurrency(row.commission)}
                 {row.tips > 0 && (
@@ -217,7 +226,12 @@ function PrestationMobileCard({ row, onComplete, onSend, completing, sending }: 
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
                 <MobileFact label={t('Duree')} value={t('{n} min', { n: row.duration_minutes })} />
-                <MobileFact label={t('Montant')} value={formatCurrency(row.amount)} />
+                <MobileFact
+                    label={t('Montant')}
+                    value={row.invoice_total > row.amount
+                        ? `${formatCurrency(row.amount)} / ${formatCurrency(row.invoice_total)}`
+                        : formatCurrency(row.amount)}
+                />
                 <MobileFact label={t('Commission')} value={formatCurrency(row.commission)} accent />
                 {row.tips > 0 && <MobileFact label={t('Pourboire')} value={formatCurrency(row.tips)} />}
             </div>

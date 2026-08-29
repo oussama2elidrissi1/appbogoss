@@ -47,6 +47,7 @@ const gestionE: Record<string, string> = {
     'Dont {x} pour vous (50% sur la coiffure), deja comptes dans vos commissions du mois.':
         'منها {x} لك (50% على الحلاقة)، محتسبة مسبقًا ضمن عمولات الشهر.',
     'Pourboire 50%': 'إكرامية 50%',
+    'sur {x} au ticket': 'من {x} في التذكرة',
     'Pourcentage': 'نسبة مئوية',
     'Montant fixe': 'مبلغ ثابت',
     'Aucune': 'لا شيء',

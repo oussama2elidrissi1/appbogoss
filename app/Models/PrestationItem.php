@@ -85,6 +85,18 @@ class PrestationItem extends Model
     }
 
     /**
+     * Ligne qui appartient au comptoir et non à un employé : produit vendu,
+     * ou service catalogué boisson/vente/vitrine. La caisse la range dans
+     * « Ventes » (société) et jamais dans le CA d'un employé — l'espace
+     * employé lit la MÊME règle ici, sinon les deux écrans divergent.
+     */
+    public function isRegisterSale(): bool
+    {
+        return $this->product_id !== null
+            || in_array($this->service?->category, ['boisson', 'vente', 'vitrine'], true);
+    }
+
+    /**
      * Caisse V2 only: line total after the line-level discount. V1 code keeps
      * calling lineTotal() and never sets discount_amount, so its figures are
      * untouched.

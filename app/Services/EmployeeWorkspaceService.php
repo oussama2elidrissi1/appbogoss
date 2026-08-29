@@ -14,6 +14,7 @@ use App\Models\Prestation;
 use App\Models\PrestationItem;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Services\PosV2\PosService;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Database\Eloquent\Builder;
@@ -24,6 +25,10 @@ class EmployeeWorkspaceService
     public function __construct(
         private readonly EmployeeEarningsService $earnings,
         private readonly CommissionPayoutService $payouts,
+        // La caisse est la référence : ses montants de ligne (remise de
+        // facture répartie comprise) sont réutilisés tels quels ici, pour que
+        // l'espace employé ne puisse pas recalculer un CA différent du sien.
+        private readonly PosService $pos,
     ) {
     }
 
@@ -35,11 +40,12 @@ class EmployeeWorkspaceService
 
         $todayPrestations = $this->prestations($employee)
             ->whereDate('created_at', $today)
-            ->with(['items', 'client', 'commissions', 'tips'])
+            ->with(['items.service', 'items.product', 'client', 'commissions', 'tips'])
             ->get();
         $yesterdayPrestations = $this->prestations($employee)
             ->whereDate('created_at', $yesterday)
-            ->count();
+            ->with(['items.service', 'items.product'])
+            ->get();
         $legacySalesToday = $this->legacySales($employee, $today->copy()->startOfDay(), $today->copy()->endOfDay());
         $legacySalesYesterday = $this->legacySales($employee, $yesterday->copy()->startOfDay(), $yesterday->copy()->endOfDay());
 
@@ -49,6 +55,15 @@ class EmployeeWorkspaceService
         $upcomingAppointments = $appointmentsToday
             ->filter(fn (array $row) => Carbon::parse($row['starts_at'])->gte(now()) && ! in_array($row['status'], ['cancelled', 'refused', 'no_show'], true))
             ->values();
+
+        // « Prestations » = services réellement effectués (les lignes qui
+        // sont les siennes), le compte même que la carte employé de la caisse.
+        $servicesToday = (int) $todayPrestations->sum(fn (Prestation $prestation) => $this->servicesPerformed($prestation, $employee))
+            + $this->legacyServicesCount($legacySalesToday)
+            + $appointmentsToday->count();
+        $servicesYesterday = (int) $yesterdayPrestations->sum(fn (Prestation $prestation) => $this->servicesPerformed($prestation, $employee))
+            + $this->legacyServicesCount($legacySalesYesterday)
+            + $appointmentsYesterday->count();
 
         $commissionsToday = $this->commissionSum($employee, $today->copy()->startOfDay(), $today->copy()->endOfDay());
         // Pourboires : l'argent laissé par le client (jamais du CA, §40) et la
@@ -71,9 +86,8 @@ class EmployeeWorkspaceService
             'employee' => $this->employeeCard($employee),
             'today' => [
                 'date' => now()->toIso8601String(),
-                'prestations_count' => $todayPrestations->count() + $legacySalesToday->count() + $appointmentsToday->count(),
-                'prestations_delta' => ($todayPrestations->count() + $legacySalesToday->count() + $appointmentsToday->count())
-                    - ($yesterdayPrestations + $legacySalesYesterday->count() + $appointmentsYesterday->count()),
+                'prestations_count' => $servicesToday,
+                'prestations_delta' => $servicesToday - $servicesYesterday,
                 'revenue' => round((float) $paidToday
                     ->reject(fn (Prestation $prestation) => $prestation->sale_id !== null && $voidedSaleIds->has($prestation->sale_id))
                     ->sum(fn (Prestation $prestation) => $this->revenueShare($prestation, $employee)) + (float) $legacySalesToday->sum('total'), 2),
@@ -102,7 +116,7 @@ class EmployeeWorkspaceService
 
     public function prestationRows(Employee $employee, array $filters): array
     {
-        $query = $this->prestations($employee)->with(['items', 'client', 'commissions', 'tips']);
+        $query = $this->prestations($employee)->with(['items.service', 'items.product', 'client', 'commissions', 'tips']);
 
         if (! empty($filters['from'])) {
             $query->whereDate('created_at', '>=', $filters['from']);
@@ -231,7 +245,7 @@ class EmployeeWorkspaceService
         [$from, $to] = $this->period($filters['period'] ?? 'month', $filters['from'] ?? null, $filters['to'] ?? null);
         $prestations = $this->prestations($employee)
             ->whereBetween('created_at', [$from, $to])
-            ->with(['items', 'client', 'commissions'])
+            ->with(['items.service', 'items.product', 'client', 'commissions'])
             ->get();
         $legacySales = $this->legacySales($employee, $from, $to);
         $paid = $prestations->where('status', Prestation::STATUS_PAID);
@@ -245,7 +259,8 @@ class EmployeeWorkspaceService
         return [
             'period' => ['from' => $from->toDateString(), 'to' => $to->toDateString()],
             'kpis' => [
-                'prestations' => $prestations->count() + $legacySales->count(),
+                'prestations' => (int) $prestations->sum(fn (Prestation $prestation) => $this->servicesPerformed($prestation, $employee))
+                    + $this->legacyServicesCount($legacySales),
                 'revenue' => round((float) $paid
                     ->reject(fn (Prestation $prestation) => $prestation->sale_id !== null && $statsVoidedSaleIds->has($prestation->sale_id))
                     ->sum(fn (Prestation $prestation) => $this->revenueShare($prestation, $employee)) + (float) $legacySales->sum('total'), 2),
@@ -342,9 +357,93 @@ class EmployeeWorkspaceService
         ];
     }
 
+    /**
+     * Les factures qui comptent pour cet employé : celles dont il tient
+     * l'en-tête (flux V1) ET celles où il a réalisé au moins une ligne
+     * (caisse V2, où chaque ligne porte son employé). Filtrer sur le seul
+     * en-tête lui cachait tout le travail fait sur le ticket d'un collègue —
+     * la caisse, elle, le lui comptait.
+     */
     private function prestations(Employee $employee): Builder
     {
-        return Prestation::query()->where('employee_id', $employee->id);
+        return Prestation::query()->where(fn (Builder $query) => $query
+            ->where('employee_id', $employee->id)
+            ->orWhereHas('items', fn (Builder $items) => $items->where('employee_id', $employee->id)));
+    }
+
+    /**
+     * Les lignes de cette facture réalisées par l'employé. Sur un ticket V1
+     * aucune ligne ne porte d'employé : c'est l'en-tête qui décide, et tout
+     * le ticket revient à son propriétaire. Les lignes produit/vente sont
+     * écartées — la caisse les compte en « Ventes », jamais pour un employé.
+     *
+     * @return Collection<int, PrestationItem>
+     */
+    private function employeeLines(Prestation $prestation, Employee $employee): Collection
+    {
+        $prestation->loadMissing(['items.service', 'items.product', 'commissions']);
+
+        if ($prestation->items->whereNotNull('employee_id')->isNotEmpty()) {
+            $lines = $prestation->items->where('employee_id', $employee->id);
+        } elseif ((int) $prestation->employee_id === (int) $employee->id) {
+            $lines = $prestation->items->whereNotIn('id', $this->colleagueItemIds($prestation, $employee));
+        } else {
+            $lines = collect();
+        }
+
+        return $lines->reject(fn (PrestationItem $item) => $item->isRegisterSale())->values();
+    }
+
+    /**
+     * Lignes qu'une commission validée attribue explicitement à un collègue —
+     * le seul indice disponible quand la ligne elle-même ne porte pas
+     * d'employé (anciennes factures).
+     *
+     * @return Collection<int, int>
+     */
+    private function colleagueItemIds(Prestation $prestation, Employee $employee): Collection
+    {
+        return $prestation->commissions
+            ->where('status', Commission::STATUS_VALIDATED)
+            ->where('employee_id', '!=', $employee->id)
+            ->pluck('prestation_item_id')
+            ->filter()
+            ->unique()
+            ->values();
+    }
+
+    /** Nombre de services réellement effectués par l'employé sur ce ticket. */
+    private function servicesPerformed(Prestation $prestation, Employee $employee): int
+    {
+        return (int) $this->employeeLines($prestation, $employee)
+            ->sum(fn (PrestationItem $item) => max(1, (int) $item->quantity));
+    }
+
+    /** Services vendus sur des tickets caisse V1 (une vente = ses articles). */
+    private function legacyServicesCount(Collection $sales): int
+    {
+        return (int) $sales->sum(
+            fn (Sale $sale) => max(1, (int) $sale->items->sum(fn (SaleItem $item) => max(1, (int) $item->quantity))),
+        );
+    }
+
+    /**
+     * Les lignes réalisées par l'employé sur une période — les siennes, plus
+     * celles des tickets V1 qu'il possède (où la ligne n'a pas d'employé).
+     *
+     * @return Builder<PrestationItem>
+     */
+    private function employeeItems(Employee $employee, Carbon $from, Carbon $to): Builder
+    {
+        return PrestationItem::query()
+            ->where(fn (Builder $query) => $query
+                ->where('prestation_items.employee_id', $employee->id)
+                ->orWhere(fn (Builder $legacy) => $legacy
+                    ->whereNull('prestation_items.employee_id')
+                    ->whereHas('prestation', fn (Builder $owner) => $owner->where('employee_id', $employee->id))))
+            ->whereHas('prestation', fn (Builder $query) => $query
+                ->whereBetween('created_at', [$from, $to])
+                ->whereNotIn('status', [Prestation::STATUS_CANCELLED, Prestation::STATUS_REFUNDED]));
     }
 
     private function employeeCard(Employee $employee): array
@@ -359,35 +458,48 @@ class EmployeeWorkspaceService
     }
 
     /**
-     * The slice of a prestation's total that is THIS employee's own work.
-     * A multi-service ticket can carry items done by colleagues — identified
-     * by their validated commission rows — whose line totals must not inflate
-     * this employee's CA the way they inflated the commission column. Items
-     * with no commission row (tips, free lines) stay with the ticket owner.
+     * La part du ticket qui est le travail de CET employé — la même somme que
+     * la caisse inscrit sur sa carte « CA par employé » : ses lignes, aux
+     * montants de la caisse (remise de facture répartie, lignes offertes à 0),
+     * sans les produits ni les ventes comptoir.
+     *
+     * Un ticket V1 n'a pas d'employé par ligne : il revient entier à son
+     * propriétaire, exactement comme avant.
      */
     private function revenueShare(Prestation $prestation, Employee $employee): float
     {
-        $othersItemIds = $prestation->commissions
-            ->where('status', Commission::STATUS_VALIDATED)
-            ->where('employee_id', '!=', $employee->id)
-            ->pluck('prestation_item_id')
-            ->filter()
-            ->unique();
+        $prestation->loadMissing(['items.service', 'items.product', 'commissions']);
 
-        if ($othersItemIds->isEmpty()) {
-            return (float) $prestation->total;
+        // Anciennes factures : aucune ligne ne porte d'employé, c'est
+        // l'en-tête qui décide. Le ticket revient entier à son propriétaire,
+        // moins les lignes qu'une commission attribue à un collègue.
+        if ($prestation->items->whereNotNull('employee_id')->isEmpty()) {
+            if ((int) $prestation->employee_id !== (int) $employee->id) {
+                return 0.0;
+            }
+
+            $othersTotal = (float) $prestation->items
+                ->whereIn('id', $this->colleagueItemIds($prestation, $employee))
+                ->sum(fn (PrestationItem $item) => $item->lineTotal());
+
+            return round(max(0.0, (float) $prestation->total - $othersTotal), 2);
         }
 
-        $othersTotal = (float) $prestation->items
-            ->whereIn('id', $othersItemIds)
-            ->sum(fn (PrestationItem $item) => $item->lineTotal());
+        $lines = $this->employeeLines($prestation, $employee);
+        if ($lines->isEmpty()) {
+            return 0.0;
+        }
 
-        return round(max(0.0, (float) $prestation->total - $othersTotal), 2);
+        $computed = $this->pos->computeTotals($prestation);
+
+        return round((float) $lines->sum(
+            fn (PrestationItem $item) => (float) ($computed['lines'][$item->id]['total'] ?? $item->effectiveLineTotal()),
+        ), 2);
     }
 
     private function prestationRow(Prestation $prestation, Employee $employee, ?Collection $voidedSaleIds = null): array
     {
-        $prestation->loadMissing(['items', 'client', 'commissions', 'tips']);
+        $prestation->loadMissing(['items.service', 'items.product', 'client', 'commissions', 'tips']);
 
         $saleVoided = $voidedSaleIds !== null
             && $prestation->sale_id !== null
@@ -401,9 +513,15 @@ class EmployeeWorkspaceService
             'client_id' => $prestation->client_id,
             'client_name' => $prestation->client?->name ?? $prestation->client_label ?? 'Client de passage',
             'client_phone' => $prestation->client?->phone,
-            'service' => $prestation->items->pluck('label')->join(' + '),
+            'service' => $this->employeeLines($prestation, $employee)->pluck('label')->join(' + ')
+                ?: $prestation->items->pluck('label')->join(' + '),
             'duration_minutes' => (int) $prestation->items->sum('duration_minutes'),
-            'amount' => (float) $prestation->total,
+            // SA part du ticket, pas le total encaissé : sur une facture
+            // partagée avec un collègue, additionner les lignes de la liste
+            // doit redonner le CA affiché en haut (et celui de la caisse).
+            'amount' => $saleVoided ? 0.0 : $this->revenueShare($prestation, $employee),
+            'invoice_total' => (float) $prestation->total,
+            'services_count' => $this->servicesPerformed($prestation, $employee),
             // THIS employee's validated commission only — a multi-service
             // prestation can carry colleagues' commission rows too, and
             // summing them all made the history column disagree with the
@@ -489,6 +607,8 @@ class EmployeeWorkspaceService
             'service' => $this->legacySaleServiceLabel($sale),
             'duration_minutes' => 0,
             'amount' => (float) $sale->total,
+            'invoice_total' => (float) $sale->total,
+            'services_count' => max(1, (int) $sale->items->sum(fn (SaleItem $item) => max(1, (int) $item->quantity))),
             'commission' => round((float) $sale->commission_amount, 2),
             'tips' => 0.0,
             'status' => Prestation::STATUS_PAID,
@@ -650,11 +770,8 @@ class EmployeeWorkspaceService
 
     private function serviceDistribution(Employee $employee, Carbon $from, Carbon $to): array
     {
-        $items = PrestationItem::whereHas('prestation', fn (Builder $query) => $query
-            ->where('employee_id', $employee->id)
-            ->whereBetween('created_at', [$from, $to])
-            ->whereNotIn('status', [Prestation::STATUS_CANCELLED, Prestation::STATUS_REFUNDED]))
-            ->get(['label', 'quantity'])
+        $items = $this->employeeItems($employee, $from, $to)
+            ->get(['prestation_items.label', 'prestation_items.quantity'])
             ->map(fn (PrestationItem $item) => [
                 'label' => $item->label,
                 'quantity' => (int) $item->quantity,
@@ -677,10 +794,7 @@ class EmployeeWorkspaceService
 
     private function topServices(Employee $employee, Carbon $from, Carbon $to): Collection
     {
-        $items = PrestationItem::whereHas('prestation', fn (Builder $query) => $query
-            ->where('employee_id', $employee->id)
-            ->whereBetween('created_at', [$from, $to])
-            ->whereNotIn('status', [Prestation::STATUS_CANCELLED, Prestation::STATUS_REFUNDED]))
+        $items = $this->employeeItems($employee, $from, $to)
             ->get()
             ->map(fn (PrestationItem $item) => [
                 'label' => $item->label,

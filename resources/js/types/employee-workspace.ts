@@ -33,7 +33,11 @@ export interface EmployeePrestationRow {
     client_phone: string | null;
     service: string;
     duration_minutes: number;
+    /** Part de l'employé sur ce ticket (ses lignes), pas le total encaissé. */
     amount: number;
+    /** Total du ticket, qui peut être partagé avec un collègue. */
+    invoice_total: number;
+    services_count: number;
     commission: number;
     tips: number;
     status: PrestationStatus;

@@ -23,6 +23,8 @@ export default function EmployeeStatistics() {
     const { data } = useQuery({
         queryKey: ['employee-workspace', 'statistics', period],
         queryFn: () => getEmployeeStatistics({ period, range: period }),
+        refetchInterval: 60_000,
+        refetchOnWindowFocus: true,
     });
 
     return (

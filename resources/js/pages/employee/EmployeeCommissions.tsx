@@ -23,6 +23,8 @@ export default function EmployeeCommissions() {
     const { data, isPending } = useQuery({
         queryKey: ['employee-workspace', 'commissions', range],
         queryFn: () => getEmployeeWorkspaceCommissions({ range }),
+        refetchInterval: 60_000,
+        refetchOnWindowFocus: true,
     });
 
     return (

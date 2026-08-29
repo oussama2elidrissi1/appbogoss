@@ -41,6 +41,10 @@ export default function EmployeeDashboard() {
     const { data, isPending } = useQuery({
         queryKey: ['employee-workspace', 'dashboard'],
         queryFn: getEmployeeWorkspaceDashboard,
+        // La caisse encaisse pendant que cet écran reste ouvert : sans
+        // intervalle il affiche les chiffres d'il y a une heure.
+        refetchInterval: 30_000,
+        refetchOnWindowFocus: true,
     });
 
     if (isPending) {
