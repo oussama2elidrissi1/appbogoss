@@ -9,7 +9,7 @@ import { paymentMethodLabel, printInvoiceA4, printInvoiceReceipt } from '@/lib/r
 import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatTime } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
-import type { Pos2InvoiceStatus } from '@/types/pos2';
+import type { Pos2Commission, Pos2InvoiceStatus } from '@/types/pos2';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -94,11 +94,21 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
     const activeTips = (invoice?.tips ?? []).filter((tip) => !tip.voided);
     const tipsTotal = activeTips.reduce((sum, tip) => sum + tip.amount, 0);
     const saleDeleted = invoice?.sale_deleted === true;
-    const activeCommissions = saleDeleted
+    const activeCommissions: Pos2Commission[] = saleDeleted
         ? []
         : (invoice?.commissions ?? []).filter((commission) => commission.status === 'validated');
-    const commissionByLine = activeCommissions.reduce((map, commission) => {
-        map.set(commission.prestation_item_id, (map.get(commission.prestation_item_id) ?? 0) + commission.amount);
+    // Une commission de pourboire est rattachée à une ligne (contrainte SQL)
+    // mais s'affiche avec son pourboire, jamais dans la commission de la ligne.
+    const commissionByLine = activeCommissions
+        .filter((commission) => commission.tip_id === null)
+        .reduce((map, commission) => {
+            map.set(commission.prestation_item_id, (map.get(commission.prestation_item_id) ?? 0) + commission.amount);
+            return map;
+        }, new Map<number, number>());
+    const commissionByTip = activeCommissions.reduce((map, commission) => {
+        if (commission.tip_id !== null) {
+            map.set(commission.tip_id, (map.get(commission.tip_id) ?? 0) + commission.amount);
+        }
         return map;
     }, new Map<number, number>());
 
@@ -385,18 +395,30 @@ export function Pos2InvoiceDetailDrawer({ invoiceId, onClose }: Pos2InvoiceDetai
                                             <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                                                 {t('Pourboires')}
                                             </p>
-                                            {(invoice.tips ?? []).map((tip) => (
-                                                <div
-                                                    key={tip.id}
-                                                    className={cn(
-                                                        'flex justify-between text-muted-foreground',
-                                                        tip.voided && 'line-through opacity-60',
-                                                    )}
-                                                >
-                                                    <span>{tip.employee_name ?? `Employé #${tip.employee_id}`}</span>
-                                                    <span className="tabular-nums">{formatCurrency(tip.amount)}</span>
-                                                </div>
-                                            ))}
+                                            {(invoice.tips ?? []).map((tip) => {
+                                                const tipCommission = tip.voided ? undefined : commissionByTip.get(tip.id);
+                                                return (
+                                                    <div
+                                                        key={tip.id}
+                                                        className={cn(
+                                                            'flex justify-between gap-3 text-muted-foreground',
+                                                            tip.voided && 'line-through opacity-60',
+                                                        )}
+                                                    >
+                                                        <span className="min-w-0 truncate">
+                                                            {tip.employee_name ?? `Employé #${tip.employee_id}`}
+                                                        </span>
+                                                        <span className="shrink-0 tabular-nums">
+                                                            {tipCommission !== undefined && (
+                                                                <span className="mr-2 text-[11px] text-accent">
+                                                                    {t('comm. {x}', { x: formatCurrency(tipCommission) })}
+                                                                </span>
+                                                            )}
+                                                            {formatCurrency(tip.amount)}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })}
                                             {activeTips.length > 1 && (
                                                 <div className="mt-1.5 flex justify-between border-t border-tint/[0.06] pt-1.5 font-semibold text-foreground">
                                                     <span>{t('Total')}</span>

@@ -423,6 +423,88 @@ class PosV2WorkflowTest extends TestCase
         $this->assertEquals(45, $history['commission_total']);
     }
 
+    public function test_a_global_tip_on_several_coiffure_lines_is_still_split_at_50_percent(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $omar = Employee::factory()->create(['name' => 'omar', 'default_commission_rate' => 50]);
+        $coupe = Service::factory()->create(['category' => 'coiffure', 'price' => 70]);
+        $soin = Service::factory()->create(['category' => 'coiffure', 'price' => 120]);
+        $wax = Service::factory()->create(['category' => 'coiffure', 'price' => 30]);
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [
+                ['service_id' => $coupe->id, 'employee_id' => $omar->id],
+                ['service_id' => $soin->id, 'employee_id' => $omar->id],
+                ['service_id' => $wax->id, 'employee_id' => $omar->id],
+            ],
+        ])->assertCreated()->json('data');
+
+        // No prestation_item_id: the tip goes to omar for the whole ticket,
+        // which is what the checkout sends once he holds several lines.
+        $paid = $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", [
+            'payment_method' => 'especes',
+            'tips' => [['employee_id' => $omar->id, 'amount' => 95]],
+        ])->assertOk()->json('data');
+
+        $this->assertEquals(220, $paid['total']);
+        $this->assertEquals(315, $paid['total_collected']);
+        $this->assertNull(Tip::first()->prestation_item_id);
+        $this->assertEquals(47.5, (float) Commission::where('prestation_id', $invoice['id'])
+            ->where('type', 'tip_percentage')->sum('amount'));
+        // 110 on the 220 of services + 47.5 on the 95 of tips.
+        $this->assertEquals(157.5, (float) Sale::find($paid['sale_id'])->commission_amount);
+
+        $detail = $this->getJson("/api/pos-v2/invoices/{$invoice['id']}")->assertOk()->json('data');
+        $this->assertEquals(157.5, collect($detail['commissions'])->sum('amount'));
+    }
+
+    public function test_a_global_tip_is_only_split_on_its_coiffure_share(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $omar = Employee::factory()->create(['name' => 'omar', 'default_commission_rate' => 50]);
+        $coupe = Service::factory()->create(['category' => 'coiffure', 'price' => 100]);
+        $manucure = Service::factory()->create(['category' => 'esthetique', 'price' => 300]);
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [
+                ['service_id' => $coupe->id, 'employee_id' => $omar->id],
+                ['service_id' => $manucure->id, 'employee_id' => $omar->id],
+            ],
+        ])->assertCreated()->json('data');
+
+        $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", [
+            'payment_method' => 'especes',
+            'tips' => [['employee_id' => $omar->id, 'amount' => 80]],
+        ])->assertOk();
+
+        // 100 of the 400 in services is coiffure: 20 MAD of the tip is
+        // commissionable, half of it goes to omar.
+        $this->assertEquals(10, (float) Commission::where('prestation_id', $invoice['id'])
+            ->where('type', 'tip_percentage')->sum('amount'));
+    }
+
+    public function test_a_global_tip_without_any_coiffure_line_earns_no_commission(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $omar = Employee::factory()->create(['name' => 'omar', 'default_commission_rate' => 50]);
+        $manucure = Service::factory()->create(['category' => 'esthetique', 'price' => 100]);
+        $pedicure = Service::factory()->create(['category' => 'esthetique', 'price' => 120]);
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [
+                ['service_id' => $manucure->id, 'employee_id' => $omar->id],
+                ['service_id' => $pedicure->id, 'employee_id' => $omar->id],
+            ],
+        ])->assertCreated()->json('data');
+
+        $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", [
+            'payment_method' => 'especes',
+            'tips' => [['employee_id' => $omar->id, 'amount' => 50]],
+        ])->assertOk();
+
+        $this->assertSame(0, Commission::where('type', 'tip_percentage')->count());
+    }
+
     // ------------------------------------------------------------------
     // Cancel / refund (§32)
     // ------------------------------------------------------------------

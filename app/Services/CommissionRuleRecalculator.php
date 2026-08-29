@@ -67,8 +67,11 @@ class CommissionRuleRecalculator
         $updated = 0;
 
         foreach ($items as $item) {
+            // whereNull('tip_id'): a line can also carry the 50% commission of
+            // a tip, which no service rule ever recomputes.
             $commission = Commission::where('prestation_item_id', $item->id)
                 ->where('status', Commission::STATUS_VALIDATED)
+                ->whereNull('tip_id')
                 ->first();
 
             if ($commission === null) {

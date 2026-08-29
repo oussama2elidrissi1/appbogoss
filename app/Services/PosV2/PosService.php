@@ -1554,19 +1554,25 @@ class PosService
             ]);
 
             $line = $itemId !== null ? $prestation->items->firstWhere('id', $itemId) : null;
-            if ($line?->service?->category === 'coiffure') {
-                $tipCommission = round($amount * self::COIFFURE_TIP_COMMISSION_RATE / 100, 2);
+
+            // §40 — coiffure tips are split with the house at 50%, whether the
+            // tip was attached to a line or given globally to an employee who
+            // holds several lines on the ticket.
+            [$commissionLine, $commissionBase] = $this->coiffureTipBasis($prestation, $employeeId, $line, $amount);
+
+            if ($commissionLine !== null && $commissionBase > 0) {
+                $tipCommission = round($commissionBase * self::COIFFURE_TIP_COMMISSION_RATE / 100, 2);
 
                 Commission::create([
                     'prestation_id' => $prestation->id,
-                    'prestation_item_id' => $line->id,
+                    'prestation_item_id' => $commissionLine->id,
                     'employee_id' => $employeeId,
-                    'service_id' => $line->service_id,
+                    'service_id' => $commissionLine->service_id,
                     'tip_id' => $created->id,
                     'rule_id' => null,
                     'type' => 'tip_percentage',
                     'rate_or_amount' => self::COIFFURE_TIP_COMMISSION_RATE,
-                    'base_amount' => $amount,
+                    'base_amount' => $commissionBase,
                     'amount' => $tipCommission,
                     'status' => Commission::STATUS_VALIDATED,
                 ]);
@@ -1574,16 +1580,51 @@ class PosService
                 $tipCommissionTotal = round($tipCommissionTotal + $tipCommission, 2);
                 $this->activityLogger->log('caisse_v2.tip_commission_recorded', $sale, [], [
                     'prestation_id' => $prestation->id,
-                    'prestation_item_id' => $line->id,
+                    'prestation_item_id' => $commissionLine->id,
                     'employee_id' => $employeeId,
                     'rate' => self::COIFFURE_TIP_COMMISSION_RATE,
-                    'base_amount' => $amount,
+                    'base_amount' => $commissionBase,
                     'amount' => $tipCommission,
                 ]);
             }
         }
 
         return $tipCommissionTotal;
+    }
+
+    /**
+     * Commissionable part of a tip: the line the commission row hangs on and
+     * the share of the tip that is coiffure money.
+     *
+     * A tip attached to a line follows that line — coiffure earns the 50%
+     * split, anything else earns nothing. A tip given globally to an employee
+     * (no line, because they hold several on the ticket) is spread over their
+     * own lines by value, so only its coiffure share is split; the row is
+     * booked on their biggest coiffure line, commissions.tip_id being unique.
+     *
+     * @return array{0: ?PrestationItem, 1: float}
+     */
+    private function coiffureTipBasis(Prestation $prestation, int $employeeId, ?PrestationItem $line, float $amount): array
+    {
+        if ($line !== null) {
+            return $line->service?->category === 'coiffure' ? [$line, $amount] : [null, 0.0];
+        }
+
+        $employeeLines = $prestation->items->where('employee_id', $employeeId);
+        $coiffureLines = $employeeLines->filter(fn (PrestationItem $item) => $item->service?->category === 'coiffure');
+        if ($coiffureLines->isEmpty()) {
+            return [null, 0.0];
+        }
+
+        $value = fn (PrestationItem $item) => $item->is_free ? 0.0 : $item->effectiveLineTotal();
+        $linesTotal = round($employeeLines->sum($value), 2);
+        // Free/offered lines are worth 0: fall back to counting lines so a tip
+        // on an all-coiffure ticket is still split instead of vanishing.
+        $share = $linesTotal > 0
+            ? round($coiffureLines->sum($value), 2) / $linesTotal
+            : $coiffureLines->count() / max(1, $employeeLines->count());
+
+        return [$coiffureLines->sortByDesc($value)->first(), round($amount * $share, 2)];
     }
 
     /**
