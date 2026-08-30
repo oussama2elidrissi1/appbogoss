@@ -22,6 +22,7 @@ import { RecentActivityCard } from '@/components/dashboard/RecentActivityCard';
 import { AppointmentQueueCard } from '@/components/dashboard/AppointmentQueueCard';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 import { ActiveDayCard } from '@/components/dashboard/ActiveDayCard';
+import { PendingClosuresAlert } from '@/components/closure/PendingClosuresAlert';
 
 const container = {
     hidden: { opacity: 0 },
@@ -96,6 +97,12 @@ export default function Dashboard() {
                 <p className="mt-1.5 text-sm text-muted-foreground">
                     {t('Voici l’activité de votre salon aujourd’hui.')}
                 </p>
+            </motion.div>
+
+            {/* Mois termines encore ouverts. Place tout en haut : c'est une
+                anomalie a traiter, pas une statistique a consulter. */}
+            <motion.div variants={item}>
+                <PendingClosuresAlert />
             </motion.div>
 
             {/* KPI row */}

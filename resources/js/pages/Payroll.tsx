@@ -2,7 +2,17 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { AlertCircle, CheckCircle2, ChevronDown, HandCoins, Loader2, Wallet } from 'lucide-react';
-import { createAdvance, getCommissionPayouts, getEmployees, getErrorMessage, payCommission } from '@/lib/api';
+import {
+    createAdvance,
+    getCommissionPayouts,
+    getEmployees,
+    getErrorMessage,
+    getPeriods,
+    payCommission,
+} from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
+import { MonthClosureDialog } from '@/components/closure/MonthClosureDialog';
+import { PeriodSelector, formatPeriod } from '@/components/closure/PeriodSelector';
 import { useActiveWorkDay, workDayKeys } from '@/hooks/useWorkDay';
 import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
@@ -31,6 +41,7 @@ export default function Payroll() {
     const { t } = useI18n();
     const queryClient = useQueryClient();
     const [period, setPeriod] = useState(currentMonth());
+    const [closureOpen, setClosureOpen] = useState(false);
     const [confirming, setConfirming] = useState<CommissionPayoutRow | null>(null);
     // Whether "Marquer comme payé" also records the net amount as a cash-out
     // on the open caisse day — an advance created already settled and linked
@@ -42,6 +53,20 @@ export default function Payroll() {
     // register's cash like any other avance) without going through the
     // once-per-month "Marquer comme payé" settlement below.
     const [payAmounts, setPayAmounts] = useState<Record<number, string>>({});
+
+    const { hasPermission } = useAuth();
+    // Les mois clotures ne sont proposes qu'a qui peut les relire : pour
+    // l'admin, un mois cloture a quitte ses ecrans pour de bon.
+    const canSeeClosed = hasPermission('months.history.view');
+    const canCloseMonths = hasPermission('months.close');
+
+    const { data: periods } = useQuery({ queryKey: ['periods'], queryFn: getPeriods });
+    const periodStatus =
+        periods?.closed.some((entry) => entry.period === period)
+            ? 'closed'
+            : periods && period !== periods.current
+              ? 'to_finalize'
+              : 'current';
 
     const {
         data: rows,
@@ -130,17 +155,47 @@ export default function Payroll() {
                 </div>
 
                 <Card>
-                    <CardContent className="flex flex-wrap items-end justify-between gap-4 p-4">
-                        <label className="space-y-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                            {t('Période')}
-                            <input
-                                type="month"
+                    <CardContent className="space-y-4 p-4">
+                        {/* Un mois n'est pas qu'une date : il est en cours, a
+                            finaliser ou cloture, et ce statut decide de ce que
+                            l'ecran autorise. D'ou un selecteur a statuts plutot
+                            qu'un <input type="month"> muet. */}
+                        <div className="space-y-2">
+                            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                                {t('Période')}
+                            </p>
+                            <PeriodSelector
+                                periods={periods}
                                 value={period}
-                                onChange={(event) => setPeriod(event.target.value)}
-                                className="block h-10 rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 text-sm font-normal normal-case tracking-normal text-foreground outline-none transition-colors focus:border-accent/60"
+                                onChange={setPeriod}
+                                includeClosed={canSeeClosed}
                             />
-                        </label>
-                        <span className="text-sm text-muted-foreground">
+                        </div>
+
+                        {periodStatus === 'to_finalize' && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
+                                <p className="text-sm">
+                                    <span className="font-semibold">
+                                        {t('Ce mois est terminé mais pas encore clôturé.')}
+                                    </span>{' '}
+                                    {t('Finalisez les paiements employés, puis clôturez-le.')}
+                                </p>
+                                {canCloseMonths && (
+                                    <Button size="sm" onClick={() => setClosureOpen(true)}>
+                                        {t('Vérifier avant clôture')}
+                                    </Button>
+                                )}
+                            </div>
+                        )}
+
+                        {periodStatus === 'closed' && (
+                            <p className="rounded-lg border p-3 text-sm text-muted-foreground">
+                                <span className="capitalize">{formatPeriod(period)}</span>{' '}
+                                {t('est clôturé : consultation seule, plus aucune modification possible.')}
+                            </p>
+                        )}
+
+                        <span className="block text-sm text-muted-foreground">
                             {t('Une avance est un acompte déjà versé sur la commission du mois — elle est automatiquement soldée quand ce mois est marqué payé.')}
                         </span>
                     </CardContent>
@@ -385,6 +440,15 @@ export default function Payroll() {
                     </div>
                 )}
             </motion.div>
+
+            <MonthClosureDialog
+                period={period}
+                open={closureOpen}
+                onOpenChange={setClosureOpen}
+                // Le mois cloture quitte les ecrans de l'admin : on revient sur
+                // le mois courant plutot que de rester sur un ecran mort.
+                onClosed={() => setPeriod(periods?.current ?? currentMonth())}
+            />
 
             <ConfirmDialog
                 open={confirming !== null}

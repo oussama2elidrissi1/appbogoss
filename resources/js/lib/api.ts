@@ -1,6 +1,11 @@
 import axios, { AxiosError } from 'axios';
 import type { ApplicationSettings, ApplicationSettingsPayload, DashboardData, User } from '@/types/dashboard';
 import type {
+    ClosureChecklist,
+    MonthlyClosureRow,
+    PeriodsResponse,
+} from '@/types/closure';
+import type {
     Advance,
     AdvancesReport,
     AdvancesResponse,
@@ -1158,6 +1163,51 @@ export async function getCommissionPayoutHistory(employeeId: number): Promise<Co
     const { data } = await api.get<{ data: CommissionPayout[] }>(
         `/api/employees/${employeeId}/commission-payouts`,
     );
+    return data.data;
+}
+
+// --- Cloture mensuelle -----------------------------------------------------
+
+/**
+ * Etat des periodes : mois courant, mois termines encore ouverts, mois
+ * clotures. Lu par le selecteur de periode, donc accessible a tout compte
+ * deja autorise sur la paie.
+ */
+export async function getPeriods(): Promise<PeriodsResponse> {
+    const { data } = await api.get<{ data: PeriodsResponse }>('/api/periods');
+    return data.data;
+}
+
+/** Verification complete avant cloture. Reconstruite par le serveur a chaque appel. */
+export async function getClosureChecklist(period: string): Promise<ClosureChecklist> {
+    const { data } = await api.get<{ data: ClosureChecklist }>(
+        `/api/monthly-closures/${period}/checklist`,
+    );
+    return data.data;
+}
+
+/**
+ * Cloture definitive. `confirmed` double la case a cocher, mais ne la remplace
+ * pas comme controle : le serveur reconstruit toute la checklist dans sa
+ * transaction avant d'ecrire.
+ */
+export async function closeMonth(payload: {
+    period: string;
+    confirmed: true;
+    notes?: string;
+}): Promise<MonthlyClosureRow> {
+    const { data } = await api.post<{ data: MonthlyClosureRow }>('/api/monthly-closures', payload);
+    return data.data;
+}
+
+/** Historique des clotures — Super Admin (months.history.view). */
+export async function getMonthlyClosures(): Promise<MonthlyClosureRow[]> {
+    const { data } = await api.get<{ data: MonthlyClosureRow[] }>('/api/monthly-closures');
+    return data.data;
+}
+
+export async function getMonthlyClosure(period: string): Promise<MonthlyClosureRow> {
+    const { data } = await api.get<{ data: MonthlyClosureRow }>(`/api/monthly-closures/${period}`);
     return data.data;
 }
 

@@ -63,6 +63,9 @@ class Kernel extends HttpKernel
         // see the class doc for the Sanctum behaviour it compensates for.
         'client.account' => \App\Http\Middleware\EnsureClientAccount::class,
         'guest' => \App\Http\Middleware\RedirectIfAuthenticated::class,
+        // Refuse toute ecriture qui tomberait dans un mois cloture — voir la
+        // classe pour le detail des deux cotes verifies (avant / apres).
+        'period.open' => \App\Http\Middleware\EnsurePeriodOpen::class,
         'password.confirm' => \Illuminate\Auth\Middleware\RequirePassword::class,
         'precognitive' => \Illuminate\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
         'signed' => \App\Http\Middleware\ValidateSignature::class,

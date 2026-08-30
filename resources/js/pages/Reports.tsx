@@ -6,11 +6,13 @@ import {
     getErrorMessage,
     getMonthlyReport,
     getMonthlyReportPdfUrl,
+    getPeriods,
     getTransactions,
     getWorkDayPdfUrl,
     getWorkDays,
     recordTransactionPrint,
 } from '@/lib/api';
+import { PeriodStatusBadge } from '@/components/closure/PeriodSelector';
 import { cn, formatCurrency, formatDayLabel, formatTime } from '@/lib/utils';
 import { pageFade } from '@/lib/motion';
 import { t as tr, useI18n } from '@/lib/i18n';
@@ -748,7 +750,13 @@ export default function Reports() {
                             className="block h-10 rounded-md border border-tint/[0.08] bg-tint/[0.04] px-3 text-sm font-normal normal-case tracking-normal text-foreground outline-none transition-colors focus:border-accent/60"
                         />
                     </label>
-                    <span className="text-sm text-muted-foreground">{t('Les totaux utilisent les journees de caisse, pas seulement la date d’encaissement.')}</span>
+                    <div className="space-y-2">
+                        {/* Le statut du mois se lit ici aussi : le rapport d'un mois
+                            cloture est fige, celui d'un mois a finaliser bougera
+                            encore. */}
+                        <ReportPeriodStatus month={month} />
+                        <span className="block text-sm text-muted-foreground">{t('Les totaux utilisent les journees de caisse, pas seulement la date d’encaissement.')}</span>
+                    </div>
                 </CardContent>
             </Card>
 
@@ -825,4 +833,29 @@ export default function Reports() {
             </Tabs>
         </motion.div>
     );
+}
+
+/**
+ * Statut de la periode affichee dans les rapports.
+ *
+ * Rappel important : ce panneau utilise l'ancrage `work_days.date`, celui des
+ * rapports de caisse — la paie, elle, suit `commissions.created_at`. Les deux
+ * peuvent differer sur une operation de nuit, et cet ecart est volontairement
+ * conserve (voir MonthlyClosureService).
+ */
+function ReportPeriodStatus({ month }: { month: string }) {
+    const { data } = useQuery({ queryKey: ['periods'], queryFn: getPeriods });
+    if (!data) return null;
+
+    const status = data.closed.some((entry) => entry.period === month)
+        ? ('closed' as const)
+        : month === data.current
+          ? ('current' as const)
+          : data.to_finalize.some((entry) => entry.period === month)
+            ? ('to_finalize' as const)
+            : null;
+
+    if (status === null) return null;
+
+    return <PeriodStatusBadge status={status} />;
 }

@@ -235,6 +235,13 @@ export const navSections: NavSection[] = [
                 description: 'Configuration du salon, utilisateurs et préférences.',
             },
             {
+                label: 'Historique des clôtures',
+                to: '/clotures',
+                icon: CalendarCheck,
+                description: 'Mois définitivement clôturés, avec leur rapport figé.',
+                permission: 'months.history.view',
+            },
+            {
                 label: "Journal d'activité",
                 to: '/activity-log',
                 icon: History,

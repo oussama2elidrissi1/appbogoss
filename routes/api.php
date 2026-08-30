@@ -27,6 +27,7 @@ use App\Http\Controllers\Api\MarketingSegmentController;
 use App\Http\Controllers\Api\MeController;
 use App\Http\Controllers\Api\Mobile\MobileAuthController;
 use App\Http\Controllers\Api\Mobile\MobileClientAuthController;
+use App\Http\Controllers\Api\MonthlyClosureController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\Partner\PartnerClientController;
 use App\Http\Controllers\Api\Partner\PartnerCommissionController as PartnerPortalCommissionController;
@@ -246,23 +247,32 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/transactions/{sale}', [TransactionController::class, 'destroy']);
 
         Route::get('/expenses', [ExpenseController::class, 'index']);
-        Route::post('/expenses', [ExpenseController::class, 'store']);
-        Route::put('/expenses/{expense}', [ExpenseController::class, 'update']);
-        Route::post('/expenses/{expense}/convert-to-advance', [ExpenseController::class, 'convertToAdvance']);
-        // Super-admin only (checked in-controller — no dedicated spatie
-        // permission, same pattern as AdvanceController's patron gate).
-        Route::delete('/expenses/{expense}', [ExpenseController::class, 'destroy']);
+        // `period.open` : une depense d'un mois cloture ne se cree plus, ne se
+        // modifie plus, et ne peut pas non plus etre DEPLACEE vers ce mois —
+        // le middleware lit la periode avant et apres la modification.
+        Route::middleware('period.open')->group(function () {
+            Route::post('/expenses', [ExpenseController::class, 'store']);
+            Route::put('/expenses/{expense}', [ExpenseController::class, 'update']);
+            Route::post('/expenses/{expense}/convert-to-advance', [ExpenseController::class, 'convertToAdvance']);
+            // Super-admin only (checked in-controller — no dedicated spatie
+            // permission, same pattern as AdvanceController's patron gate).
+            Route::delete('/expenses/{expense}', [ExpenseController::class, 'destroy']);
+        });
 
         Route::apiResource('/products', ProductController::class);
     });
 
     Route::middleware('permission:employees.manage')->group(function () {
-        Route::post('/advances/settle-before', [AdvanceController::class, 'settleBefore']);
-        Route::post('/advances/{advance}/settle', [AdvanceController::class, 'settle']);
         Route::get('/advances', [AdvanceController::class, 'index']);
-        Route::post('/advances', [AdvanceController::class, 'store']);
-        Route::put('/advances/{advance}', [AdvanceController::class, 'update']);
-        Route::delete('/advances/{advance}', [AdvanceController::class, 'destroy']);
+        // Meme verrou que les depenses : `given_on` decide du mois, et une
+        // avance antidatee dans un mois cloture est refusee cote serveur.
+        Route::middleware('period.open')->group(function () {
+            Route::post('/advances/settle-before', [AdvanceController::class, 'settleBefore']);
+            Route::post('/advances/{advance}/settle', [AdvanceController::class, 'settle']);
+            Route::post('/advances', [AdvanceController::class, 'store']);
+            Route::put('/advances/{advance}', [AdvanceController::class, 'update']);
+            Route::delete('/advances/{advance}', [AdvanceController::class, 'destroy']);
+        });
 
         Route::apiResource('/employees', EmployeeController::class);
         Route::post('/employees/{employee}/reset-password', [EmployeeController::class, 'resetPassword']);
@@ -280,8 +290,32 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('/employee-service-commissions/{employeeServiceCommission}', [EmployeeServiceCommissionController::class, 'update']);
         Route::delete('/employee-service-commissions/{employeeServiceCommission}', [EmployeeServiceCommissionController::class, 'destroy']);
         Route::get('/commission-payouts', [CommissionPayoutController::class, 'index']);
-        Route::post('/commission-payouts', [CommissionPayoutController::class, 'store']);
+        // Un mois cloture n'accepte plus de versement : c'est tout l'objet de
+        // la cloture, et la garde ne peut pas vivre uniquement dans l'UI.
+        Route::middleware('period.open')->group(function () {
+            Route::post('/commission-payouts', [CommissionPayoutController::class, 'store']);
+        });
         Route::get('/employees/{employee}/commission-payouts', [CommissionPayoutController::class, 'history']);
+    });
+
+    // Cloture mensuelle.
+    //
+    // L'etat des periodes n'est pas une information privilegiee — les deux
+    // clients en ont besoin pour dessiner leur selecteur — donc pas de
+    // `permission:` ici, seulement l'authentification.
+    Route::get('/periods', [MonthlyClosureController::class, 'periods']);
+
+    Route::middleware('permission:months.close')->group(function () {
+        // Declare AVANT la route {period} nue, sinon celle-ci l'avalerait.
+        Route::get('/monthly-closures/{period}/checklist', [MonthlyClosureController::class, 'checklist']);
+        Route::post('/monthly-closures', [MonthlyClosureController::class, 'store']);
+    });
+
+    // Historique : reserve au Super Admin. Un mois cloture quitte
+    // definitivement les ecrans de l'admin, c'est le seul chemin qui y ramene.
+    Route::middleware('permission:months.history.view')->group(function () {
+        Route::get('/monthly-closures', [MonthlyClosureController::class, 'index']);
+        Route::get('/monthly-closures/{period}', [MonthlyClosureController::class, 'show']);
     });
 
     // Loyalty & Subscriptions

@@ -51,6 +51,12 @@ class RolesAndPermissionsSeeder extends Seeder
             'settings.manage',
             'users.manage',
 
+            // Cloture mensuelle. `months.close` finalise un mois termine ;
+            // `months.history.view` donne acces aux mois clotures, que
+            // l'admin ne revoit plus une fois la cloture faite.
+            'months.close',
+            'months.history.view',
+
             // Original Phase 1 loyalty gates — still authoritative for the
             // routes/controllers/tests that already reference them.
             'loyalty.manage',
@@ -106,6 +112,10 @@ class RolesAndPermissionsSeeder extends Seeder
             'reports.view_all',
             'activity_log.view',
             'settings.manage',
+            // Cloturer un mois est un geste d'administration courante ; en
+            // relire l'historique ne l'est pas (months.history.view reste au
+            // super-admin).
+            'months.close',
             'loyalty.manage',
             'loyalty.redeem',
             'loyalty.view',
