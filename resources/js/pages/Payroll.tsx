@@ -60,13 +60,22 @@ export default function Payroll() {
     const canSeeClosed = hasPermission('months.history.view');
     const canCloseMonths = hasPermission('months.close');
 
-    const { data: periods } = useQuery({ queryKey: ['periods'], queryFn: getPeriods });
-    const periodStatus =
-        periods?.closed.some((entry) => entry.period === period)
+    const { data: periods, isError: periodsUnavailable } = useQuery({
+        queryKey: ['periods'],
+        queryFn: getPeriods,
+    });
+    // Statut du mois affiche. Sans reponse serveur on retombe sur une deduction
+    // locale plutot que de tout masquer : un mois passe reste « a finaliser »
+    // meme si /api/periods est indisponible, et l'ecran garde son sens.
+    const periodStatus = periods
+        ? periods.closed.some((entry) => entry.period === period)
             ? 'closed'
-            : periods && period !== periods.current
-              ? 'to_finalize'
-              : 'current';
+            : period === periods.current
+              ? 'current'
+              : 'to_finalize'
+        : period === currentMonth()
+          ? 'current'
+          : 'to_finalize';
 
     const {
         data: rows,
@@ -171,6 +180,12 @@ export default function Payroll() {
                                 includeClosed={canSeeClosed}
                             />
                         </div>
+
+                        {periodsUnavailable && (
+                            <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                                {t("L'état des clôtures mensuelles est indisponible. Vérifiez que les migrations sont appliquées sur ce serveur.")}
+                            </p>
+                        )}
 
                         {periodStatus === 'to_finalize' && (
                             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">

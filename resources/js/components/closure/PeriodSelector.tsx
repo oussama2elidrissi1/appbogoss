@@ -22,6 +22,11 @@ export const PERIOD_STATUS_LABEL: Record<PeriodStatus, string> = {
  * l'écran autorise. Les mois clôturés ne sont proposés qu'au Super Admin —
  * pour l'Admin, un mois clôturé a quitté ses écrans pour de bon.
  */
+export function currentMonth(): string {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export function PeriodSelector({
     periods,
     value,
@@ -33,13 +38,23 @@ export function PeriodSelector({
     onChange: (period: string) => void;
     includeClosed?: boolean;
 }) {
-    if (!periods) return null;
+    // Jamais `null` : ce sélecteur a REMPLACÉ l'<input type="month"> de la
+    // page Paie. S'effacer quand /api/periods ne répond pas ferait disparaître
+    // le choix du mois avec lui — l'écran perdrait une fonction qu'il avait
+    // déjà. Sans réponse serveur, on retombe donc sur le mois courant calculé
+    // localement, ce qui suffit à garder l'écran utilisable.
+    const resolved: PeriodsResponse = periods ?? {
+        current: currentMonth(),
+        start_period: null,
+        to_finalize: [],
+        closed: [],
+    };
 
     const options: { period: string; status: PeriodStatus }[] = [
-        { period: periods.current, status: 'current' },
-        ...periods.to_finalize.map((entry) => ({ period: entry.period, status: 'to_finalize' as const })),
+        { period: resolved.current, status: 'current' },
+        ...resolved.to_finalize.map((entry) => ({ period: entry.period, status: 'to_finalize' as const })),
         ...(includeClosed
-            ? periods.closed.map((entry) => ({ period: entry.period, status: 'closed' as const }))
+            ? resolved.closed.map((entry) => ({ period: entry.period, status: 'closed' as const }))
             : []),
     ];
 
@@ -47,7 +62,7 @@ export function PeriodSelector({
     // que l'écran était ouvert) reste affichée plutôt que de disparaître
     // silencieusement du sélecteur.
     if (!options.some((option) => option.period === value)) {
-        options.push({ period: value, status: value === periods.current ? 'current' : 'to_finalize' });
+        options.push({ period: value, status: value === resolved.current ? 'current' : 'to_finalize' });
     }
 
     return (
