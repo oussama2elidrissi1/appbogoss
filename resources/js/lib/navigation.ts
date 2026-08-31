@@ -235,6 +235,13 @@ export const navSections: NavSection[] = [
                 description: 'Configuration du salon, utilisateurs et préférences.',
             },
             {
+                label: 'Clôture du mois',
+                to: '/cloture',
+                icon: CalendarClock,
+                description: 'Finaliser un mois terminé : paiements, journées de caisse, clôture.',
+                permission: 'months.close',
+            },
+            {
                 label: 'Historique des clôtures',
                 to: '/clotures',
                 icon: CalendarCheck,

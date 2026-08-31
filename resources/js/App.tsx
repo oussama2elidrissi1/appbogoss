@@ -41,6 +41,7 @@ import PartnerClients from '@/pages/partner/PartnerClients';
 import PartnerClientDetail from '@/pages/partner/PartnerClientDetail';
 import PartnerProfile from '@/pages/partner/PartnerProfile';
 import PartnerSupport from '@/pages/partner/PartnerSupport';
+import MonthClosure from '@/pages/MonthClosure';
 import MonthlyClosures from '@/pages/MonthlyClosures';
 import Payroll from '@/pages/Payroll';
 import PlaceholderPage from '@/pages/PlaceholderPage';
@@ -207,6 +208,7 @@ export default function App() {
 
                     <Route element={<ProtectedRoute permission="commissions.manage" />}>
                         <Route path="/paie" element={<Payroll />} />
+                        <Route path="/cloture" element={<MonthClosure />} />
                         <Route path="/clotures" element={<MonthlyClosures />} />
                     </Route>
 

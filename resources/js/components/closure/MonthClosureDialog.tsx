@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatPeriod } from '@/components/closure/PeriodSelector';
+import { ClosureProcedure } from '@/components/closure/ClosureProcedure';
 
 /**
  * Vérification puis clôture définitive d'un mois.
@@ -102,6 +103,10 @@ export function MonthClosureDialog({
 
                 {checklist && (
                     <div className="space-y-5">
+                        {/* La procedure d'abord, les details ensuite : sans elle
+                            l'ecran n'annoncait que des refus. */}
+                        <ClosureProcedure checklist={checklist} />
+
                         {checklist.blocking_reasons.length > 0 && (
                             <ul className="space-y-1 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
                                 {checklist.blocking_reasons.map((reason) => (
