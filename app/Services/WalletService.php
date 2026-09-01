@@ -1040,13 +1040,29 @@ class WalletService
      */
     public function employeeDues(string $period): array
     {
+        [$from, $to] = $this->periodBounds($period);
+
         $employees = Employee::query()
             ->where('is_company', false)
             ->orderBy('name')
             ->get();
 
+        // Les avances encore dues QUI ONT ETE DONNEES CE MOIS-CI. La paie, elle,
+        // deduit toutes les avances non soldees quelle que soit leur date : un
+        // acompte d'aout non rembourse reduit encore la paie de septembre.
+        // Sans cette distinction, la colonne affiche « avances deduites » sur un
+        // mois ou aucune avance n'a ete donnee, et le chiffre parait faux alors
+        // qu'il est juste.
+        $givenThisPeriod = Advance::query()
+            ->whereIn('employee_id', $employees->pluck('id'))
+            ->outstanding()
+            ->whereBetween('given_on', [$from, $to])
+            ->groupBy('employee_id')
+            ->selectRaw('employee_id, SUM(amount) as total')
+            ->pluck('total', 'employee_id');
+
         $rows = $employees
-            ->map(function (Employee $employee) use ($period) {
+            ->map(function (Employee $employee) use ($period, $givenThisPeriod) {
                 // Tout vient de la PAIE. C'est plus de requetes qu'un agregat
                 // maison, et c'est le prix a payer pour que cette liste et
                 // l'ecran Paie ne puissent pas annoncer deux restes
@@ -1056,6 +1072,7 @@ class WalletService
                     $preview['paid_net_total'] + $preview['paid_advances_total'],
                     2,
                 );
+                $advancesInPeriod = round((float) ($givenThisPeriod[$employee->id] ?? 0), 2);
 
                 return [
                     'employee_id' => $employee->id,
@@ -1071,6 +1088,14 @@ class WalletService
                     // Avances non soldees : pas encore « payees », mais deja
                     // dans la main de l'employe, donc deduites du reste.
                     'advances_outstanding' => $preview['advances_outstanding'],
+                    'advances_in_period' => $advancesInPeriod,
+                    // La part qui vient de mois precedents. C'est elle qui
+                    // surprend : elle se deduit d'un mois ou l'on n'a rien
+                    // avance.
+                    'advances_carried_over' => round(
+                        max(0, $preview['advances_outstanding'] - $advancesInPeriod),
+                        2,
+                    ),
                     'remaining' => $preview['net_amount'],
                 ];
             })
@@ -1096,6 +1121,8 @@ class WalletService
                 'paid_wallet_total' => round((float) $rows->sum('paid_wallet'), 2),
                 'paid_payouts_total' => round((float) $rows->sum('paid_payouts'), 2),
                 'advances_outstanding_total' => round((float) $rows->sum('advances_outstanding'), 2),
+                'advances_in_period_total' => round((float) $rows->sum('advances_in_period'), 2),
+                'advances_carried_over_total' => round((float) $rows->sum('advances_carried_over'), 2),
                 'remaining_total' => round((float) $rows->sum('remaining'), 2),
             ],
             'employees' => $rows->all(),

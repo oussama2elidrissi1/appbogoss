@@ -1176,18 +1176,30 @@ function EmployeeDuesSection({
                             {t('Reste à payer aux employés')}
                         </h3>
                         {dues && (
-                            <p className="mt-1 text-sm">
-                                <span className="font-semibold tabular-nums">
-                                    {formatCurrency(dues.totals.remaining_total, {
-                                        maximumFractionDigits: 2,
-                                    })}
-                                </span>{' '}
-                                <span className="text-muted-foreground">
-                                    {t('restant pour {count} employé(s)', {
-                                        count: String(dues.totals.employees_remaining),
-                                    })}
-                                </span>
-                            </p>
+                            <>
+                                <p className="mt-1 text-sm">
+                                    <span className="font-semibold tabular-nums">
+                                        {formatCurrency(dues.totals.remaining_total, {
+                                            maximumFractionDigits: 2,
+                                        })}
+                                    </span>{' '}
+                                    <span className="text-muted-foreground">
+                                        {t('restant pour {count} employé(s)', {
+                                            count: String(dues.totals.employees_remaining),
+                                        })}
+                                    </span>
+                                </p>
+                                {dues.totals.advances_carried_over_total > 0 && (
+                                    <p className="mt-1 max-w-xl text-xs text-muted-foreground">
+                                        {t("Les avances en cours incluent {amount} d'acomptes de mois précédents, toujours non soldés. La paie les déduit tant qu'ils ne le sont pas.", {
+                                            amount: formatCurrency(
+                                                dues.totals.advances_carried_over_total,
+                                                { maximumFractionDigits: 2 },
+                                            ),
+                                        })}
+                                    </p>
+                                )}
+                            </>
                         )}
                     </div>
 
@@ -1231,7 +1243,7 @@ function EmployeeDuesSection({
                                         {t('Versé')}
                                     </th>
                                     <th className="px-2 py-2 text-right font-semibold">
-                                        {t('Avances déduites')}
+                                        {t('Avances en cours')}
                                     </th>
                                     <th className="px-2 py-2 text-right font-semibold">
                                         {t('Reste')}
@@ -1276,6 +1288,21 @@ function EmployeeDuesSection({
                                             {formatCurrency(row.advances_outstanding, {
                                                 maximumFractionDigits: 2,
                                             })}
+                                            {/* Sans cette ligne, un montant
+                                                apparait sur un mois ou aucune
+                                                avance n'a ete donnee, et le
+                                                chiffre parait faux alors qu'il
+                                                est juste. */}
+                                            {row.advances_carried_over > 0 && (
+                                                <span className="block text-[11px]">
+                                                    {t('dont {amount} de mois précédents', {
+                                                        amount: formatCurrency(
+                                                            row.advances_carried_over,
+                                                            { maximumFractionDigits: 2 },
+                                                        ),
+                                                    })}
+                                                </span>
+                                            )}
                                         </td>
                                         <td
                                             className={cn(

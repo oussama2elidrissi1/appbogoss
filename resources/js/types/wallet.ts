@@ -303,6 +303,13 @@ export interface EmployeeDueRow {
      * l'employé, donc déduites du reste — exactement comme le fait la paie.
      */
     advances_outstanding: number;
+    /** Part donnée pendant ce mois-ci. */
+    advances_in_period: number;
+    /**
+     * Part venant de mois précédents, toujours non soldée. C'est elle qui
+     * surprend : elle se déduit d'un mois où l'on n'a rien avancé.
+     */
+    advances_carried_over: number;
     /** Jamais négatif. Vient du même calcul que l'écran Paie. */
     remaining: number;
 }
@@ -317,6 +324,8 @@ export interface EmployeeDues {
         paid_wallet_total: number;
         paid_payouts_total: number;
         advances_outstanding_total: number;
+        advances_in_period_total: number;
+        advances_carried_over_total: number;
         remaining_total: number;
     };
     employees: EmployeeDueRow[];

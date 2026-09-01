@@ -827,4 +827,46 @@ class WalletPaymentSourceTest extends TestCase
         $this->assertSame(0.0, $preview['paid_from_wallet']);
         $this->assertSame(3500.0, $preview['net_amount']);
     }
+
+    /**
+     * Le piège de lecture signalé : sur un mois où AUCUNE avance n'a été
+     * donnée, la colonne des avances affiche pourtant un montant. Il est juste
+     * — ce sont des acomptes de mois précédents encore non soldés, que la paie
+     * déduit — mais il faut pouvoir le dire, sinon le chiffre paraît faux.
+     */
+    public function test_the_dues_list_separates_this_month_advances_from_carried_over_ones(): void
+    {
+        $admin = $this->admin();
+        $ahmed = Employee::factory()->create(['name' => 'ahmed']);
+        $day = $this->fundAdminAndCloseTheDay($admin, 20000, '2026-09-05');
+        $this->earnCommission($ahmed, 150, '2026-09-12');
+
+        // Acompte d'aout, jamais solde.
+        Advance::create([
+            'employee_id' => $ahmed->id,
+            'work_day_id' => $day->id,
+            'amount' => 985,
+            'reason' => 'Acompte aout',
+            'given_on' => '2026-08-19',
+        ]);
+
+        Sanctum::actingAs($admin);
+        $row = $this->getJson('/api/wallet/employee-dues?period=2026-09')
+            ->assertOk()->json('data.employees.0');
+
+        $this->assertSame(150.0, $this->money($row['due_total']));
+        // Deduit, donc le reste tombe a zero — exactement ce que dit la Paie.
+        $this->assertSame(985.0, $this->money($row['advances_outstanding']));
+        $this->assertSame(0.0, $this->money($row['remaining']));
+
+        // Et la lecture qui manquait : rien n'a ete avance en septembre.
+        $this->assertSame(0.0, $this->money($row['advances_in_period']));
+        $this->assertSame(985.0, $this->money($row['advances_carried_over']));
+
+        // Le meme acompte, lu sur son propre mois, n'est plus un report.
+        $august = $this->getJson('/api/wallet/employee-dues?period=2026-08')
+            ->assertOk()->json('data.employees.0');
+        $this->assertSame(985.0, $this->money($august['advances_in_period']));
+        $this->assertSame(0.0, $this->money($august['advances_carried_over']));
+    }
 }
