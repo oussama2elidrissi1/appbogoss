@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Models\Advance;
+use App\Models\AppSetting;
 use App\Models\CommissionPayout;
 use App\Models\Employee;
+use App\Models\MonthlyClosure;
 use App\Models\User;
 use App\Models\WalletTransaction;
 use App\Models\WorkDay;
@@ -18,10 +20,24 @@ use Illuminate\Validation\ValidationException;
  * ahead of time against that month's commission, not an unrelated loan — so
  * settling the payout also settles whatever advances it covers.
  *
- * Outstanding advances are deducted regardless of exactly which month they
- * were given (an unsettled advance from a prior month still reduces this
- * month's payout) — nothing is ever silently dropped, it just rolls forward
- * to whichever month finally has enough commission to cover it.
+ * QUELLES AVANCES UN MOIS DÉDUIT-IL ? Depuis la clôture mensuelle, chaque
+ * mois est responsable de ses propres avances :
+ *
+ *  - les avances données PENDANT le mois — c'est le cas normal ;
+ *  - les reliquats des mois CLÔTURÉS — l'avance qui dépassait la commission
+ *    de son mois, que la clôture affiche comme « avance reportée » et qui
+ *    roule jusqu'au mois qui pourra la couvrir ;
+ *  - les avances d'avant l'activation de la clôture, qui gardent l'ancien
+ *    comportement (elles roulent toujours) faute d'un mois qui les finalise.
+ *
+ * Un mois encore OUVERT (« à finaliser ») garde les siennes : c'est sa propre
+ * paie qui les nettera au moment de le finaliser. Les compter aussi dans le
+ * mois suivant faisait apparaître, un 1er du mois, des milliers de dirhams
+ * « reportés » qui n'étaient que le mois précédent pas encore soldé.
+ *
+ * Rien n'est jamais perdu : une avance exclue d'un mois est simplement
+ * attendue par le sien, et la clôture refuse de fermer un mois dont les
+ * employés ne sont pas soldés.
  */
 class CommissionPayoutService
 {
@@ -56,18 +72,11 @@ class CommissionPayoutService
         [$from, $to] = $this->periodBounds($period);
 
         $commissionTotal = $this->earnings->commissionEarnedTotal($employee, $from, $to);
-        $advancesOutstanding = (float) Advance::where('employee_id', $employee->id)
-            ->outstanding()
-            ->where('given_on', '<=', $to->toDateString())
-            ->sum('amount');
-        // La part de ces avances donnee PENDANT le mois. Le reste est un
-        // report de mois precedents : il se deduit quand meme (c'est la regle
-        // existante), mais il ne doit jamais s'afficher comme de l'argent
-        // « verse ce mois-ci » — c'est exactement la lecture qui rendait
-        // l'ecran Paie absurde un 1er du mois.
-        $advancesInPeriod = (float) Advance::where('employee_id', $employee->id)
-            ->outstanding()
-            ->whereBetween('given_on', [$from->toDateString(), $to->toDateString()])
+
+        $deductible = $this->deductibleOutstandingAdvances($employee, $period, $to);
+        $advancesOutstanding = (float) $deductible->sum('amount');
+        $advancesInPeriod = (float) $deductible
+            ->filter(fn (Advance $advance) => $advance->given_on->format('Y-m') === $period)
             ->sum('amount');
 
         $payouts = CommissionPayout::where('employee_id', $employee->id)
@@ -142,10 +151,11 @@ class CommissionPayoutService
             ]);
         }
 
-        $outstandingAdvances = Advance::where('employee_id', $employee->id)
-            ->outstanding()
-            ->where('given_on', '<=', $to->toDateString())
-            ->get();
+        // Le MEME perimetre que preview() : payer septembre ne doit jamais
+        // solder les avances d'un aout encore ouvert — c'est la paie d'aout
+        // qui les attend, et les consommer ici les ferait disparaitre de son
+        // decompte.
+        $outstandingAdvances = $this->deductibleOutstandingAdvances($employee, $period, $to);
         $advancesTotal = (float) $outstandingAdvances->sum('amount');
 
         if ($commissionRemaining < $advancesTotal) {
@@ -212,6 +222,61 @@ class CommissionPayoutService
 
             return $payout->load(['employee', 'paidBy']);
         });
+    }
+
+    /**
+     * Les avances non soldées que la paie de CE mois doit déduire.
+     *
+     * Trois familles entrent, une seule reste dehors :
+     *
+     *  - données pendant le mois → dedans (le cas normal) ;
+     *  - d'un mois CLÔTURÉ → dedans (le report que la clôture a acté) ;
+     *  - d'avant l'activation de la clôture → dedans (ancien comportement,
+     *    aucun mois ne les finalisera jamais) ;
+     *  - d'un mois encore OUVERT → dehors : sa propre paie les nettera.
+     *
+     * Lit `monthly_closures` et `app_settings` directement plutôt que
+     * MonthlyClosureService : ce service-ci est injecté DANS
+     * MonthlyClosureService, et l'inverse bouclerait le conteneur.
+     *
+     * @return \Illuminate\Support\Collection<int, Advance>
+     */
+    private function deductibleOutstandingAdvances(Employee $employee, string $period, Carbon $to): \Illuminate\Support\Collection
+    {
+        $advances = Advance::where('employee_id', $employee->id)
+            ->outstanding()
+            ->where('given_on', '<=', $to->toDateString())
+            ->get();
+
+        $startValue = AppSetting::query()
+            ->where('key', MonthlyClosureService::START_PERIOD_KEY)
+            ->value('value');
+        $start = is_string($startValue) && preg_match('/^\d{4}-\d{2}$/', $startValue) === 1
+            ? $startValue
+            : null;
+
+        $closed = MonthlyClosure::query()->pluck('period')->flip();
+
+        return $advances
+            ->filter(function (Advance $advance) use ($period, $start, $closed) {
+                $month = $advance->given_on->format('Y-m');
+
+                // Les avances du mois lui-meme, toujours.
+                if ($month >= $period) {
+                    return true;
+                }
+
+                // Avant l'activation de la cloture : l'ancien monde, ou tout
+                // roulait. Personne ne finalisera jamais ces mois-la.
+                if ($start === null || $month < $start) {
+                    return true;
+                }
+
+                // Un mois gere par la cloture ne reporte ses avances que s'il
+                // est effectivement clos. Ouvert, il les garde pour sa paie.
+                return $closed->has($month);
+            })
+            ->values();
     }
 
     /**

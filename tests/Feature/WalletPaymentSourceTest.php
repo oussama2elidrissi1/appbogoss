@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Advance;
+use App\Models\AppSetting;
 use App\Models\CommissionPayout;
+use App\Models\MonthlyClosure;
 use App\Models\Employee;
 use App\Models\Sale;
 use App\Models\User;
@@ -11,6 +13,7 @@ use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Models\WorkDay;
 use App\Services\CommissionPayoutService;
+use App\Services\MonthlyClosureService;
 use App\Services\WalletService;
 use App\Services\WorkDayService;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -60,6 +63,29 @@ class WalletPaymentSourceTest extends TestCase
     private function money(mixed $value): float
     {
         return round((float) $value, 2);
+    }
+
+    /**
+     * Fixe explicitement le monde des clôtures : activées depuis [$start],
+     * avec les mois de [$closed] déjà clos. Sans cela, la migration pose la
+     * date d'activation au jour du test et le comportement dépendrait du
+     * calendrier réel.
+     */
+    private function withClosures(string $start, array $closed = []): void
+    {
+        AppSetting::updateOrCreate(
+            ['key' => MonthlyClosureService::START_PERIOD_KEY],
+            ['value' => $start],
+        );
+
+        foreach ($closed as $period) {
+            MonthlyClosure::create([
+                'period' => $period,
+                'closed_by_user_id' => User::query()->value('id'),
+                'closed_at' => now(),
+                'closing_report' => [],
+            ]);
+        }
     }
 
     /**
@@ -829,17 +855,21 @@ class WalletPaymentSourceTest extends TestCase
     }
 
     /**
-     * Le piège de lecture signalé : sur un mois où AUCUNE avance n'a été
-     * donnée, la colonne des avances affiche pourtant un montant. Il est juste
-     * — ce sont des acomptes de mois précédents encore non soldés, que la paie
-     * déduit — mais il faut pouvoir le dire, sinon le chiffre paraît faux.
+     * La règle de périmètre, dans ses trois états. Un acompte d'août :
+     *
+     *  - août OUVERT (« à finaliser ») → septembre ne le voit pas, c'est la
+     *    paie d'août qui le nettera ;
+     *  - août CLÔTURÉ → il devient un vrai report, déduit de septembre et
+     *    affiché comme tel ;
+     *  - et sur son propre mois, il est toujours là, jamais en report.
      */
-    public function test_the_dues_list_separates_this_month_advances_from_carried_over_ones(): void
+    public function test_an_open_month_keeps_its_advances_a_closed_one_carries_them_over(): void
     {
         $admin = $this->admin();
         $ahmed = Employee::factory()->create(['name' => 'ahmed']);
         $day = $this->fundAdminAndCloseTheDay($admin, 20000, '2026-09-05');
         $this->earnCommission($ahmed, 150, '2026-09-12');
+        $this->withClosures('2026-08');
 
         // Acompte d'aout, jamais solde.
         Advance::create([
@@ -851,37 +881,45 @@ class WalletPaymentSourceTest extends TestCase
         ]);
 
         Sanctum::actingAs($admin);
+
+        // Aout est encore ouvert : septembre ne deduit RIEN. C'etait tout le
+        // signalement — « il n'y a pas d'avance reportee, aout sera cloture ».
         $row = $this->getJson('/api/wallet/employee-dues?period=2026-09')
             ->assertOk()->json('data.employees.0');
-
         $this->assertSame(150.0, $this->money($row['due_total']));
-        // Deduit, donc le reste tombe a zero — exactement ce que dit la Paie.
-        $this->assertSame(985.0, $this->money($row['advances_outstanding']));
-        $this->assertSame(0.0, $this->money($row['remaining']));
+        $this->assertSame(0.0, $this->money($row['advances_outstanding']));
+        $this->assertSame(0.0, $this->money($row['advances_carried_over']));
+        $this->assertSame(150.0, $this->money($row['remaining']));
 
-        // Et la lecture qui manquait : rien n'a ete avance en septembre.
-        $this->assertSame(0.0, $this->money($row['advances_in_period']));
-        $this->assertSame(985.0, $this->money($row['advances_carried_over']));
-
-        // Le meme acompte, lu sur son propre mois, n'est plus un report.
+        // Sur son propre mois, l'acompte est la, et pas en report.
         $august = $this->getJson('/api/wallet/employee-dues?period=2026-08')
             ->assertOk()->json('data.employees.0');
         $this->assertSame(985.0, $this->money($august['advances_in_period']));
         $this->assertSame(0.0, $this->money($august['advances_carried_over']));
+
+        // Aout cloture : le reliquat devient un vrai report, deduit et nomme.
+        $this->withClosures('2026-08', ['2026-08']);
+
+        $row = $this->getJson('/api/wallet/employee-dues?period=2026-09')
+            ->assertOk()->json('data.employees.0');
+        $this->assertSame(985.0, $this->money($row['advances_outstanding']));
+        $this->assertSame(985.0, $this->money($row['advances_carried_over']));
+        $this->assertSame(0.0, $this->money($row['advances_in_period']));
+        $this->assertSame(0.0, $this->money($row['remaining']));
     }
 
     /**
-     * Le 1er du mois, l'écran Paie affichait « Déjà versé : 10 457 MAD » alors
-     * que rien n'était encore sorti : il fondait les acomptes reportés des
-     * mois précédents dans le versé du mois. Ce test fige la ventilation qui
-     * rend cette confusion impossible.
+     * Le 1er du mois signalé deux fois : « Déjà versé 10 457 » puis « il n'y a
+     * pas d'avance reportée ». Avec août ouvert, septembre ne voit RIEN de ces
+     * acomptes — ni en versé, ni en report. Ils attendent la paie d'août.
      */
-    public function test_a_fresh_month_reports_zero_paid_even_with_carried_over_advances(): void
+    public function test_a_fresh_month_ignores_the_pending_previous_month_entirely(): void
     {
         $admin = $this->admin();
         $ahmed = Employee::factory()->create(['name' => 'ahmed']);
         $day = $this->fundAdminAndCloseTheDay($admin, 20000, '2026-09-05');
         $this->earnCommission($ahmed, 560, '2026-09-12');
+        $this->withClosures('2026-08');
 
         // Les acomptes viennent tous d'aout, aucun de septembre.
         foreach ([700, 985, 420] as $amount) {
@@ -894,17 +932,55 @@ class WalletPaymentSourceTest extends TestCase
             ]);
         }
 
-        $preview = app(CommissionPayoutService::class)->preview($ahmed, '2026-09');
+        $payouts = app(CommissionPayoutService::class);
+        $preview = $payouts->preview($ahmed, '2026-09');
 
-        // Tout ce que la tuile « Versé pour ce mois » additionne vaut zéro.
+        // Septembre ne doit RIEN afficher venant d'aout tant qu'il est ouvert.
         $this->assertSame(0.0, $preview['paid_net_total']);
-        $this->assertSame(0.0, $preview['paid_advances_total']);
         $this->assertSame(0.0, $preview['paid_from_wallet']);
         $this->assertSame(0.0, $preview['advances_in_period']);
+        $this->assertSame(0.0, $preview['advances_carried_over']);
+        $this->assertSame(0.0, $preview['advances_outstanding']);
+        $this->assertSame(560.0, $preview['net_amount']);
 
-        // Le report, lui, existe et se deduit — mais sous son propre nom.
-        $this->assertSame(2105.0, $preview['advances_carried_over']);
-        $this->assertSame(2105.0, $preview['advances_outstanding']);
-        $this->assertSame(0.0, $preview['net_amount']);
+        // La paie d'aout, elle, les attend toutes.
+        $august = $payouts->preview($ahmed, '2026-08');
+        $this->assertSame(2105.0, $august['advances_in_period']);
+        $this->assertSame(2105.0, $august['advances_outstanding']);
+    }
+
+    /**
+     * Payer septembre ne doit jamais solder les avances d'un août encore
+     * ouvert : les consommer ici les ferait disparaître du décompte d'août.
+     */
+    public function test_paying_a_month_never_settles_an_open_previous_month_advances(): void
+    {
+        $admin = $this->admin();
+        $ahmed = Employee::factory()->create(['name' => 'ahmed']);
+        $day = $this->fundAdminAndCloseTheDay($admin, 20000, '2026-09-05');
+        $this->earnCommission($ahmed, 560, '2026-09-12');
+        $this->withClosures('2026-08');
+
+        $augustAdvance = Advance::create([
+            'employee_id' => $ahmed->id,
+            'work_day_id' => $day->id,
+            'amount' => 200,
+            'reason' => 'Acompte aout',
+            'given_on' => '2026-08-19',
+        ]);
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/commission-payouts', [
+            'employee_id' => $ahmed->id,
+            'period' => '2026-09',
+        ])->assertCreated();
+
+        $payout = CommissionPayout::firstOrFail();
+        $this->assertSame('560.00', (string) $payout->net_amount);
+        $this->assertSame('0.00', (string) $payout->advances_deducted);
+
+        // L'acompte d'aout est toujours vivant, et toujours a aout.
+        $this->assertNull($augustAdvance->fresh()->settled_at);
+        $this->assertNull($augustAdvance->fresh()->commission_payout_id);
     }
 }
