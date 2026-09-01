@@ -42,9 +42,22 @@ class ExpenseController extends Controller
             'work_day_id' => ['nullable', 'integer', Rule::exists('work_days', 'id')],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date'],
+            // `caisse` par defaut : l'ecran Depenses continue d'afficher
+            // exactement ce qu'il affichait. `wallet` liste les depenses payees
+            // sur un portefeuille, `all` les deux.
+            'origin' => ['nullable', Rule::in(['caisse', 'wallet', 'all'])],
         ]);
 
-        $query = Expense::query()->with('workDay')->orderByDesc('spent_on')->orderByDesc('id');
+        $query = Expense::query()->with(['workDay', 'wallet.user', 'user'])
+            ->orderByDesc('spent_on')
+            ->orderByDesc('id');
+
+        $origin = $validated['origin'] ?? 'caisse';
+        if ($origin === 'caisse') {
+            $query->caisse();
+        } elseif ($origin === 'wallet') {
+            $query->fromWallet();
+        }
 
         if (! empty($validated['work_day_id'])) {
             $query->where('work_day_id', $validated['work_day_id']);

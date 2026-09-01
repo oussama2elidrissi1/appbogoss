@@ -57,6 +57,15 @@ class RolesAndPermissionsSeeder extends Seeder
             'months.close',
             'months.history.view',
 
+            // Portefeuille. `wallet.view`/`wallet.operate` sont le quotidien
+            // d'un admin : il voit son argent et le fait circuler.
+            // `wallet.view_all` (l'argent des autres) et `wallet.adjust`
+            // (corriger une ecriture) restent au super-admin.
+            'wallet.view',
+            'wallet.operate',
+            'wallet.view_all',
+            'wallet.adjust',
+
             // Original Phase 1 loyalty gates — still authoritative for the
             // routes/controllers/tests that already reference them.
             'loyalty.manage',
@@ -116,6 +125,8 @@ class RolesAndPermissionsSeeder extends Seeder
             // relire l'historique ne l'est pas (months.history.view reste au
             // super-admin).
             'months.close',
+            'wallet.view',
+            'wallet.operate',
             'loyalty.manage',
             'loyalty.redeem',
             'loyalty.view',

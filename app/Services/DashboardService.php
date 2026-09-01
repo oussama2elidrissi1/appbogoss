@@ -48,7 +48,9 @@ class DashboardService
 
         $employeesActive = Employee::where('is_active', true)->where('is_company', false)->count();
 
-        $expensesMonth = (float) Expense::where('spent_on', '>=', $monthStart->toDateString())->sum('amount');
+        // `caisse()` : les depenses payees sur un portefeuille sont deja
+        // financees par des resultats de caisse deja comptes ici.
+        $expensesMonth = (float) Expense::caisse()->where('spent_on', '>=', $monthStart->toDateString())->sum('amount');
 
         $clientsToday = $activeDay
             ? Sale::where('work_day_id', $activeDay->id)->count()
@@ -77,7 +79,7 @@ class DashboardService
         }
 
         $revenueSoFar = (float) Sale::where('work_day_id', $day->id)->sum('total');
-        $expensesSoFar = (float) Expense::where('work_day_id', $day->id)->sum('amount');
+        $expensesSoFar = (float) Expense::caisse()->where('work_day_id', $day->id)->sum('amount');
         $advancesSoFar = (float) Advance::where('work_day_id', $day->id)->sum('amount');
         $commissionsSoFar = (float) Sale::where('work_day_id', $day->id)->sum('commission_amount');
         $employeesPresent = $day->employees()->wherePivot('present', true)->count();
@@ -119,7 +121,7 @@ class DashboardService
             ->groupBy('day')
             ->pluck('total', 'day');
 
-        $expensesByDay = Expense::where('spent_on', '>=', $start->toDateString())
+        $expensesByDay = Expense::caisse()->where('spent_on', '>=', $start->toDateString())
             ->selectRaw('spent_on as day, SUM(amount) as total')
             ->groupBy('day')
             ->pluck('total', 'day');

@@ -372,6 +372,96 @@ function EmployeeTicketsDialog({
     );
 }
 
+/**
+ * Ou est parti le resultat de cette journee.
+ *
+ * Purement informatif : aucun chiffre du rapport n'en depend, et une journee
+ * anterieure au demarrage du portefeuille s'affiche exactement comme avant,
+ * avec une mention qui explique pourquoi elle n'a rien credite plutot que de
+ * laisser croire a un oubli.
+ */
+function WalletDayStatus({ day }: { day: WorkDay }) {
+    const { t } = useI18n();
+    const wallet = day.wallet;
+
+    if (!wallet) return null;
+
+    const startLabel = new Date(`${wallet.start_date}T00:00:00`).toLocaleDateString('fr-FR', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+    });
+
+    if (wallet.status === 'credited') {
+        return (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-success/25 bg-success/[0.08] px-3 py-2 text-sm">
+                <Badge variant="success">{t('Portefeuille crédité')}</Badge>
+                <span className="tabular-nums font-semibold">
+                    +{formatCurrency(wallet.amount ?? 0, { maximumFractionDigits: 2 })}
+                </span>
+                {wallet.wallet_owner && (
+                    <span className="text-muted-foreground">
+                        {t('vers le portefeuille de {name}', { name: wallet.wallet_owner })}
+                    </span>
+                )}
+            </div>
+        );
+    }
+
+    if (wallet.status === 'reversed') {
+        return (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/30 bg-destructive/[0.08] px-3 py-2 text-sm">
+                <Badge variant="destructive">{t('Crédit contre-passé')}</Badge>
+                <span className="text-muted-foreground">
+                    {t('Un ajustement a annulé ce crédit ; les deux mouvements restent dans l’historique.')}
+                </span>
+            </div>
+        );
+    }
+
+    if (wallet.status === 'out_of_scope') {
+        return (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-tint/[0.08] bg-tint/[0.02] px-3 py-2 text-sm">
+                <Badge variant="outline">{t('Hors portefeuille')}</Badge>
+                <span className="text-muted-foreground">
+                    {t('Journée antérieure au {date} : elle reste dans les rapports, sans alimenter aucun solde.', {
+                        date: startLabel,
+                    })}
+                </span>
+            </div>
+        );
+    }
+
+    if (wallet.status === 'zero') {
+        return (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-tint/[0.08] bg-tint/[0.02] px-3 py-2 text-sm">
+                <Badge variant="outline">{t('Aucun mouvement')}</Badge>
+                <span className="text-muted-foreground">{t('Résultat nul : rien à créditer.')}</span>
+            </div>
+        );
+    }
+
+    if (wallet.status === 'not_credited') {
+        return (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/30 bg-destructive/[0.08] px-3 py-2 text-sm">
+                <Badge variant="destructive">{t('Non crédité')}</Badge>
+                <span className="text-muted-foreground">
+                    {t("Aucun responsable identifié pour cette journée — à signaler au Super Admin.")}
+                </span>
+            </div>
+        );
+    }
+
+    return (
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-tint/[0.08] bg-tint/[0.02] px-3 py-2 text-sm">
+            <Badge variant="outline">{t('En attente de clôture')}</Badge>
+            <span className="text-muted-foreground">
+                {t('Le résultat sera crédité au portefeuille à la clôture de la journée.')}
+            </span>
+        </div>
+    );
+}
+
 function WorkDayReportCard({ day }: { day: WorkDay }) {
     const { t } = useI18n();
     const report = reportFor(day);
@@ -435,6 +525,8 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                                     })}
                                 />
                             </div>
+
+                            <WalletDayStatus day={day} />
 
                             <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
                                 <section className="space-y-2">

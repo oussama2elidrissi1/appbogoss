@@ -64,6 +64,8 @@ use App\Http\Controllers\Api\SubscriptionScanController;
 use App\Http\Controllers\Api\SupportInboxController;
 use App\Http\Controllers\Api\TransactionController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\WalletAdminController;
+use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\WorkDayController;
 use Illuminate\Support\Facades\Route;
 
@@ -316,6 +318,49 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('permission:months.history.view')->group(function () {
         Route::get('/monthly-closures', [MonthlyClosureController::class, 'index']);
         Route::get('/monthly-closures/{period}', [MonthlyClosureController::class, 'show']);
+    });
+
+    // ------------------------------------------------------------------
+    // Portefeuille (Wallet)
+    //
+    // Deux surfaces bien distinctes :
+    //
+    //  - `/wallet*`  : TOUJOURS le portefeuille du demandeur. Aucune de ces
+    //    routes ne prend d'identifiant, donc aucun admin ne peut agir sur le
+    //    portefeuille d'un autre, meme en forgeant sa requete.
+    //  - `/wallets*` : la lecture transversale et les corrections, reservees
+    //    au Super Admin (`wallet.view_all` / `wallet.adjust`).
+    //
+    // Aucune route de suppression : une ecriture financiere se corrige par un
+    // mouvement inverse trace, jamais par un DELETE.
+    // ------------------------------------------------------------------
+    Route::middleware('permission:wallet.view')->group(function () {
+        Route::get('/wallet', [WalletController::class, 'show']);
+        Route::get('/wallet/transactions', [WalletController::class, 'transactions']);
+    });
+
+    Route::middleware('permission:wallet.operate')->group(function () {
+        Route::post('/wallet/transfers', [WalletController::class, 'transfer']);
+        Route::post('/wallet/cash-fund', [WalletController::class, 'allocateCashFund']);
+        Route::post('/wallet/cash-fund/return', [WalletController::class, 'returnCashFund']);
+
+        // `period.open` : une depense datee dans un mois cloture est refusee
+        // ici exactement comme elle l'est sur /expenses. Les transferts et les
+        // fonds de caisse, eux, sont dates du jour et n'ont rien a antidater.
+        Route::middleware('period.open')->group(function () {
+            Route::post('/wallet/expenses', [WalletController::class, 'storeExpense']);
+        });
+    });
+
+    Route::middleware('permission:wallet.view_all')->group(function () {
+        Route::get('/wallets', [WalletAdminController::class, 'overview']);
+        Route::get('/wallets/{wallet}', [WalletAdminController::class, 'show']);
+        Route::get('/wallets/{wallet}/transactions', [WalletAdminController::class, 'transactions']);
+    });
+
+    Route::middleware('permission:wallet.adjust')->group(function () {
+        Route::post('/wallets/{wallet}/adjustments', [WalletAdminController::class, 'adjust']);
+        Route::post('/wallet-transactions/{walletTransaction}/reverse', [WalletAdminController::class, 'reverse']);
     });
 
     // Loyalty & Subscriptions

@@ -53,6 +53,8 @@ import Services from '@/pages/Services';
 import Stock from '@/pages/Stock';
 import Settings from '@/pages/Settings';
 import SubscriptionPlans from '@/pages/SubscriptionPlans';
+import WalletPage from '@/pages/Wallet';
+import WalletsOverview from '@/pages/WalletsOverview';
 import EmployeeAgenda from '@/pages/employee/EmployeeAgenda';
 import EmployeeClients from '@/pages/employee/EmployeeClients';
 import EmployeeCommissions from '@/pages/employee/EmployeeCommissions';
@@ -204,6 +206,17 @@ export default function App() {
 
                     <Route element={<ProtectedRoute permission="services.manage" />}>
                         <Route path="/services" element={<Services />} />
+                    </Route>
+
+                    {/* Portefeuille : l'admin voit le sien, le patron voit
+                        tous les autres. Deux permissions distinctes, donc deux
+                        gardes distinctes. */}
+                    <Route element={<ProtectedRoute permission="wallet.view" />}>
+                        <Route path="/wallet" element={<WalletPage />} />
+                    </Route>
+
+                    <Route element={<ProtectedRoute permission="wallet.view_all" />}>
+                        <Route path="/tresorerie" element={<WalletsOverview />} />
                     </Route>
 
                     <Route element={<ProtectedRoute permission="commissions.manage" />}>

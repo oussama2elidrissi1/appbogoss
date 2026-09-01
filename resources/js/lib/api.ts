@@ -6,6 +6,16 @@ import type {
     PeriodsResponse,
 } from '@/types/closure';
 import type {
+    Wallet,
+    WalletCashFundPayload,
+    WalletExpensePayload,
+    WalletMutationResult,
+    WalletOverview,
+    WalletTransaction,
+    WalletTransactionFilters,
+    WalletTransferPayload,
+} from '@/types/wallet';
+import type {
     Advance,
     AdvancesReport,
     AdvancesResponse,
@@ -1210,6 +1220,116 @@ export async function getMonthlyClosure(period: string): Promise<MonthlyClosureR
     const { data } = await api.get<{ data: MonthlyClosureRow }>(`/api/monthly-closures/${period}`);
     return data.data;
 }
+
+// --- Portefeuille ----------------------------------------------------------
+
+/**
+ * Le portefeuille du compte connecte. Aucune de ces routes ne prend
+ * d'identifiant : le serveur travaille toujours sur celui du demandeur, donc
+ * un admin ne peut pas agir sur le portefeuille d'un autre.
+ */
+export async function getWallet(): Promise<Wallet> {
+    const { data } = await api.get<{ data: Wallet }>('/api/wallet');
+    return data.data;
+}
+
+/** L'historique, filtrable. Les filtres vides ne sont pas envoyes. */
+export async function getWalletTransactions(
+    filters: WalletTransactionFilters = {},
+): Promise<WalletTransaction[]> {
+    const params = Object.fromEntries(
+        Object.entries(filters).filter(([, value]) => value !== '' && value !== undefined && value !== null),
+    );
+    const { data } = await api.get<{ data: WalletTransaction[] }>('/api/wallet/transactions', { params });
+    return data.data;
+}
+
+/** « Envoyer au Super Admin » — debit ici, credit la-bas, une seule transaction. */
+export async function transferToSuperAdmin(
+    payload: WalletTransferPayload,
+): Promise<WalletMutationResult> {
+    const { data } = await api.post<WalletMutationResult>('/api/wallet/transfers', payload);
+    return data;
+}
+
+/** Une depense payee sur l'argent detenu. Exclue des rapports de caisse. */
+export async function createWalletExpense(
+    payload: WalletExpensePayload,
+): Promise<WalletMutationResult> {
+    const { data } = await api.post<WalletMutationResult>('/api/wallet/expenses', payload);
+    return data;
+}
+
+/** Met une part du disponible de cote. L'argent ne quitte pas le portefeuille. */
+export async function allocateCashFund(
+    payload: WalletCashFundPayload,
+): Promise<WalletMutationResult> {
+    const { data } = await api.post<WalletMutationResult>('/api/wallet/cash-fund', payload);
+    return data;
+}
+
+/** Reintegre tout ou partie du fond de caisse dans le disponible. */
+export async function returnCashFund(
+    payload: WalletCashFundPayload,
+): Promise<WalletMutationResult> {
+    const { data } = await api.post<WalletMutationResult>('/api/wallet/cash-fund/return', payload);
+    return data;
+}
+
+/** La vue financiere globale — Super Admin (wallet.view_all). */
+export async function getWalletOverview(): Promise<WalletOverview> {
+    const { data } = await api.get<{ data: WalletOverview }>('/api/wallets');
+    return data.data;
+}
+
+/** Le detail d'un portefeuille, quel qu'en soit le titulaire. */
+export async function getWalletById(walletId: number): Promise<Wallet> {
+    const { data } = await api.get<{ data: Wallet }>(`/api/wallets/${walletId}`);
+    return data.data;
+}
+
+export async function getWalletTransactionsFor(
+    walletId: number,
+    filters: WalletTransactionFilters = {},
+): Promise<WalletTransaction[]> {
+    const params = Object.fromEntries(
+        Object.entries(filters).filter(([, value]) => value !== '' && value !== undefined && value !== null),
+    );
+    const { data } = await api.get<{ data: WalletTransaction[] }>(
+        `/api/wallets/${walletId}/transactions`,
+        { params },
+    );
+    return data.data;
+}
+
+/**
+ * Une correction, ecrite comme un mouvement de plus. Il n'existe volontairement
+ * aucune route de suppression : corriger une ecriture financiere, c'est en
+ * ajouter une.
+ */
+export async function adjustWallet(
+    walletId: number,
+    payload: { amount: number; reason: string; bucket?: 'available' | 'cash_fund' },
+): Promise<WalletMutationResult> {
+    const { data } = await api.post<WalletMutationResult>(
+        `/api/wallets/${walletId}/adjustments`,
+        payload,
+    );
+    return data;
+}
+
+/** Contre-passe un mouvement. Les deux jambes d'un transfert partent ensemble. */
+export async function reverseWalletTransaction(
+    transactionId: number,
+    reason: string,
+): Promise<WalletTransaction[]> {
+    const { data } = await api.post<{ data: WalletTransaction[] }>(
+        `/api/wallet-transactions/${transactionId}/reverse`,
+        { reason },
+    );
+    return data.data;
+}
+
 
 export async function getUsers(): Promise<User[]> {
     const { data } = await api.get<{ data: User[] }>('/api/users');

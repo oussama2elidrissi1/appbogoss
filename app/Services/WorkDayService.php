@@ -12,6 +12,7 @@ use App\Models\Prestation;
 use App\Models\PrestationItem;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Models\User;
 use App\Models\WorkDay;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -20,8 +21,10 @@ use Illuminate\Support\Facades\DB;
 
 class WorkDayService
 {
-    public function __construct(private readonly ActivityLogger $activityLogger)
-    {
+    public function __construct(
+        private readonly ActivityLogger $activityLogger,
+        private readonly WalletService $wallets,
+    ) {
     }
 
     public function openDay(array $data): WorkDay
@@ -60,30 +63,75 @@ class WorkDayService
             ->first();
     }
 
+    /**
+     * Cloture la journee et credite son resultat au portefeuille de
+     * l'admin responsable, dans UNE SEULE transaction : si le credit echoue,
+     * la cloture n'a pas lieu, et inversement. Il ne peut donc pas exister de
+     * journee cloturee dont le resultat se serait perdu en route.
+     *
+     * Le credit est ignore sans bruit pour toute journee anterieure au
+     * demarrage du portefeuille (1er septembre 2026) : juillet et aout restent
+     * lisibles dans les rapports, ils n'alimentent aucun solde. Voir
+     * WalletService::creditWorkDayResult() pour les quatre cas de non-credit.
+     */
     public function closeDay(WorkDay $day, ?float $actualBalance = null, ?string $comment = null): WorkDay
     {
         if ($day->status === 'closed') {
             throw new DayAlreadyClosedException('Cette journee est deja cloturee.');
         }
 
-        $closingReport = $this->buildClosingReport($day);
-        $variance = $actualBalance !== null ? round($actualBalance - $closingReport['cash_expected'], 2) : null;
+        return DB::transaction(function () use ($day, $actualBalance, $comment) {
+            $closingReport = $this->buildClosingReport($day);
+            $variance = $actualBalance !== null ? round($actualBalance - $closingReport['cash_expected'], 2) : null;
 
-        $day->update([
-            'status' => 'closed',
-            'closed_at' => now(),
-            'closing_report' => $closingReport,
-            'closing_balance_actual' => $actualBalance,
-            'closing_variance' => $variance,
-            'closing_comment' => $comment,
-        ]);
+            $day->update([
+                'status' => 'closed',
+                'closed_at' => now(),
+                'closing_report' => $closingReport,
+                'closing_balance_actual' => $actualBalance,
+                'closing_variance' => $variance,
+                'closing_comment' => $comment,
+            ]);
 
-        $this->activityLogger->log('caisse.closed', $day, [], [
-            'closing_balance_actual' => $actualBalance,
-            'closing_variance' => $variance,
-        ]);
+            $this->activityLogger->log('caisse.closed', $day, [], [
+                'closing_balance_actual' => $actualBalance,
+                'closing_variance' => $variance,
+            ]);
 
-        return $day->fresh();
+            // Le montant credite est EXACTEMENT le resultat de caisse affiche
+            // par les rapports : recette moins depenses moins avances. Il est
+            // passe explicitement plutot que recalcule par le portefeuille,
+            // pour qu'il n'existe qu'une seule formule dans l'application.
+            $this->wallets->creditWorkDayResult(
+                $day,
+                (float) $closingReport['net_result'],
+                $this->closingActor(),
+            );
+
+            return $day->fresh();
+        });
+    }
+
+    /**
+     * Qui cloture. Sert de repli quand la journee n'a pas de responsable
+     * identifie, et de signature du mouvement dans l'historique.
+     *
+     * Le guard `web` d'abord, comme ActivityLogger : c'est le seul qui ne
+     * puisse pas renvoyer un Client a la place d'un User. Le guard courant
+     * ensuite, pour l'application mobile qui s'authentifie par jeton Sanctum
+     * et ne passe donc jamais par `web`.
+     */
+    private function closingActor(): ?User
+    {
+        $webUser = Auth::guard('web')->user();
+
+        if ($webUser instanceof User) {
+            return $webUser;
+        }
+
+        $current = Auth::user();
+
+        return $current instanceof User ? $current : null;
     }
 
     public function buildClosingReport(WorkDay $day): array
@@ -92,7 +140,7 @@ class WorkDayService
             ->with(['client', 'employee', 'items'])
             ->where('work_day_id', $day->id)
             ->get();
-        $expenses = Expense::where('work_day_id', $day->id)->orderBy('spent_on')->get();
+        $expenses = Expense::caisse()->where('work_day_id', $day->id)->orderBy('spent_on')->get();
         $advances = Advance::with('employee')
             ->where('work_day_id', $day->id)
             ->orderBy('given_on')
@@ -108,7 +156,8 @@ class WorkDayService
         $period = Carbon::createFromFormat('!Y-m', $month);
         $start = $period->copy()->startOfMonth();
         $end = $period->copy()->endOfMonth();
-        $days = WorkDay::whereBetween('date', [$start->toDateString(), $end->toDateString()])
+        $days = WorkDay::with('walletTransactions')
+            ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
             ->orderBy('date')
             ->orderBy('id')
             ->get();
@@ -118,7 +167,11 @@ class WorkDayService
             ->with(['client', 'employee', 'items'])
             ->whereIn('work_day_id', $dayIds)
             ->get();
-        $expenses = Expense::whereBetween('spent_on', [$start->toDateString(), $end->toDateString()])
+        // `caisse()` : une depense payee sur le portefeuille est deja
+        // financee par un resultat de caisse deja compte. L'inclure ici la
+        // deduirait une seconde fois du meme argent.
+        $expenses = Expense::caisse()
+            ->whereBetween('spent_on', [$start->toDateString(), $end->toDateString()])
             ->orderBy('spent_on')
             ->get();
         $advances = Advance::with('employee')
@@ -157,6 +210,10 @@ class WorkDayService
                 'advances_total' => $dayReport['advances_total'],
                 'commissions_total' => $dayReport['commissions_total'],
                 'net_result' => $dayReport['net_result'],
+                // Ou est parti ce resultat. Informatif : aucun total du rapport
+                // n'en depend, et une journee anterieure au demarrage du
+                // portefeuille reste affichee comme avant.
+                'wallet' => $this->wallets->workDayStatus($day, $dayReport['net_result']),
                 'top_prestations' => $dayReport['top_prestations'],
             ];
         })->values()->all();

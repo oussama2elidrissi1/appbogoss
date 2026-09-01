@@ -1,3 +1,5 @@
+import type { WorkDayWallet } from './wallet';
+
 /**
  * Types for the "Exploitation Quotidienne" module — the daily operations flow
  * (open day → encaissements / dépenses / avances → clôture + rapport).
@@ -133,6 +135,8 @@ export interface MonthlyReport {
         advances_total: number;
         commissions_total: number;
         net_result: number;
+        /** Ou est parti ce resultat. Informatif : aucun total n'en depend. */
+        wallet: WorkDayWallet;
         top_prestations: TopPrestation[];
     }>;
 }
@@ -154,6 +158,12 @@ export interface WorkDay {
     closing_balance_actual: number | null;
     closing_variance: number | null;
     closing_comment: string | null;
+    /**
+     * Statut portefeuille de la journee. `out_of_scope` pour toute journee
+     * anterieure au demarrage du 1er septembre 2026 : son resultat reste
+     * affiche, il n'a simplement jamais alimente de solde.
+     */
+    wallet: WorkDayWallet;
 }
 
 export interface OpenWorkDayPayload {

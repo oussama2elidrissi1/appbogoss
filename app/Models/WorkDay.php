@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class WorkDay extends Model
 {
@@ -59,5 +60,16 @@ class WorkDay extends Model
     public function openedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'opened_by_user_id');
+    }
+
+    /**
+     * Les mouvements de portefeuille nes de cette journee — en pratique le
+     * credit unique de son resultat de caisse, et l'ajustement inverse s'il a
+     * fallu le corriger. Sert a repondre a « quelle journee a genere ce
+     * credit ? » dans les deux sens.
+     */
+    public function walletTransactions(): MorphMany
+    {
+        return $this->morphMany(WalletTransaction::class, 'source');
     }
 }

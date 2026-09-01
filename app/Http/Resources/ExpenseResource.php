@@ -22,6 +22,13 @@ class ExpenseResource extends JsonResource
             'category' => $this->category,
             'amount' => (float) $this->amount,
             'spent_on' => $this->spent_on?->toDateString(),
+            // `caisse` (historique, rattachee a une journee) ou `wallet`
+            // (payee sur l'argent detenu par l'admin).
+            'origin' => $this->origin ?? 'caisse',
+            'wallet_id' => $this->wallet_id,
+            'user_name' => $this->whenLoaded('user', fn () => $this->user?->name),
+            'reference' => $this->reference,
+            'notes' => $this->notes,
         ];
     }
 }

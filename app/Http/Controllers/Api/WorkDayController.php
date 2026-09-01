@@ -34,21 +34,23 @@ class WorkDayController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        $workDay->load(['employees', 'openedBy', 'advances.employee']);
+        $workDay->load(['employees', 'openedBy', 'advances.employee', 'walletTransactions.wallet.user']);
 
         return response()->json(['data' => new WorkDayResource($workDay)], 201);
     }
 
     public function show(WorkDay $workDay): JsonResponse
     {
-        $workDay->load(['employees', 'openedBy', 'advances.employee']);
+        $workDay->load(['employees', 'openedBy', 'advances.employee', 'walletTransactions.wallet.user']);
 
         return response()->json(['data' => new WorkDayResource($workDay)]);
     }
 
     public function index(Request $request): JsonResponse
     {
-        $workDays = WorkDay::with(['employees', 'openedBy', 'advances.employee'])
+        // `walletTransactions` charge en amont : sans lui, le statut wallet de
+        // la ressource couterait une requete par journee affichee.
+        $workDays = WorkDay::with(['employees', 'openedBy', 'advances.employee', 'walletTransactions.wallet.user'])
             ->orderByDesc('date')
             ->orderByDesc('id')
             ->limit(60)
@@ -76,7 +78,7 @@ class WorkDayController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        $workDay->load(['employees', 'openedBy', 'advances.employee']);
+        $workDay->load(['employees', 'openedBy', 'advances.employee', 'walletTransactions.wallet.user']);
 
         return response()->json(['data' => new WorkDayResource($workDay)]);
     }

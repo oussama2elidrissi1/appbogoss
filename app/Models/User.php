@@ -55,6 +55,17 @@ class User extends Authenticatable
         return $this->hasOne(Employee::class);
     }
 
+    /**
+     * Le portefeuille du compte. Cree a la demande par WalletService, jamais
+     * par une migration : un portefeuille naissant vaut 0 et le reste tant
+     * qu'aucune journee de caisse du 1er septembre 2026 ou plus tard n'a ete
+     * cloturee.
+     */
+    public function wallet(): HasOne
+    {
+        return $this->hasOne(Wallet::class);
+    }
+
     public function partner(): HasOne
     {
         return $this->hasOne(Partner::class);

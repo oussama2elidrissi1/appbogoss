@@ -23,6 +23,7 @@ import {
     Users,
     UserSquare2,
     Wallet,
+    Landmark,
     type LucideIcon,
 } from 'lucide-react';
 
@@ -128,6 +129,22 @@ export const navSections: NavSection[] = [
                 icon: Wallet,
                 description: 'Commissions à payer chaque mois, nettes des avances sur salaire.',
                 permission: 'commissions.manage',
+            },
+            {
+                label: 'Mon portefeuille',
+                to: '/wallet',
+                icon: Wallet,
+                description:
+                    "L'argent qui vous reste, ce que vous avez remis au patron, vos dépenses et votre fond de caisse.",
+                permission: 'wallet.view',
+            },
+            {
+                label: 'Trésorerie',
+                to: '/tresorerie',
+                icon: Landmark,
+                description:
+                    "Où se trouve l'argent : chez le patron, chez chaque admin, en fond de caisse ou dépensé.",
+                permission: 'wallet.view_all',
             },
         ],
     },

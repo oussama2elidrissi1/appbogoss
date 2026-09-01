@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Services\WalletService;
 use App\Services\WorkDayService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -68,6 +69,14 @@ class WorkDayResource extends JsonResource
             ])->all(),
             'closing_report' => $this->closing_report,
             'report_snapshot' => $reportSnapshot,
+            // Ou est passe le resultat de cette journee : credite au
+            // portefeuille de l'admin, hors perimetre (journee anterieure au
+            // demarrage du 1er septembre 2026), en attente, ou contre-passe.
+            // Purement informatif : aucun montant du rapport n'en depend.
+            'wallet' => app(WalletService::class)->workDayStatus(
+                $this->resource,
+                $reportSnapshot['net_result'] ?? null,
+            ),
             'closing_balance_actual' => $this->closing_balance_actual !== null ? (float) $this->closing_balance_actual : null,
             'closing_variance' => $this->closing_variance !== null ? (float) $this->closing_variance : null,
             'closing_comment' => $this->closing_comment,
