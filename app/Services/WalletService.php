@@ -957,17 +957,27 @@ class WalletService
         $paidCaisse = 0.0;
 
         if ($kind === self::PAYMENT_COMMISSION) {
-            $paidCaisse = round((float) Advance::caisse()
-                ->where('employee_id', $employee->id)
-                ->whereNotNull('work_day_id')
-                ->whereNotNull('commission_payout_id')
-                ->where('reason', 'like', self::CAISSE_COMMISSION_MARKER)
-                ->whereHas('commissionPayout', fn ($query) => $query->where('period', $period))
-                ->sum('amount'), 2);
-
+            // Le reste vient de la PAIE, pas d'un calcul local : c'est la
+            // seule facon que l'ecran Paie et cet ecran-ci ne puissent jamais
+            // annoncer deux montants differents pour le meme employe.
             $preview = $this->payouts->preview($employee, $period);
+
             $context['due_total'] = $preview['commission_total'];
             $context['due_label'] = 'Commission gagnée';
+            $context['already_paid_wallet'] = $preview['paid_from_wallet'];
+            $context['already_paid_caisse'] = round(
+                $preview['paid_net_total'] + $preview['paid_advances_total'],
+                2,
+            );
+            $context['advances_outstanding'] = $preview['advances_outstanding'];
+            $context['already_paid_total'] = round(
+                $context['already_paid_wallet'] + $context['already_paid_caisse'],
+                2,
+            );
+            $context['remaining'] = $preview['net_amount'];
+            $context['payments'] = $this->periodPayments($employee, $period, $kind);
+
+            return $context;
         }
 
         if ($kind === self::PAYMENT_ADVANCE) {
@@ -981,26 +991,26 @@ class WalletService
         $context['already_paid_wallet'] = $paidWallet;
         $context['already_paid_caisse'] = $paidCaisse;
         $context['already_paid_total'] = round($paidWallet + $paidCaisse, 2);
+        $context['payments'] = $this->periodPayments($employee, $period, $kind);
 
-        if ($context['due_total'] !== null) {
-            $context['remaining'] = round(
-                max(0, $context['due_total'] - $context['already_paid_total']),
-                2,
-            );
-        }
+        return $context;
+    }
 
-        // Les versements deja enregistres sur cette periode, toutes sources
-        // confondues : c'est ce qui rend un doublon visible avant de valider.
-        $context['payments'] = $this->employeePaymentHistory($employee)['payments'];
-        $context['payments'] = array_values(array_filter(
-            $context['payments'],
+    /**
+     * Les versements deja enregistres sur cette periode : c'est ce qui rend un
+     * doublon visible AVANT de valider, pas apres.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function periodPayments(Employee $employee, string $period, string $kind): array
+    {
+        return array_values(array_filter(
+            $this->employeePaymentHistory($employee)['payments'],
             fn (array $row) => $row['period'] === $period
                 || ($kind === self::PAYMENT_COMMISSION
                     && $row['source'] === self::SOURCE_CAISSE
                     && $row['kind'] === self::PAYMENT_COMMISSION),
         ));
-
-        return $context;
     }
 
     /**
@@ -1030,70 +1040,46 @@ class WalletService
      */
     public function employeeDues(string $period): array
     {
-        [$from, $to] = $this->periodBounds($period);
-        [$start, $end] = $this->periodDateTimes($period);
-
         $employees = Employee::query()
             ->where('is_company', false)
             ->orderBy('name')
             ->get();
-        $ids = $employees->pluck('id');
-
-        // Trois agregats groupes, pas trois requetes par employe : la liste
-        // reste lisible meme avec toute l'equipe a l'ecran.
-        $walletPaid = WalletTransaction::where('type', WalletTransaction::TYPE_EMPLOYEE_PAYMENT)
-            ->whereIn('employee_id', $ids)
-            ->where(function ($query) use ($period, $start, $end) {
-                $query->where('period', $period)
-                    ->orWhere(fn ($sub) => $sub->whereNull('period')
-                        ->whereBetween('occurred_at', [$start, $end]));
-            })
-            ->groupBy('employee_id')
-            ->selectRaw('employee_id, SUM(amount) as total')
-            ->pluck('total', 'employee_id');
-
-        $caissePaid = Advance::caisse()
-            ->whereIn('employee_id', $ids)
-            ->whereBetween('given_on', [$from, $to])
-            ->groupBy('employee_id')
-            ->selectRaw('employee_id, SUM(amount) as total')
-            ->pluck('total', 'employee_id');
-
-        $outstanding = Advance::query()
-            ->whereIn('employee_id', $ids)
-            ->outstanding()
-            ->groupBy('employee_id')
-            ->selectRaw('employee_id, SUM(amount) as total')
-            ->pluck('total', 'employee_id');
 
         $rows = $employees
-            ->map(function (Employee $employee) use ($period, $walletPaid, $caissePaid, $outstanding) {
-                $due = $this->earnings->commissionEarnedTotal(
-                    $employee,
-                    Carbon::createFromFormat('!Y-m', $period)->startOfMonth()->startOfDay(),
-                    Carbon::createFromFormat('!Y-m', $period)->endOfMonth()->endOfDay(),
+            ->map(function (Employee $employee) use ($period) {
+                // Tout vient de la PAIE. C'est plus de requetes qu'un agregat
+                // maison, et c'est le prix a payer pour que cette liste et
+                // l'ecran Paie ne puissent pas annoncer deux restes
+                // differents pour le meme employe — ce qu'ils faisaient.
+                $preview = $this->payouts->preview($employee, $period);
+                $paidPayouts = round(
+                    $preview['paid_net_total'] + $preview['paid_advances_total'],
+                    2,
                 );
-                $paidWallet = round((float) ($walletPaid[$employee->id] ?? 0), 2);
-                $paidCaisse = round((float) ($caissePaid[$employee->id] ?? 0), 2);
-                $paid = round($paidWallet + $paidCaisse, 2);
 
                 return [
                     'employee_id' => $employee->id,
                     'employee_name' => $employee->name,
                     'avatar_color' => $employee->avatar_color,
                     'is_active' => (bool) $employee->is_active,
-                    'due_total' => $due,
-                    'paid_total' => $paid,
-                    'paid_wallet' => $paidWallet,
-                    'paid_caisse' => $paidCaisse,
-                    'remaining' => round(max(0, $due - $paid), 2),
-                    'advances_outstanding' => round((float) ($outstanding[$employee->id] ?? 0), 2),
+                    'due_total' => $preview['commission_total'],
+                    // Argent deja remis en main propre depuis un portefeuille.
+                    'paid_wallet' => $preview['paid_from_wallet'],
+                    // Paies deja enregistrees pour ce mois.
+                    'paid_payouts' => $paidPayouts,
+                    'paid_total' => round($preview['paid_from_wallet'] + $paidPayouts, 2),
+                    // Avances non soldees : pas encore « payees », mais deja
+                    // dans la main de l'employe, donc deduites du reste.
+                    'advances_outstanding' => $preview['advances_outstanding'],
+                    'remaining' => $preview['net_amount'],
                 ];
             })
             // Un employe sans commission ni versement sur le mois n'a rien a
             // faire dans une liste de « reste a payer » : il la remplirait
             // sans rien y apporter.
-            ->filter(fn (array $row) => $row['due_total'] > 0 || $row['paid_total'] > 0)
+            ->filter(fn (array $row) => $row['due_total'] > 0
+                || $row['paid_total'] > 0
+                || $row['advances_outstanding'] > 0)
             // Ce qui reste d'abord, puis l'ordre alphabetique : la question
             // posee est « a qui dois-je encore de l'argent ».
             ->sort(fn (array $a, array $b) => [$b['remaining'], $a['employee_name']]
@@ -1108,7 +1094,8 @@ class WalletService
                 'due_total' => round((float) $rows->sum('due_total'), 2),
                 'paid_total' => round((float) $rows->sum('paid_total'), 2),
                 'paid_wallet_total' => round((float) $rows->sum('paid_wallet'), 2),
-                'paid_caisse_total' => round((float) $rows->sum('paid_caisse'), 2),
+                'paid_payouts_total' => round((float) $rows->sum('paid_payouts'), 2),
+                'advances_outstanding_total' => round((float) $rows->sum('advances_outstanding'), 2),
                 'remaining_total' => round((float) $rows->sum('remaining'), 2),
             ],
             'employees' => $rows->all(),

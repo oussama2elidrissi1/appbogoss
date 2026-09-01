@@ -220,6 +220,12 @@ export interface CommissionPayoutRow {
     paid_net_total: number;
     /** Advances settled by this period's payouts. */
     paid_advances_total: number;
+    /**
+     * Argent déjà remis en main propre depuis un portefeuille pour ce mois.
+     * Il couvre la commission au même titre qu'une paie enregistrée : sans
+     * lui, l'écran réclamerait une seconde fois ce qui est déjà sorti.
+     */
+    paid_from_wallet: number;
     /** What is STILL owed — a paid employee can earn more in the same month. */
     net_amount: number;
     already_paid: boolean;

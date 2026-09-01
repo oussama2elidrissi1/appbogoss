@@ -292,12 +292,19 @@ export interface EmployeeDueRow {
     avatar_color: string;
     is_active: boolean;
     due_total: number;
+    /** Portefeuille + paies déjà enregistrées. */
     paid_total: number;
+    /** Argent remis en main propre depuis un portefeuille. */
     paid_wallet: number;
-    paid_caisse: number;
-    /** Jamais négatif : verser plus que dû ne crée pas une dette de l'employé. */
-    remaining: number;
+    /** Paies du mois déjà enregistrées. */
+    paid_payouts: number;
+    /**
+     * Avances non soldées : pas encore « payées », mais déjà dans la main de
+     * l'employé, donc déduites du reste — exactement comme le fait la paie.
+     */
     advances_outstanding: number;
+    /** Jamais négatif. Vient du même calcul que l'écran Paie. */
+    remaining: number;
 }
 
 export interface EmployeeDues {
@@ -308,7 +315,8 @@ export interface EmployeeDues {
         due_total: number;
         paid_total: number;
         paid_wallet_total: number;
-        paid_caisse_total: number;
+        paid_payouts_total: number;
+        advances_outstanding_total: number;
         remaining_total: number;
     };
     employees: EmployeeDueRow[];

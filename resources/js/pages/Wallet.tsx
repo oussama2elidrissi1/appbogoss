@@ -1231,6 +1231,9 @@ function EmployeeDuesSection({
                                         {t('Versé')}
                                     </th>
                                     <th className="px-2 py-2 text-right font-semibold">
+                                        {t('Avances déduites')}
+                                    </th>
+                                    <th className="px-2 py-2 text-right font-semibold">
                                         {t('Reste')}
                                     </th>
                                     <th className="px-2 py-2" />
@@ -1247,14 +1250,7 @@ function EmployeeDuesSection({
                                                 {!row.is_active && (
                                                     <Badge variant="outline">{t('Inactif')}</Badge>
                                                 )}
-                                                {row.advances_outstanding > 0 && (
-                                                    <Badge variant="outline">
-                                                        {t('avance en cours')}{' '}
-                                                        {formatCurrency(row.advances_outstanding, {
-                                                            maximumFractionDigits: 2,
-                                                        })}
-                                                    </Badge>
-                                                )}
+
                                             </div>
                                         </td>
                                         <td className="px-2 py-2.5 text-right tabular-nums">
@@ -1266,15 +1262,20 @@ function EmployeeDuesSection({
                                             {formatCurrency(row.paid_total, {
                                                 maximumFractionDigits: 2,
                                             })}
-                                            {row.paid_caisse > 0 && (
+                                            {row.paid_payouts > 0 && (
                                                 <span className="ml-1 text-[11px] text-muted-foreground">
-                                                    ({t('dont caisse')}{' '}
-                                                    {formatCurrency(row.paid_caisse, {
+                                                    ({t('dont paie')}{' '}
+                                                    {formatCurrency(row.paid_payouts, {
                                                         maximumFractionDigits: 2,
                                                     })}
                                                     )
                                                 </span>
                                             )}
+                                        </td>
+                                        <td className="px-2 py-2.5 text-right tabular-nums text-muted-foreground">
+                                            {formatCurrency(row.advances_outstanding, {
+                                                maximumFractionDigits: 2,
+                                            })}
                                         </td>
                                         <td
                                             className={cn(
@@ -1287,13 +1288,15 @@ function EmployeeDuesSection({
                                             })}
                                         </td>
                                         <td className="px-2 py-2.5 text-right">
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => onPay(row)}
-                                            >
-                                                {t('Payer')}
-                                            </Button>
+                                            {row.remaining > 0 && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => onPay(row)}
+                                                >
+                                                    {t('Payer')}
+                                                </Button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}

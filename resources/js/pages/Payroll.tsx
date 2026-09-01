@@ -300,6 +300,12 @@ export default function Payroll() {
                                                 {row.advances_outstanding > 0 && (
                                                     <span className="text-accent"> · {t('avances')} {formatCurrency(row.advances_outstanding)}</span>
                                                 )}
+                                                {/* Sans cette mention, le net semble
+                                                    baisser sans raison : l'argent est
+                                                    deja sorti du portefeuille. */}
+                                                {row.paid_from_wallet > 0 && (
+                                                    <span className="text-success"> · {t('déjà versé du portefeuille')} {formatCurrency(row.paid_from_wallet)}</span>
+                                                )}
                                             </p>
                                         </div>
 

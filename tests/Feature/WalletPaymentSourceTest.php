@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Models\WorkDay;
+use App\Services\CommissionPayoutService;
 use App\Services\WalletService;
 use App\Services\WorkDayService;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -512,7 +513,9 @@ class WalletPaymentSourceTest extends TestCase
         [$first, $second] = $dues['employees'];
         $this->assertSame('Karim', $first['employee_name']);
         $this->assertSame(1500.0, $this->money($first['remaining']));
-        $this->assertSame(500.0, $this->money($first['paid_caisse']));
+        // Son avance n'est pas « payee » au sens d'une paie, mais elle est
+        // deja dans sa main : elle reduit d'autant ce qui reste a lui donner.
+        $this->assertSame(500.0, $this->money($first['advances_outstanding']));
         $this->assertSame(0.0, $this->money($first['paid_wallet']));
 
         $this->assertSame('Ahmed', $second['employee_name']);
@@ -521,7 +524,8 @@ class WalletPaymentSourceTest extends TestCase
         $this->assertSame(1000.0, $this->money($second['remaining']));
 
         $this->assertSame(6000.0, $this->money($dues['totals']['due_total']));
-        $this->assertSame(3500.0, $this->money($dues['totals']['paid_total']));
+        $this->assertSame(3000.0, $this->money($dues['totals']['paid_total']));
+        $this->assertSame(500.0, $this->money($dues['totals']['advances_outstanding_total']));
         $this->assertSame(2500.0, $this->money($dues['totals']['remaining_total']));
         $this->assertSame(2, $dues['totals']['employees_remaining']);
 
@@ -685,5 +689,142 @@ class WalletPaymentSourceTest extends TestCase
         $dues = $this->getJson('/api/wallet/employee-dues?period=2026-09')
             ->assertOk()->json('data');
         $this->assertSame(0, $dues['totals']['employees_remaining']);
+    }
+
+    // =====================================================================
+    // La paie et le portefeuille doivent dire le même chiffre
+    // =====================================================================
+
+    /**
+     * Le cas réel qui a fait remonter le bug : zouhir, 7 500 de commission,
+     * 4 360 d'avances en cours, donc 3 140 à verser. L'admin lui remet 1 200
+     * depuis son portefeuille — et l'écran Paie continuait de réclamer 3 140.
+     * Cliquer « Marquer comme payé » aurait versé ces 1 200 une seconde fois.
+     */
+    public function test_a_wallet_payment_lowers_what_the_payroll_still_owes(): void
+    {
+        $admin = $this->admin();
+        $zouhir = Employee::factory()->create(['name' => 'zouhir']);
+        $day = $this->fundAdminAndCloseTheDay($admin, 20000, '2026-09-05');
+        $this->earnCommission($zouhir, 7500, '2026-08-15');
+
+        Advance::create([
+            'employee_id' => $zouhir->id,
+            'work_day_id' => $day->id,
+            'amount' => 4360,
+            'reason' => 'Avances du mois',
+            'given_on' => '2026-08-20',
+        ]);
+
+        $payouts = app(CommissionPayoutService::class);
+
+        // Avant : 7 500 - 4 360 = 3 140.
+        $this->assertSame(3140.0, $payouts->preview($zouhir, '2026-08')['net_amount']);
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/wallet/employee-payments', [
+            'employee_id' => $zouhir->id,
+            'amount' => 1200,
+            'kind' => 'commission',
+            'period' => '2026-08',
+        ])->assertCreated();
+
+        // Apres : la paie sait que 1 200 sont deja sortis.
+        $preview = $payouts->preview($zouhir, '2026-08');
+        $this->assertSame(1200.0, $preview['paid_from_wallet']);
+        $this->assertSame(1940.0, $preview['net_amount']);
+
+        // Et la liste du portefeuille annonce exactement le meme reste.
+        $row = $this->getJson('/api/wallet/employee-dues?period=2026-08')
+            ->assertOk()->json('data.employees.0');
+        $this->assertSame('zouhir', $row['employee_name']);
+        $this->assertSame(1940.0, $this->money($row['remaining']));
+        $this->assertSame(1200.0, $this->money($row['paid_wallet']));
+        $this->assertSame(4360.0, $this->money($row['advances_outstanding']));
+
+        // La modale de paiement aussi — les trois ecrans lisent le meme net.
+        $context = $this->getJson(
+            "/api/employees/{$zouhir->id}/payment-context?period=2026-08&kind=commission",
+        )->assertOk()->json('data');
+        $this->assertSame(1940.0, $this->money($context['remaining']));
+    }
+
+    /** Et « Marquer comme payé » ne verse plus que ce qui reste réellement. */
+    public function test_marking_the_month_paid_never_hands_over_the_wallet_amount_twice(): void
+    {
+        $admin = $this->admin();
+        $zouhir = Employee::factory()->create(['name' => 'zouhir']);
+        $day = $this->fundAdminAndCloseTheDay($admin, 20000, '2026-09-05');
+        $this->earnCommission($zouhir, 7500, '2026-08-15');
+
+        Advance::create([
+            'employee_id' => $zouhir->id,
+            'work_day_id' => $day->id,
+            'amount' => 4360,
+            'reason' => 'Avances du mois',
+            'given_on' => '2026-08-20',
+        ]);
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/wallet/employee-payments', [
+            'employee_id' => $zouhir->id,
+            'amount' => 1200,
+            'kind' => 'commission',
+            'period' => '2026-08',
+        ])->assertCreated();
+
+        $this->postJson('/api/commission-payouts', [
+            'employee_id' => $zouhir->id,
+            'period' => '2026-08',
+        ])->assertCreated();
+
+        $payout = CommissionPayout::where('employee_id', $zouhir->id)->firstOrFail();
+
+        // 1 940 remis, pas 3 140 : les 1 200 du portefeuille ne repartent pas.
+        $this->assertSame('1940.00', (string) $payout->net_amount);
+        $this->assertSame('4360.00', (string) $payout->advances_deducted);
+        $this->assertSame(0.0, app(CommissionPayoutService::class)
+            ->preview($zouhir, '2026-08')['net_amount']);
+    }
+
+    /**
+     * La contrepartie de la règle : une PRIME s'ajoute à la commission, elle ne
+     * la solde pas. Et une AVANCE est déjà portée par la table `advances` — la
+     * compter aussi comme versement la retirerait deux fois.
+     */
+    public function test_a_bonus_or_an_advance_never_lowers_what_the_payroll_owes(): void
+    {
+        $admin = $this->admin();
+        $employee = Employee::factory()->create(['name' => 'Ahmed']);
+        $this->fundAdminAndCloseTheDay($admin, 20000);
+        $this->earnCommission($employee, 4000, '2026-09-10');
+
+        $payouts = app(CommissionPayoutService::class);
+        $this->assertSame(4000.0, $payouts->preview($employee, '2026-09')['net_amount']);
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/wallet/employee-payments', [
+            'employee_id' => $employee->id,
+            'amount' => 300,
+            'kind' => 'bonus',
+            'period' => '2026-09',
+        ])->assertCreated();
+
+        // La prime s'ajoute, elle ne solde rien.
+        $this->assertSame(4000.0, $payouts->preview($employee, '2026-09')['net_amount']);
+
+        $this->postJson('/api/wallet/employee-payments', [
+            'employee_id' => $employee->id,
+            'amount' => 500,
+            'kind' => 'advance',
+            'period' => '2026-09',
+        ])->assertCreated();
+
+        // L'avance, elle, reduit bien le net — mais UNE seule fois, par le
+        // mecanisme des avances, pas deux.
+        $preview = $payouts->preview($employee, '2026-09');
+        $this->assertSame(500.0, $preview['advances_outstanding']);
+        $this->assertSame(0.0, $preview['paid_from_wallet']);
+        $this->assertSame(3500.0, $preview['net_amount']);
     }
 }

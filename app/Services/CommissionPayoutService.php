@@ -6,6 +6,7 @@ use App\Models\Advance;
 use App\Models\CommissionPayout;
 use App\Models\Employee;
 use App\Models\User;
+use App\Models\WalletTransaction;
 use App\Models\WorkDay;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -67,6 +68,7 @@ class CommissionPayoutService
             ->get();
         $paidNetTotal = (float) $payouts->sum('net_amount');
         $paidAdvancesTotal = (float) $payouts->sum('advances_deducted');
+        $paidFromWallet = $this->walletCreditedTotal($employee, $period);
         $latest = $payouts->last();
 
         return [
@@ -77,7 +79,11 @@ class CommissionPayoutService
             'advances_outstanding' => round($advancesOutstanding, 2),
             'paid_net_total' => round($paidNetTotal, 2),
             'paid_advances_total' => round($paidAdvancesTotal, 2),
-            'net_amount' => round(max(0, $commissionTotal - $paidNetTotal - $paidAdvancesTotal - $advancesOutstanding), 2),
+            // Argent deja remis a l'employe depuis un portefeuille pour ce
+            // mois. Expose a part pour que l'ecran puisse l'expliquer plutot
+            // que de laisser le net baisser sans raison visible.
+            'paid_from_wallet' => $paidFromWallet,
+            'net_amount' => round(max(0, $commissionTotal - $paidNetTotal - $paidAdvancesTotal - $paidFromWallet - $advancesOutstanding), 2),
             'already_paid' => $latest !== null,
             'payout' => $latest === null ? null : [
                 'id' => $latest->id,
@@ -112,6 +118,11 @@ class CommissionPayoutService
             ->where('period', $period)
             ->get()
             ->sum(fn (CommissionPayout $payout) => (float) $payout->net_amount + (float) $payout->advances_deducted);
+        // Ce qui est deja sorti d'un portefeuille pour ce mois couvre la
+        // commission au meme titre qu'une paie enregistree : sans cette ligne,
+        // « Marquer comme paye » reverserait une seconde fois un montant deja
+        // remis en main propre.
+        $alreadyCovered += $this->walletCreditedTotal($employee, $period);
         $commissionRemaining = round($commissionTotal - $alreadyCovered, 2);
 
         if ($commissionRemaining <= 0) {
@@ -190,6 +201,35 @@ class CommissionPayoutService
 
             return $payout->load(['employee', 'paidBy']);
         });
+    }
+
+    /**
+     * Ce qui a deja ete remis a l'employe depuis un portefeuille pour ce mois,
+     * et qui couvre sa commission.
+     *
+     * Seuls « Commission » et « Salaire » comptent, et le choix est
+     * deliberement conservateur :
+     *
+     *  - une AVANCE est deja portee par la table `advances`, que la paie
+     *    deduit de son cote ; la compter ici la retirerait deux fois ;
+     *  - une PRIME s'ajoute a la commission, elle ne la solde pas ;
+     *  - « Autre » ne dit rien de sa nature, donc ne reduit rien.
+     *
+     * Renvoie 0 tant qu'aucun versement de portefeuille n'existe — ce qui
+     * etait le cas de toute l'application avant le module Wallet, et rend
+     * cette methode sans effet sur l'historique.
+     */
+    private function walletCreditedTotal(Employee $employee, string $period): float
+    {
+        return round((float) WalletTransaction::query()
+            ->where('type', WalletTransaction::TYPE_EMPLOYEE_PAYMENT)
+            ->where('employee_id', $employee->id)
+            ->where('period', $period)
+            ->whereIn('category', [
+                WalletService::PAYMENT_COMMISSION,
+                WalletService::PAYMENT_SALARY,
+            ])
+            ->sum('amount'), 2);
     }
 
     /**

@@ -43,7 +43,12 @@ export function EmployeePayroll({ employee }: { employee: Employee }) {
     // Commission not yet covered by this period's payouts — an employee paid
     // mid-month can earn more afterwards. Mirrors the "Paie" page.
     const commissionRemaining =
-        row != null ? row.commission_total - row.paid_net_total - row.paid_advances_total : 0;
+        row != null
+            ? row.commission_total -
+              row.paid_net_total -
+              row.paid_advances_total -
+              row.paid_from_wallet
+            : 0;
     // Remaining commission fully handed over as advances — net is 0 but the
     // month still must be markable as paid so those advances get settled
     // instead of rolling into next month's payout.
