@@ -305,24 +305,33 @@ class WalletService
     }
 
     /**
-     * L'admin responsable de la journée.
+     * L'admin responsable de la journée — celui dont le portefeuille reçoit.
      *
-     * `opened_by_user_id` d'abord : c'est le compte qui a tenu la caisse toute
-     * la journée, donc celui chez qui l'argent se trouve. L'acteur de la
-     * clôture ne sert que de repli, pour les journées ouvertes sans compte
-     * identifié.
+     * La règle a une contrainte de plus que « celui qui a ouvert » : le
+     * résultat d'une caisse va à l'ADMIN qui tient le tiroir, jamais au
+     * patron par accident. Une journée ouverte avec le compte Super Admin
+     * (une habitude, un test, un dépannage) créditait le portefeuille du
+     * patron — l'argent sautait l'étape « détenu par l'admin », et les vues
+     * Trésorerie et Portefeuille racontaient toutes deux une histoire fausse.
+     *
+     * D'où l'ordre : l'ouvreur s'il n'est pas super-admin, sinon celui qui
+     * clôture s'il ne l'est pas. Si la journée a été entièrement tenue par le
+     * patron, alors oui, son portefeuille est le bon — c'est lui qui a
+     * l'argent — et ce repli est assumé.
      */
     private function workDayOwner(WorkDay $day, ?User $actor): ?User
     {
-        if ($day->opened_by_user_id !== null) {
-            $owner = User::find($day->opened_by_user_id);
+        $opener = $day->opened_by_user_id !== null
+            ? User::find($day->opened_by_user_id)
+            : null;
 
-            if ($owner !== null) {
-                return $owner;
+        foreach ([$opener, $actor] as $candidate) {
+            if ($candidate !== null && ! $candidate->hasRole('super-admin')) {
+                return $candidate;
             }
         }
 
-        return $actor;
+        return $opener ?? $actor;
     }
 
     /**

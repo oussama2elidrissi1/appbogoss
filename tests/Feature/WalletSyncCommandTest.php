@@ -43,6 +43,14 @@ class WalletSyncCommandTest extends TestCase
         return $user;
     }
 
+    private function superAdmin(): User
+    {
+        $user = User::factory()->create(['name' => 'Super Admin', 'role' => 'super-admin']);
+        $user->assignRole('super-admin');
+
+        return $user;
+    }
+
     /**
      * Une journée clôturée SANS passer par closeDay() — exactement l'état que
      * laisse une clôture faite sous l'ancien code : le rapport figé est là,
@@ -172,5 +180,166 @@ class WalletSyncCommandTest extends TestCase
             ->assertSuccessful();
 
         $this->assertSame(0, WalletTransaction::count());
+    }
+
+    // =====================================================================
+    // À qui va le résultat d'une journée
+    // =====================================================================
+
+    /**
+     * Le cas signalé en production : la journée avait été OUVERTE avec le
+     * compte Super Admin, et le résultat a atterri dans le portefeuille du
+     * patron. Le résultat d'une caisse va à l'admin qui tient le tiroir — le
+     * patron, lui, reçoit par transfert.
+     */
+    public function test_a_day_opened_by_the_owner_but_closed_by_an_admin_credits_the_admin(): void
+    {
+        $superAdmin = $this->superAdmin();
+        $admin = $this->admin();
+        $employee = Employee::factory()->create();
+
+        $day = WorkDay::factory()->create([
+            'date' => '2026-09-01',
+            'opened_by_user_id' => $superAdmin->id,
+            'opening_balance' => 0,
+            'status' => 'open',
+        ]);
+        Sale::create([
+            'work_day_id' => $day->id,
+            'client_label' => 'Client',
+            'employee_id' => $employee->id,
+            'category' => 'coiffure',
+            'total' => 1548,
+            'payment_method' => 'especes',
+        ]);
+
+        \Laravel\Sanctum\Sanctum::actingAs($admin);
+        app(\App\Services\WorkDayService::class)->closeDay($day->fresh());
+
+        $this->assertSame('1548.00', (string) $this->walletOf($admin)->balance);
+        $this->assertNull($this->walletOf($superAdmin));
+    }
+
+    /** Journée entièrement tenue par le patron : son portefeuille est le bon. */
+    public function test_a_day_fully_run_by_the_owner_credits_the_owner(): void
+    {
+        $superAdmin = $this->superAdmin();
+        $employee = Employee::factory()->create();
+
+        $day = WorkDay::factory()->create([
+            'date' => '2026-09-01',
+            'opened_by_user_id' => $superAdmin->id,
+            'opening_balance' => 0,
+            'status' => 'open',
+        ]);
+        Sale::create([
+            'work_day_id' => $day->id,
+            'client_label' => 'Client',
+            'employee_id' => $employee->id,
+            'category' => 'coiffure',
+            'total' => 900,
+            'payment_method' => 'especes',
+        ]);
+
+        \Laravel\Sanctum\Sanctum::actingAs($superAdmin);
+        app(\App\Services\WorkDayService::class)->closeDay($day->fresh());
+
+        $this->assertSame('900.00', (string) $this->walletOf($superAdmin)->balance);
+    }
+
+    // =====================================================================
+    // --repair-owners : réattribuer un crédit tombé chez le patron
+    // =====================================================================
+
+    /**
+     * Reconstruit l'état laissé par l'ancienne règle : le crédit du 01/09 est
+     * dans le portefeuille du patron alors que l'admin a clôturé la journée.
+     */
+    private function misplacedCredit(User $superAdmin, User $admin, float $amount = 1548): WorkDay
+    {
+        $day = $this->closedDayWithoutCredit($superAdmin, '2026-09-01', $amount);
+
+        $wallet = app(\App\Services\WalletService::class)->walletFor($superAdmin);
+        $wallet->forceFill(['balance' => number_format($amount, 2, '.', '')])->save();
+
+        WalletTransaction::create([
+            'wallet_id' => $wallet->id,
+            'type' => WalletTransaction::TYPE_CASH_REGISTER_RESULT,
+            'direction' => WalletTransaction::DIRECTION_IN,
+            'bucket' => WalletTransaction::BUCKET_AVAILABLE,
+            'amount' => $amount,
+            'balance_after' => $amount,
+            'cash_fund_after' => 0,
+            'performed_by_user_id' => $admin->id,
+            'source_type' => $day->getMorphClass(),
+            'source_id' => $day->id,
+            'description' => 'Resultat de la caisse du 01/09/2026',
+            'occurred_at' => '2026-09-01 00:00:00',
+        ]);
+
+        return $day;
+    }
+
+    public function test_repair_owners_moves_the_credit_to_the_admin_without_deleting_anything(): void
+    {
+        $superAdmin = $this->superAdmin();
+        $admin = $this->admin();
+        $this->misplacedCredit($superAdmin, $admin);
+
+        $this->artisan('wallet:sync-closed-days --repair-owners')
+            ->expectsOutputToContain('1 548,00 DH déplacés de Super Admin vers Admin BOGOSLAND')
+            ->expectsOutputToContain('1 crédit(s) réattribué(s).')
+            ->assertSuccessful();
+
+        // Le patron rend, l'admin recoit, et RIEN n'a ete supprime : le
+        // credit fautif, sa contre-passe et la reattribution sont tous la.
+        $this->assertSame('0.00', (string) $this->walletOf($superAdmin)->balance);
+        $this->assertSame('1548.00', (string) $this->walletOf($admin)->balance);
+        $this->assertSame(3, WalletTransaction::count());
+
+        $service = app(\App\Services\WalletService::class);
+        $this->assertTrue($service->reconcile($this->walletOf($superAdmin))['balanced']);
+        $this->assertTrue($service->reconcile($this->walletOf($admin))['balanced']);
+
+        // Une deuxieme passe ne touche plus a rien.
+        $this->artisan('wallet:sync-closed-days --repair-owners')
+            ->expectsOutputToContain('déjà contre-passé')
+            ->expectsOutputToContain('0 crédit(s) réattribué(s).')
+            ->assertSuccessful();
+        $this->assertSame(3, WalletTransaction::count());
+    }
+
+    public function test_repair_owners_dry_run_writes_nothing(): void
+    {
+        $superAdmin = $this->superAdmin();
+        $admin = $this->admin();
+        $this->misplacedCredit($superAdmin, $admin);
+
+        $this->artisan('wallet:sync-closed-days --repair-owners --dry-run')
+            ->expectsOutputToContain('déplacerait')
+            ->assertSuccessful();
+
+        $this->assertSame(1, WalletTransaction::count());
+        $this->assertSame('1548.00', (string) $this->walletOf($superAdmin)->balance);
+    }
+
+    public function test_repair_owners_leaves_a_credit_that_belongs_to_the_owner(): void
+    {
+        $superAdmin = $this->superAdmin();
+        $admin = $this->admin();
+        $day = $this->misplacedCredit($superAdmin, $admin);
+
+        // Le patron a aussi cloture : personne d'autre n'a tenu la caisse.
+        WalletTransaction::where('source_id', $day->id)
+            ->update(['performed_by_user_id' => $superAdmin->id]);
+        $day->update(['opened_by_user_id' => $superAdmin->id]);
+
+        $this->artisan('wallet:sync-closed-days --repair-owners')
+            ->expectsOutputToContain('entièrement tenue par le patron')
+            ->expectsOutputToContain('0 crédit(s) réattribué(s).')
+            ->assertSuccessful();
+
+        $this->assertSame(1, WalletTransaction::count());
+        $this->assertSame('1548.00', (string) $this->walletOf($superAdmin)->balance);
     }
 }

@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Models\User;
+use App\Models\WalletTransaction;
 use App\Models\WorkDay;
 use App\Services\WalletService;
 use App\Services\WorkDayService;
@@ -31,13 +33,19 @@ use Illuminate\Console\Command;
 class SyncClosedWorkDaysToWallet extends Command
 {
     protected $signature = 'wallet:sync-closed-days
-                            {--dry-run : Montre ce qui serait crédité, sans rien écrire}';
+                            {--dry-run : Montre ce qui serait fait, sans rien écrire}
+                            {--repair-owners : Réattribue les résultats crédités au patron alors qu\'un admin tenait la caisse}';
 
     protected $description = 'Crédite au portefeuille les journées clôturées qui ne l\'ont jamais été';
 
     public function handle(WalletService $wallets, WorkDayService $workDays): int
     {
         $dryRun = (bool) $this->option('dry-run');
+
+        if ($this->option('repair-owners')) {
+            return $this->repairOwners($wallets, $dryRun);
+        }
+
         $startDate = $wallets->startDate()->toDateString();
 
         $days = WorkDay::with('openedBy')
@@ -119,6 +127,112 @@ class SyncClosedWorkDaysToWallet extends Command
         $this->info($dryRun
             ? "{$credited} journée(s) seraient créditées. Relancez sans --dry-run pour écrire."
             : "{$credited} journée(s) créditée(s).");
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Réattribue les résultats de caisse crédités au patron par accident.
+     *
+     * Le cas : une journée ouverte avec le compte Super Admin (habitude,
+     * test) mais tenue et clôturée par un admin — l'ancienne règle créditait
+     * l'ouvreur, donc le patron. L'argent était chez l'admin, le ledger disait
+     * le contraire.
+     *
+     * La réparation respecte le ledger : rien n'est modifié ni supprimé. Le
+     * crédit fautif est CONTRE-PASSÉ chez le patron, et un AJUSTEMENT du même
+     * montant est écrit chez l'admin, chacun portant son motif. La journée
+     * s'affichera « crédit contre-passé » dans les Rapports — c'est exact, et
+     * les deux historiques racontent toute l'histoire.
+     *
+     * L'admin cible est le premier non-super-admin entre l'ouvreur de la
+     * journée et l'auteur du mouvement (celui qui a clôturé). Une journée
+     * entièrement tenue par le patron n'est pas touchée : son portefeuille
+     * était le bon.
+     */
+    private function repairOwners(WalletService $wallets, bool $dryRun): int
+    {
+        $credits = WalletTransaction::with(['wallet.user', 'performedBy', 'source'])
+            ->where('type', WalletTransaction::TYPE_CASH_REGISTER_RESULT)
+            ->orderBy('id')
+            ->get();
+
+        $repaired = 0;
+
+        foreach ($credits as $credit) {
+            $day = $credit->source;
+            $label = $day instanceof WorkDay
+                ? $day->date->format('d/m/Y')
+                : ('mouvement #'.$credit->id);
+
+            if (WalletTransaction::where('reverses_transaction_id', $credit->id)->exists()) {
+                $this->line("  {$label} : déjà contre-passé — ignoré.");
+
+                continue;
+            }
+
+            $holder = $credit->wallet?->user;
+
+            if ($holder === null || ! $holder->hasRole('super-admin')) {
+                continue; // bien placé, rien à faire
+            }
+
+            $target = collect([
+                $day instanceof WorkDay ? $day->openedBy : null,
+                $credit->performedBy,
+            ])->first(fn (?User $user) => $user !== null && ! $user->hasRole('super-admin'));
+
+            if ($target === null) {
+                $this->warn("  {$label} : journée entièrement tenue par le patron — son portefeuille est le bon, ignoré.");
+
+                continue;
+            }
+
+            $amount = $credit->signedAmount();
+
+            if ($dryRun) {
+                $this->info(sprintf(
+                    '  %s : déplacerait %s DH du portefeuille de %s vers celui de %s.',
+                    $label,
+                    number_format(abs($amount), 2, ',', ' '),
+                    $holder->name,
+                    $target->name,
+                ));
+                $repaired++;
+
+                continue;
+            }
+
+            $wallets->reverse(
+                $credit,
+                $holder,
+                'Résultat de caisse crédité au portefeuille du patron par erreur',
+            );
+
+            $wallets->adjust(
+                $wallets->walletFor($target),
+                $amount,
+                sprintf(
+                    'Réattribution du résultat de caisse du %s (crédité à tort au portefeuille du patron)',
+                    $label,
+                ),
+                $holder,
+            );
+
+            $this->info(sprintf(
+                '  %s : %s DH déplacés de %s vers %s.',
+                $label,
+                number_format(abs($amount), 2, ',', ' '),
+                $holder->name,
+                $target->name,
+            ));
+            $repaired++;
+        }
+
+        $this->newLine();
+        $this->info($dryRun
+            ? "{$repaired} crédit(s) seraient réattribués. Relancez sans --dry-run pour écrire."
+            : "{$repaired} crédit(s) réattribué(s).");
 
         return self::SUCCESS;
     }
