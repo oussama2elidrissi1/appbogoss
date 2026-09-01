@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
@@ -17,6 +17,7 @@ import {
 import {
     allocateCashFund,
     createWalletExpense,
+    getEmployeeDues,
     getEmployeePaymentContext,
     getEmployees,
     getErrorMessage,
@@ -30,6 +31,8 @@ import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import { pageFade } from '@/lib/motion';
 import type {
+    EmployeeDueRow,
+    EmployeeDues,
     EmployeePaymentContext,
     EmployeePaymentKind,
     WalletTransaction,
@@ -115,6 +118,17 @@ const ALL = '__all__';
 
 type WalletActionKind = 'transfer' | 'employee' | 'expense' | 'fund' | 'fund-return';
 
+/** Ce qu'un clic sur « Payer » d'une ligne pose dans la modale. */
+interface PaymentPrefill {
+    employeeId: string;
+    period: string;
+    amount: string;
+    kind: EmployeePaymentKind;
+}
+
+/** « 2026-09 » — le mois courant, format attendu par l'API et par `<input type="month">`. */
+const currentPeriod = new Date().toISOString().slice(0, 7);
+
 /**
  * Ce que chaque geste fait a l'argent, dit en une phrase.
  *
@@ -151,8 +165,16 @@ export default function WalletPage() {
     const queryClient = useQueryClient();
     const [action, setAction] = useState<WalletActionKind | null>(null);
     const [filters, setFilters] = useState<WalletTransactionFilters>({});
+    const [duesPeriod, setDuesPeriod] = useState(currentPeriod);
+    // Ce que « Payer » d'une ligne pose dans la modale : l'employe, le mois et
+    // le reste. L'admin n'a plus qu'a confirmer.
+    const [prefill, setPrefill] = useState<PaymentPrefill | null>(null);
 
     const walletQuery = useQuery({ queryKey: ['wallet'], queryFn: getWallet });
+    const duesQuery = useQuery({
+        queryKey: ['employee-dues', duesPeriod],
+        queryFn: () => getEmployeeDues(duesPeriod),
+    });
     const historyQuery = useQuery({
         queryKey: ['wallet', 'transactions', filters],
         queryFn: () => getWalletTransactions(filters),
@@ -162,6 +184,8 @@ export default function WalletPage() {
 
     const refresh = () => {
         void queryClient.invalidateQueries({ queryKey: ['wallet'] });
+        void queryClient.invalidateQueries({ queryKey: ['employee-dues'] });
+        void queryClient.invalidateQueries({ queryKey: ['employee-payment-context'] });
         // Les journees de caisse portent le statut « credite » : elles doivent
         // se rafraichir avec le portefeuille.
         void queryClient.invalidateQueries({ queryKey: ['work-days'] });
@@ -271,6 +295,24 @@ export default function WalletPage() {
                         </CardContent>
                     </Card>
 
+                    <EmployeeDuesSection
+                        period={duesPeriod}
+                        onPeriodChange={setDuesPeriod}
+                        dues={duesQuery.data}
+                        isPending={duesQuery.isPending}
+                        isError={duesQuery.isError}
+                        error={duesQuery.error}
+                        onPay={(row) => {
+                            setPrefill({
+                                employeeId: String(row.employee_id),
+                                period: duesPeriod,
+                                amount: row.remaining > 0 ? String(row.remaining) : '',
+                                kind: 'commission',
+                            });
+                            setAction('employee');
+                        }}
+                    />
+
                     <HistorySection
                         filters={filters}
                         onFiltersChange={setFilters}
@@ -285,7 +327,12 @@ export default function WalletPage() {
             <ActionDialog
                 action={action}
                 balance={wallet?.balance ?? 0}
-                onClose={() => setAction(null)}
+                prefill={prefill}
+                dues={duesQuery.data?.employees ?? []}
+                onClose={() => {
+                    setAction(null);
+                    setPrefill(null);
+                }}
                 onDone={refresh}
             />
         </motion.div>
@@ -538,11 +585,15 @@ function TransactionRow({ transaction }: { transaction: WalletTransaction }) {
 function ActionDialog({
     action,
     balance,
+    prefill,
+    dues,
     onClose,
     onDone,
 }: {
     action: WalletActionKind | null;
     balance: number;
+    prefill: PaymentPrefill | null;
+    dues: EmployeeDueRow[];
     onClose: () => void;
     onDone: () => void;
 }) {
@@ -594,6 +645,17 @@ function ActionDialog({
         setMessage(null);
         setConfirmDuplicate(false);
     };
+
+    // Ouverture depuis « Payer » d'une ligne : l'employe, le mois et le reste
+    // sont deja poses. Ne depend que de `prefill`, pour ne pas ecraser une
+    // saisie en cours a chaque re-rendu.
+    useEffect(() => {
+        if (prefill === null) return;
+        setEmployeeId(prefill.employeeId);
+        setPeriod(prefill.period);
+        setAmount(prefill.amount);
+        setKind(prefill.kind);
+    }, [prefill]);
 
     const mutation = useMutation({
         mutationFn: async () => {
@@ -726,14 +788,28 @@ function ActionDialog({
                                             les comptes inactifs restent listes, un
                                             depart en cours d'annee doit pouvoir etre
                                             solde. */}
-                                        {(employeesQuery.data ?? []).map((employee) => (
-                                            <SelectItem
-                                                key={employee.id}
-                                                value={String(employee.id)}
-                                            >
-                                                {employee.name}
-                                            </SelectItem>
-                                        ))}
+                                        {(employeesQuery.data ?? []).map((employee) => {
+                                            const due = dues.find(
+                                                (row) => row.employee_id === employee.id,
+                                            );
+
+                                            return (
+                                                <SelectItem
+                                                    key={employee.id}
+                                                    value={String(employee.id)}
+                                                >
+                                                    {employee.name}
+                                                    {due && due.remaining > 0 && (
+                                                        <span className="ml-2 text-xs text-muted-foreground">
+                                                            {t('reste')}{' '}
+                                                            {formatCurrency(due.remaining, {
+                                                                maximumFractionDigits: 2,
+                                                            })}
+                                                        </span>
+                                                    )}
+                                                </SelectItem>
+                                            );
+                                        })}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -1025,5 +1101,175 @@ function Row({
             </span>
             <span className="tabular-nums">{value}</span>
         </div>
+    );
+}
+
+/**
+ * Qui reste à payer, pour le mois choisi.
+ *
+ * La liste répond à une question que personne ne devrait avoir à reconstituer
+ * fiche par fiche : à qui dois-je encore de l'argent ce mois-ci. Elle est
+ * triée par ce qui reste, et le bouton « Payer » ouvre la modale déjà remplie.
+ *
+ * « Dû » est la commission gagnée — la seule obligation que l'application
+ * connaisse. « Versé » compte tout l'argent réellement remis pour ce mois,
+ * portefeuille ET caisse : une avance en fait partie, puisqu'elle est déjà
+ * dans la main de l'employé.
+ */
+function EmployeeDuesSection({
+    period,
+    onPeriodChange,
+    dues,
+    isPending,
+    isError,
+    error,
+    onPay,
+}: {
+    period: string;
+    onPeriodChange: (period: string) => void;
+    dues: EmployeeDues | undefined;
+    isPending: boolean;
+    isError: boolean;
+    error: unknown;
+    onPay: (row: EmployeeDueRow) => void;
+}) {
+    const { t } = useI18n();
+
+    return (
+        <Card>
+            <CardContent className="space-y-4 p-4">
+                <div className="flex flex-wrap items-end gap-3">
+                    <div className="mr-auto">
+                        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                            {t('Reste à payer aux employés')}
+                        </h3>
+                        {dues && (
+                            <p className="mt-1 text-sm">
+                                <span className="font-semibold tabular-nums">
+                                    {formatCurrency(dues.totals.remaining_total, {
+                                        maximumFractionDigits: 2,
+                                    })}
+                                </span>{' '}
+                                <span className="text-muted-foreground">
+                                    {t('restant pour {count} employé(s)', {
+                                        count: String(dues.totals.employees_remaining),
+                                    })}
+                                </span>
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="space-y-1">
+                        <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                            {t('Mois')}
+                        </Label>
+                        <Input
+                            type="month"
+                            className="w-40"
+                            value={period}
+                            onChange={(event) => onPeriodChange(event.target.value)}
+                        />
+                    </div>
+                </div>
+
+                {isPending && <Skeleton className="h-28 w-full" />}
+
+                {isError && (
+                    <p className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                        {getErrorMessage(error)}
+                    </p>
+                )}
+
+                {dues && dues.employees.length === 0 && (
+                    <p className="rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                        {t("Aucune commission gagnée ni versement enregistré sur ce mois.")}
+                    </p>
+                )}
+
+                {dues && dues.employees.length > 0 && (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                                    <th className="px-2 py-2 font-semibold">{t('Employé')}</th>
+                                    <th className="px-2 py-2 text-right font-semibold">
+                                        {t('Commission due')}
+                                    </th>
+                                    <th className="px-2 py-2 text-right font-semibold">
+                                        {t('Versé')}
+                                    </th>
+                                    <th className="px-2 py-2 text-right font-semibold">
+                                        {t('Reste')}
+                                    </th>
+                                    <th className="px-2 py-2" />
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {dues.employees.map((row) => (
+                                    <tr key={row.employee_id} className="border-t border-tint/[0.06]">
+                                        <td className="px-2 py-2.5">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="font-medium">
+                                                    {row.employee_name}
+                                                </span>
+                                                {!row.is_active && (
+                                                    <Badge variant="outline">{t('Inactif')}</Badge>
+                                                )}
+                                                {row.advances_outstanding > 0 && (
+                                                    <Badge variant="outline">
+                                                        {t('avance en cours')}{' '}
+                                                        {formatCurrency(row.advances_outstanding, {
+                                                            maximumFractionDigits: 2,
+                                                        })}
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-2 py-2.5 text-right tabular-nums">
+                                            {formatCurrency(row.due_total, {
+                                                maximumFractionDigits: 2,
+                                            })}
+                                        </td>
+                                        <td className="px-2 py-2.5 text-right tabular-nums">
+                                            {formatCurrency(row.paid_total, {
+                                                maximumFractionDigits: 2,
+                                            })}
+                                            {row.paid_caisse > 0 && (
+                                                <span className="ml-1 text-[11px] text-muted-foreground">
+                                                    ({t('dont caisse')}{' '}
+                                                    {formatCurrency(row.paid_caisse, {
+                                                        maximumFractionDigits: 2,
+                                                    })}
+                                                    )
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td
+                                            className={cn(
+                                                'px-2 py-2.5 text-right font-semibold tabular-nums',
+                                                row.remaining > 0 && 'text-accent',
+                                            )}
+                                        >
+                                            {formatCurrency(row.remaining, {
+                                                maximumFractionDigits: 2,
+                                            })}
+                                        </td>
+                                        <td className="px-2 py-2.5 text-right">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => onPay(row)}
+                                            >
+                                                {t('Payer')}
+                                            </Button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
     );
 }

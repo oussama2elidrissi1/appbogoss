@@ -6,6 +6,7 @@ import type {
     PeriodsResponse,
 } from '@/types/closure';
 import type {
+    EmployeeDues,
     EmployeePaymentContext,
     EmployeePaymentHistory,
     EmployeePaymentPayload,
@@ -1393,6 +1394,19 @@ export async function getEmployeePaymentContext(
     );
     return data.data;
 }
+/**
+ * Qui reste a payer, pour un mois donne — trie par ce qui reste.
+ *
+ * La reponse a « a qui dois-je encore de l'argent ce mois-ci ? », sans avoir a
+ * ouvrir chaque fiche l'une apres l'autre.
+ */
+export async function getEmployeeDues(period: string): Promise<EmployeeDues> {
+    const { data } = await api.get<{ data: EmployeeDues }>('/api/wallet/employee-dues', {
+        params: { period },
+    });
+    return data.data;
+}
+
 
 
 

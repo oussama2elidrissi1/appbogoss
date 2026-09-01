@@ -462,4 +462,139 @@ class WalletPaymentSourceTest extends TestCase
             WalletTransaction::where('type', WalletTransaction::TYPE_EMPLOYEE_PAYMENT)->count(),
         );
     }
+
+    // =====================================================================
+    // Qui reste à payer, pour un mois donné
+    // =====================================================================
+
+    public function test_the_dues_list_answers_who_is_still_owed_money(): void
+    {
+        $admin = $this->admin();
+        $ahmed = Employee::factory()->create(['name' => 'Ahmed']);
+        $karim = Employee::factory()->create(['name' => 'Karim']);
+        $sofia = Employee::factory()->create(['name' => 'Sofia']);
+        $day = $this->fundAdminAndCloseTheDay($admin, 30000, '2026-09-05');
+
+        $this->earnCommission($ahmed, 4000, '2026-09-10');
+        $this->earnCommission($karim, 2000, '2026-09-11');
+        // Sofia n'a rien gagne et n'a rien recu : elle n'a rien a faire dans
+        // une liste de « reste a payer ».
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/wallet/employee-payments', [
+            'employee_id' => $ahmed->id,
+            'amount' => 3000,
+            'kind' => 'commission',
+            'period' => '2026-09',
+        ])->assertCreated();
+
+        // Karim a recu 500 DH du tiroir : de l'argent deja dans sa main, qui
+        // reduit d'autant ce qu'il reste a lui donner.
+        Advance::create([
+            'employee_id' => $karim->id,
+            'work_day_id' => $day->id,
+            'amount' => 500,
+            'reason' => 'Depannage',
+            'given_on' => '2026-09-12',
+        ]);
+
+        $dues = $this->getJson('/api/wallet/employee-dues?period=2026-09')
+            ->assertOk()->json('data');
+
+        $this->assertSame('2026-09', $dues['period']);
+        $this->assertCount(2, $dues['employees']);
+        $this->assertSame(
+            [$karim->id, $ahmed->id],
+            array_column($dues['employees'], 'employee_id'),
+            'La liste doit commencer par celui a qui il reste le plus.',
+        );
+
+        [$first, $second] = $dues['employees'];
+        $this->assertSame('Karim', $first['employee_name']);
+        $this->assertSame(1500.0, $this->money($first['remaining']));
+        $this->assertSame(500.0, $this->money($first['paid_caisse']));
+        $this->assertSame(0.0, $this->money($first['paid_wallet']));
+
+        $this->assertSame('Ahmed', $second['employee_name']);
+        $this->assertSame(4000.0, $this->money($second['due_total']));
+        $this->assertSame(3000.0, $this->money($second['paid_wallet']));
+        $this->assertSame(1000.0, $this->money($second['remaining']));
+
+        $this->assertSame(6000.0, $this->money($dues['totals']['due_total']));
+        $this->assertSame(3500.0, $this->money($dues['totals']['paid_total']));
+        $this->assertSame(2500.0, $this->money($dues['totals']['remaining_total']));
+        $this->assertSame(2, $dues['totals']['employees_remaining']);
+
+        // Sofia reste absente, et c'est voulu.
+        $this->assertNotContains(
+            'Sofia',
+            array_column($dues['employees'], 'employee_name'),
+        );
+    }
+
+    public function test_the_dues_list_is_scoped_to_its_period(): void
+    {
+        $admin = $this->admin();
+        $ahmed = Employee::factory()->create(['name' => 'Ahmed']);
+        $this->fundAdminAndCloseTheDay($admin, 30000);
+
+        $this->earnCommission($ahmed, 4000, '2026-09-10');
+        $this->earnCommission($ahmed, 1000, '2026-08-10');
+
+        Sanctum::actingAs($admin);
+        // Un salaire d'aout paye en septembre compte pour AOUT : c'est la
+        // periode qui l'etiquette, pas la date du mouvement.
+        $this->postJson('/api/wallet/employee-payments', [
+            'employee_id' => $ahmed->id,
+            'amount' => 600,
+            'kind' => 'salary',
+            'period' => '2026-08',
+        ])->assertCreated();
+
+        $september = $this->getJson('/api/wallet/employee-dues?period=2026-09')
+            ->assertOk()->json('data.employees.0');
+        $august = $this->getJson('/api/wallet/employee-dues?period=2026-08')
+            ->assertOk()->json('data.employees.0');
+
+        $this->assertSame(4000.0, $this->money($september['due_total']));
+        $this->assertSame(0.0, $this->money($september['paid_total']));
+
+        $this->assertSame(1000.0, $this->money($august['due_total']));
+        $this->assertSame(600.0, $this->money($august['paid_total']));
+        $this->assertSame(400.0, $this->money($august['remaining']));
+    }
+
+    public function test_a_payment_larger_than_the_commission_never_shows_a_negative_remainder(): void
+    {
+        $admin = $this->admin();
+        $ahmed = Employee::factory()->create(['name' => 'Ahmed']);
+        $this->fundAdminAndCloseTheDay($admin, 30000);
+        $this->earnCommission($ahmed, 1000, '2026-09-10');
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/wallet/employee-payments', [
+            'employee_id' => $ahmed->id,
+            'amount' => 1500,
+            'kind' => 'commission',
+            'period' => '2026-09',
+            'acknowledge_over_due' => true,
+        ])->assertCreated();
+
+        $row = $this->getJson('/api/wallet/employee-dues?period=2026-09')
+            ->assertOk()->json('data.employees.0');
+
+        // Verser plus que la commission est legitime, mais cela ne cree pas
+        // une dette de l'employe : le reste s'arrete a zero.
+        $this->assertSame(1500.0, $this->money($row['paid_total']));
+        $this->assertSame(0.0, $this->money($row['remaining']));
+    }
+
+    public function test_the_dues_list_needs_the_wallet_permission(): void
+    {
+        $user = User::factory()->create(['role' => 'employee']);
+        $user->assignRole('employee');
+
+        Sanctum::actingAs($user);
+        $this->getJson('/api/wallet/employee-dues?period=2026-09')->assertForbidden();
+    }
 }

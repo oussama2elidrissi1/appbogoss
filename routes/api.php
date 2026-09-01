@@ -343,6 +343,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/employees/{employee}/payments', [WalletController::class, 'employeePayments']);
         // Du / deja verse / reste, avant de valider un paiement.
         Route::get('/employees/{employee}/payment-context', [WalletController::class, 'employeePaymentContext']);
+        // Qui reste a payer ce mois-ci. Sous `/wallet` et non `/employees` :
+        // `/employees/...` est deja un apiResource, et un segment litteral y
+        // serait avale par la liaison de modele `{employee}`.
+        Route::get('/wallet/employee-dues', [WalletController::class, 'employeeDues']);
     });
 
     // Payer un employe : de l'exploitation courante, donc ouvert a l'admin.

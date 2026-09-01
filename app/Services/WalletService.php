@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Models\WorkDay;
+use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\QueryException;
@@ -104,6 +105,7 @@ class WalletService
     public function __construct(
         private readonly ActivityLogger $activityLogger,
         private readonly CommissionPayoutService $payouts,
+        private readonly EmployeeEarningsService $earnings,
     ) {
     }
 
@@ -999,6 +1001,129 @@ class WalletService
         ));
 
         return $context;
+    }
+
+    /**
+     * Ce qu'il reste à verser à chaque employé pour une période.
+     *
+     * LA DÉFINITION, parce qu'elle décide de tout le reste :
+     *
+     *  - « Dû » est la commission GAGNÉE sur le mois. C'est la seule
+     *    obligation que l'application connaisse — elle n'enregistre aucun
+     *    salaire fixe. Un employé sans commission apparaît donc avec un dû à
+     *    zéro, et ce qu'on lui a versé reste visible.
+     *
+     *  - « Versé » est tout l'argent RÉELLEMENT remis pour ce mois, quelle
+     *    qu'en soit la poche : versements du portefeuille portant cette
+     *    période, versements du portefeuille non datés d'une période mais
+     *    tombant dans le mois, et sorties de caisse (avances, net d'une paie
+     *    versée avec sortie de caisse) du mois. Une avance compte : c'est de
+     *    l'argent déjà dans la main de l'employé, qui réduit d'autant ce qui
+     *    reste à lui donner.
+     *
+     *  - « Reste » est la différence, jamais négative : verser plus que la
+     *    commission est possible et légitime, mais cela ne crée pas une dette
+     *    de l'employé — celle-là, ce sont les avances qui la portent, et elles
+     *    sont exposées à part.
+     *
+     * @return array<string, mixed>
+     */
+    public function employeeDues(string $period): array
+    {
+        [$from, $to] = $this->periodBounds($period);
+        [$start, $end] = $this->periodDateTimes($period);
+
+        $employees = Employee::query()
+            ->where('is_company', false)
+            ->orderBy('name')
+            ->get();
+        $ids = $employees->pluck('id');
+
+        // Trois agregats groupes, pas trois requetes par employe : la liste
+        // reste lisible meme avec toute l'equipe a l'ecran.
+        $walletPaid = WalletTransaction::where('type', WalletTransaction::TYPE_EMPLOYEE_PAYMENT)
+            ->whereIn('employee_id', $ids)
+            ->where(function ($query) use ($period, $start, $end) {
+                $query->where('period', $period)
+                    ->orWhere(fn ($sub) => $sub->whereNull('period')
+                        ->whereBetween('occurred_at', [$start, $end]));
+            })
+            ->groupBy('employee_id')
+            ->selectRaw('employee_id, SUM(amount) as total')
+            ->pluck('total', 'employee_id');
+
+        $caissePaid = Advance::caisse()
+            ->whereIn('employee_id', $ids)
+            ->whereBetween('given_on', [$from, $to])
+            ->groupBy('employee_id')
+            ->selectRaw('employee_id, SUM(amount) as total')
+            ->pluck('total', 'employee_id');
+
+        $outstanding = Advance::query()
+            ->whereIn('employee_id', $ids)
+            ->outstanding()
+            ->groupBy('employee_id')
+            ->selectRaw('employee_id, SUM(amount) as total')
+            ->pluck('total', 'employee_id');
+
+        $rows = $employees
+            ->map(function (Employee $employee) use ($period, $walletPaid, $caissePaid, $outstanding) {
+                $due = $this->earnings->commissionEarnedTotal(
+                    $employee,
+                    Carbon::createFromFormat('!Y-m', $period)->startOfMonth()->startOfDay(),
+                    Carbon::createFromFormat('!Y-m', $period)->endOfMonth()->endOfDay(),
+                );
+                $paidWallet = round((float) ($walletPaid[$employee->id] ?? 0), 2);
+                $paidCaisse = round((float) ($caissePaid[$employee->id] ?? 0), 2);
+                $paid = round($paidWallet + $paidCaisse, 2);
+
+                return [
+                    'employee_id' => $employee->id,
+                    'employee_name' => $employee->name,
+                    'avatar_color' => $employee->avatar_color,
+                    'is_active' => (bool) $employee->is_active,
+                    'due_total' => $due,
+                    'paid_total' => $paid,
+                    'paid_wallet' => $paidWallet,
+                    'paid_caisse' => $paidCaisse,
+                    'remaining' => round(max(0, $due - $paid), 2),
+                    'advances_outstanding' => round((float) ($outstanding[$employee->id] ?? 0), 2),
+                ];
+            })
+            // Un employe sans commission ni versement sur le mois n'a rien a
+            // faire dans une liste de « reste a payer » : il la remplirait
+            // sans rien y apporter.
+            ->filter(fn (array $row) => $row['due_total'] > 0 || $row['paid_total'] > 0)
+            // Ce qui reste d'abord, puis l'ordre alphabetique : la question
+            // posee est « a qui dois-je encore de l'argent ».
+            ->sort(fn (array $a, array $b) => [$b['remaining'], $a['employee_name']]
+                <=> [$a['remaining'], $b['employee_name']])
+            ->values();
+
+        return [
+            'period' => $period,
+            'totals' => [
+                'employees_count' => $rows->count(),
+                'employees_remaining' => $rows->where('remaining', '>', 0)->count(),
+                'due_total' => round((float) $rows->sum('due_total'), 2),
+                'paid_total' => round((float) $rows->sum('paid_total'), 2),
+                'paid_wallet_total' => round((float) $rows->sum('paid_wallet'), 2),
+                'paid_caisse_total' => round((float) $rows->sum('paid_caisse'), 2),
+                'remaining_total' => round((float) $rows->sum('remaining'), 2),
+            ],
+            'employees' => $rows->all(),
+        ];
+    }
+
+    /** @return array{0: string, 1: string} */
+    private function periodDateTimes(string $period): array
+    {
+        $start = CarbonImmutable::createFromFormat('!Y-m', $period)->startOfMonth();
+
+        return [
+            $start->startOfDay()->toDateTimeString(),
+            $start->endOfMonth()->endOfDay()->toDateTimeString(),
+        ];
     }
 
     /** @return array{0: string, 1: string} */

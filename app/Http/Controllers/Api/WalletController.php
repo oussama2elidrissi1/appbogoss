@@ -167,6 +167,26 @@ class WalletController extends Controller
     }
 
     /**
+     * Qui reste à payer, pour un mois donné.
+     *
+     * Une seule liste, triée par ce qui reste : c'est la réponse à « à qui
+     * dois-je encore de l'argent ce mois-ci ? », sans avoir à ouvrir chaque
+     * fiche l'une après l'autre.
+     */
+    public function employeeDues(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'period' => ['nullable', 'date_format:Y-m'],
+        ]);
+
+        return response()->json([
+            'data' => $this->wallets->employeeDues(
+                $validated['period'] ?? now()->format('Y-m'),
+            ),
+        ]);
+    }
+
+    /**
      * Ce qu'il faut savoir avant de valider : dû, déjà versé, reste.
      *
      * Interrogé par la modale de paiement à chaque changement d'employé, de

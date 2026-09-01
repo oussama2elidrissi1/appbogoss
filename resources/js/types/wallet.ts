@@ -279,6 +279,42 @@ export interface EmployeePaymentContext {
 }
 
 /**
+ * Ce qu'il reste à verser à un employé pour un mois.
+ *
+ * « Dû » est la commission gagnée — la seule obligation que l'application
+ * connaisse. « Versé » est tout l'argent réellement remis pour ce mois, quelle
+ * qu'en soit la poche : une avance compte, c'est de l'argent déjà dans la main
+ * de l'employé.
+ */
+export interface EmployeeDueRow {
+    employee_id: number;
+    employee_name: string;
+    avatar_color: string;
+    is_active: boolean;
+    due_total: number;
+    paid_total: number;
+    paid_wallet: number;
+    paid_caisse: number;
+    /** Jamais négatif : verser plus que dû ne crée pas une dette de l'employé. */
+    remaining: number;
+    advances_outstanding: number;
+}
+
+export interface EmployeeDues {
+    period: string;
+    totals: {
+        employees_count: number;
+        employees_remaining: number;
+        due_total: number;
+        paid_total: number;
+        paid_wallet_total: number;
+        paid_caisse_total: number;
+        remaining_total: number;
+    };
+    employees: EmployeeDueRow[];
+}
+
+/**
  * Ce qu'un employé a RÉELLEMENT reçu.
  *
  * À lire à côté de sa paie, jamais à la place : la paie dit ce qui est dû,
