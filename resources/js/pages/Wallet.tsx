@@ -124,6 +124,12 @@ interface PaymentPrefill {
     period: string;
     amount: string;
     kind: EmployeePaymentKind;
+    /**
+     * Le reste dépassait le solde disponible : le montant proposé a été
+     * ramené à ce que le portefeuille peut réellement payer. Le dire évite
+     * une saisie qui ne pouvait que se faire refuser.
+     */
+    capped: boolean;
 }
 
 /** « 2026-09 » — le mois courant, format attendu par l'API et par `<input type="month">`. */
@@ -303,11 +309,21 @@ export default function WalletPage() {
                         isError={duesQuery.isError}
                         error={duesQuery.error}
                         onPay={(row) => {
+                            // Proposer le reste entier quand le portefeuille ne
+                            // peut pas le couvrir, c'est proposer un refus. On
+                            // propose ce qui est payable, et le champ reste
+                            // librement modifiable.
+                            const payable =
+                                Math.round(
+                                    Math.min(row.remaining, wallet?.balance ?? 0) * 100,
+                                ) / 100;
+
                             setPrefill({
                                 employeeId: String(row.employee_id),
                                 period: duesPeriod,
-                                amount: row.remaining > 0 ? String(row.remaining) : '',
+                                amount: payable > 0 ? String(payable) : '',
                                 kind: 'commission',
+                                capped: payable > 0 && payable < row.remaining,
                             });
                             setAction('employee');
                         }}
@@ -772,6 +788,11 @@ function ActionDialog({
                             onChange={(event) => setAmount(event.target.value)}
                             autoFocus
                         />
+                        {action === 'employee' && prefill?.capped && (
+                            <p className="text-xs text-muted-foreground">
+                                {t('Montant ramené à votre solde disponible. Vous pourrez verser le reste plus tard.')}
+                            </p>
+                        )}
                     </div>
 
                     {action === 'employee' && (
@@ -1039,6 +1060,17 @@ function PaymentContextPanel({
                 <Row
                     label={t('Reste à payer')}
                     value={formatCurrency(context.remaining, { maximumFractionDigits: 2 })}
+                />
+            )}
+
+            {/* La projection : payer 2 000 sur 8 000 laisse 6 000. C'est le
+                chiffre qu'on veut lire avant de valider, pas apres. */}
+            {context.remaining !== null && amount > 0 && (
+                <Row
+                    label={t('Reste après ce paiement')}
+                    value={formatCurrency(Math.max(0, context.remaining - amount), {
+                        maximumFractionDigits: 2,
+                    })}
                     strong
                 />
             )}

@@ -597,4 +597,93 @@ class WalletPaymentSourceTest extends TestCase
         Sanctum::actingAs($user);
         $this->getJson('/api/wallet/employee-dues?period=2026-09')->assertForbidden();
     }
+
+    /**
+     * Le cas courant du salon : la commission dépasse largement ce que l'admin
+     * détient, et elle se règle en plusieurs fois. Chaque versement doit
+     * réduire le reste d'autant, sans jamais solder toute la période.
+     */
+    public function test_a_commission_is_settled_in_partial_payments(): void
+    {
+        $admin = $this->admin();
+        $ahmed = Employee::factory()->create(['name' => 'Ahmed']);
+        $this->fundAdminAndCloseTheDay($admin, 30000);
+        $this->earnCommission($ahmed, 8000, '2026-09-10');
+
+        Sanctum::actingAs($admin);
+
+        $remaining = fn () => $this->money(
+            $this->getJson("/api/employees/{$ahmed->id}/payment-context?period=2026-09&kind=commission")
+                ->assertOk()->json('data.remaining'),
+        );
+
+        $this->assertSame(8000.0, $remaining());
+
+        // 2 000 sur 8 000 : aucun avertissement, le reste tombe a 6 000.
+        $this->postJson('/api/wallet/employee-payments', [
+            'employee_id' => $ahmed->id,
+            'amount' => 2000,
+            'kind' => 'commission',
+            'period' => '2026-09',
+        ])->assertCreated();
+
+        $this->assertSame(6000.0, $remaining());
+
+        $this->postJson('/api/wallet/employee-payments', [
+            'employee_id' => $ahmed->id,
+            'amount' => 3500,
+            'kind' => 'commission',
+            'period' => '2026-09',
+        ])->assertCreated();
+
+        $this->assertSame(2500.0, $remaining());
+
+        // La liste dit la meme chose, sans qu'on ait a ouvrir la fiche.
+        $row = $this->getJson('/api/wallet/employee-dues?period=2026-09')
+            ->assertOk()->json('data.employees.0');
+        $this->assertSame(8000.0, $this->money($row['due_total']));
+        $this->assertSame(5500.0, $this->money($row['paid_total']));
+        $this->assertSame(2500.0, $this->money($row['remaining']));
+
+        // Et l'employe a bien recu trois fois de l'argent, pas une.
+        $history = $this->getJson("/api/employees/{$ahmed->id}/payments")
+            ->assertOk()->json('data');
+        $this->assertSame(2, $history['payments_count']);
+        $this->assertSame(5500.0, $this->money($history['total_paid']));
+    }
+
+    /** Le dernier versement solde exactement, sans declencher d'avertissement. */
+    public function test_the_last_instalment_closes_the_period_without_a_warning(): void
+    {
+        $admin = $this->admin();
+        $ahmed = Employee::factory()->create(['name' => 'Ahmed']);
+        $this->fundAdminAndCloseTheDay($admin, 30000);
+        $this->earnCommission($ahmed, 8000, '2026-09-10');
+
+        Sanctum::actingAs($admin);
+
+        foreach ([2000, 3000, 3000] as $index => $amount) {
+            $this->postJson('/api/wallet/employee-payments', [
+                'employee_id' => $ahmed->id,
+                'amount' => $amount,
+                'kind' => 'commission',
+                'period' => '2026-09',
+                // Deux versements de 3 000 se suivent : seul le garde-fou du
+                // double appui est leve, jamais celui du depassement.
+                'acknowledge_duplicate' => $index === 2,
+            ])->assertCreated();
+        }
+
+        $context = $this->getJson(
+            "/api/employees/{$ahmed->id}/payment-context?period=2026-09&kind=commission",
+        )->assertOk()->json('data');
+
+        $this->assertSame(8000.0, $this->money($context['already_paid_total']));
+        $this->assertSame(0.0, $this->money($context['remaining']));
+
+        // L'employe soldé quitte la liste des restes.
+        $dues = $this->getJson('/api/wallet/employee-dues?period=2026-09')
+            ->assertOk()->json('data');
+        $this->assertSame(0, $dues['totals']['employees_remaining']);
+    }
 }
