@@ -60,6 +60,15 @@ class CommissionPayoutService
             ->outstanding()
             ->where('given_on', '<=', $to->toDateString())
             ->sum('amount');
+        // La part de ces avances donnee PENDANT le mois. Le reste est un
+        // report de mois precedents : il se deduit quand meme (c'est la regle
+        // existante), mais il ne doit jamais s'afficher comme de l'argent
+        // « verse ce mois-ci » — c'est exactement la lecture qui rendait
+        // l'ecran Paie absurde un 1er du mois.
+        $advancesInPeriod = (float) Advance::where('employee_id', $employee->id)
+            ->outstanding()
+            ->whereBetween('given_on', [$from->toDateString(), $to->toDateString()])
+            ->sum('amount');
 
         $payouts = CommissionPayout::where('employee_id', $employee->id)
             ->where('period', $period)
@@ -77,6 +86,8 @@ class CommissionPayoutService
             'avatar_color' => $employee->avatar_color,
             'commission_total' => $commissionTotal,
             'advances_outstanding' => round($advancesOutstanding, 2),
+            'advances_in_period' => round($advancesInPeriod, 2),
+            'advances_carried_over' => round(max(0, $advancesOutstanding - $advancesInPeriod), 2),
             'paid_net_total' => round($paidNetTotal, 2),
             'paid_advances_total' => round($paidAdvancesTotal, 2),
             // Argent deja remis a l'employe depuis un portefeuille pour ce

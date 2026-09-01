@@ -142,16 +142,26 @@ export default function Payroll() {
     const totals = (rows ?? []).reduce(
         (acc, row) => ({
             commission: acc.commission + row.commission_total,
-            advances: acc.advances + row.advances_outstanding,
             // net_amount is already "what's still owed" (payouts deducted
             // server-side), so paid rows naturally contribute 0.
             net: acc.net + row.net_amount,
-            // Everything already handed to employees: payout nets, advances
-            // those payouts settled, and advances still outstanding — an
-            // avance IS money already paid, just not yet settled by a payout.
-            paidOut: acc.paidOut + row.paid_net_total + row.paid_advances_total + row.advances_outstanding,
+            // Argent réellement sorti POUR CE MOIS : paies enregistrées,
+            // avances qu'elles ont soldées, versements du portefeuille, et
+            // avances données pendant le mois. Surtout pas les avances
+            // reportées : les compter ici affichait 10 000 MAD « déjà versés »
+            // un 1er du mois où rien n'était encore sorti.
+            paidOut:
+                acc.paidOut +
+                row.paid_net_total +
+                row.paid_advances_total +
+                row.paid_from_wallet +
+                row.advances_in_period,
+            // Acomptes de mois précédents, toujours non soldés. Ils réduisent
+            // bien le reste à payer — c'est la règle — mais l'argent est
+            // sorti à l'époque, pas ce mois-ci.
+            carried: acc.carried + row.advances_carried_over,
         }),
-        { commission: 0, advances: 0, net: 0, paidOut: 0 },
+        { commission: 0, net: 0, paidOut: 0, carried: 0 },
     );
 
     return (
@@ -228,19 +238,26 @@ export default function Payroll() {
                             <p className="mt-1 text-lg font-semibold tabular-nums text-accent">{formatCurrency(totals.net)}</p>
                         </Card>
                         <Card className="p-4">
-                            <p className="text-xs text-muted-foreground">{t('Déjà versé (paiements + avances)')}</p>
+                            <p className="text-xs text-muted-foreground">{t('Versé pour ce mois')}</p>
                             <p className="mt-1 text-lg font-semibold tabular-nums text-success">
                                 {formatCurrency(totals.paidOut)}
                             </p>
+                            <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                {t('paies, portefeuille et avances du mois')}
+                            </p>
                         </Card>
-                        {/* Subset of the card before it, not a total of its own — an
-                            advance is money already handed over, so it is counted in
-                            "déjà versé". Sits last and reads "dont…" so the two are
-                            never mistaken for separate amounts to add up. */}
+                        {/* Un chiffre A PART, pas un sous-total du precedent :
+                            ces acomptes ont ete verses des mois plus tot et
+                            restent deduits du reste tant qu'ils ne sont pas
+                            soldes. Les fondre dans « verse ce mois » rendait
+                            l'ecran illisible un 1er du mois. */}
                         <Card className="p-4">
-                            <p className="text-xs text-muted-foreground">{t('dont avances en cours')}</p>
+                            <p className="text-xs text-muted-foreground">{t('Avances reportées')}</p>
                             <p className="mt-1 text-lg font-semibold tabular-nums text-muted-foreground">
-                                {formatCurrency(totals.advances)}
+                                {formatCurrency(totals.carried)}
+                            </p>
+                            <p className="mt-0.5 text-[11px] text-muted-foreground">
+                                {t('de mois précédents, toujours déduites')}
                             </p>
                         </Card>
                     </div>
@@ -274,7 +291,10 @@ export default function Payroll() {
                             // Commission not yet covered by this period's payouts —
                             // an employee paid mid-month can earn more afterwards.
                             const commissionRemaining =
-                                row.commission_total - row.paid_net_total - row.paid_advances_total;
+                                row.commission_total -
+                                row.paid_net_total -
+                                row.paid_advances_total -
+                                row.paid_from_wallet;
                             // Whole remaining commission already handed over as
                             // advances ("Payer" logs payments that way) — net is 0
                             // but the month still needs to be marked paid so those
@@ -313,7 +333,11 @@ export default function Payroll() {
                                             {row.already_paid && row.net_amount <= 0 ? (
                                                 <>
                                                     <p className="text-sm font-semibold tabular-nums text-success">
-                                                        {formatCurrency(row.paid_net_total + row.paid_advances_total)}
+                                                        {formatCurrency(
+                                                            row.paid_net_total +
+                                                                row.paid_advances_total +
+                                                                row.paid_from_wallet,
+                                                        )}
                                                     </p>
                                                     <p className="text-xs text-muted-foreground">{t('payé ce mois')}</p>
                                                 </>

@@ -226,6 +226,13 @@ export interface CommissionPayoutRow {
      * lui, l'écran réclamerait une seconde fois ce qui est déjà sorti.
      */
     paid_from_wallet: number;
+    /** Part des avances en cours donnée pendant ce mois. */
+    advances_in_period: number;
+    /**
+     * Part venant de mois précédents, toujours non soldée. Déduite du reste
+     * comme les autres, mais versée à l'époque — jamais « ce mois-ci ».
+     */
+    advances_carried_over: number;
     /** What is STILL owed — a paid employee can earn more in the same month. */
     net_amount: number;
     already_paid: boolean;

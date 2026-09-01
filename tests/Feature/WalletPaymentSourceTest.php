@@ -869,4 +869,42 @@ class WalletPaymentSourceTest extends TestCase
         $this->assertSame(985.0, $this->money($august['advances_in_period']));
         $this->assertSame(0.0, $this->money($august['advances_carried_over']));
     }
+
+    /**
+     * Le 1er du mois, l'écran Paie affichait « Déjà versé : 10 457 MAD » alors
+     * que rien n'était encore sorti : il fondait les acomptes reportés des
+     * mois précédents dans le versé du mois. Ce test fige la ventilation qui
+     * rend cette confusion impossible.
+     */
+    public function test_a_fresh_month_reports_zero_paid_even_with_carried_over_advances(): void
+    {
+        $admin = $this->admin();
+        $ahmed = Employee::factory()->create(['name' => 'ahmed']);
+        $day = $this->fundAdminAndCloseTheDay($admin, 20000, '2026-09-05');
+        $this->earnCommission($ahmed, 560, '2026-09-12');
+
+        // Les acomptes viennent tous d'aout, aucun de septembre.
+        foreach ([700, 985, 420] as $amount) {
+            Advance::create([
+                'employee_id' => $ahmed->id,
+                'work_day_id' => $day->id,
+                'amount' => $amount,
+                'reason' => 'Acompte aout',
+                'given_on' => '2026-08-19',
+            ]);
+        }
+
+        $preview = app(CommissionPayoutService::class)->preview($ahmed, '2026-09');
+
+        // Tout ce que la tuile « Versé pour ce mois » additionne vaut zéro.
+        $this->assertSame(0.0, $preview['paid_net_total']);
+        $this->assertSame(0.0, $preview['paid_advances_total']);
+        $this->assertSame(0.0, $preview['paid_from_wallet']);
+        $this->assertSame(0.0, $preview['advances_in_period']);
+
+        // Le report, lui, existe et se deduit — mais sous son propre nom.
+        $this->assertSame(2105.0, $preview['advances_carried_over']);
+        $this->assertSame(2105.0, $preview['advances_outstanding']);
+        $this->assertSame(0.0, $preview['net_amount']);
+    }
 }
