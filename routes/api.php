@@ -337,6 +337,24 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('permission:wallet.view')->group(function () {
         Route::get('/wallet', [WalletController::class, 'show']);
         Route::get('/wallet/transactions', [WalletController::class, 'transactions']);
+        // Ce qu'un employe a REELLEMENT recu — a lire a cote de sa paie, qui
+        // dit ce qui lui est DU. Les deux peuvent legitimement differer.
+        Route::get('/employees/{employee}/wallet-payments', [WalletController::class, 'employeePayments']);
+    });
+
+    // Payer un employe : de l'exploitation courante, donc ouvert a l'admin.
+    Route::middleware('permission:wallet.pay_employee')->group(function () {
+        Route::post('/wallet/employee-payments', [WalletController::class, 'payEmployee']);
+    });
+
+    // Les deux gestes du patron. `wallet.deposit` est le seul de toute
+    // l'application qui fasse APPARAITRE de l'argent dans le systeme.
+    Route::middleware('permission:wallet.deposit')->group(function () {
+        Route::post('/wallet/deposits', [WalletAdminController::class, 'deposit']);
+    });
+
+    Route::middleware('permission:wallet.dispatch')->group(function () {
+        Route::post('/wallet/transfers/admin', [WalletAdminController::class, 'sendToAdmin']);
     });
 
     Route::middleware('permission:wallet.operate')->group(function () {

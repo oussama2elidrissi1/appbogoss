@@ -24,6 +24,27 @@ class WalletTransaction extends Model
     /** Remise au patron : débit chez l'admin, crédit chez le super admin. */
     public const TYPE_TRANSFER_TO_SUPER_ADMIN = 'TRANSFER_TO_SUPER_ADMIN';
 
+    /** Le chemin inverse : le patron renvoie de l'argent à un admin. */
+    public const TYPE_TRANSFER_TO_ADMIN = 'TRANSFER_TO_ADMIN';
+
+    /**
+     * Apport du patron — de l'argent venu de l'extérieur du salon.
+     *
+     * C'est le SEUL type qui fait apparaître de l'argent sans qu'il vienne
+     * d'un autre portefeuille ou d'une journée de caisse. Il n'a donc pas de
+     * contrepartie, et il est réservé au Super Admin.
+     */
+    public const TYPE_OWNER_DEPOSIT = 'OWNER_DEPOSIT';
+
+    /**
+     * Paiement réel à un employé — salaire, commission, avance, prime.
+     *
+     * Le MOUVEMENT d'argent, à ne pas confondre avec l'OBLIGATION que sont
+     * les commissions et les paies mensuelles. Le portefeuille dit ce qui est
+     * sorti ; la paie dit ce qui est dû.
+     */
+    public const TYPE_EMPLOYEE_PAYMENT = 'EMPLOYEE_PAYMENT';
+
     /** Dépense payée sur l'argent détenu (assurance, batterie, tailleur...). */
     public const TYPE_EXPENSE = 'EXPENSE';
 
@@ -39,6 +60,9 @@ class WalletTransaction extends Model
     public const TYPES = [
         self::TYPE_CASH_REGISTER_RESULT,
         self::TYPE_TRANSFER_TO_SUPER_ADMIN,
+        self::TYPE_TRANSFER_TO_ADMIN,
+        self::TYPE_OWNER_DEPOSIT,
+        self::TYPE_EMPLOYEE_PAYMENT,
         self::TYPE_EXPENSE,
         self::TYPE_CASH_FUND,
         self::TYPE_CASH_FUND_RETURN,
@@ -65,6 +89,8 @@ class WalletTransaction extends Model
         'balance_after',
         'cash_fund_after',
         'performed_by_user_id',
+        'employee_id',
+        'period',
         'source_type',
         'source_id',
         'reverses_transaction_id',
@@ -95,6 +121,16 @@ class WalletTransaction extends Model
     public function performedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'performed_by_user_id');
+    }
+
+    /**
+     * L'employé payé, sur un mouvement de type EMPLOYEE_PAYMENT. Nul partout
+     * ailleurs — un résultat de caisse ou une remise au patron ne concerne
+     * personne en particulier.
+     */
+    public function employee(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class);
     }
 
     /** WorkDay, Expense... — d'où vient l'argent, ou vers quoi il est parti. */

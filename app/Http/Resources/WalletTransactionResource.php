@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use App\Models\Expense;
 use App\Models\WorkDay;
+use App\Services\WalletService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -44,6 +45,11 @@ class WalletTransactionResource extends JsonResource
             'description' => $this->description,
             'performed_by' => $this->whenLoaded('performedBy', fn () => $this->performedBy?->name),
             'performed_by_user_id' => $this->performed_by_user_id,
+            // Renseignes sur un paiement d'employe, nuls partout ailleurs.
+            'employee_id' => $this->employee_id,
+            'employee_name' => $this->whenLoaded('employee', fn () => $this->employee?->name),
+            'period' => $this->period,
+            'category_label' => $this->categoryLabel(),
             'reverses_transaction_id' => $this->reverses_transaction_id,
             'source' => $this->source(),
             'occurred_at' => $this->occurred_at?->toIso8601String(),
@@ -81,6 +87,16 @@ class WalletTransactionResource extends JsonResource
         ];
     }
 
+    /** Le motif d'un paiement d'employé, en français. */
+    private function categoryLabel(): ?string
+    {
+        if ($this->type !== 'EMPLOYEE_PAYMENT' || $this->category === null) {
+            return null;
+        }
+
+        return WalletService::PAYMENT_LABELS[$this->category] ?? $this->category;
+    }
+
     private function typeLabel(): string
     {
         return match ($this->type) {
@@ -88,6 +104,11 @@ class WalletTransactionResource extends JsonResource
             'TRANSFER_TO_SUPER_ADMIN' => $this->direction === 'out'
                 ? 'Envoyé au Super Admin'
                 : 'Reçu d\'un Admin',
+            'TRANSFER_TO_ADMIN' => $this->direction === 'out'
+                ? 'Envoyé à un Admin'
+                : 'Reçu du Super Admin',
+            'OWNER_DEPOSIT' => 'Apport du patron',
+            'EMPLOYEE_PAYMENT' => 'Paiement employé',
             'EXPENSE' => 'Dépense',
             'CASH_FUND' => 'Affecté au fond de caisse',
             'CASH_FUND_RETURN' => 'Fond de caisse repris',

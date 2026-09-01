@@ -30,6 +30,7 @@ import { EmployeeAvatar } from '@/components/workday/EmployeeAvatar';
 import { EmployeeCommissionRules } from '@/components/workday/EmployeeCommissionRules';
 import { EmployeeFormDialog } from '@/components/workday/EmployeeFormDialog';
 import { EmployeePayroll } from '@/components/workday/EmployeePayroll';
+import { EmployeeWalletPayments } from '@/components/workday/EmployeeWalletPayments';
 import { CreatedAccountDialog, type CreatedAccount } from '@/components/workday/CreatedAccountDialog';
 
 export default function EmployeeDetail() {
@@ -243,6 +244,9 @@ export default function EmployeeDetail() {
                     <Tabs defaultValue="advances" className="space-y-4">
                         <TabsList>
                             <TabsTrigger value="advances">{t('Avances')}</TabsTrigger>
+                            {hasPermission('wallet.view') && (
+                                <TabsTrigger value="payments">{t('Paiements')}</TabsTrigger>
+                            )}
                             {hasPermission('commissions.manage') && (
                                 <>
                                     <TabsTrigger value="commissions">{t('Commissions')}</TabsTrigger>
@@ -256,6 +260,18 @@ export default function EmployeeDetail() {
                                 <EmployeeAdvances employee={employee} workDayId={workDay?.id} />
                             </Card>
                         </TabsContent>
+
+                        {/* Ce qui est SORTI, a cote de ce qui est DU. Les deux
+                            peuvent legitimement differer, et c'est parce qu'ils
+                            differaient sans que personne ne le voie que le
+                            portefeuille existe. */}
+                        {hasPermission('wallet.view') && (
+                            <TabsContent value="payments">
+                                <Card className="p-5 sm:p-6">
+                                    <EmployeeWalletPayments employee={employee} />
+                                </Card>
+                            </TabsContent>
+                        )}
 
                         {hasPermission('commissions.manage') && (
                             <>

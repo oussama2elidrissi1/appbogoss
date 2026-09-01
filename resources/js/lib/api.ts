@@ -6,8 +6,12 @@ import type {
     PeriodsResponse,
 } from '@/types/closure';
 import type {
+    EmployeePaymentHistory,
+    EmployeePaymentPayload,
     Wallet,
+    WalletAdminTransferPayload,
     WalletCashFundPayload,
+    WalletDepositPayload,
     WalletExpensePayload,
     WalletMutationResult,
     WalletOverview,
@@ -1329,6 +1333,47 @@ export async function reverseWalletTransaction(
     );
     return data.data;
 }
+
+/** « Charger mon portefeuille » — Super Admin (wallet.deposit). */
+export async function depositToWallet(
+    payload: WalletDepositPayload,
+): Promise<WalletMutationResult> {
+    const { data } = await api.post<WalletMutationResult>('/api/wallet/deposits', payload);
+    return data;
+}
+
+/** « Envoyer a un Admin » — Super Admin (wallet.dispatch). */
+export async function transferToAdmin(
+    payload: WalletAdminTransferPayload,
+): Promise<WalletMutationResult> {
+    const { data } = await api.post<WalletMutationResult>('/api/wallet/transfers/admin', payload);
+    return data;
+}
+
+/**
+ * Paie un employe sur l'argent detenu.
+ *
+ * Enregistre un MOUVEMENT d'argent, pas une obligation : les commissions et la
+ * paie mensuelle continuent de dire ce qui est du. Rien n'est ecrit dans la
+ * caisse, donc le resultat des journees ne bouge pas.
+ */
+export async function payEmployeeFromWallet(
+    payload: EmployeePaymentPayload,
+): Promise<WalletMutationResult> {
+    const { data } = await api.post<WalletMutationResult>('/api/wallet/employee-payments', payload);
+    return data;
+}
+
+/** Tout ce qu'un employe a recu, tous portefeuilles confondus. */
+export async function getEmployeeWalletPayments(
+    employeeId: number,
+): Promise<EmployeePaymentHistory> {
+    const { data } = await api.get<{ data: EmployeePaymentHistory }>(
+        `/api/employees/${employeeId}/wallet-payments`,
+    );
+    return data.data;
+}
+
 
 
 export async function getUsers(): Promise<User[]> {

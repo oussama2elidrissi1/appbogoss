@@ -42,6 +42,19 @@ class Employee extends Model
     }
 
     /**
+     * Ce que cet employe a REELLEMENT recu, depuis un portefeuille.
+     *
+     * A ne pas confondre avec `commissions` (ce qu'il a gagne) ni avec les
+     * `commission_payouts` (le mois solde) : ces deux-la disent ce qui est
+     * DU, celle-ci dit ce qui est SORTI.
+     */
+    public function walletPayments(): HasMany
+    {
+        return $this->hasMany(WalletTransaction::class)
+            ->where('type', WalletTransaction::TYPE_EMPLOYEE_PAYMENT);
+    }
+
+    /**
      * Can this employee perform this service? Single source of truth for the
      * skills relation, mirroring exactly what "Nouvelle prestation" (Mon
      * espace) has always enforced on the frontend:

@@ -11,10 +11,24 @@ export type WalletType = 'admin' | 'super_admin';
 export type WalletTransactionType =
     | 'CASH_REGISTER_RESULT'
     | 'TRANSFER_TO_SUPER_ADMIN'
+    /** Le chemin inverse : le patron renvoie de l'argent à un admin. */
+    | 'TRANSFER_TO_ADMIN'
+    /** Apport du patron — le seul argent qui entre sans venir du salon. */
+    | 'OWNER_DEPOSIT'
+    /** Paiement réel à un employé (salaire, commission, avance, prime). */
+    | 'EMPLOYEE_PAYMENT'
     | 'EXPENSE'
     | 'CASH_FUND'
     | 'CASH_FUND_RETURN'
     | 'ADJUSTMENT';
+
+/**
+ * Motif d'un paiement d'employé.
+ *
+ * `advance` est le seul qui crée en plus une obligation : l'argent est sorti,
+ * mais l'employé le doit encore et la paie le nettera.
+ */
+export type EmployeePaymentKind = 'salary' | 'commission' | 'advance' | 'bonus' | 'other';
 
 /** Le solde touché : le disponible, ou la poche « fond de caisse ». */
 export type WalletBucket = 'available' | 'cash_fund';
@@ -44,6 +58,11 @@ export interface Wallet {
     cash_registers_total: number;
     transfers_sent_total: number;
     transfers_received_total: number;
+    /** Argent injecté par le patron. Toujours 0 sur un portefeuille d'admin. */
+    owner_deposits_total: number;
+    sent_to_admins_total: number;
+    received_from_super_admin_total: number;
+    employee_payments_total: number;
     expenses_total: number;
     cash_fund_allocated_total: number;
     cash_fund_returned_total: number;
@@ -82,6 +101,11 @@ export interface WalletTransaction {
     description: string | null;
     performed_by: string | null;
     performed_by_user_id: number | null;
+    /** Renseignés uniquement sur un paiement d'employé. */
+    employee_id: number | null;
+    employee_name?: string | null;
+    period: string | null;
+    category_label: string | null;
     reverses_transaction_id: number | null;
     source: WalletTransactionSource | null;
     occurred_at: string;
@@ -100,6 +124,10 @@ export interface WalletOverviewRow {
     cash_registers_total: number;
     transfers_sent_total: number;
     transfers_received_total: number;
+    owner_deposits_total: number;
+    sent_to_admins_total: number;
+    received_from_super_admin_total: number;
+    employee_payments_total: number;
     expenses_total: number;
     movements_count: number;
 }
@@ -113,6 +141,9 @@ export interface WalletOverview {
         received_total: number;
         received_today: number;
         received_month: number;
+        /** Ce que le patron a injecté lui-même — distinct de ce qu'il a reçu. */
+        deposits_total: number;
+        sent_to_admins_total: number;
     };
     admins: {
         count: number;
@@ -121,8 +152,11 @@ export interface WalletOverview {
         expenses_total: number;
         cash_registers_total: number;
         transfers_sent_total: number;
+        received_from_super_admin_total: number;
+        employee_payments_total: number;
     };
     expenses_total: number;
+    employee_payments_total: number;
     cash_fund_total: number;
     wallets: WalletOverviewRow[];
 }
@@ -159,6 +193,52 @@ export interface WalletExpensePayload {
 export interface WalletCashFundPayload {
     amount: number;
     description?: string;
+}
+
+/** « Charger mon portefeuille » — Super Admin uniquement. Motif obligatoire. */
+export interface WalletDepositPayload {
+    amount: number;
+    reason: string;
+    reference?: string;
+    notes?: string;
+}
+
+/** « Envoyer à un Admin » — le chemin inverse de la remise au patron. */
+export interface WalletAdminTransferPayload {
+    wallet_id: number;
+    amount: number;
+    description?: string;
+    reference?: string;
+    allow_duplicate?: boolean;
+}
+
+export interface EmployeePaymentPayload {
+    employee_id: number;
+    amount: number;
+    kind: EmployeePaymentKind;
+    /** Le mois que ce paiement solde — une étiquette, pas la date du mouvement. */
+    period?: string;
+    note?: string;
+    reference?: string;
+    /** Lève le refus de doublon (double appui, commission déjà sortie du tiroir). */
+    acknowledge_duplicate?: boolean;
+}
+
+/**
+ * Ce qu'un employé a RÉELLEMENT reçu.
+ *
+ * À lire à côté de sa paie, jamais à la place : la paie dit ce qui est dû,
+ * ceci dit ce qui est sorti.
+ */
+export interface EmployeePaymentHistory {
+    employee_id: number;
+    employee_name: string;
+    total_paid: number;
+    payments_count: number;
+    last_payment_at: string | null;
+    last_payment_amount: number | null;
+    by_kind: { kind: string; label: string; count: number; total: number }[];
+    payments: WalletTransaction[];
 }
 
 export interface WalletMutationResult {

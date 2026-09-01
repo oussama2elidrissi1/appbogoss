@@ -2,6 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\CommissionPayout;
+use App\Models\Advance;
+use App\Models\Employee;
 use App\Models\Expense;
 use App\Models\User;
 use App\Models\Wallet;
@@ -52,6 +55,39 @@ use Illuminate\Validation\ValidationException;
  */
 class WalletService
 {
+    /**
+     * Motifs de paiement d'un employé.
+     *
+     * `advance` est le seul qui crée en plus une obligation : l'argent est
+     * sorti, mais l'employé le doit encore et la paie le nettera. Les autres
+     * ne sont que des mouvements — ce qui était dû l'était déjà par ailleurs.
+     */
+    public const PAYMENT_SALARY = 'salary';
+
+    public const PAYMENT_COMMISSION = 'commission';
+
+    public const PAYMENT_ADVANCE = 'advance';
+
+    public const PAYMENT_BONUS = 'bonus';
+
+    public const PAYMENT_OTHER = 'other';
+
+    public const PAYMENT_KINDS = [
+        self::PAYMENT_SALARY,
+        self::PAYMENT_COMMISSION,
+        self::PAYMENT_ADVANCE,
+        self::PAYMENT_BONUS,
+        self::PAYMENT_OTHER,
+    ];
+
+    public const PAYMENT_LABELS = [
+        self::PAYMENT_SALARY => 'Salaire',
+        self::PAYMENT_COMMISSION => 'Commission',
+        self::PAYMENT_ADVANCE => 'Avance',
+        self::PAYMENT_BONUS => 'Prime',
+        self::PAYMENT_OTHER => 'Autre',
+    ];
+
     public function __construct(private readonly ActivityLogger $activityLogger)
     {
     }
@@ -313,7 +349,7 @@ class WalletService
     }
 
     // =========================================================================
-    // 2. Transfert vers le Super Admin
+    // 2. Transferts entre portefeuilles (double ecriture)
     // =========================================================================
 
     /**
@@ -342,28 +378,112 @@ class WalletService
             ]);
         }
 
+        return $this->transfer(
+            $from,
+            $destination,
+            WalletTransaction::TYPE_TRANSFER_TO_SUPER_ADMIN,
+            $amount,
+            $actor,
+            $description ?: 'Remise au Super Admin',
+            $reference,
+            $allowDuplicate,
+        );
+    }
+
+    /**
+     * Le chemin inverse : le patron renvoie de l'argent à un admin.
+     *
+     * Même mécanique, mêmes garanties, sens opposé — et surtout le même code,
+     * pour qu'aucune des deux directions ne puisse un jour se mettre à
+     * verrouiller ou à arrondir autrement que l'autre.
+     *
+     * Le portefeuille source doit être celui d'un Super Admin : c'est ce qui
+     * empêche un admin d'emprunter cette route pour se virer de l'argent
+     * depuis n'importe quel portefeuille.
+     *
+     * @return array{out: WalletTransaction, in: WalletTransaction}
+     */
+    public function transferToAdmin(
+        Wallet $from,
+        Wallet $destination,
+        float $amount,
+        User $actor,
+        ?string $description = null,
+        ?string $reference = null,
+        bool $allowDuplicate = false,
+    ): array {
+        if (! $from->isSuperAdmin()) {
+            throw ValidationException::withMessages([
+                'amount' => 'Seul le portefeuille du Super Admin peut envoyer de l\'argent à un Admin.',
+            ]);
+        }
+
+        // La destination doit etre un admin. Sans cette garde, un virement
+        // entre deux comptes patron s'ecrirait « envoi a un Admin » et
+        // fausserait le total « renvoye aux admins » de la vue globale.
+        if ($destination->isSuperAdmin()) {
+            throw ValidationException::withMessages([
+                'wallet_id' => 'La destination doit être le portefeuille d\'un Admin.',
+            ]);
+        }
+
+        return $this->transfer(
+            $from,
+            $destination,
+            WalletTransaction::TYPE_TRANSFER_TO_ADMIN,
+            $amount,
+            $actor,
+            $description ?: 'Envoi du Super Admin',
+            $reference,
+            $allowDuplicate,
+        );
+    }
+
+    /**
+     * La double écriture, une fois pour toutes.
+     *
+     * Débit d'un côté, crédit de l'autre, une seule transaction : il ne peut
+     * pas exister d'état où l'argent a quitté un portefeuille sans arriver
+     * dans l'autre. Les deux lignes partagent un `transfer_group`, donc le
+     * transfert se relit — et se contre-passe — comme un tout.
+     *
+     * Les deux portefeuilles sont verrouillés dans l'ordre de leurs
+     * identifiants : deux transferts croisés simultanés s'attendent au lieu de
+     * s'interbloquer.
+     *
+     * @return array{out: WalletTransaction, in: WalletTransaction}
+     */
+    private function transfer(
+        Wallet $from,
+        Wallet $destination,
+        string $type,
+        float $amount,
+        User $actor,
+        string $label,
+        ?string $reference,
+        bool $allowDuplicate,
+    ): array {
         if ($destination->id === $from->id) {
             throw ValidationException::withMessages([
-                'amount' => 'Le portefeuille du Super Admin ne peut pas se transférer à lui-même.',
+                'amount' => 'Un portefeuille ne peut pas se transférer de l\'argent à lui-même.',
             ]);
         }
 
         $cents = $this->positiveCents($amount);
 
         if (! $allowDuplicate) {
-            $this->assertNotAnImmediateDuplicate($from, $destination, $cents);
+            $this->assertNotAnImmediateDuplicate($from, $destination, $type, $cents);
         }
 
-        return DB::transaction(function () use ($from, $destination, $cents, $actor, $description, $reference) {
+        return DB::transaction(function () use ($from, $destination, $type, $cents, $actor, $label, $reference) {
             [$lockedFrom, $lockedTo] = $this->lockPair($from, $destination);
 
             $this->assertAvailable($lockedFrom, $cents);
 
             $group = (string) Str::uuid();
-            $label = $description ?: 'Remise au Super Admin';
 
             $out = $this->write($lockedFrom, [
-                'type' => WalletTransaction::TYPE_TRANSFER_TO_SUPER_ADMIN,
+                'type' => $type,
                 'cents' => -$cents,
                 'bucket' => WalletTransaction::BUCKET_AVAILABLE,
                 'counterparty_wallet_id' => $lockedTo->id,
@@ -374,17 +494,18 @@ class WalletService
             ]);
 
             $in = $this->write($lockedTo, [
-                'type' => WalletTransaction::TYPE_TRANSFER_TO_SUPER_ADMIN,
+                'type' => $type,
                 'cents' => $cents,
                 'bucket' => WalletTransaction::BUCKET_AVAILABLE,
                 'counterparty_wallet_id' => $lockedFrom->id,
                 'transfer_group' => $group,
                 'performed_by_user_id' => $actor->id,
-                'description' => $label.' — '.($lockedFrom->user->name ?? 'Admin'),
+                'description' => $label.' — '.($lockedFrom->user->name ?? 'Portefeuille'),
                 'reference' => $reference,
             ]);
 
             $this->activityLogger->log('wallet.transfer', $out, [], [
+                'type' => $type,
                 'from_wallet_id' => $lockedFrom->id,
                 'to_wallet_id' => $lockedTo->id,
                 'amount' => $this->fromCents($cents),
@@ -397,15 +518,16 @@ class WalletService
 
     /**
      * Garde-fou contre le double envoi (double tap, requête rejouée) : un
-     * transfert identique — mêmes portefeuilles, même montant — dans la minute
-     * est refusé avec un message explicite. Deux remises réellement identiques
-     * à une minute d'intervalle restent possibles en passant `allow_duplicate`.
+     * transfert identique — mêmes portefeuilles, même type, même montant —
+     * dans la minute est refusé avec un message explicite. Deux remises
+     * réellement identiques à une minute d'intervalle restent possibles en
+     * passant `allow_duplicate`.
      */
-    private function assertNotAnImmediateDuplicate(Wallet $from, Wallet $to, int $cents): void
+    private function assertNotAnImmediateDuplicate(Wallet $from, Wallet $to, string $type, int $cents): void
     {
         $exists = WalletTransaction::where('wallet_id', $from->id)
             ->where('counterparty_wallet_id', $to->id)
-            ->where('type', WalletTransaction::TYPE_TRANSFER_TO_SUPER_ADMIN)
+            ->where('type', $type)
             ->where('direction', WalletTransaction::DIRECTION_OUT)
             ->where('amount', $this->fromCents($cents))
             ->where('created_at', '>=', now()->subMinute())
@@ -416,6 +538,65 @@ class WalletService
                 'amount' => 'Un transfert identique vient d\'être enregistré. Confirmez pour en envoyer un second.',
             ]);
         }
+    }
+
+    // =========================================================================
+    // 2 bis. Apport du patron
+    // =========================================================================
+
+    /**
+     * Charge le portefeuille du patron avec de l'argent venu de l'extérieur.
+     *
+     * C'est le SEUL geste de tout le système qui fait apparaître de l'argent
+     * sans qu'il vienne d'une journée de caisse ou d'un autre portefeuille.
+     * D'où les trois verrous : le portefeuille doit être de type
+     * `super_admin`, la route est gardée par `wallet.deposit` (Super Admin
+     * seul), et le motif est obligatoire — un apport sans explication ne se
+     * relit pas six mois plus tard.
+     *
+     * Comme partout ailleurs, `wallets.balance` n'est jamais touché
+     * directement : l'écriture passe par `write()`, donc par le ledger.
+     */
+    public function deposit(
+        Wallet $wallet,
+        float $amount,
+        string $reason,
+        User $actor,
+        ?string $reference = null,
+        ?string $notes = null,
+    ): WalletTransaction {
+        if (! $wallet->isSuperAdmin()) {
+            throw ValidationException::withMessages([
+                'amount' => 'Seul le portefeuille du Super Admin peut recevoir un apport.',
+            ]);
+        }
+
+        $cents = $this->positiveCents($amount);
+
+        return DB::transaction(function () use ($wallet, $cents, $reason, $actor, $reference, $notes) {
+            $locked = $this->lock($wallet);
+
+            $transaction = $this->write($locked, [
+                'type' => WalletTransaction::TYPE_OWNER_DEPOSIT,
+                'cents' => $cents,
+                'bucket' => WalletTransaction::BUCKET_AVAILABLE,
+                'performed_by_user_id' => $actor->id,
+                'category' => 'apport',
+                'reference' => $reference,
+                // Le motif porte le sens, la note le detail. Les deux sont
+                // conserves tels quels : c'est tout ce qui reste pour
+                // expliquer une entree d'argent sans origine interne.
+                'description' => $notes === null ? $reason : $reason.' — '.$notes,
+            ]);
+
+            $this->activityLogger->log('wallet.deposit', $transaction, [], [
+                'wallet_id' => $locked->id,
+                'amount' => $this->fromCents($cents),
+                'reason' => $reason,
+            ]);
+
+            return $transaction;
+        });
     }
 
     // =========================================================================
@@ -476,6 +657,207 @@ class WalletService
 
             return $transaction;
         });
+    }
+
+    // =========================================================================
+    // 3 bis. Paiement des employés
+    // =========================================================================
+
+    /**
+     * Paie un employé sur l'argent que l'admin détient.
+     *
+     * LA DISTINCTION QUI COMPTE. L'application connaissait déjà les
+     * commissions (ce qui est GAGNÉ) et les paies mensuelles (le mois SOLDÉ) :
+     * ce sont des obligations. Ce qu'elle ne savait pas dire, c'est quand
+     * l'argent était réellement sorti de la poche de l'admin — un
+     * `commission_payout` sans sortie de caisse ne laissait aucune trace.
+     * C'est ce trou-là, et uniquement celui-là, que ce mouvement comble.
+     *
+     * Ce paiement ne touche donc JAMAIS la caisse : ni dépense, ni journée.
+     * Le résultat de caisse ne bouge pas d'un centime, et rien ne peut être
+     * compté deux fois de ce côté.
+     *
+     * Deux motifs demandent une attention particulière :
+     *
+     *  - `advance` crée en plus une vraie `Advance` (origine `wallet`, sans
+     *    journée de caisse). L'argent est sorti ET l'employé le doit encore :
+     *    `CommissionPayoutService` la nettera à la paie comme n'importe quelle
+     *    autre avance. Sans cette ligne, le salon paierait deux fois.
+     *  - `commission` est refusé quand la paie de cette période est déjà
+     *    sortie du tiroir (`deduct_from_caisse`), parce que cet argent-là a
+     *    déjà réduit le résultat de caisse, donc déjà réduit ce portefeuille.
+     *
+     * @param  array{amount: float, kind: string, period?: string|null, note?: string|null, reference?: string|null}  $data
+     */
+    public function payEmployee(
+        Wallet $wallet,
+        Employee $employee,
+        array $data,
+        User $actor,
+        bool $acknowledgeDuplicate = false,
+    ): WalletTransaction {
+        $cents = $this->positiveCents((float) $data['amount']);
+        $kind = $data['kind'];
+        $period = $data['period'] ?? null;
+        $note = $data['note'] ?? null;
+
+        if (! $acknowledgeDuplicate) {
+            if ($kind === self::PAYMENT_COMMISSION && $period !== null) {
+                $this->assertCommissionNotAlreadyPaidFromCaisse($employee, $period);
+            }
+
+            $this->assertNotAnImmediateDuplicatePayment($wallet, $employee, $kind, $cents);
+        }
+
+        return DB::transaction(function () use ($wallet, $employee, $cents, $kind, $period, $note, $data, $actor) {
+            $locked = $this->lock($wallet);
+
+            $this->assertAvailable($locked, $cents);
+
+            $label = $this->paymentLabel($kind, $period);
+            $source = null;
+
+            if ($kind === self::PAYMENT_ADVANCE) {
+                // `work_day_id` volontairement nul : cette avance n'est pas
+                // sortie du tiroir, elle est sortie du portefeuille. C'est
+                // `origin` qui l'exclut des agrégats de caisse, et son absence
+                // de journée qui l'exclut du rapport journalier.
+                $source = Advance::create([
+                    'employee_id' => $employee->id,
+                    'work_day_id' => null,
+                    'origin' => Advance::ORIGIN_WALLET,
+                    'amount' => $this->fromCents($cents),
+                    'reason' => $note ?: $label,
+                    'given_on' => now()->toDateString(),
+                ]);
+            }
+
+            $transaction = $this->write($locked, [
+                'type' => WalletTransaction::TYPE_EMPLOYEE_PAYMENT,
+                'cents' => -$cents,
+                'bucket' => WalletTransaction::BUCKET_AVAILABLE,
+                'performed_by_user_id' => $actor->id,
+                'employee_id' => $employee->id,
+                'period' => $period,
+                'category' => $kind,
+                'reference' => $data['reference'] ?? null,
+                'source' => $source,
+                'description' => $note === null ? $label : $label.' — '.$note,
+            ]);
+
+            $this->activityLogger->log('wallet.employee_payment', $transaction, [], [
+                'wallet_id' => $locked->id,
+                'employee_id' => $employee->id,
+                'employee_name' => $employee->name,
+                'amount' => $this->fromCents($cents),
+                'kind' => $kind,
+                'period' => $period,
+                'creates_advance' => $source !== null,
+            ]);
+
+            return $transaction;
+        });
+    }
+
+    /**
+     * Ce que cet employé a RÉELLEMENT reçu, tous portefeuilles confondus.
+     *
+     * À lire à côté de sa paie, jamais à la place : la paie dit ce qui est dû,
+     * ceci dit ce qui est sorti. Les deux peuvent légitimement différer — un
+     * mois soldé mais pas encore remis, une avance versée d'avance.
+     *
+     * @return array<string, mixed>
+     */
+    public function employeePaymentHistory(Employee $employee): array
+    {
+        $payments = WalletTransaction::with(['performedBy', 'wallet.user'])
+            ->where('type', WalletTransaction::TYPE_EMPLOYEE_PAYMENT)
+            ->where('employee_id', $employee->id)
+            ->orderByDesc('occurred_at')
+            ->orderByDesc('id')
+            ->get();
+
+        $latest = $payments->first();
+
+        return [
+            'employee_id' => $employee->id,
+            'employee_name' => $employee->name,
+            'total_paid' => round((float) $payments->sum(
+                fn (WalletTransaction $row) => abs($row->signedAmount()),
+            ), 2),
+            'payments_count' => $payments->count(),
+            'last_payment_at' => $latest?->occurred_at?->toIso8601String(),
+            'last_payment_amount' => $latest === null ? null : abs($latest->signedAmount()),
+            'by_kind' => $payments->groupBy(fn (WalletTransaction $row) => $row->category ?: self::PAYMENT_OTHER)
+                ->map(fn (Collection $group, string $kind) => [
+                    'kind' => $kind,
+                    'label' => self::PAYMENT_LABELS[$kind] ?? $kind,
+                    'count' => $group->count(),
+                    'total' => round((float) $group->sum(
+                        fn (WalletTransaction $row) => abs($row->signedAmount()),
+                    ), 2),
+                ])
+                ->sortByDesc('total')
+                ->values()
+                ->all(),
+            'payments' => $payments,
+        ];
+    }
+
+    /**
+     * Refuse un paiement de commission dont l'argent est déjà sorti du tiroir.
+     *
+     * `CommissionPayoutService::pay($deductFromCaisse: true)` enregistre le net
+     * versé comme une avance soldée sur la journée ouverte : ce montant a donc
+     * déjà réduit le résultat de la journée, donc déjà réduit le crédit reçu
+     * par ce portefeuille. Le repayer ici sortirait le même argent deux fois.
+     */
+    private function assertCommissionNotAlreadyPaidFromCaisse(Employee $employee, string $period): void
+    {
+        $exists = Advance::caisse()
+            ->where('employee_id', $employee->id)
+            ->whereNotNull('work_day_id')
+            ->whereNotNull('commission_payout_id')
+            ->whereHas('commissionPayout', fn ($query) => $query->where('period', $period))
+            ->exists();
+
+        if ($exists) {
+            throw ValidationException::withMessages([
+                'amount' => sprintf(
+                    'La commission de %s est déjà sortie de la caisse pour cet employé : la repayer ici compterait le même argent deux fois.',
+                    $period,
+                ),
+            ]);
+        }
+    }
+
+    /** Le même garde-fou que pour les transferts, appliqué au double appui. */
+    private function assertNotAnImmediateDuplicatePayment(
+        Wallet $wallet,
+        Employee $employee,
+        string $kind,
+        int $cents,
+    ): void {
+        $exists = WalletTransaction::where('wallet_id', $wallet->id)
+            ->where('type', WalletTransaction::TYPE_EMPLOYEE_PAYMENT)
+            ->where('employee_id', $employee->id)
+            ->where('category', $kind)
+            ->where('amount', $this->fromCents($cents))
+            ->where('created_at', '>=', now()->subMinute())
+            ->exists();
+
+        if ($exists) {
+            throw ValidationException::withMessages([
+                'amount' => 'Un paiement identique vient d\'être enregistré pour cet employé. Confirmez pour en enregistrer un second.',
+            ]);
+        }
+    }
+
+    private function paymentLabel(string $kind, ?string $period): string
+    {
+        $label = self::PAYMENT_LABELS[$kind] ?? self::PAYMENT_LABELS[self::PAYMENT_OTHER];
+
+        return $period === null ? $label : $label.' '.$period;
     }
 
     // =========================================================================
@@ -685,6 +1067,13 @@ class WalletService
             'cash_registers_total' => round($cashRegisterIn - $cashRegisterOut, 2),
             'transfers_sent_total' => $sum(WalletTransaction::TYPE_TRANSFER_TO_SUPER_ADMIN, WalletTransaction::DIRECTION_OUT),
             'transfers_received_total' => $sum(WalletTransaction::TYPE_TRANSFER_TO_SUPER_ADMIN, WalletTransaction::DIRECTION_IN),
+            // Argent injecté de l'extérieur par le patron. Sur un portefeuille
+            // d'admin il vaut toujours 0 : seul le patron peut en faire.
+            'owner_deposits_total' => $sum(WalletTransaction::TYPE_OWNER_DEPOSIT, WalletTransaction::DIRECTION_IN),
+            // Le chemin descendant, dans les deux sens de lecture.
+            'sent_to_admins_total' => $sum(WalletTransaction::TYPE_TRANSFER_TO_ADMIN, WalletTransaction::DIRECTION_OUT),
+            'received_from_super_admin_total' => $sum(WalletTransaction::TYPE_TRANSFER_TO_ADMIN, WalletTransaction::DIRECTION_IN),
+            'employee_payments_total' => $sum(WalletTransaction::TYPE_EMPLOYEE_PAYMENT, WalletTransaction::DIRECTION_OUT),
             'expenses_total' => $sum(WalletTransaction::TYPE_EXPENSE, WalletTransaction::DIRECTION_OUT),
             'cash_fund_allocated_total' => $sum(WalletTransaction::TYPE_CASH_FUND, WalletTransaction::DIRECTION_OUT),
             'cash_fund_returned_total' => $sum(WalletTransaction::TYPE_CASH_FUND_RETURN, WalletTransaction::DIRECTION_IN),
@@ -773,12 +1162,17 @@ class WalletService
                 'cash_registers_total' => $summary['cash_registers_total'],
                 'transfers_sent_total' => $summary['transfers_sent_total'],
                 'transfers_received_total' => $summary['transfers_received_total'],
+                'owner_deposits_total' => $summary['owner_deposits_total'],
+                'sent_to_admins_total' => $summary['sent_to_admins_total'],
+                'received_from_super_admin_total' => $summary['received_from_super_admin_total'],
+                'employee_payments_total' => $summary['employee_payments_total'],
                 'expenses_total' => $summary['expenses_total'],
                 'movements_count' => $summary['movements_count'],
             ];
         })->values();
 
         $adminRows = $rows->where('type', Wallet::TYPE_ADMIN)->values();
+        $superAdminRows = $rows->where('type', Wallet::TYPE_SUPER_ADMIN)->values();
 
         return [
             'start_date' => $this->startDate()->toDateString(),
@@ -789,6 +1183,10 @@ class WalletService
                 'received_total' => round((float) $receivedQuery()->sum('amount'), 2),
                 'received_today' => round((float) $receivedQuery()->whereDate('created_at', $today->toDateString())->sum('amount'), 2),
                 'received_month' => round((float) $receivedQuery()->where('created_at', '>=', $monthStart)->sum('amount'), 2),
+                // « Combien le patron a-t-il injecté lui-même ? » — distinct de
+                // ce qu'il a reçu des admins, et c'est tout l'intérêt.
+                'deposits_total' => round((float) $superAdminRows->sum('owner_deposits_total'), 2),
+                'sent_to_admins_total' => round((float) $superAdminRows->sum('sent_to_admins_total'), 2),
             ],
             'admins' => [
                 'count' => $adminRows->count(),
@@ -797,8 +1195,11 @@ class WalletService
                 'expenses_total' => round((float) $adminRows->sum('expenses_total'), 2),
                 'cash_registers_total' => round((float) $adminRows->sum('cash_registers_total'), 2),
                 'transfers_sent_total' => round((float) $adminRows->sum('transfers_sent_total'), 2),
+                'received_from_super_admin_total' => round((float) $adminRows->sum('received_from_super_admin_total'), 2),
+                'employee_payments_total' => round((float) $adminRows->sum('employee_payments_total'), 2),
             ],
             'expenses_total' => round((float) $rows->sum('expenses_total'), 2),
+            'employee_payments_total' => round((float) $rows->sum('employee_payments_total'), 2),
             'cash_fund_total' => round((float) $rows->sum('cash_fund_balance'), 2),
             'wallets' => $rows->all(),
         ];
@@ -811,7 +1212,7 @@ class WalletService
      */
     public function transactions(Wallet $wallet, array $filters = []): Collection
     {
-        $query = WalletTransaction::with(['performedBy', 'counterpartyWallet.user', 'source'])
+        $query = WalletTransaction::with(['performedBy', 'counterpartyWallet.user', 'employee', 'source'])
             ->where('wallet_id', $wallet->id);
 
         if (! empty($filters['from'])) {
@@ -834,6 +1235,12 @@ class WalletService
         }
         if (! empty($filters['user_id'])) {
             $query->where('performed_by_user_id', (int) $filters['user_id']);
+        }
+        if (! empty($filters['employee_id'])) {
+            $query->where('employee_id', (int) $filters['employee_id']);
+        }
+        if (! empty($filters['category'])) {
+            $query->where('category', $filters['category']);
         }
         if (! empty($filters['work_day_id'])) {
             $query->where('source_type', (new WorkDay)->getMorphClass())
@@ -889,6 +1296,10 @@ class WalletService
             'balance_after' => $this->fromCents($balanceCents),
             'cash_fund_after' => $this->fromCents($cashFundCents),
             'performed_by_user_id' => $data['performed_by_user_id'] ?? null,
+            // Renseignes uniquement par les paiements d'employes ; ils ne
+            // veulent rien dire sur un resultat de caisse ou une remise.
+            'employee_id' => $data['employee_id'] ?? null,
+            'period' => $data['period'] ?? null,
             'source_type' => $source?->getMorphClass(),
             'source_id' => $source?->getKey(),
             'reverses_transaction_id' => $data['reverses_transaction_id'] ?? null,

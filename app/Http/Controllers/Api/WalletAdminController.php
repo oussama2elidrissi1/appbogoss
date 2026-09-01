@@ -29,6 +29,75 @@ class WalletAdminController extends Controller
     {
     }
 
+    /**
+     * « Charger mon portefeuille » — l'apport du patron.
+     *
+     * De l'argent qui entre dans le système sans venir d'une journée de caisse
+     * ni d'un autre portefeuille. C'est le seul geste de ce genre, il est
+     * réservé au Super Admin (`wallet.deposit`), et le motif est obligatoire.
+     */
+    public function deposit(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'reason' => ['required', 'string', 'max:255'],
+            'reference' => ['nullable', 'string', 'max:255'],
+            'notes' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $wallet = $this->wallets->walletFor($request->user());
+
+        $transaction = $this->wallets->deposit(
+            $wallet,
+            (float) $validated['amount'],
+            $validated['reason'],
+            $request->user(),
+            $validated['reference'] ?? null,
+            $validated['notes'] ?? null,
+        );
+
+        return response()->json([
+            'data' => new WalletTransactionResource($transaction),
+            'wallet' => new WalletResource($wallet->fresh()->load('user')),
+        ], 201);
+    }
+
+    /**
+     * « Envoyer à un Admin » — le chemin inverse de la remise au patron.
+     *
+     * Même double écriture, même transaction unique, même plafond au solde
+     * disponible. Le service refuse une source qui ne serait pas un
+     * portefeuille de Super Admin, et une destination qui en serait un.
+     */
+    public function sendToAdmin(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'wallet_id' => ['required', 'integer', 'exists:wallets,id'],
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'description' => ['nullable', 'string', 'max:255'],
+            'reference' => ['nullable', 'string', 'max:255'],
+            'allow_duplicate' => ['nullable', 'boolean'],
+        ]);
+
+        $source = $this->wallets->walletFor($request->user());
+        $destination = Wallet::findOrFail($validated['wallet_id']);
+
+        $legs = $this->wallets->transferToAdmin(
+            $source,
+            $destination,
+            (float) $validated['amount'],
+            $request->user(),
+            $validated['description'] ?? null,
+            $validated['reference'] ?? null,
+            (bool) ($validated['allow_duplicate'] ?? false),
+        );
+
+        return response()->json([
+            'data' => new WalletTransactionResource($legs['out']->load('counterpartyWallet.user')),
+            'wallet' => new WalletResource($source->fresh()->load('user')),
+        ], 201);
+    }
+
     /** Totaux globaux + le tableau par admin. */
     public function overview(): JsonResponse
     {

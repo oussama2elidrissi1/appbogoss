@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\WalletResource;
 use App\Http\Resources\WalletTransactionResource;
+use App\Models\Employee;
 use App\Models\WalletTransaction;
 use App\Services\WalletService;
 use Illuminate\Http\JsonResponse;
@@ -96,6 +97,72 @@ class WalletController extends Controller
             'data' => new WalletTransactionResource($legs['out']->load('counterpartyWallet.user')),
             'wallet' => new WalletResource($wallet->fresh()->load('user')),
         ], 201);
+    }
+
+    /**
+     * Paie un employé sur l'argent détenu.
+     *
+     * Ce que cette route enregistre est un MOUVEMENT d'argent, pas une
+     * obligation : les commissions et la paie mensuelle continuent de dire ce
+     * qui est dû, exactement comme avant. Rien n'est écrit dans la caisse, donc
+     * le résultat des journées ne bouge pas d'un centime.
+     *
+     * `acknowledge_duplicate` lève deux refus volontaires : le double appui, et
+     * le paiement d'une commission dont l'argent est déjà sorti du tiroir.
+     */
+    public function payEmployee(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'employee_id' => ['required', 'integer', 'exists:employees,id'],
+            'amount' => ['required', 'numeric', 'min:0.01'],
+            'kind' => ['required', Rule::in(WalletService::PAYMENT_KINDS)],
+            // Le mois que ce paiement solde — une etiquette, pas la date du
+            // mouvement : on paie en septembre un salaire d'aout.
+            'period' => ['nullable', 'date_format:Y-m'],
+            'note' => ['nullable', 'string', 'max:1000'],
+            'reference' => ['nullable', 'string', 'max:255'],
+            'acknowledge_duplicate' => ['nullable', 'boolean'],
+        ]);
+
+        $wallet = $this->wallets->walletFor($request->user());
+        $employee = Employee::findOrFail($validated['employee_id']);
+
+        $transaction = $this->wallets->payEmployee(
+            $wallet,
+            $employee,
+            [
+                'amount' => (float) $validated['amount'],
+                'kind' => $validated['kind'],
+                'period' => $validated['period'] ?? null,
+                'note' => $validated['note'] ?? null,
+                'reference' => $validated['reference'] ?? null,
+            ],
+            $request->user(),
+            (bool) ($validated['acknowledge_duplicate'] ?? false),
+        );
+
+        return response()->json([
+            'data' => new WalletTransactionResource($transaction->load(['employee', 'source'])),
+            'wallet' => new WalletResource($wallet->fresh()->load('user')),
+        ], 201);
+    }
+
+    /**
+     * Tout ce qu'un employé a réellement reçu, tous portefeuilles confondus.
+     *
+     * À lire à côté de sa paie, jamais à la place : « total payé » ici est de
+     * l'argent sorti, là-bas c'est de l'argent dû.
+     */
+    public function employeePayments(Employee $employee): JsonResponse
+    {
+        $history = $this->wallets->employeePaymentHistory($employee);
+
+        return response()->json([
+            'data' => [
+                ...$history,
+                'payments' => WalletTransactionResource::collection($history['payments']),
+            ],
+        ]);
     }
 
     /** Une dépense payée sur l'argent détenu. Débite le portefeuille. */

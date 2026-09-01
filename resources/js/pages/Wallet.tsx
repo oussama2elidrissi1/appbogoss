@@ -10,21 +10,29 @@ import {
     Receipt,
     RotateCcw,
     Send,
+    UserSquare2,
     Wallet as WalletIcon,
 } from 'lucide-react';
 import {
     allocateCashFund,
     createWalletExpense,
+    getEmployees,
     getErrorMessage,
     getWallet,
     getWalletTransactions,
+    payEmployeeFromWallet,
     returnCashFund,
     transferToSuperAdmin,
 } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import { pageFade } from '@/lib/motion';
-import type { WalletTransaction, WalletTransactionFilters, WalletTransactionType } from '@/types/wallet';
+import type {
+    EmployeePaymentKind,
+    WalletTransaction,
+    WalletTransactionFilters,
+    WalletTransactionType,
+} from '@/types/wallet';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -63,10 +71,30 @@ import { Skeleton } from '@/components/ui/skeleton';
 const TYPE_OPTIONS: { value: WalletTransactionType; label: string }[] = [
     { value: 'CASH_REGISTER_RESULT', label: 'Résultat de caisse' },
     { value: 'TRANSFER_TO_SUPER_ADMIN', label: 'Envoi au Super Admin' },
+    { value: 'TRANSFER_TO_ADMIN', label: 'Reçu du Super Admin' },
+    { value: 'EMPLOYEE_PAYMENT', label: 'Paiement employé' },
     { value: 'EXPENSE', label: 'Dépense' },
     { value: 'CASH_FUND', label: 'Fond de caisse' },
     { value: 'CASH_FUND_RETURN', label: 'Reprise de fond de caisse' },
     { value: 'ADJUSTMENT', label: 'Ajustement' },
+];
+
+/**
+ * Motifs de paiement d'un employé.
+ *
+ * « Avance » est signalée à part : c'est la seule qui laisse une dette. Les
+ * autres ne sont que des mouvements — ce qui était dû l'était déjà ailleurs.
+ */
+const PAYMENT_KINDS: { value: EmployeePaymentKind; label: string; hint?: string }[] = [
+    { value: 'salary', label: 'Salaire' },
+    { value: 'commission', label: 'Commission' },
+    {
+        value: 'advance',
+        label: 'Avance',
+        hint: "L'employé reste redevable : elle sera déduite de sa prochaine paie.",
+    },
+    { value: 'bonus', label: 'Prime' },
+    { value: 'other', label: 'Autre' },
 ];
 
 const EXPENSE_CATEGORIES = [
@@ -80,6 +108,8 @@ const EXPENSE_CATEGORIES = [
 ];
 
 const ALL = '__all__';
+
+type WalletActionKind = 'transfer' | 'employee' | 'expense' | 'fund' | 'fund-return';
 
 function today(): string {
     return new Date().toISOString().slice(0, 10);
@@ -96,7 +126,7 @@ function longDate(iso: string): string {
 export default function WalletPage() {
     const { t } = useI18n();
     const queryClient = useQueryClient();
-    const [action, setAction] = useState<'transfer' | 'expense' | 'fund' | 'fund-return' | null>(null);
+    const [action, setAction] = useState<WalletActionKind | null>(null);
     const [filters, setFilters] = useState<WalletTransactionFilters>({});
 
     const walletQuery = useQuery({ queryKey: ['wallet'], queryFn: getWallet });
@@ -196,6 +226,10 @@ export default function WalletPage() {
                                     <Send />
                                     {t('Envoyer au Super Admin')}
                                 </Button>
+                                <Button variant="outline" onClick={() => setAction('employee')}>
+                                    <UserSquare2 />
+                                    {t('Payer un employé')}
+                                </Button>
                                 <Button variant="outline" onClick={() => setAction('expense')}>
                                     <Receipt />
                                     {t('Ajouter une dépense')}
@@ -225,7 +259,12 @@ export default function WalletPage() {
                 </>
             )}
 
-            <ActionDialog action={action} onClose={() => setAction(null)} onDone={refresh} />
+            <ActionDialog
+                action={action}
+                balance={wallet?.balance ?? 0}
+                onClose={() => setAction(null)}
+                onDone={refresh}
+            />
         </motion.div>
     );
 }
@@ -459,10 +498,12 @@ function TransactionRow({ transaction }: { transaction: WalletTransaction }) {
 
 function ActionDialog({
     action,
+    balance,
     onClose,
     onDone,
 }: {
-    action: 'transfer' | 'expense' | 'fund' | 'fund-return' | null;
+    action: WalletActionKind | null;
+    balance: number;
     onClose: () => void;
     onDone: () => void;
 }) {
@@ -473,10 +514,21 @@ function ActionDialog({
     const [spentOn, setSpentOn] = useState(today());
     const [notes, setNotes] = useState('');
     const [reference, setReference] = useState('');
+    const [employeeId, setEmployeeId] = useState('');
+    const [kind, setKind] = useState<EmployeePaymentKind>('salary');
+    const [period, setPeriod] = useState('');
     const [message, setMessage] = useState<string | null>(null);
     // Le serveur refuse un envoi identique dans la minute ; cette case relance
     // la meme demande en l'assumant, plutot que de contourner le garde-fou.
     const [confirmDuplicate, setConfirmDuplicate] = useState(false);
+
+    // Chargee seulement quand la modale « Payer un employe » est ouverte : la
+    // page ne doit pas payer une requete de plus pour un bouton non clique.
+    const employeesQuery = useQuery({
+        queryKey: ['employees'],
+        queryFn: () => getEmployees(),
+        enabled: action === 'employee',
+    });
 
     const reset = () => {
         setAmount('');
@@ -485,6 +537,9 @@ function ActionDialog({
         setSpentOn(today());
         setNotes('');
         setReference('');
+        setEmployeeId('');
+        setKind('salary');
+        setPeriod('');
         setMessage(null);
         setConfirmDuplicate(false);
     };
@@ -499,6 +554,17 @@ function ActionDialog({
                     description: notes || undefined,
                     reference: reference || undefined,
                     allow_duplicate: confirmDuplicate || undefined,
+                });
+            }
+            if (action === 'employee') {
+                return payEmployeeFromWallet({
+                    employee_id: Number(employeeId),
+                    amount: value,
+                    kind,
+                    period: period || undefined,
+                    note: notes || undefined,
+                    reference: reference || undefined,
+                    acknowledge_duplicate: confirmDuplicate || undefined,
                 });
             }
             if (action === 'expense') {
@@ -532,6 +598,11 @@ function ActionDialog({
             title: 'Envoyer au Super Admin',
             description:
                 'Le montant quitte votre portefeuille et arrive dans celui du patron, en une seule opération.',
+        },
+        employee: {
+            title: 'Payer un employé',
+            description:
+                "L'argent sort de votre portefeuille. Les commissions et la paie mensuelle continuent de dire ce qui est dû : ceci enregistre ce qui est réellement sorti.",
         },
         expense: {
             title: 'Ajouter une dépense',
@@ -580,6 +651,69 @@ function ActionDialog({
                             autoFocus
                         />
                     </div>
+
+                    {action === 'employee' && (
+                        <>
+                            <div className="space-y-1.5">
+                                <Label>{t('Employé')}</Label>
+                                <Select value={employeeId} onValueChange={setEmployeeId}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder={t('Sélectionner')} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {/* Le serveur exclut deja les pseudo-employes
+                                            « entreprise » (vitrine, refrigerateur) ;
+                                            les comptes inactifs restent listes, un
+                                            depart en cours d'annee doit pouvoir etre
+                                            solde. */}
+                                        {(employeesQuery.data ?? []).map((employee) => (
+                                            <SelectItem
+                                                key={employee.id}
+                                                value={String(employee.id)}
+                                            >
+                                                {employee.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label>{t('Type')}</Label>
+                                <Select
+                                    value={kind}
+                                    onValueChange={(value) => setKind(value as EmployeePaymentKind)}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {PAYMENT_KINDS.map((option) => (
+                                            <SelectItem key={option.value} value={option.value}>
+                                                {t(option.label)}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {PAYMENT_KINDS.find((option) => option.value === kind)?.hint && (
+                                    <p className="text-xs text-muted-foreground">
+                                        {t(PAYMENT_KINDS.find((option) => option.value === kind)!.hint!)}
+                                    </p>
+                                )}
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label htmlFor="wallet-period">{t('Période concernée')}</Label>
+                                <Input
+                                    id="wallet-period"
+                                    type="month"
+                                    value={period}
+                                    onChange={(event) => setPeriod(event.target.value)}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    {t("Le mois que ce paiement solde. Facultatif — le mouvement, lui, est daté d'aujourd'hui.")}
+                                </p>
+                            </div>
+                        </>
+                    )}
 
                     {action === 'expense' && (
                         <>
@@ -641,12 +775,46 @@ function ActionDialog({
                         </div>
                     )}
 
+                    {/* Le solde apres coup, avant de confirmer : c'est la
+                        verification que personne ne fait de tete. */}
+                    {Number(amount) > 0 && action !== 'fund-return' && (
+                        <div className="rounded-md border border-tint/[0.08] bg-tint/[0.02] p-3 text-sm">
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">{t('Solde actuel')}</span>
+                                <span className="tabular-nums">
+                                    {formatCurrency(balance, { maximumFractionDigits: 2 })}
+                                </span>
+                            </div>
+                            <div className="mt-1 flex justify-between">
+                                <span className="text-muted-foreground">
+                                    {action === 'fund' ? t('Affectation') : t('Montant')}
+                                </span>
+                                <span className="tabular-nums">
+                                    −{formatCurrency(Number(amount), { maximumFractionDigits: 2 })}
+                                </span>
+                            </div>
+                            <div className="mt-1.5 flex justify-between border-t border-tint/[0.08] pt-1.5 font-semibold">
+                                <span>{t('Après opération')}</span>
+                                <span
+                                    className={cn(
+                                        'tabular-nums',
+                                        balance - Number(amount) < 0 && 'text-destructive',
+                                    )}
+                                >
+                                    {formatCurrency(balance - Number(amount), {
+                                        maximumFractionDigits: 2,
+                                    })}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
                     {message && (
                         <div className="rounded-md border border-destructive/40 bg-destructive/10 p-2.5 text-sm text-destructive">
                             <p>{message}</p>
-                            {action === 'transfer' && confirmDuplicate && (
+                            {(action === 'transfer' || action === 'employee') && confirmDuplicate && (
                                 <p className="mt-1 text-xs">
-                                    {t('Renvoyez pour confirmer un second transfert identique.')}
+                                    {t('Renvoyez pour confirmer cette opération malgré tout.')}
                                 </p>
                             )}
                         </div>
@@ -662,7 +830,12 @@ function ActionDialog({
                             setMessage(null);
                             mutation.mutate();
                         }}
-                        disabled={mutation.isPending || Number(amount) <= 0 || (action === 'expense' && !label)}
+                        disabled={
+                            mutation.isPending ||
+                            Number(amount) <= 0 ||
+                            (action === 'expense' && !label) ||
+                            (action === 'employee' && !employeeId)
+                        }
                     >
                         {mutation.isPending ? <Loader2 className="animate-spin" /> : <Banknote />}
                         {t('Valider')}

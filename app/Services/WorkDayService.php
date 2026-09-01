@@ -141,7 +141,8 @@ class WorkDayService
             ->where('work_day_id', $day->id)
             ->get();
         $expenses = Expense::caisse()->where('work_day_id', $day->id)->orderBy('spent_on')->get();
-        $advances = Advance::with('employee')
+        $advances = Advance::caisse()
+            ->with('employee')
             ->where('work_day_id', $day->id)
             ->orderBy('given_on')
             ->get();
@@ -174,7 +175,12 @@ class WorkDayService
             ->whereBetween('spent_on', [$start->toDateString(), $end->toDateString()])
             ->orderBy('spent_on')
             ->get();
-        $advances = Advance::with('employee')
+        // `caisse()` : une avance payee sur le portefeuille est deja financee
+        // par un resultat de caisse deja compte. L'inclure ici la deduirait
+        // une seconde fois du meme argent. Elle reste une obligation pleine
+        // et entiere cote paie — seuls les agregats de CAISSE l'excluent.
+        $advances = Advance::caisse()
+            ->with('employee')
             ->whereBetween('given_on', [$start->toDateString(), $end->toDateString()])
             ->orderBy('given_on')
             ->get();

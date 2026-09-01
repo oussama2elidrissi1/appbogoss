@@ -21,6 +21,9 @@ class AdvanceResource extends JsonResource
             'work_day_id' => $this->work_day_id,
             'work_day_date' => $this->whenLoaded('workDay', fn () => $this->workDay?->date?->toDateString()),
             'amount' => (float) $this->amount,
+            // `caisse` (sortie du tiroir, deja deduite du resultat du jour)
+            // ou `wallet` (payee sur l'argent detenu par l'admin).
+            'origin' => $this->origin ?? 'caisse',
             'reason' => $this->reason,
             'given_on' => $this->given_on?->toDateString(),
             'settled_at' => $this->settled_at,

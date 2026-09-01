@@ -65,6 +65,12 @@ class RolesAndPermissionsSeeder extends Seeder
             'wallet.operate',
             'wallet.view_all',
             'wallet.adjust',
+            // Les trois gestes ajoutes avec les flux patron/employes.
+            // `wallet.deposit` est le seul qui fasse APPARAITRE de l'argent
+            // dans le systeme : il reste au patron.
+            'wallet.deposit',
+            'wallet.dispatch',
+            'wallet.pay_employee',
 
             // Original Phase 1 loyalty gates — still authoritative for the
             // routes/controllers/tests that already reference them.
@@ -127,6 +133,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'months.close',
             'wallet.view',
             'wallet.operate',
+            'wallet.pay_employee',
             'loyalty.manage',
             'loyalty.redeem',
             'loyalty.view',

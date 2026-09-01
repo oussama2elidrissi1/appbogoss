@@ -80,7 +80,7 @@ class DashboardService
 
         $revenueSoFar = (float) Sale::where('work_day_id', $day->id)->sum('total');
         $expensesSoFar = (float) Expense::caisse()->where('work_day_id', $day->id)->sum('amount');
-        $advancesSoFar = (float) Advance::where('work_day_id', $day->id)->sum('amount');
+        $advancesSoFar = (float) Advance::caisse()->where('work_day_id', $day->id)->sum('amount');
         $commissionsSoFar = (float) Sale::where('work_day_id', $day->id)->sum('commission_amount');
         $employeesPresent = $day->employees()->wherePivot('present', true)->count();
 
