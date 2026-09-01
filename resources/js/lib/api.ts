@@ -6,6 +6,7 @@ import type {
     PeriodsResponse,
 } from '@/types/closure';
 import type {
+    EmployeePaymentContext,
     EmployeePaymentHistory,
     EmployeePaymentPayload,
     Wallet,
@@ -1364,15 +1365,35 @@ export async function payEmployeeFromWallet(
     return data;
 }
 
-/** Tout ce qu'un employe a recu, tous portefeuilles confondus. */
+/**
+ * Tout ce qu'un employe a recu — portefeuille ET caisse, chaque ligne portant
+ * sa source.
+ */
 export async function getEmployeeWalletPayments(
     employeeId: number,
 ): Promise<EmployeePaymentHistory> {
     const { data } = await api.get<{ data: EmployeePaymentHistory }>(
-        `/api/employees/${employeeId}/wallet-payments`,
+        `/api/employees/${employeeId}/payments`,
     );
     return data.data;
 }
+/**
+ * Du / deja verse / reste, avant de valider un paiement.
+ *
+ * Interroge a chaque changement d'employe, de periode ou de motif : c'est ce
+ * qui rend un doublon visible AVANT la validation, pas apres.
+ */
+export async function getEmployeePaymentContext(
+    employeeId: number,
+    params: { period?: string; kind: string },
+): Promise<EmployeePaymentContext> {
+    const { data } = await api.get<{ data: EmployeePaymentContext }>(
+        `/api/employees/${employeeId}/payment-context`,
+        { params },
+    );
+    return data.data;
+}
+
 
 
 

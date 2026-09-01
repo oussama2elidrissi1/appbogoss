@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
+import { Link } from 'react-router-dom';
 import {
     ArrowDownLeft,
     ArrowUpRight,
@@ -16,6 +17,7 @@ import {
 import {
     allocateCashFund,
     createWalletExpense,
+    getEmployeePaymentContext,
     getEmployees,
     getErrorMessage,
     getWallet,
@@ -28,6 +30,7 @@ import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import { pageFade } from '@/lib/motion';
 import type {
+    EmployeePaymentContext,
     EmployeePaymentKind,
     WalletTransaction,
     WalletTransactionFilters,
@@ -54,6 +57,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PaymentSourceNotice } from '@/components/workday/PaymentSourceNotice';
 
 /**
  * « Mon portefeuille » — où est l'argent de l'admin, sans un seul calcul mental.
@@ -110,6 +114,25 @@ const EXPENSE_CATEGORIES = [
 const ALL = '__all__';
 
 type WalletActionKind = 'transfer' | 'employee' | 'expense' | 'fund' | 'fund-return';
+
+/**
+ * Ce que chaque geste fait a l'argent, dit en une phrase.
+ *
+ * Toutes ces operations sortent du PORTEFEUILLE : aucune ne touche la caisse
+ * du jour, et chaque texte le rappelle explicitement. C'est la confusion que
+ * ce module existe pour supprimer.
+ */
+const SOURCE_DETAIL: Record<WalletActionKind, string> = {
+    transfer:
+        "Le montant quitte votre portefeuille pour celui du patron. La caisse du jour n'est pas touchee.",
+    employee:
+        'Ce paiement sera debite uniquement de votre portefeuille. Il ne modifiera ni le resultat de caisse, ni la journee ouverte.',
+    expense:
+        "Cette depense sera debitee uniquement de votre portefeuille. Elle n'entre pas dans les depenses de la caisse.",
+    fund: "L'argent reste chez vous : il passe du disponible au fond de caisse. La caisse du jour n'est pas touchee.",
+    'fund-return':
+        "Le montant repasse du fond de caisse vers votre disponible. La caisse du jour n'est pas touchee.",
+};
 
 function today(): string {
     return new Date().toISOString().slice(0, 10);
@@ -453,6 +476,18 @@ function TransactionRow({ transaction }: { transaction: WalletTransaction }) {
             <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium">{transaction.type_label}</span>
+                    {transaction.employee_id !== null && transaction.employee_name && (
+                        <Link
+                            to={`/employees/${transaction.employee_id}`}
+                            className="text-sm font-medium text-accent underline-offset-2 hover:underline"
+                        >
+                            {transaction.employee_name}
+                        </Link>
+                    )}
+                    {transaction.category_label && (
+                        <Badge variant="outline">{transaction.category_label}</Badge>
+                    )}
+                    {transaction.period && <Badge variant="outline">{transaction.period}</Badge>}
                     {transaction.bucket === 'cash_fund' && (
                         <Badge variant="outline">{t('Fond de caisse')}</Badge>
                     )}
@@ -473,6 +508,10 @@ function TransactionRow({ transaction }: { transaction: WalletTransaction }) {
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
                     {formatDate(transaction.occurred_at)}
+                    {' · '}
+                    {/* La source, sur chaque ligne : cet argent-la est sorti du
+                        portefeuille, jamais du tiroir. */}
+                    {t('Source : Portefeuille Admin')}
                 </p>
             </div>
             <div className="shrink-0 text-right">
@@ -530,6 +569,18 @@ function ActionDialog({
         enabled: action === 'employee',
     });
 
+    // Du / deja verse / reste, relu a chaque changement d'employe, de motif ou
+    // de periode : c'est ce qui rend un doublon visible AVANT la validation.
+    const contextQuery = useQuery({
+        queryKey: ['employee-payment-context', employeeId, kind, period],
+        queryFn: () =>
+            getEmployeePaymentContext(Number(employeeId), {
+                kind,
+                period: period || undefined,
+            }),
+        enabled: action === 'employee' && employeeId !== '',
+    });
+
     const reset = () => {
         setAmount('');
         setLabel('');
@@ -564,7 +615,11 @@ function ActionDialog({
                     period: period || undefined,
                     note: notes || undefined,
                     reference: reference || undefined,
+                    // Les deux avertissements du serveur sont levés ensemble au
+                    // second envoi : l'utilisateur vient de lire le message
+                    // exact, et le renvoi est déjà le geste de confirmation.
                     acknowledge_duplicate: confirmDuplicate || undefined,
+                    acknowledge_over_due: confirmDuplicate || undefined,
                 });
             }
             if (action === 'expense') {
@@ -639,6 +694,11 @@ function ActionDialog({
                 </DialogHeader>
 
                 <div className="space-y-3">
+                    {/* La premiere chose lue dans la modale : d'ou sort
+                        l'argent. Le solde de caisse n'apparait nulle part
+                        ici — ce n'est pas lui qui bouge. */}
+                    <PaymentSourceNotice source="wallet" detail={SOURCE_DETAIL[action ?? 'transfer']} />
+
                     <div className="space-y-1.5">
                         <Label htmlFor="wallet-amount">{t('Montant (DH)')}</Label>
                         <Input
@@ -775,6 +835,13 @@ function ActionDialog({
                         </div>
                     )}
 
+                    {action === 'employee' && contextQuery.data && (
+                        <PaymentContextPanel
+                            context={contextQuery.data}
+                            amount={Number(amount)}
+                        />
+                    )}
+
                     {/* Le solde apres coup, avant de confirmer : c'est la
                         verification que personne ne fait de tete. */}
                     {Number(amount) > 0 && action !== 'fund-return' && (
@@ -843,5 +910,120 @@ function ActionDialog({
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+    );
+}
+
+/**
+ * Ce qui a déjà été versé sur cette période, et ce qu'il reste.
+ *
+ * Le montant dû n'existe que pour une commission : l'application ne connaît
+ * aucun salaire de référence. Plutôt que d'afficher un chiffre inventé, elle
+ * montre alors ce qui a déjà été versé — ce qui suffit à repérer un doublon,
+ * qui est le vrai risque.
+ */
+function PaymentContextPanel({
+    context,
+    amount,
+}: {
+    context: EmployeePaymentContext;
+    amount: number;
+}) {
+    const { t } = useI18n();
+    const overDue =
+        context.remaining !== null && amount > 0 && amount > context.remaining + 0.005;
+
+    return (
+        <div className="rounded-md border border-tint/[0.08] bg-tint/[0.02] p-3 text-sm">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+                {context.period
+                    ? t('Déjà enregistré pour {period}', { period: context.period })
+                    : t('Déjà enregistré')}
+            </p>
+
+            {context.due_total !== null && (
+                <Row
+                    label={t(context.due_label ?? 'Montant dû')}
+                    value={formatCurrency(context.due_total, { maximumFractionDigits: 2 })}
+                />
+            )}
+            <Row
+                label={t('Déjà payé')}
+                value={formatCurrency(context.already_paid_total, { maximumFractionDigits: 2 })}
+                hint={
+                    context.already_paid_caisse > 0
+                        ? t('dont {amount} sortis de la caisse', {
+                              amount: formatCurrency(context.already_paid_caisse, {
+                                  maximumFractionDigits: 2,
+                              }),
+                          })
+                        : undefined
+                }
+            />
+            {context.remaining !== null && (
+                <Row
+                    label={t('Reste à payer')}
+                    value={formatCurrency(context.remaining, { maximumFractionDigits: 2 })}
+                    strong
+                />
+            )}
+
+            {context.due_total === null && (
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                    {t("Aucun montant de référence pour ce motif : le salon n'enregistre pas de salaire fixe. Vérifiez les versements ci-dessus avant de confirmer.")}
+                </p>
+            )}
+
+            {overDue && (
+                <p className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/[0.10] px-2.5 py-2 text-xs text-amber-700 dark:text-amber-400">
+                    {t('Ce montant dépasse le reste à payer ({remaining}). Le serveur demandera une confirmation explicite.', {
+                        remaining: formatCurrency(context.remaining ?? 0, {
+                            maximumFractionDigits: 2,
+                        }),
+                    })}
+                </p>
+            )}
+
+            {context.payments.length > 0 && (
+                <div className="mt-2 space-y-1 border-t border-tint/[0.08] pt-2">
+                    {context.payments.map((payment) => (
+                        <div
+                            key={payment.id}
+                            className="flex items-center justify-between gap-2 text-xs"
+                        >
+                            <span className="truncate text-muted-foreground">
+                                {payment.kind_label}
+                                {' · '}
+                                {payment.source === 'wallet' ? t('Wallet') : t('Caisse')}
+                            </span>
+                            <span className="shrink-0 tabular-nums">
+                                {formatCurrency(payment.amount, { maximumFractionDigits: 2 })}
+                            </span>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function Row({
+    label,
+    value,
+    hint,
+    strong = false,
+}: {
+    label: string;
+    value: string;
+    hint?: string;
+    strong?: boolean;
+}) {
+    return (
+        <div className={cn('mt-1 flex items-baseline justify-between gap-3', strong && 'font-semibold')}>
+            <span className="text-muted-foreground">
+                {label}
+                {hint && <span className="ml-1 text-[11px]">({hint})</span>}
+            </span>
+            <span className="tabular-nums">{value}</span>
+        </div>
     );
 }

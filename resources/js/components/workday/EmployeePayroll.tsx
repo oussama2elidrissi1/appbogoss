@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, CheckCircle2, HandCoins } from 'lucide-react';
 import { getCommissionPayoutHistory, getCommissionPayouts, getErrorMessage, payCommission } from '@/lib/api';
 import { useActiveWorkDay, workDayKeys } from '@/hooks/useWorkDay';
+import { PaymentSourceNotice } from '@/components/workday/PaymentSourceNotice';
 import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import type { Employee } from '@/types/workday';
@@ -221,6 +222,20 @@ export function EmployeePayroll({ employee }: { employee: Employee }) {
                 loading={payMutation.isPending}
                 onConfirm={() => payMutation.mutate()}
             >
+                {row != null && row.net_amount > 0 && (
+                    <PaymentSourceNotice
+                        className="mb-3"
+                        source={activeDay != null && deductFromCaisse ? 'caisse' : 'none'}
+                        detail={
+                            activeDay == null
+                                ? "Aucune journée de caisse ouverte : ce versement sera enregistré sans sortie de caisse. Pour tracer l'argent réellement remis, utilisez « Mon portefeuille → Payer un employé »."
+                                : deductFromCaisse
+                                  ? 'Cette opération réduira le résultat de caisse de la journée ouverte.'
+                                  : "Le mois sera marqué payé sans qu'aucune sortie d'argent ne soit enregistrée. Pour tracer la remise, utilisez « Mon portefeuille → Payer un employé »."
+                        }
+                    />
+                )}
+
                 {activeDay != null && row != null && row.net_amount > 0 && (
                     <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-tint/[0.08] bg-tint/[0.03] px-3 py-2.5">
                         <input

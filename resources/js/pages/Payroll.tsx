@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { MonthClosureDialog } from '@/components/closure/MonthClosureDialog';
 import { PeriodSelector, formatPeriod } from '@/components/closure/PeriodSelector';
 import { useActiveWorkDay, workDayKeys } from '@/hooks/useWorkDay';
+import { PaymentSourceNotice } from '@/components/workday/PaymentSourceNotice';
 import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import type { CommissionPayoutRow } from '@/types/prestation';
@@ -501,6 +502,23 @@ export default function Payroll() {
                     if (confirming) payMutation.mutate(confirming);
                 }}
             >
+                {/* D'ou sort l'argent, avant tout le reste. Une paie versee
+                    avec la case cochee sort du TIROIR et reduit le resultat de
+                    la journee ouverte — ce n'est pas le portefeuille. */}
+                {confirming !== null && confirming.net_amount > 0 && (
+                    <PaymentSourceNotice
+                        className="mb-3"
+                        source={activeDay != null && deductFromCaisse ? 'caisse' : 'none'}
+                        detail={
+                            activeDay == null
+                                ? "Aucune journée de caisse ouverte : ce versement sera enregistré sans sortie de caisse. Pour tracer l'argent réellement remis, utilisez « Mon portefeuille → Payer un employé »."
+                                : deductFromCaisse
+                                  ? 'Cette opération réduira le résultat de caisse de la journée ouverte.'
+                                  : "Le mois sera marqué payé sans qu'aucune sortie d'argent ne soit enregistrée. Pour tracer la remise, utilisez « Mon portefeuille → Payer un employé »."
+                        }
+                    />
+                )}
+
                 {activeDay != null && confirming !== null && confirming.net_amount > 0 && (
                     <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-tint/[0.08] bg-tint/[0.03] px-3 py-2.5">
                         <input

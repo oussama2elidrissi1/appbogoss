@@ -222,6 +222,60 @@ export interface EmployeePaymentPayload {
     reference?: string;
     /** Lève le refus de doublon (double appui, commission déjà sortie du tiroir). */
     acknowledge_duplicate?: boolean;
+    /** Lève l'avertissement « ce montant dépasse le reste dû ». */
+    acknowledge_over_due?: boolean;
+}
+
+/** D'où l'argent est réellement sorti. */
+export type PaymentSourceKind = 'wallet' | 'caisse';
+
+/**
+ * Un versement à un employé, quelle qu'en soit la source.
+ *
+ * Le portefeuille et la caisse sont deux tiroirs différents : la ligne porte
+ * donc toujours celui dont l'argent est sorti, parce que c'est la seule
+ * question qui compte quand on relit un paiement.
+ */
+export interface EmployeePaymentRow {
+    id: string;
+    source: PaymentSourceKind;
+    source_label: string;
+    kind: string;
+    kind_label: string;
+    label: string | null;
+    amount: number;
+    occurred_at: string | null;
+    period: string | null;
+    reference: string | null;
+    performed_by: string | null;
+    wallet_owner: string | null;
+    wallet_transaction_id: number | null;
+    advance_id: number | null;
+    work_day_id: number | null;
+    work_day_date: string | null;
+}
+
+/**
+ * Ce qu'il faut savoir avant de valider un paiement.
+ *
+ * `due_total` n'existe que pour une commission : l'application ne connaît pas
+ * de salaire, et l'écran le dit plutôt que d'afficher une référence inventée.
+ */
+export interface EmployeePaymentContext {
+    employee_id: number;
+    employee_name: string;
+    kind: string;
+    kind_label: string;
+    period: string | null;
+    has_period: boolean;
+    due_total: number | null;
+    due_label: string | null;
+    already_paid_total: number;
+    already_paid_wallet: number;
+    already_paid_caisse: number;
+    remaining: number | null;
+    advances_outstanding: number;
+    payments: EmployeePaymentRow[];
 }
 
 /**
@@ -233,12 +287,16 @@ export interface EmployeePaymentPayload {
 export interface EmployeePaymentHistory {
     employee_id: number;
     employee_name: string;
+    /** Portefeuille + caisse : tout ce que l'employé a réellement touché. */
     total_paid: number;
+    wallet_total: number;
+    caisse_total: number;
     payments_count: number;
     last_payment_at: string | null;
     last_payment_amount: number | null;
+    last_payment_source: PaymentSourceKind | null;
     by_kind: { kind: string; label: string; count: number; total: number }[];
-    payments: WalletTransaction[];
+    payments: EmployeePaymentRow[];
 }
 
 export interface WalletMutationResult {

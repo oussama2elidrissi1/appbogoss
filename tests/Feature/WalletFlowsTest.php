@@ -385,7 +385,7 @@ class WalletFlowsTest extends TestCase
             'employee_id' => $karim->id, 'amount' => 900, 'kind' => 'salary',
         ])->assertCreated();
 
-        $history = $this->getJson("/api/employees/{$ahmed->id}/wallet-payments")
+        $history = $this->getJson("/api/employees/{$ahmed->id}/payments")
             ->assertOk()->json('data');
 
         // 3 000 + 500 + 1 200 — et surtout pas les 900 de Karim.
@@ -398,7 +398,7 @@ class WalletFlowsTest extends TestCase
             array_column($history['by_kind'], 'label'),
         );
 
-        $karimHistory = $this->getJson("/api/employees/{$karim->id}/wallet-payments")
+        $karimHistory = $this->getJson("/api/employees/{$karim->id}/payments")
             ->assertOk()->json('data');
         $this->assertSame(900.0, $this->money($karimHistory['total_paid']));
     }
@@ -515,12 +515,16 @@ class WalletFlowsTest extends TestCase
 
         // Le refus reste franchissable en connaissance de cause — un versement
         // partiel complementaire, par exemple — mais jamais par inadvertance.
+        // Deux avertissements distincts, donc deux confirmations distinctes :
+        // « c'est deja sorti du tiroir » et « ca depasse le reste du » ne
+        // disent pas la meme chose et ne se levent pas ensemble.
         $this->postJson('/api/wallet/employee-payments', [
             'employee_id' => $employee->id,
             'amount' => 3000,
             'kind' => 'commission',
             'period' => '2026-09',
             'acknowledge_duplicate' => true,
+            'acknowledge_over_due' => true,
         ])->assertCreated();
     }
 

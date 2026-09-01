@@ -88,8 +88,23 @@ class WalletService
         self::PAYMENT_OTHER => 'Autre',
     ];
 
-    public function __construct(private readonly ActivityLogger $activityLogger)
-    {
+    /** Les deux sources possibles d'un paiement à un employé. */
+    public const SOURCE_WALLET = 'wallet';
+
+    public const SOURCE_CAISSE = 'caisse';
+
+    /**
+     * Marqueur écrit par CommissionPayoutService quand « sortie de caisse »
+     * est cochée : le net versé devient une avance déjà soldée sur la journée
+     * ouverte. C'est le seul signal qui distingue, dans `advances`, un
+     * versement de commission d'une vraie avance sur salaire.
+     */
+    private const CAISSE_COMMISSION_MARKER = 'Paiement commission %';
+
+    public function __construct(
+        private readonly ActivityLogger $activityLogger,
+        private readonly CommissionPayoutService $payouts,
+    ) {
     }
 
     // =========================================================================
@@ -695,6 +710,7 @@ class WalletService
         array $data,
         User $actor,
         bool $acknowledgeDuplicate = false,
+        bool $acknowledgeOverDue = false,
     ): WalletTransaction {
         $cents = $this->positiveCents((float) $data['amount']);
         $kind = $data['kind'];
@@ -707,6 +723,10 @@ class WalletService
             }
 
             $this->assertNotAnImmediateDuplicatePayment($wallet, $employee, $kind, $cents);
+        }
+
+        if (! $acknowledgeOverDue) {
+            $this->assertNotOverDue($employee, $kind, $period, $cents);
         }
 
         return DB::transaction(function () use ($wallet, $employee, $cents, $kind, $period, $note, $data, $actor) {
@@ -770,38 +790,223 @@ class WalletService
      */
     public function employeePaymentHistory(Employee $employee): array
     {
-        $payments = WalletTransaction::with(['performedBy', 'wallet.user'])
-            ->where('type', WalletTransaction::TYPE_EMPLOYEE_PAYMENT)
-            ->where('employee_id', $employee->id)
-            ->orderByDesc('occurred_at')
-            ->orderByDesc('id')
-            ->get();
+        // `toBase()` : les deux sources renvoient des tableaux, pas des
+        // modeles. Sans lui, le `merge()` d'une Eloquent\Collection va
+        // chercher un getKey() sur chaque ligne et casse.
+        $rows = $this->walletPaymentRows($employee)->toBase()
+            ->merge($this->caissePaymentRows($employee)->toBase())
+            ->sortByDesc('occurred_at')
+            ->values();
 
-        $latest = $payments->first();
+        $latest = $rows->first();
+        $sum = fn (Collection $group) => round((float) $group->sum('amount'), 2);
 
         return [
             'employee_id' => $employee->id,
             'employee_name' => $employee->name,
-            'total_paid' => round((float) $payments->sum(
-                fn (WalletTransaction $row) => abs($row->signedAmount()),
-            ), 2),
-            'payments_count' => $payments->count(),
-            'last_payment_at' => $latest?->occurred_at?->toIso8601String(),
-            'last_payment_amount' => $latest === null ? null : abs($latest->signedAmount()),
-            'by_kind' => $payments->groupBy(fn (WalletTransaction $row) => $row->category ?: self::PAYMENT_OTHER)
+            'total_paid' => $sum($rows),
+            'wallet_total' => $sum($rows->where('source', self::SOURCE_WALLET)),
+            'caisse_total' => $sum($rows->where('source', self::SOURCE_CAISSE)),
+            'payments_count' => $rows->count(),
+            'last_payment_at' => $latest['occurred_at'] ?? null,
+            'last_payment_amount' => $latest['amount'] ?? null,
+            'last_payment_source' => $latest['source'] ?? null,
+            'by_kind' => $rows->groupBy('kind')
                 ->map(fn (Collection $group, string $kind) => [
                     'kind' => $kind,
                     'label' => self::PAYMENT_LABELS[$kind] ?? $kind,
                     'count' => $group->count(),
-                    'total' => round((float) $group->sum(
-                        fn (WalletTransaction $row) => abs($row->signedAmount()),
-                    ), 2),
+                    'total' => $sum($group),
                 ])
                 ->sortByDesc('total')
                 ->values()
                 ->all(),
-            'payments' => $payments,
+            'payments' => $rows->all(),
         ];
+    }
+
+    /**
+     * Ce qui est sorti d'un portefeuille vers cet employé.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function walletPaymentRows(Employee $employee): Collection
+    {
+        return WalletTransaction::with(['performedBy', 'wallet.user'])
+            ->where('type', WalletTransaction::TYPE_EMPLOYEE_PAYMENT)
+            ->where('employee_id', $employee->id)
+            ->orderByDesc('occurred_at')
+            ->get()
+            ->map(function (WalletTransaction $row) {
+                $kind = $row->category ?: self::PAYMENT_OTHER;
+
+                return [
+                    'id' => 'w-'.$row->id,
+                    'source' => self::SOURCE_WALLET,
+                    'source_label' => 'Portefeuille',
+                    'kind' => $kind,
+                    'kind_label' => self::PAYMENT_LABELS[$kind] ?? $kind,
+                    'label' => $row->description,
+                    'amount' => abs($row->signedAmount()),
+                    'occurred_at' => $row->occurred_at?->toIso8601String(),
+                    'period' => $row->period,
+                    'reference' => $row->reference,
+                    'performed_by' => $row->performedBy?->name,
+                    'wallet_owner' => $row->wallet?->user?->name,
+                    'wallet_transaction_id' => $row->id,
+                    'advance_id' => null,
+                    'work_day_id' => null,
+                    'work_day_date' => null,
+                ];
+            });
+    }
+
+    /**
+     * Ce qui est sorti du TIROIR vers cet employé.
+     *
+     * Toute remise en espèces côté caisse passe par `advances` : l'avance sur
+     * salaire classique, et le net d'une paie versée avec « sortie de caisse »
+     * (que CommissionPayoutService écrit comme une avance déjà soldée). Les
+     * distinguer tient à ce seul marqueur, faute d'un autre signal en base.
+     *
+     * Les avances d'origine `wallet` sont exclues : elles figurent déjà dans
+     * les lignes du portefeuille, et les compter ici les doublerait à l'écran.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function caissePaymentRows(Employee $employee): Collection
+    {
+        return Advance::caisse()
+            ->with('workDay')
+            ->where('employee_id', $employee->id)
+            ->orderByDesc('given_on')
+            ->get()
+            ->map(function (Advance $advance) {
+                $isCommission = $advance->commission_payout_id !== null
+                    && str_starts_with((string) $advance->reason, 'Paiement commission');
+                $kind = $isCommission ? self::PAYMENT_COMMISSION : self::PAYMENT_ADVANCE;
+
+                return [
+                    'id' => 'c-'.$advance->id,
+                    'source' => self::SOURCE_CAISSE,
+                    'source_label' => 'Caisse',
+                    'kind' => $kind,
+                    'kind_label' => self::PAYMENT_LABELS[$kind],
+                    'label' => $advance->reason,
+                    'amount' => round((float) $advance->amount, 2),
+                    'occurred_at' => $advance->given_on?->toIso8601String(),
+                    'period' => null,
+                    'reference' => null,
+                    'performed_by' => null,
+                    'wallet_owner' => null,
+                    'wallet_transaction_id' => null,
+                    'advance_id' => $advance->id,
+                    'work_day_id' => $advance->work_day_id,
+                    'work_day_date' => $advance->workDay?->date?->toDateString(),
+                ];
+            });
+    }
+
+    /**
+     * Ce qu'il faut savoir AVANT de valider un paiement : ce qui est dû pour
+     * cette période, ce qui a déjà été versé, et ce qu'il reste.
+     *
+     * Une honnêteté nécessaire : l'application ne connaît pas de salaire. Elle
+     * sait ce qu'un employé a GAGNÉ en commission, rien de plus. Le montant dû
+     * n'est donc renseigné que pour un paiement de commission ; pour un
+     * salaire ou une prime, l'écran affiche ce qui a déjà été versé sur la
+     * période et s'arrête là, plutôt que d'inventer une référence.
+     *
+     * @return array<string, mixed>
+     */
+    public function employeePaymentContext(Employee $employee, ?string $period, string $kind): array
+    {
+        $outstanding = round((float) Advance::where('employee_id', $employee->id)
+            ->outstanding()
+            ->sum('amount'), 2);
+
+        $context = [
+            'employee_id' => $employee->id,
+            'employee_name' => $employee->name,
+            'kind' => $kind,
+            'kind_label' => self::PAYMENT_LABELS[$kind] ?? $kind,
+            'period' => $period,
+            'has_period' => $period !== null,
+            'due_total' => null,
+            'due_label' => null,
+            'already_paid_total' => 0.0,
+            'already_paid_wallet' => 0.0,
+            'already_paid_caisse' => 0.0,
+            'remaining' => null,
+            'advances_outstanding' => $outstanding,
+            'payments' => [],
+        ];
+
+        if ($period === null) {
+            return $context;
+        }
+
+        $paidWallet = round((float) WalletTransaction::where('type', WalletTransaction::TYPE_EMPLOYEE_PAYMENT)
+            ->where('employee_id', $employee->id)
+            ->where('category', $kind)
+            ->where('period', $period)
+            ->sum('amount'), 2);
+
+        $paidCaisse = 0.0;
+
+        if ($kind === self::PAYMENT_COMMISSION) {
+            $paidCaisse = round((float) Advance::caisse()
+                ->where('employee_id', $employee->id)
+                ->whereNotNull('work_day_id')
+                ->whereNotNull('commission_payout_id')
+                ->where('reason', 'like', self::CAISSE_COMMISSION_MARKER)
+                ->whereHas('commissionPayout', fn ($query) => $query->where('period', $period))
+                ->sum('amount'), 2);
+
+            $preview = $this->payouts->preview($employee, $period);
+            $context['due_total'] = $preview['commission_total'];
+            $context['due_label'] = 'Commission gagnée';
+        }
+
+        if ($kind === self::PAYMENT_ADVANCE) {
+            [$from, $to] = $this->periodBounds($period);
+            $paidCaisse = round((float) Advance::caisse()
+                ->where('employee_id', $employee->id)
+                ->whereBetween('given_on', [$from, $to])
+                ->sum('amount'), 2);
+        }
+
+        $context['already_paid_wallet'] = $paidWallet;
+        $context['already_paid_caisse'] = $paidCaisse;
+        $context['already_paid_total'] = round($paidWallet + $paidCaisse, 2);
+
+        if ($context['due_total'] !== null) {
+            $context['remaining'] = round(
+                max(0, $context['due_total'] - $context['already_paid_total']),
+                2,
+            );
+        }
+
+        // Les versements deja enregistres sur cette periode, toutes sources
+        // confondues : c'est ce qui rend un doublon visible avant de valider.
+        $context['payments'] = $this->employeePaymentHistory($employee)['payments'];
+        $context['payments'] = array_values(array_filter(
+            $context['payments'],
+            fn (array $row) => $row['period'] === $period
+                || ($kind === self::PAYMENT_COMMISSION
+                    && $row['source'] === self::SOURCE_CAISSE
+                    && $row['kind'] === self::PAYMENT_COMMISSION),
+        ));
+
+        return $context;
+    }
+
+    /** @return array{0: string, 1: string} */
+    private function periodBounds(string $period): array
+    {
+        $start = CarbonImmutable::createFromFormat('!Y-m', $period)->startOfMonth();
+
+        return [$start->toDateString(), $start->endOfMonth()->toDateString()];
     }
 
     /**
@@ -851,6 +1056,40 @@ class WalletService
                 'amount' => 'Un paiement identique vient d\'être enregistré pour cet employé. Confirmez pour en enregistrer un second.',
             ]);
         }
+    }
+
+    /**
+     * Avertit quand le montant dépasse ce qui reste dû sur la période.
+     *
+     * Un AVERTISSEMENT, pas un interdit : verser plus que la commission du
+     * mois est parfois légitime (un rattrapage, une régularisation), et le
+     * métier doit pouvoir le faire. Mais jamais sans le savoir — d'où la
+     * confirmation explicite plutôt qu'un passage silencieux.
+     *
+     * Ne se déclenche que là où l'application connaît réellement un montant
+     * dû, c'est-à-dire sur la commission. Elle n'a aucune notion de salaire.
+     */
+    private function assertNotOverDue(Employee $employee, string $kind, ?string $period, int $cents): void
+    {
+        if ($period === null) {
+            return;
+        }
+
+        $context = $this->employeePaymentContext($employee, $period, $kind);
+
+        if ($context['remaining'] === null || $cents <= $this->toCents((float) $context['remaining'])) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'amount' => sprintf(
+                'Il ne reste que %s DH à verser sur la commission de %s (%s DH déjà versés sur %s DH gagnés). Confirmez pour verser davantage.',
+                number_format((float) $context['remaining'], 2, ',', ' '),
+                $period,
+                number_format((float) $context['already_paid_total'], 2, ',', ' '),
+                number_format((float) $context['due_total'], 2, ',', ' '),
+            ),
+        ]);
     }
 
     private function paymentLabel(string $kind, ?string $period): string

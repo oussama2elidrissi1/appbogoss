@@ -174,9 +174,9 @@ export default function WalletsOverview() {
                         />
                         <SummaryCard
                             icon={<Receipt />}
-                            label={t('Total dépenses')}
+                            label={t('Dépenses Wallet')}
                             value={data.expenses_total}
-                            hint={t('Payées sur les portefeuilles')}
+                            hint={t('Charges payées sur les portefeuilles, hors salaires')}
                         />
                     </div>
 
@@ -214,7 +214,7 @@ export default function WalletsOverview() {
                                                     {t('Payé employés')}
                                                 </th>
                                                 <th className="px-2 py-2 text-right font-semibold">
-                                                    {t('Dépenses')}
+                                                    {t('Dépenses Wallet')}
                                                 </th>
                                                 <th className="px-2 py-2" />
                                             </tr>

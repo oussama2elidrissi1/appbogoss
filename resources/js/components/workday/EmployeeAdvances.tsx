@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { workDayKeys } from '@/hooks/useWorkDay';
 import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
+import { PaymentSourceNotice } from '@/components/workday/PaymentSourceNotice';
 import type { Advance, Employee } from '@/types/workday';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -120,11 +121,24 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
     });
 
     const amountValue = Number.parseFloat(amount.replace(',', '.'));
-    const canSubmit = Number.isFinite(amountValue) && amountValue > 0 && givenOn.length > 0;
+
+    /**
+     * Une avance est de l'argent qui sort du TIROIR : elle doit donc etre
+     * rattachee a une journee de caisse. Sans journee ouverte ni journee
+     * choisie, l'enregistrer creerait une avance rattachee a rien — de
+     * l'argent sorti que le rapport journalier ne verrait jamais.
+     *
+     * Le portefeuille reste, lui, disponible en permanence : c'est justement
+     * la voie a emprunter quand la caisse est fermee.
+     */
+    const chosenDayId = selectedWorkDayId ? Number(selectedWorkDayId) : workDayId;
+    const hasCaisseDay = Boolean(chosenDayId);
+    const canSubmit =
+        Number.isFinite(amountValue) && amountValue > 0 && givenOn.length > 0 && hasCaisseDay;
 
     function submit() {
         if (!canSubmit) return;
-        const chosenWorkDayId = selectedWorkDayId ? Number(selectedWorkDayId) : workDayId;
+        const chosenWorkDayId = chosenDayId;
         createMutation.mutate({
             employee_id: employee.id,
             amount: amountValue,
@@ -438,6 +452,17 @@ export function EmployeeAdvances({ employee, workDayId, periodMonth }: EmployeeA
                 <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
                     {t('Donner une avance')}
                 </p>
+
+                {/* D'ou sort l'argent, avant meme le montant. Une avance sort
+                    du tiroir : elle reduit le resultat de la journee. */}
+                <PaymentSourceNotice
+                    source={hasCaisseDay ? 'caisse' : 'none'}
+                    detail={
+                        hasCaisseDay
+                            ? 'Cette opération réduira le résultat de caisse de la journée concernée.'
+                            : "Aucune journée de caisse ouverte. Choisissez une journée ci-dessous, ou payez depuis « Mon portefeuille → Payer un employé », qui reste disponible caisse fermée."
+                    }
+                />
 
                 <div className="grid grid-cols-2 gap-2.5">
                     <div className="space-y-1.5">

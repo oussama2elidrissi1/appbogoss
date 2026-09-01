@@ -337,9 +337,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('permission:wallet.view')->group(function () {
         Route::get('/wallet', [WalletController::class, 'show']);
         Route::get('/wallet/transactions', [WalletController::class, 'transactions']);
-        // Ce qu'un employe a REELLEMENT recu — a lire a cote de sa paie, qui
-        // dit ce qui lui est DU. Les deux peuvent legitimement differer.
-        Route::get('/employees/{employee}/wallet-payments', [WalletController::class, 'employeePayments']);
+        // Ce qu'un employe a REELLEMENT recu, portefeuille ET caisse, chaque
+        // ligne portant sa source. A lire a cote de sa paie, qui dit ce qui
+        // lui est DU : les deux peuvent legitimement differer.
+        Route::get('/employees/{employee}/payments', [WalletController::class, 'employeePayments']);
+        // Du / deja verse / reste, avant de valider un paiement.
+        Route::get('/employees/{employee}/payment-context', [WalletController::class, 'employeePaymentContext']);
     });
 
     // Payer un employe : de l'exploitation courante, donc ouvert a l'admin.

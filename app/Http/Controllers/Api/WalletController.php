@@ -122,6 +122,9 @@ class WalletController extends Controller
             'note' => ['nullable', 'string', 'max:1000'],
             'reference' => ['nullable', 'string', 'max:255'],
             'acknowledge_duplicate' => ['nullable', 'boolean'],
+            // Confirme un versement superieur a ce qui reste du sur la periode.
+            // Distinct du doublon : ce sont deux decisions differentes.
+            'acknowledge_over_due' => ['nullable', 'boolean'],
         ]);
 
         $wallet = $this->wallets->walletFor($request->user());
@@ -139,6 +142,7 @@ class WalletController extends Controller
             ],
             $request->user(),
             (bool) ($validated['acknowledge_duplicate'] ?? false),
+            (bool) ($validated['acknowledge_over_due'] ?? false),
         );
 
         return response()->json([
@@ -148,20 +152,41 @@ class WalletController extends Controller
     }
 
     /**
-     * Tout ce qu'un employé a réellement reçu, tous portefeuilles confondus.
+     * Tout ce qu'un employé a réellement reçu — portefeuille ET caisse.
      *
-     * À lire à côté de sa paie, jamais à la place : « total payé » ici est de
-     * l'argent sorti, là-bas c'est de l'argent dû.
+     * Chaque ligne porte sa source, parce que c'est la seule question qui
+     * compte quand on relit un paiement : d'où est sorti cet argent. À lire à
+     * côté de sa paie, jamais à la place — « total payé » ici est de l'argent
+     * sorti, là-bas c'est de l'argent dû.
      */
     public function employeePayments(Employee $employee): JsonResponse
     {
-        $history = $this->wallets->employeePaymentHistory($employee);
+        return response()->json([
+            'data' => $this->wallets->employeePaymentHistory($employee),
+        ]);
+    }
+
+    /**
+     * Ce qu'il faut savoir avant de valider : dû, déjà versé, reste.
+     *
+     * Interrogé par la modale de paiement à chaque changement d'employé, de
+     * période ou de motif. Le montant dû n'existe que pour une commission :
+     * l'application ne connaît pas de salaire, et l'écran le dit plutôt que
+     * d'afficher une référence inventée.
+     */
+    public function employeePaymentContext(Request $request, Employee $employee): JsonResponse
+    {
+        $validated = $request->validate([
+            'period' => ['nullable', 'date_format:Y-m'],
+            'kind' => ['required', Rule::in(WalletService::PAYMENT_KINDS)],
+        ]);
 
         return response()->json([
-            'data' => [
-                ...$history,
-                'payments' => WalletTransactionResource::collection($history['payments']),
-            ],
+            'data' => $this->wallets->employeePaymentContext(
+                $employee,
+                $validated['period'] ?? null,
+                $validated['kind'],
+            ),
         ]);
     }
 
