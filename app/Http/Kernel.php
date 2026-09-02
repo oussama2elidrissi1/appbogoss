@@ -43,6 +43,9 @@ class Kernel extends HttpKernel
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             \Illuminate\Routing\Middleware\ThrottleRequests::class.':api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            // Bac a sable du compte de validation Google Play : transparent
+            // pour tout autre utilisateur, liste blanche stricte pour lui.
+            \App\Http\Middleware\ReviewerSandbox::class,
         ],
     ];
 

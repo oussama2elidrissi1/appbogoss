@@ -1666,6 +1666,7 @@ class PosService
         return Employee::query()
             ->where('is_active', true)
             ->where('is_company', false)
+            ->where('is_demo', false)
             ->get()
             ->filter(fn (Employee $employee) => $employee->canPerform($service))
             ->values();

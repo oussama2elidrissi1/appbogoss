@@ -15,6 +15,7 @@ class CatalogController extends Controller
     {
         $employees = Employee::where('is_active', true)
             ->where('is_company', false)
+            ->where('is_demo', false)
             ->orderBy('name')
             ->get()
             ->map(fn (Employee $employee) => [

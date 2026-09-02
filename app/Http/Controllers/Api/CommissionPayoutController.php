@@ -30,6 +30,7 @@ class CommissionPayoutController extends Controller
         $period = $validated['period'] ?? Carbon::now()->format('Y-m');
 
         $employees = Employee::query()->where('is_company', false)
+            ->where('is_demo', false)
             ->when(! empty($validated['employee_id']), fn ($query) => $query->where('id', $validated['employee_id']))
             ->orderBy('name')
             ->get();

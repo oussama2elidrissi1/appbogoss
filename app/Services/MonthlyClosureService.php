@@ -308,7 +308,9 @@ class MonthlyClosureService
     {
         $rows = [];
 
-        foreach (Employee::query()->where('is_company', false)->orderBy('name')->get() as $employee) {
+        // `is_demo` : une commission du compte de validation Google Play
+        // ne doit jamais apparaitre ici ni bloquer la cloture du mois.
+        foreach (Employee::query()->where('is_company', false)->where('is_demo', false)->orderBy('name')->get() as $employee) {
             $preview = $this->payouts->preview($employee, $period);
 
             $hasSituation = $preview['commission_total'] > 0

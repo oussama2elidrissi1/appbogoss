@@ -354,6 +354,8 @@ export interface Employee {
     /** Precise service allow-list, narrower than service_categories — empty means no restriction. */
     allowed_service_ids: number[];
     is_active: boolean;
+    /** Fiche du compte de validation Google Play — badge et nettoyage. */
+    is_demo?: boolean;
     default_commission_rate: number | null;
     account?: EmployeeAccount | null;
 }

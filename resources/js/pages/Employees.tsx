@@ -223,6 +223,11 @@ export default function Employees() {
                                         <div className="min-w-0 flex-1">
                                             <p className="truncate text-sm font-semibold text-foreground">{employee.name}</p>
                                             <p className="mt-0.5 truncate text-xs text-muted-foreground">{employee.role}</p>
+                                            {employee.is_demo ? (
+                                                <Badge variant="accent" className="mt-1">
+                                                    {t('Google Play Test')}
+                                                </Badge>
+                                            ) : null}
                                         </div>
 
                                         {canManage ? (

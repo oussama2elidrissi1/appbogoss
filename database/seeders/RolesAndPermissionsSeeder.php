@@ -165,5 +165,10 @@ class RolesAndPermissionsSeeder extends Seeder
 
         $partner = Role::firstOrCreate(['name' => 'partner', 'guard_name' => 'web']);
         $partner->syncPermissions(['agenda.partner']);
+
+        // Compte de validation Google Play : AUCUNE permission nommee.
+        // L'experience employe repose sur la fiche Employee liee, et le
+        // middleware ReviewerSandbox restreint ses ecritures cote serveur.
+        Role::firstOrCreate(['name' => 'google_reviewer', 'guard_name' => 'web']);
     }
 }

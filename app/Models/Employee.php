@@ -23,6 +23,7 @@ class Employee extends Model
         'allowed_service_ids',
         'is_active',
         'is_company',
+        'is_demo',
         'company_area',
         'default_commission_rate',
     ];
@@ -33,6 +34,7 @@ class Employee extends Model
         'allowed_service_ids' => 'array',
         'is_active' => 'boolean',
         'is_company' => 'boolean',
+        'is_demo' => 'boolean',
         'default_commission_rate' => 'decimal:2',
     ];
 

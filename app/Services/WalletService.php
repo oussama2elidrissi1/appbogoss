@@ -1051,6 +1051,7 @@ class WalletService
     {
         $employees = Employee::query()
             ->where('is_company', false)
+            ->where('is_demo', false)
             ->orderBy('name')
             ->get();
 

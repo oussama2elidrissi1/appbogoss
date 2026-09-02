@@ -46,7 +46,7 @@ class DashboardService
         $clientsTotal = Client::count();
         $clientsNewThisMonth = Client::where('created_at', '>=', $monthStart)->count();
 
-        $employeesActive = Employee::where('is_active', true)->where('is_company', false)->count();
+        $employeesActive = Employee::where('is_active', true)->where('is_company', false)->where('is_demo', false)->count();
 
         // `caisse()` : les depenses payees sur un portefeuille sont deja
         // financees par des resultats de caisse deja comptes ici.

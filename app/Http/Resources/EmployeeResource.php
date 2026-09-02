@@ -23,6 +23,8 @@ class EmployeeResource extends JsonResource
             'service_categories' => $this->service_categories ?? [],
             'allowed_service_ids' => $this->allowed_service_ids ?? [],
             'is_active' => (bool) $this->is_active,
+            // Fiche du compte de validation Google Play : badge et nettoyage.
+            'is_demo' => (bool) $this->is_demo,
             'default_commission_rate' => $this->default_commission_rate !== null
                 ? (float) $this->default_commission_rate
                 : null,
