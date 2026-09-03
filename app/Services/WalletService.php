@@ -349,12 +349,16 @@ class WalletService
         $reversal = $credit === null
             ? null
             : WalletTransaction::where('reverses_transaction_id', $credit->id)->first();
+        // Un crédit contre-passé PUIS réécrit ailleurs n'est pas une
+        // annulation : le résultat existe toujours, dans un autre
+        // portefeuille. C'est ce mouvement-là qui dit où est l'argent.
+        $reattribution = $reversal === null ? null : $this->workDayReattribution($day);
 
-        if ($credit !== null) {
-            $credit->loadMissing('wallet.user');
-        }
+        $movement = $reattribution ?? $credit;
+        $movement?->loadMissing('wallet.user');
 
         $status = match (true) {
+            $reattribution !== null => 'reattributed',
             $credit !== null && $reversal !== null => 'reversed',
             $credit !== null => 'credited',
             ! $this->isWithinScope($day->date) => 'out_of_scope',
@@ -366,12 +370,37 @@ class WalletService
         return [
             'status' => $status,
             'start_date' => $this->startDate()->toDateString(),
-            'amount' => $credit === null ? null : $credit->signedAmount(),
-            'transaction_id' => $credit?->id,
-            'credited_at' => $credit?->created_at?->toIso8601String(),
-            'wallet_id' => $credit?->wallet_id,
-            'wallet_owner' => $credit?->wallet?->user?->name,
+            'amount' => $movement?->signedAmount(),
+            'transaction_id' => $movement?->id,
+            'credited_at' => $movement?->created_at?->toIso8601String(),
+            'wallet_id' => $movement?->wallet_id,
+            'wallet_owner' => $movement?->wallet?->user?->name,
         ];
+    }
+
+    /**
+     * Le crédit de réattribution de cette journée, s'il est encore actif.
+     *
+     * C'est l'ajustement marqué `cash_register_correction` qui pointe la
+     * journée — celui qu'écrit `reattributeWorkDayResult()`. Une
+     * réattribution elle-même contre-passée ne dit plus où est l'argent, et
+     * ne compte donc pas.
+     */
+    private function workDayReattribution(WorkDay $day): ?WalletTransaction
+    {
+        $adjustment = WalletTransaction::where('source_type', $day->getMorphClass())
+            ->where('source_id', $day->getKey())
+            ->where('type', WalletTransaction::TYPE_ADJUSTMENT)
+            ->where('category', WalletTransaction::CATEGORY_CASH_REGISTER_CORRECTION)
+            ->first();
+
+        if ($adjustment === null) {
+            return null;
+        }
+
+        return WalletTransaction::where('reverses_transaction_id', $adjustment->id)->exists()
+            ? null
+            : $adjustment;
     }
 
     // =========================================================================
@@ -1386,6 +1415,14 @@ class WalletService
                     'counterparty_wallet_id' => $leg->counterparty_wallet_id,
                     'reverses_transaction_id' => $leg->id,
                     'performed_by_user_id' => $actor->id,
+                    // La contre-passe d'un résultat de caisse reste de
+                    // l'argent de la caisse : le marqueur suit, pour que le
+                    // compteur « Résultats de caisse reçus » rende la journée
+                    // quand son crédit est annulé ou réattribué — sans lui,
+                    // elle resterait comptée ici ET là où elle repart.
+                    'category' => $leg->isCashRegisterFlow()
+                        ? WalletTransaction::CATEGORY_CASH_REGISTER_CORRECTION
+                        : null,
                     'description' => $label.' — annulation du mouvement #'.$leg->id,
                 ]);
 
@@ -1400,6 +1437,101 @@ class WalletService
         });
     }
 
+    /**
+     * Réattribue le résultat d'une journée de caisse au bon portefeuille.
+     *
+     * Le crédit mal placé est contre-passé chez son détenteur, et un
+     * AJUSTEMENT du même montant est écrit chez le destinataire — les deux
+     * dans LA MÊME transaction : il ne peut pas exister d'état où l'argent a
+     * quitté un portefeuille sans être arrivé dans l'autre, ce que
+     * permettaient deux appels séparés à `reverse()` puis `adjust()`.
+     *
+     * Les deux écritures portent `category = cash_register_correction`, et le
+     * crédit de réattribution pointe la journée (`source`). C'est ce qui
+     * distingue une réattribution d'un ajustement manuel ordinaire : elle
+     * reste comptée dans « Résultats de caisse reçus » — chez celui qui rend
+     * en moins, chez celui qui reçoit en plus, donc UNE seule fois dans tout
+     * le système — quand l'ajustement libre n'y entre jamais.
+     *
+     * Le lien avec la journée sert aussi de verrou anti-double-comptage :
+     * l'index unique `wallet_tx_source_unique` interdit une seconde
+     * réattribution de la même journée, exactement comme il interdit son
+     * second crédit initial. Et comme la contre-passe refuse un mouvement
+     * déjà contre-passé, rejouer la réattribution échoue proprement.
+     *
+     * @return array{reversal: WalletTransaction, credit: WalletTransaction}
+     */
+    public function reattributeWorkDayResult(
+        WalletTransaction $credit,
+        User $target,
+        User $actor,
+        ?string $context = null,
+    ): array {
+        if ($credit->type !== WalletTransaction::TYPE_CASH_REGISTER_RESULT) {
+            throw ValidationException::withMessages([
+                'transaction' => 'Seul un résultat de caisse peut être réattribué.',
+            ]);
+        }
+
+        $day = $credit->source;
+
+        if (! $day instanceof WorkDay) {
+            throw ValidationException::withMessages([
+                'transaction' => 'Ce mouvement n\'est lié à aucune journée de caisse.',
+            ]);
+        }
+
+        $destination = $this->walletFor($target);
+
+        if ($destination->id === $credit->wallet_id) {
+            throw ValidationException::withMessages([
+                'transaction' => 'Le résultat de cette journée est déjà dans ce portefeuille.',
+            ]);
+        }
+
+        $label = 'Réattribution du résultat de caisse du '.CarbonImmutable::parse($day->date)->format('d/m/Y');
+
+        try {
+            return DB::transaction(function () use ($credit, $destination, $actor, $day, $label, $context) {
+                [$reversal] = $this->reverse($credit, $actor, $label);
+
+                $locked = $this->lock($destination);
+
+                $adjustment = $this->write($locked, [
+                    'type' => WalletTransaction::TYPE_ADJUSTMENT,
+                    'cents' => $this->toCents($credit->signedAmount()),
+                    'bucket' => WalletTransaction::BUCKET_AVAILABLE,
+                    'source' => $day,
+                    'category' => WalletTransaction::CATEGORY_CASH_REGISTER_CORRECTION,
+                    'performed_by_user_id' => $actor->id,
+                    'description' => $context === null ? $label : $label.' — '.$context,
+                    // La date métier reste celle de la journée, comme sur le
+                    // crédit remplacé : le mouvement se classe dans le bon mois.
+                    'occurred_at' => CarbonImmutable::parse($day->date)->startOfDay(),
+                ]);
+
+                $this->activityLogger->log('wallet.reattribution', $adjustment, [], [
+                    'work_day_id' => $day->id,
+                    'from_wallet_id' => $credit->wallet_id,
+                    'to_wallet_id' => $locked->id,
+                    'amount' => $credit->signedAmount(),
+                ]);
+
+                return ['reversal' => $reversal, 'credit' => $adjustment];
+            });
+        } catch (QueryException $exception) {
+            // L'index unique (source, type) a tranché une course : cette
+            // journée est déjà réattribuée, la compter deux fois est refusé.
+            if ($this->isUniqueViolation($exception)) {
+                throw ValidationException::withMessages([
+                    'transaction' => 'Le résultat de cette journée a déjà été réattribué.',
+                ]);
+            }
+
+            throw $exception;
+        }
+    }
+
     // =========================================================================
     // 6. Lectures
     // =========================================================================
@@ -1411,30 +1543,51 @@ class WalletService
      */
     public function summary(Wallet $wallet): array
     {
+        // `category` entre dans le GROUP BY pour séparer, parmi les
+        // ajustements, les corrections de résultats de caisse des ajustements
+        // ordinaires : les premières comptent avec la caisse, jamais les
+        // seconds.
         $rows = WalletTransaction::where('wallet_id', $wallet->id)
-            ->selectRaw('type, direction, SUM(amount) as total, COUNT(*) as count')
-            ->groupBy('type', 'direction')
+            ->selectRaw('type, direction, category, SUM(amount) as total, COUNT(*) as count')
+            ->groupBy('type', 'direction', 'category')
             ->get();
 
-        $sum = function (string $type, string $direction) use ($rows): float {
-            $row = $rows->first(
-                fn ($row) => $row->type === $type && $row->direction === $direction,
-            );
+        $sumWhere = fn (callable $match): float => round((float) $rows->filter($match)->sum('total'), 2);
 
-            return round((float) ($row->total ?? 0), 2);
-        };
+        $sum = fn (string $type, string $direction): float => $sumWhere(
+            fn ($row) => $row->type === $type && $row->direction === $direction,
+        );
+
+        $isCashCorrection = fn ($row): bool => $row->type === WalletTransaction::TYPE_ADJUSTMENT
+            && $row->category === WalletTransaction::CATEGORY_CASH_REGISTER_CORRECTION;
 
         $cashRegisterIn = $sum(WalletTransaction::TYPE_CASH_REGISTER_RESULT, WalletTransaction::DIRECTION_IN);
         $cashRegisterOut = $sum(WalletTransaction::TYPE_CASH_REGISTER_RESULT, WalletTransaction::DIRECTION_OUT);
-        $adjustmentsIn = $sum(WalletTransaction::TYPE_ADJUSTMENT, WalletTransaction::DIRECTION_IN);
-        $adjustmentsOut = $sum(WalletTransaction::TYPE_ADJUSTMENT, WalletTransaction::DIRECTION_OUT);
+        $correctionsIn = $sumWhere(fn ($row) => $isCashCorrection($row)
+            && $row->direction === WalletTransaction::DIRECTION_IN);
+        $correctionsOut = $sumWhere(fn ($row) => $isCashCorrection($row)
+            && $row->direction === WalletTransaction::DIRECTION_OUT);
+        $adjustmentsIn = $sumWhere(fn ($row) => $row->type === WalletTransaction::TYPE_ADJUSTMENT
+            && ! $isCashCorrection($row)
+            && $row->direction === WalletTransaction::DIRECTION_IN);
+        $adjustmentsOut = $sumWhere(fn ($row) => $row->type === WalletTransaction::TYPE_ADJUSTMENT
+            && ! $isCashCorrection($row)
+            && $row->direction === WalletTransaction::DIRECTION_OUT);
 
         return [
             'balance' => round((float) $wallet->balance, 2),
             'cash_fund_balance' => round((float) $wallet->cash_fund_balance, 2),
             'total_held' => $wallet->totalHeld(),
-            // Net des journées déficitaires, qui sont bien écrites au débit.
-            'cash_registers_total' => round($cashRegisterIn - $cashRegisterOut, 2),
+            // Tout l'argent venu de la caisse : les crédits de clôture (net
+            // des journées déficitaires, écrites au débit) PLUS les
+            // corrections marquées — la réattribution d'un crédit mal placé
+            // et sa contre-passe. Une journée réattribuée compte ainsi une
+            // seule fois dans tout le système : en moins chez celui qui rend,
+            // en plus chez celui qui reçoit.
+            'cash_registers_total' => round(
+                $cashRegisterIn - $cashRegisterOut + $correctionsIn - $correctionsOut,
+                2,
+            ),
             'transfers_sent_total' => $sum(WalletTransaction::TYPE_TRANSFER_TO_SUPER_ADMIN, WalletTransaction::DIRECTION_OUT),
             'transfers_received_total' => $sum(WalletTransaction::TYPE_TRANSFER_TO_SUPER_ADMIN, WalletTransaction::DIRECTION_IN),
             // Argent injecté de l'extérieur par le patron. Sur un portefeuille
@@ -1447,6 +1600,9 @@ class WalletService
             'expenses_total' => $sum(WalletTransaction::TYPE_EXPENSE, WalletTransaction::DIRECTION_OUT),
             'cash_fund_allocated_total' => $sum(WalletTransaction::TYPE_CASH_FUND, WalletTransaction::DIRECTION_OUT),
             'cash_fund_returned_total' => $sum(WalletTransaction::TYPE_CASH_FUND_RETURN, WalletTransaction::DIRECTION_IN),
+            // Les ajustements ORDINAIRES seulement : une correction de
+            // résultat de caisse est déjà comptée ci-dessus, et l'y laisser
+            // compterait le même argent deux fois.
             'adjustments_total' => round($adjustmentsIn - $adjustmentsOut, 2),
             'movements_count' => (int) $rows->sum('count'),
             'start_date' => $this->startDate()->toDateString(),

@@ -408,6 +408,22 @@ function WalletDayStatus({ day }: { day: WorkDay }) {
         );
     }
 
+    if (wallet.status === 'reattributed') {
+        return (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-success/25 bg-success/[0.08] px-3 py-2 text-sm">
+                <Badge variant="success">{t('Crédit réattribué')}</Badge>
+                <span className="tabular-nums font-semibold">
+                    +{formatCurrency(wallet.amount ?? 0, { maximumFractionDigits: 2 })}
+                </span>
+                {wallet.wallet_owner && (
+                    <span className="text-muted-foreground">
+                        {t('vers le portefeuille de {name}', { name: wallet.wallet_owner })}
+                    </span>
+                )}
+            </div>
+        );
+    }
+
     if (wallet.status === 'reversed') {
         return (
             <div className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/30 bg-destructive/[0.08] px-3 py-2 text-sm">

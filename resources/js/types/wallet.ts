@@ -362,6 +362,8 @@ export interface WalletMutationResult {
  * rapports par jour.
  *
  *  - `credited`     — le résultat a bien alimenté le portefeuille de l'admin ;
+ *  - `reattributed` — crédit déplacé vers un autre portefeuille : l'argent y
+ *                     reste compté comme résultat de caisse ;
  *  - `out_of_scope` — journée antérieure au démarrage : informative, jamais comptée ;
  *  - `pending`      — journée encore ouverte ;
  *  - `zero`         — résultat nul, aucun mouvement à écrire ;
@@ -370,6 +372,7 @@ export interface WalletMutationResult {
  */
 export type WorkDayWalletStatus =
     | 'credited'
+    | 'reattributed'
     | 'out_of_scope'
     | 'pending'
     | 'zero'

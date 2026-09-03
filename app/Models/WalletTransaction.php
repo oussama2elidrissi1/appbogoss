@@ -57,6 +57,18 @@ class WalletTransaction extends Model
     /** Correction traçable — jamais une suppression. */
     public const TYPE_ADJUSTMENT = 'ADJUSTMENT';
 
+    /**
+     * Marqueur, dans `category`, d'un AJUSTEMENT qui corrige un résultat de
+     * caisse : la contre-passe d'un crédit mal placé et la réattribution qui
+     * le recrée dans le bon portefeuille le portent tous les deux.
+     *
+     * C'est lui qui garde cet argent identifiable comme « venu de la caisse » :
+     * le compteur « Résultats de caisse reçus » l'inclut, et les ajustements
+     * manuels ordinaires — qui ne portent jamais ce marqueur — en restent
+     * exclus.
+     */
+    public const CATEGORY_CASH_REGISTER_CORRECTION = 'cash_register_correction';
+
     public const TYPES = [
         self::TYPE_CASH_REGISTER_RESULT,
         self::TYPE_TRANSFER_TO_SUPER_ADMIN,
@@ -156,5 +168,20 @@ class WalletTransaction extends Model
     public function scopeOfType(Builder $query, string $type): Builder
     {
         return $query->where('type', $type);
+    }
+
+    /**
+     * Ce mouvement porte-t-il de l'argent d'un résultat de caisse ?
+     *
+     * Vrai pour le crédit de clôture lui-même ET pour tout ajustement marqué
+     * comme correction de résultat de caisse. C'est le prédicat qu'utilisent
+     * le compteur « Résultats de caisse reçus » et la propagation du marqueur
+     * lors d'une contre-passe.
+     */
+    public function isCashRegisterFlow(): bool
+    {
+        return $this->type === self::TYPE_CASH_REGISTER_RESULT
+            || ($this->type === self::TYPE_ADJUSTMENT
+                && $this->category === self::CATEGORY_CASH_REGISTER_CORRECTION);
     }
 }

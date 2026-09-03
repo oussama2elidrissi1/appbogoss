@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\Expense;
+use App\Models\WalletTransaction;
 use App\Models\WorkDay;
 use App\Services\WalletService;
 use Illuminate\Http\Request;
@@ -112,7 +113,12 @@ class WalletTransactionResource extends JsonResource
             'EXPENSE' => 'Dépense',
             'CASH_FUND' => 'Affecté au fond de caisse',
             'CASH_FUND_RETURN' => 'Fond de caisse repris',
-            'ADJUSTMENT' => 'Ajustement',
+            // Une correction de résultat de caisse (réattribution, annulation)
+            // n'est pas un ajustement comme les autres : elle déplace de
+            // l'argent venu de la caisse, et l'historique doit le dire.
+            'ADJUSTMENT' => $this->category === WalletTransaction::CATEGORY_CASH_REGISTER_CORRECTION
+                ? 'Correction de résultat de caisse'
+                : 'Ajustement',
             default => $this->type,
         };
     }

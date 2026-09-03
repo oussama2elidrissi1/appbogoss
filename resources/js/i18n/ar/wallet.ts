@@ -214,6 +214,7 @@ const wallet: Record<string, string> = {
     'Portefeuille crédité': 'قُيّد في المحفظة',
     'vers le portefeuille de {name}': 'إلى محفظة {name}',
     'Crédit contre-passé': 'قيد معكوس',
+    'Crédit réattribué': 'قيد معاد إسناده',
     'Un ajustement a annulé ce crédit ; les deux mouvements restent dans l’historique.':
         'ألغت تسويةٌ هذا القيد؛ وتبقى الحركتان في السجل.',
     'Hors portefeuille': 'خارج المحفظة',

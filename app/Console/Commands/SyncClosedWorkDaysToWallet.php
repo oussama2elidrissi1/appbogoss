@@ -141,9 +141,11 @@ class SyncClosedWorkDaysToWallet extends Command
      *
      * La réparation respecte le ledger : rien n'est modifié ni supprimé. Le
      * crédit fautif est CONTRE-PASSÉ chez le patron, et un AJUSTEMENT du même
-     * montant est écrit chez l'admin, chacun portant son motif. La journée
-     * s'affichera « crédit contre-passé » dans les Rapports — c'est exact, et
-     * les deux historiques racontent toute l'histoire.
+     * montant est écrit chez l'admin — les deux marqués « correction de
+     * résultat de caisse » et écrits dans la même transaction par
+     * `WalletService::reattributeWorkDayResult()`. L'argent reste donc compté
+     * comme résultat de caisse (une seule fois), et la journée s'affiche
+     * « réattribuée » dans les Rapports, avec son nouveau portefeuille.
      *
      * L'admin cible est le premier non-super-admin entre l'ouvreur de la
      * journée et l'auteur du mouvement (celui qui a clôturé). Une journée
@@ -177,8 +179,16 @@ class SyncClosedWorkDaysToWallet extends Command
                 continue; // bien placé, rien à faire
             }
 
+            if (! $day instanceof WorkDay) {
+                // Sans journée liée, impossible de réattribuer proprement :
+                // le service exige la source pour marquer et verrouiller.
+                $this->warn("  {$label} : aucune journée liée — à régler par un ajustement Super Admin.");
+
+                continue;
+            }
+
             $target = collect([
-                $day instanceof WorkDay ? $day->openedBy : null,
+                $day->openedBy,
                 $credit->performedBy,
             ])->first(fn (?User $user) => $user !== null && ! $user->hasRole('super-admin'));
 
@@ -203,20 +213,11 @@ class SyncClosedWorkDaysToWallet extends Command
                 continue;
             }
 
-            $wallets->reverse(
+            $wallets->reattributeWorkDayResult(
                 $credit,
+                $target,
                 $holder,
-                'Résultat de caisse crédité au portefeuille du patron par erreur',
-            );
-
-            $wallets->adjust(
-                $wallets->walletFor($target),
-                $amount,
-                sprintf(
-                    'Réattribution du résultat de caisse du %s (crédité à tort au portefeuille du patron)',
-                    $label,
-                ),
-                $holder,
+                'crédité à tort au portefeuille du patron',
             );
 
             $this->info(sprintf(
