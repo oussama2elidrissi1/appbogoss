@@ -8,7 +8,7 @@ import { agendaCulture, agendaLocalizer, agendaMessages } from './agendaLocalize
 import { buildAgendaEvents, UNASSIGNED_RESOURCE_ID, type AgendaEvent, type AgendaResource } from './agendaEvents';
 import { useI18n } from '@/lib/i18n';
 import { cn, formatTime } from '@/lib/utils';
-import { AGENDA_CLOSE_HOUR, AGENDA_OPEN_HOUR, AGENDA_STEP_MINUTES } from '@/lib/agendaHours';
+import { AGENDA_STEP_MINUTES, agendaCalendarMax, agendaCalendarMin } from '@/lib/agendaHours';
 import { Button } from '@/components/ui/button';
 import type { Appointment, Employee } from '@/types/workday';
 
@@ -81,8 +81,8 @@ export function AgendaCalendar({
                 views={[Views.DAY, Views.WEEK, Views.MONTH]}
                 step={AGENDA_STEP_MINUTES}
                 timeslots={4}
-                min={new Date(1970, 0, 1, AGENDA_OPEN_HOUR, 0)}
-                max={new Date(1970, 0, 1, AGENDA_CLOSE_HOUR, 0)}
+                min={agendaCalendarMin()}
+                max={agendaCalendarMax()}
                 selectable
                 popup
                 resizable
