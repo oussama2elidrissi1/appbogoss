@@ -58,6 +58,16 @@ class ReviewerSandbox
 
     public function handle(Request $request, Closure $next): Response
     {
+        // La vitrine publique (/api/public/*) est par définition HORS du bac
+        // à sable : elle est ouverte à n'importe quel anonyme sur Internet,
+        // donc un reviewer qui l'utilise n'obtient rien de plus qu'un
+        // passant. La bloquer produisait un vrai bug : le token mémorisé du
+        // reviewer suffisait à faire refuser une réservation client publique.
+        $routeUri = $request->route()?->uri() ?? $request->path();
+        if (str_starts_with($routeUri, 'api/public/')) {
+            return $next($request);
+        }
+
         // Le groupe `api` s'exécute avant `auth:sanctum` (middleware de
         // route) : on interroge explicitement le garde sanctum, qui résout
         // aussi bien le token Bearer mobile que la session SPA.

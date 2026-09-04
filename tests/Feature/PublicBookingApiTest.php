@@ -450,6 +450,58 @@ class PublicBookingApiTest extends TestCase
         $this->assertCount(0, $this->getJson('/api/appointments?date=2026-09-10&source=partner')->json('data'));
     }
 
+    // ------------------------------------------------------------------
+    // La vitrine reste PUBLIQUE, même avec une session en poche
+    // ------------------------------------------------------------------
+    //
+    // Régression : le token mémorisé d'un employé — et surtout celui du
+    // compte Google Play Reviewer, que son bac à sable limite — suffisait à
+    // faire refuser (403) une réservation client prise depuis la vitrine.
+    // Une réservation publique est une action CLIENT : la session qui
+    // traîne dans l'application ne doit ni la bloquer, ni en changer la
+    // source, ni donner quoi que ce soit de plus en retour.
+
+    public function test_public_booking_succeeds_with_a_normal_employee_session(): void
+    {
+        $service = $this->service();
+        $this->employee('Sofia');
+        $employeeUser = User::factory()->create(['role' => 'employee']);
+        $employeeUser->assignRole('employee');
+        Sanctum::actingAs($employeeUser);
+
+        $response = $this->postJson('/api/public/reservations', $this->bookingPayload($service));
+
+        $response->assertCreated();
+        $appointment = Appointment::query()->findOrFail($response->json('data.id'));
+        $this->assertSame(Appointment::SOURCE_MOBILE_PUBLIC, $appointment->source,
+            'La source reste mobile_public, jamais celle de la session présente.');
+    }
+
+    public function test_public_booking_succeeds_with_a_google_reviewer_session(): void
+    {
+        $service = $this->service();
+        $this->employee('Sofia');
+        $reviewer = User::factory()->create(['role' => 'google_reviewer']);
+        $reviewer->assignRole('google_reviewer');
+        Sanctum::actingAs($reviewer);
+
+        // Toute la vitrine répond, lecture comme écriture.
+        $this->getJson('/api/public/services')->assertOk();
+        $response = $this->postJson('/api/public/reservations', $this->bookingPayload($service));
+
+        $response->assertCreated();
+        $appointment = Appointment::query()->findOrFail($response->json('data.id'));
+        $this->assertSame(Appointment::SOURCE_MOBILE_PUBLIC, $appointment->source);
+        $this->assertNull($appointment->created_by_user_id,
+            'Une réservation publique n’est attribuée à AUCUN compte — pas même celui de la session.');
+
+        // Le bac à sable, lui, reste intact dans l'espace employé : la
+        // vitrine n'a accordé aucune permission supplémentaire.
+        $this->postJson('/api/expenses', ['label' => 'X', 'amount' => 10])->assertForbidden();
+        $this->deleteJson('/api/clients/1')->assertForbidden();
+        $this->getJson('/api/wallet')->assertForbidden();
+    }
+
     public function test_staff_agenda_creation_still_stamps_web_admin_source(): void
     {
         $service = $this->service();

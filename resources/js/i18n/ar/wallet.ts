@@ -272,6 +272,12 @@ const wallet: Record<string, string> = {
     'Employé': 'الموظف',
     'Portefeuille': 'المحفظة',
     'Google Play Test': 'حساب تجريبي Google Play',
+    'Contre-passer': 'قيد عكسي',
+    'Contre-passer ce mouvement ?': 'تسجيل قيد عكسي لهذه الحركة؟',
+    'Un ajustement du montant opposé sera écrit dans l’historique. Rien n’est supprimé.': 'سيُسجل تعديل بالمبلغ المعاكس في السجل. لا شيء يُحذف.',
+    'Motif de la correction': 'سبب التصحيح',
+    'Ex. : apport saisi par erreur': 'مثال: إيداع أُدخل عن طريق الخطأ',
+    'Ce mouvement a déjà été contre-passé.': 'هذه الحركة سبق تسجيل قيد عكسي لها.',
     'Compte de démonstration Google Play : cette action est désactivée.': 'حساب تجريبي Google Play: هذا الإجراء معطل.',
 };
 

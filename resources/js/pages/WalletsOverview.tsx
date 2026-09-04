@@ -8,6 +8,7 @@ import {
     PiggyBank,
     Receipt,
     Send,
+    Undo2,
     UserSquare2,
     Users,
     Wallet as WalletIcon,
@@ -19,6 +20,7 @@ import {
     getWalletOverview,
     getWalletTransactions,
     getWalletTransactionsFor,
+    reverseWalletTransaction,
     transferToAdmin,
 } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
@@ -91,6 +93,8 @@ export default function WalletsOverview() {
         queryKey: ['wallet', 'transactions', {}],
         queryFn: () => getWalletTransactions({ limit: 50 }),
     });
+
+    const [toReverse, setToReverse] = useState<WalletTransaction | null>(null);
 
     const refresh = () => {
         void queryClient.invalidateQueries({ queryKey: ['wallets'] });
@@ -249,12 +253,22 @@ export default function WalletsOverview() {
                             )}
 
                             {(historyQuery.data ?? []).map((transaction) => (
-                                <MovementRow key={transaction.id} transaction={transaction} />
+                                <MovementRow
+                                    key={transaction.id}
+                                    transaction={transaction}
+                                    onReverse={setToReverse}
+                                />
                             ))}
                         </CardContent>
                     </Card>
                 </>
             )}
+
+            <ReverseDialog
+                transaction={toReverse}
+                onClose={() => setToReverse(null)}
+                onDone={refresh}
+            />
 
             <OwnerActionDialog
                 action={action}
@@ -561,6 +575,8 @@ function OwnerActionDialog({
 
 function WalletDetail({ walletId, onBack }: { walletId: number; onBack: () => void }) {
     const { t } = useI18n();
+    const [toReverse, setToReverse] = useState<WalletTransaction | null>(null);
+    const queryClient = useQueryClient();
 
     const walletQuery = useQuery({
         queryKey: ['wallets', walletId],
@@ -636,17 +652,40 @@ function WalletDetail({ walletId, onBack }: { walletId: number; onBack: () => vo
                     )}
 
                     {(historyQuery.data ?? []).map((transaction) => (
-                        <MovementRow key={transaction.id} transaction={transaction} />
+                        <MovementRow
+                            key={transaction.id}
+                            transaction={transaction}
+                            onReverse={setToReverse}
+                        />
                     ))}
                 </CardContent>
             </Card>
+
+            <ReverseDialog
+                transaction={toReverse}
+                onClose={() => setToReverse(null)}
+                onDone={() => {
+                    void queryClient.invalidateQueries({ queryKey: ['wallets'] });
+                    void queryClient.invalidateQueries({ queryKey: ['wallet'] });
+                }}
+            />
         </motion.div>
     );
 }
 
-function MovementRow({ transaction }: { transaction: WalletTransaction }) {
+function MovementRow({
+    transaction,
+    onReverse,
+}: {
+    transaction: WalletTransaction;
+    onReverse?: (transaction: WalletTransaction) => void;
+}) {
     const { t } = useI18n();
     const incoming = transaction.signed_amount >= 0;
+    // Un ajustement est deja une correction : on ne propose pas de le
+    // contre-passer a son tour depuis l'interface — le cas normal est
+    // « j'annule MA saisie erronee », pas une chaine de corrections.
+    const reversible = onReverse && transaction.type !== 'ADJUSTMENT';
 
     return (
         <div className="flex items-start justify-between gap-3 rounded-md border border-tint/[0.06] bg-tint/[0.02] px-3 py-2.5">
@@ -688,7 +727,116 @@ function MovementRow({ transaction }: { transaction: WalletTransaction }) {
                     {t('Solde')}&nbsp;:{' '}
                     {formatCurrency(transaction.balance_after, { maximumFractionDigits: 2 })}
                 </p>
+                {reversible && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="mt-1 h-7 px-2 text-[11px] text-muted-foreground"
+                        onClick={() => onReverse(transaction)}
+                    >
+                        <Undo2 className="mr-1 h-3 w-3" />
+                        {t('Contre-passer')}
+                    </Button>
+                )}
             </div>
         </div>
+    );
+}
+
+
+/**
+ * Contre-passation d'un mouvement — la gomme du ledger, sans gomme.
+ *
+ * Rien n'est supprimé : le serveur écrit un AJUSTEMENT du montant opposé,
+ * lié au mouvement d'origine (`reverses_transaction_id`), et refuse une
+ * seconde contre-passation du même mouvement. Le motif est obligatoire :
+ * dans un historique financier, une correction sans explication est une
+ * question posée à celui qui relira les comptes.
+ */
+function ReverseDialog({
+    transaction,
+    onClose,
+    onDone,
+}: {
+    transaction: WalletTransaction | null;
+    onClose: () => void;
+    onDone: () => void;
+}) {
+    const { t } = useI18n();
+    const [reason, setReason] = useState('');
+    const [error, setError] = useState<string | null>(null);
+
+    const mutation = useMutation({
+        mutationFn: () => reverseWalletTransaction(transaction!.id, reason.trim()),
+        onSuccess: () => {
+            onDone();
+            onClose();
+        },
+        onError: (err) => setError(getErrorMessage(err)),
+    });
+
+    const close = () => {
+        if (mutation.isPending) return;
+        setReason('');
+        setError(null);
+        onClose();
+    };
+
+    return (
+        <Dialog open={transaction !== null} onOpenChange={(open) => !open && close()}>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                    <DialogTitle>{t('Contre-passer ce mouvement ?')}</DialogTitle>
+                    <DialogDescription>
+                        {t('Un ajustement du montant opposé sera écrit dans l’historique. Rien n’est supprimé.')}
+                    </DialogDescription>
+                </DialogHeader>
+
+                {transaction && (
+                    <div className="rounded-md border border-tint/[0.08] bg-tint/[0.02] px-3.5 py-2.5 text-sm">
+                        <p className="font-medium">{transaction.type_label}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                            {transaction.signed_amount >= 0 ? '+' : '−'}
+                            {formatCurrency(Math.abs(transaction.signed_amount), {
+                                maximumFractionDigits: 2,
+                            })}{' '}
+                            · {formatDate(transaction.occurred_at)}
+                            {transaction.description ? ` · ${transaction.description}` : ''}
+                        </p>
+                    </div>
+                )}
+
+                <div className="space-y-1.5">
+                    <Label htmlFor="reverse-reason">{t('Motif de la correction')}</Label>
+                    <Input
+                        id="reverse-reason"
+                        value={reason}
+                        onChange={(event) => setReason(event.target.value)}
+                        placeholder={t('Ex. : apport saisi par erreur')}
+                        maxLength={255}
+                    />
+                </div>
+
+                {error && (
+                    <p className="rounded-md border border-destructive/40 bg-destructive/10 p-2.5 text-xs text-destructive">
+                        {error}
+                    </p>
+                )}
+
+                <DialogFooter>
+                    <Button variant="ghost" onClick={close} disabled={mutation.isPending}>
+                        {t('Annuler')}
+                    </Button>
+                    <Button
+                        variant="destructive"
+                        disabled={reason.trim().length === 0 || mutation.isPending}
+                        onClick={() => mutation.mutate()}
+                    >
+                        {mutation.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                        {t('Contre-passer')}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }
