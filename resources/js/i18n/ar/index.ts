@@ -32,6 +32,7 @@ import missingC from './missingC';
 import missingD from './missingD';
 import loginA from './loginA';
 import missingE from './missingE';
+import publicBooking from './publicBooking';
 import wallet from './wallet';
 
 /**
@@ -77,6 +78,7 @@ const ar: Record<string, string> = {
     ...loginA,
     ...missingE,
     ...wallet,
+    ...publicBooking,
 };
 
 export default ar;

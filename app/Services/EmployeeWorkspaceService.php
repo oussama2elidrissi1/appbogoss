@@ -728,7 +728,11 @@ class EmployeeWorkspaceService
             'amount' => round((float) $items->sum(fn (array $item) => (float) ($item['price_snapshot'] ?? 0)), 2),
             'status' => $appointment->status,
             'notes' => $appointment->notes,
-            'origin' => $appointment->partner_id ? 'Reservation partenaire' : 'Reservation BOGOSLAND',
+            'origin' => match (true) {
+                $appointment->source === \App\Models\Appointment::SOURCE_MOBILE_PUBLIC => 'Application mobile',
+                $appointment->partner_id !== null => 'Reservation partenaire',
+                default => 'Reservation BOGOSLAND',
+            },
         ];
     }
 

@@ -6,6 +6,7 @@ import { CalendarX2, ChevronLeft, ChevronRight, Handshake, Phone, Users } from '
 import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatTime } from '@/lib/utils';
 import type { Appointment, AppointmentStatus } from '@/types/workday';
+import { SOURCE_FILTERS, sourceMeta, type ReservationSource } from '@/lib/reservationSource';
 import { itemsOf } from './agendaEvents';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -72,10 +73,16 @@ export function ReservationList({
 }: ReservationListProps) {
     const { t } = useI18n();
     const [statusFilter, setStatusFilter] = useState<AppointmentStatus | 'all'>('all');
+    const [sourceFilter, setSourceFilter] = useState<ReservationSource | 'all'>('all');
 
     const days = useMemo(() => {
         const filtered = [...appointments]
             .filter((appointment) => statusFilter === 'all' || appointment.status === statusFilter)
+            .filter(
+                (appointment) =>
+                    sourceFilter === 'all' ||
+                    (appointment.source ?? (appointment.partner_id ? 'partner' : 'web_admin')) === sourceFilter,
+            )
             .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime());
 
         const groups: Array<{ day: Date; items: Appointment[] }> = [];
@@ -86,7 +93,7 @@ export function ReservationList({
             else groups.push({ day: startsAt, items: [appointment] });
         });
         return groups;
-    }, [appointments, statusFilter]);
+    }, [appointments, statusFilter, sourceFilter]);
 
     return (
         <div>
@@ -155,6 +162,23 @@ export function ReservationList({
                         {t(filter.label)}
                     </button>
                 ))}
+                {!partnerMode && <span className="mx-1 h-4 w-px bg-border" aria-hidden />}
+                {!partnerMode &&
+                    SOURCE_FILTERS.map((filter) => (
+                        <button
+                            key={filter.value}
+                            type="button"
+                            onClick={() => setSourceFilter(filter.value)}
+                            className={cn(
+                                'rounded-full border px-3 py-1 text-xs font-medium transition-colors duration-200',
+                                sourceFilter === filter.value
+                                    ? 'border-accent/60 bg-accent/[0.12] text-foreground'
+                                    : 'border-tint/[0.08] bg-tint/[0.02] text-muted-foreground hover:border-accent/30 hover:text-foreground',
+                            )}
+                        >
+                            {t(filter.label)}
+                        </button>
+                    ))}
             </div>
 
             {days.length === 0 ? (
@@ -308,9 +332,16 @@ export function ReservationList({
                                                     )}
                                             </div>
 
-                                            <Badge variant={status.variant} className="shrink-0">
-                                                {t(status.label)}
-                                            </Badge>
+                                            <div className="flex shrink-0 flex-col items-end gap-1">
+                                                <Badge variant={status.variant}>{t(status.label)}</Badge>
+                                                {!partnerMode &&
+                                                    (appointment.source === 'mobile_public' ||
+                                                        appointment.source === 'pos') && (
+                                                        <Badge variant={sourceMeta(appointment).variant}>
+                                                            {t(sourceMeta(appointment).label)}
+                                                        </Badge>
+                                                    )}
+                                            </div>
                                         </button>
                                     );
                                 })}

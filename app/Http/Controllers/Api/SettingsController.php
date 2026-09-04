@@ -14,6 +14,14 @@ use Illuminate\Validation\Rule;
 class SettingsController extends Controller
 {
     private const DEFAULTS = [
+        // Reservation en ligne (vitrine mobile publique) - memes cles que
+        // PublicBookingService::BOOKING_DEFAULTS.
+        'booking_open_time' => '09:00',
+        'booking_close_time' => '21:00',
+        'booking_slot_minutes' => '30',
+        'booking_lead_minutes' => '60',
+        'booking_horizon_days' => '30',
+        'booking_timezone' => 'Africa/Casablanca',
         'salon_name' => 'BOGOSLAND',
         'salon_phone' => '',
         'salon_email' => '',
@@ -37,6 +45,12 @@ class SettingsController extends Controller
             'salon_address' => ['sometimes', 'nullable', 'string', 'max:500'],
             'currency' => ['sometimes', 'required', 'string', 'max:8'],
             'receipt_footer' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'booking_open_time' => ['sometimes', 'required', 'date_format:H:i'],
+            'booking_close_time' => ['sometimes', 'required', 'date_format:H:i'],
+            'booking_slot_minutes' => ['sometimes', 'required', 'integer', 'min:5', 'max:240'],
+            'booking_lead_minutes' => ['sometimes', 'required', 'integer', 'min:0', 'max:1440'],
+            'booking_horizon_days' => ['sometimes', 'required', 'integer', 'min:1', 'max:365'],
+            'booking_timezone' => ['sometimes', 'required', 'timezone'],
             'logo' => ['sometimes', 'nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
         ]);
 

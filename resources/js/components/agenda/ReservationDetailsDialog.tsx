@@ -18,6 +18,7 @@ import { cn, formatCurrency, formatDate, formatTime } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { useI18n } from '@/lib/i18n';
 import type { Appointment, AppointmentStatus } from '@/types/workday';
+import { sourceMeta } from '@/lib/reservationSource';
 import { itemsOf } from './agendaEvents';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -153,7 +154,14 @@ export function ReservationDetailsDialog({
                 <DialogHeader>
                     <div className="flex items-center justify-between gap-3">
                         <DialogTitle>{t('Détail de la réservation')}</DialogTitle>
-                        <Badge variant={status.variant}>{t(status.label)}</Badge>
+                        <div className="flex items-center gap-1.5">
+                            {appointment.source === 'mobile_public' && (
+                                <Badge variant={sourceMeta(appointment).variant}>
+                                    {t(sourceMeta(appointment).label)}
+                                </Badge>
+                            )}
+                            <Badge variant={status.variant}>{t(status.label)}</Badge>
+                        </div>
                     </div>
                     <DialogDescription className="flex items-center gap-1.5">
                         <CalendarClock className="h-3.5 w-3.5" />
@@ -163,6 +171,24 @@ export function ReservationDetailsDialog({
                 </DialogHeader>
 
                 <div className="space-y-4">
+                    <div className="rounded-md border border-tint/[0.08] bg-tint/[0.02] px-3.5 py-2.5">
+                        <p className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                            {t('Origine de la réservation')}
+                        </p>
+                        <p className="text-sm text-foreground">
+                            {t('Source :')} <span className="font-medium">{t(sourceMeta(appointment).longLabel)}</span>
+                            <span className="text-muted-foreground"> · RSV-{appointment.id}</span>
+                        </p>
+                        {appointment.created_at && (
+                            <p className="mt-0.5 text-xs text-muted-foreground">
+                                {t('Créée le {date} à {time}', {
+                                    date: formatDate(appointment.created_at),
+                                    time: formatTime(appointment.created_at),
+                                })}
+                            </p>
+                        )}
+                    </div>
+
                     {appointment.partner && (
                         <div className="flex items-center justify-between gap-3 rounded-md border border-accent/25 bg-accent/[0.06] px-3.5 py-2.5">
                             <span className="text-sm text-foreground">

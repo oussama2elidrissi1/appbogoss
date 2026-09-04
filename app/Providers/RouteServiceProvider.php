@@ -43,6 +43,18 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::perMinute(10)->by($request->ip());
         });
 
+        // Vitrine publique : lecture confortable, ecriture parcimonieuse.
+        // La creation de reservation porte en plus ses propres gardes metier
+        // (telephone marocain valide, plafond de reservations a venir par
+        // client) dans PublicBookingService.
+        RateLimiter::for('public-read', function (Request $request) {
+            return Limit::perMinute(60)->by($request->ip());
+        });
+
+        RateLimiter::for('public-booking', function (Request $request) {
+            return Limit::perMinute(5)->by($request->ip());
+        });
+
         $this->routes(function () {
             Route::middleware('api')
                 ->prefix('api')

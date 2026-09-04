@@ -25,6 +25,22 @@ class AppointmentNotifier
         );
     }
 
+    /** Nouvelle reservation depuis l'application mobile publique. */
+    public function publicBookingCreated(Appointment $appointment): void
+    {
+        $this->notifyStaff(
+            'public_booking_created',
+            sprintf(
+                'Nouvelle réservation depuis l’app mobile : %s — %s le %s à %s.',
+                $appointment->client?->name ?? 'Client',
+                $appointment->service?->name ?? 'Prestation',
+                $appointment->starts_at?->format('d/m/Y') ?? '?',
+                $appointment->starts_at?->format('H:i') ?? '?',
+            ),
+            $appointment,
+        );
+    }
+
     public function bookingConfirmed(Appointment $appointment): void
     {
         $this->notifyPartner(

@@ -53,6 +53,7 @@ use App\Http\Controllers\Api\PosV2\PosSubscriptionPaymentController;
 use App\Http\Controllers\Api\PrestationController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\Public\ClientLoginController;
+use App\Http\Controllers\Api\Public\PublicBookingController;
 use App\Http\Controllers\Api\Public\JoinController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\ServiceController;
@@ -94,6 +95,25 @@ Route::middleware('throttle:otp')->prefix('public')->group(function () {
     Route::get('/join/status', [JoinController::class, 'status']);
     Route::post('/join', [JoinController::class, 'register']);
     Route::post('/login', [ClientLoginController::class, 'login']);
+});
+
+// Vitrine publique de l'application mobile : catalogue, disponibilite et
+// prise de rendez-vous SANS compte. Lecture au rythme d'un humain qui
+// navigue, ecriture volontairement rare (limiteurs dans
+// RouteServiceProvider). Les regles metier - salon ferme, creneau passe,
+// employe occupe, plafond par client - vivent dans PublicBookingService,
+// et la reservation creee est une reservation Bogosland ordinaire
+// (source = mobile_public, statut pending, memes tables, meme agenda).
+Route::prefix('public')->group(function () {
+    Route::middleware('throttle:public-read')->group(function () {
+        Route::get('/salon', [PublicBookingController::class, 'salon']);
+        Route::get('/services', [PublicBookingController::class, 'services']);
+        Route::get('/service-categories', [PublicBookingController::class, 'categories']);
+        Route::get('/services/{service}', [PublicBookingController::class, 'service']);
+        Route::get('/availability', [PublicBookingController::class, 'availability']);
+    });
+    Route::middleware('throttle:public-booking')
+        ->post('/reservations', [PublicBookingController::class, 'store']);
 });
 
 // Mobile (Flutter) authentication. Additive surface: it mints Sanctum

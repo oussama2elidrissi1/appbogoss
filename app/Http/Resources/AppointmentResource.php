@@ -65,6 +65,7 @@ class AppointmentResource extends JsonResource
             'starts_at' => $this->starts_at?->toIso8601String(),
             'ends_at' => $this->ends_at?->toIso8601String(),
             'status' => $this->status,
+            'source' => $this->source,
             'notes' => $this->notes,
             'created_by_user_id' => $this->created_by_user_id,
             'confirmed_by_user_id' => $this->confirmed_by_user_id,

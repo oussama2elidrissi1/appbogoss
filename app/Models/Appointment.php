@@ -11,6 +11,15 @@ class Appointment extends Model
 {
     use HasFactory;
 
+    /** Canaux de creation - voir la migration add_source_to_appointments. */
+    public const SOURCE_WEB_ADMIN = 'web_admin';
+
+    public const SOURCE_PARTNER = 'partner';
+
+    public const SOURCE_MOBILE_PUBLIC = 'mobile_public';
+
+    public const SOURCE_POS = 'pos';
+
     protected $fillable = [
         'client_id',
         'client_ids',
@@ -20,6 +29,7 @@ class Appointment extends Model
         'starts_at',
         'ends_at',
         'status',
+        'source',
         'notes',
         'reservation_items',
         'people',

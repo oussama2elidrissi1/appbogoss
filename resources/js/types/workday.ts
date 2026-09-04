@@ -490,6 +490,9 @@ export interface ProductPayload {
     low_stock_threshold?: number;
 }
 
+/** Canal de creation d'une reservation (colonne appointments.source). */
+export type AppointmentSource = 'web_admin' | 'partner' | 'mobile_public' | 'pos';
+
 export type AppointmentStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show' | 'refused';
 
 /** 'proposed' = awaiting the partner's decision, 'accepted'/'declined' = resolved. */
@@ -516,6 +519,8 @@ export interface Appointment {
     starts_at: string;
     ends_at: string;
     status: AppointmentStatus;
+    /** Canal de creation - null sur les reservations d'avant la colonne. */
+    source?: AppointmentSource | null;
     notes: string | null;
     created_by_user_id?: number | null;
     confirmed_by_user_id?: number | null;

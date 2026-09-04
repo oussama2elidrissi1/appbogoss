@@ -579,6 +579,7 @@ export async function getAppointments(options?: {
     /** Any partner's booking, regardless of which one — the admin review queue (§26). */
     hasPartner?: boolean;
     status?: string;
+    source?: string;
 }): Promise<Appointment[]> {
     const { data } = await api.get<{ data: Appointment[] }>('/api/appointments', {
         params: {
@@ -589,6 +590,7 @@ export async function getAppointments(options?: {
             ...(options?.partnerId ? { partner_id: options.partnerId } : {}),
             ...(options?.hasPartner ? { has_partner: 1 } : {}),
             ...(options?.status ? { status: options.status } : {}),
+            ...(options?.source ? { source: options.source } : {}),
         },
     });
     return data.data;

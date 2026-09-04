@@ -12,6 +12,7 @@ use App\Models\Client;
 use App\Models\Employee;
 use App\Models\Partner;
 use App\Models\Service;
+use App\Services\AppointmentConflictGuard;
 use App\Services\AppointmentNotifier;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -35,6 +36,7 @@ class AppointmentController extends Controller
             'partner_id' => ['nullable', 'integer', Rule::exists('partners', 'id')],
             'has_partner' => ['nullable', 'boolean'],
             'status' => ['nullable', 'string'],
+            'source' => ['nullable', 'string', 'max:32'],
         ]);
 
         $query = Appointment::with(['client', 'employee', 'service', 'partner'])
@@ -65,6 +67,10 @@ class AppointmentController extends Controller
             $query->where('status', $validated['status']);
         }
 
+        if (! empty($validated['source'])) {
+            $query->where('source', $validated['source']);
+        }
+
         return response()->json(['data' => AppointmentResource::collection($query->get())]);
     }
 
@@ -72,12 +78,16 @@ class AppointmentController extends Controller
     {
         $data = $request->validated();
         $data['created_by_user_id'] = $request->user()?->id;
+        // Canal de creation : agenda staff par defaut, portail partenaire sinon.
+        // Jamais fourni par le client HTTP - la source est un fait, pas un choix.
+        $data['source'] = Appointment::SOURCE_WEB_ADMIN;
 
         if ($partner = $this->restrictedPartner($request)) {
             // Partner bookings are always attributed to the partner and land
             // as "pending" so the salon confirms them explicitly.
             $data['partner_id'] = $partner->id;
             $data['status'] = 'pending';
+            $data['source'] = Appointment::SOURCE_PARTNER;
             $this->assertClientsBelongToPartner($data, $partner);
         }
 
@@ -524,29 +534,12 @@ class AppointmentController extends Controller
         return $data;
     }
 
-    /** @param array<int, array{service_id: int, employee_id: ?int}> $items */
+    /**
+     * @param array<int, array{service_id: int, employee_id: ?int}> $items
+     */
     private function assertNoConflict(array $items, Carbon $startsAt, Carbon $endsAt, ?Appointment $appointment = null): void
     {
-        $employeeIds = collect($items)->pluck('employee_id')->filter()->unique()->values();
-        if ($employeeIds->isEmpty()) {
-            return;
-        }
-
-        $existing = Appointment::query()
-            ->when($appointment, fn ($query) => $query->where('id', '!=', $appointment->id))
-            ->whereNotIn('status', ['cancelled', 'no_show', 'refused'])
-            ->where('starts_at', '<', $endsAt)
-            ->where('ends_at', '>', $startsAt)
-            ->get(['id', 'employee_id', 'reservation_items']);
-
-        foreach ($existing as $candidate) {
-            $candidateEmployees = collect($candidate->reservation_items ?: [[
-                'employee_id' => $candidate->employee_id,
-            ]])->pluck('employee_id')->filter()->map(fn ($id) => (int) $id);
-
-            if ($candidateEmployees->intersect($employeeIds)->isNotEmpty()) {
-                abort(422, 'Un employé est déjà réservé sur ce créneau.');
-            }
-        }
+        // Regle partagee avec le canal public : un seul arbitre de conflits.
+        app(AppointmentConflictGuard::class)->assertNoConflict($items, $startsAt, $endsAt, $appointment);
     }
 }
