@@ -26,6 +26,7 @@ use App\Services\PrestationService;
 use App\Services\RewardRedemptionService;
 use App\Services\SubscriptionService;
 use App\Services\WorkDayService;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -963,6 +964,48 @@ class PosService
     }
 
     /**
+     * Les pourboires de cette facture qui comptent dans les totaux
+     * « encaissé » de l'historique.
+     *
+     * Chaque ligne de l'historique affiche depuis toujours le total encaissé
+     * pourboire compris (`total_collected`) ; les compteurs de l'entête, eux,
+     * l'ignoraient — la somme des lignes ne retombait donc jamais sur le
+     * « CA encaissé ». Depuis `pos.collected_totals_from`, les compteurs
+     * comptent les pourboires eux aussi. Les factures ANTÉRIEURES à cette
+     * date renvoient une liste vide : leurs journées ont été lues et
+     * clôturées avec les anciens chiffres, et ils ne bougent plus.
+     *
+     * Le CA du salon (Sale.total, rapport de clôture, portefeuille) reste
+     * hors pourboires dans tous les cas (§40) : un pourboire appartient à
+     * l'employé, pas au salon.
+     *
+     * @return Collection<int, Tip>
+     */
+    public function countedTips(Prestation $invoice): Collection
+    {
+        $from = CarbonImmutable::parse(
+            (string) config('pos.collected_totals_from', '2026-09-04'),
+        )->startOfDay();
+
+        if ($invoice->created_at === null || $invoice->created_at->lessThan($from)) {
+            return collect();
+        }
+
+        $invoice->loadMissing('tips.employee');
+
+        return $invoice->tips
+            ->reject(fn (Tip $tip) => $tip->trashed())
+            ->values()
+            ->toBase();
+    }
+
+    /** Total réellement encaissé sur cette facture, pourboires comptés inclus. */
+    public function collectedTotal(Prestation $invoice): float
+    {
+        return round((float) $invoice->total + (float) $this->countedTips($invoice)->sum('amount'), 2);
+    }
+
+    /**
      * Summary for the whole filtered history result, not just the current
      * page. V1 prestations use the header employee; V2 uses per-line employees.
      * Legacy V1 quick-sales are included so the active-day CA matches Caisse V1.
@@ -1061,6 +1104,32 @@ class PosService
                 $entry['commission_total'] += (float) $commission->amount;
                 $byEmployee[$employeeId] = $entry;
             }
+
+            // Un pourboire compté suit son bénéficiaire : c'est ce qui fait
+            // que la somme des tuiles « CA par employé » retombe sur le
+            // « CA encaissé » de l'entête, comme les lignes affichées.
+            foreach ($this->countedTips($invoice) as $tip) {
+                $employee = $tip->employee;
+                if ($employee === null) {
+                    continue;
+                }
+
+                $employeeId = (int) $employee->id;
+                $entry = $byEmployee[$employeeId] ?? [
+                    'employee_id' => $employeeId,
+                    'employee_name' => $employee->name,
+                    'performed_count' => 0,
+                    'sales_count' => 0,
+                    'sales_total' => 0.0,
+                    'invoices_count' => 0,
+                    'total' => 0.0,
+                    'commission_total' => 0.0,
+                    '_invoice_ids' => [],
+                ];
+                $entry['_invoice_ids'][$invoice->id] = true;
+                $entry['total'] += (float) $tip->amount;
+                $byEmployee[$employeeId] = $entry;
+            }
         }
 
         $legacySales = $this->legacyHistorySalesQuery($filters)
@@ -1123,8 +1192,11 @@ class PosService
 
         return [
             'paid_count' => $paid->count() + $legacySales->count(),
+            // Le total encaissé par facture (pourboires comptés inclus depuis
+            // pos.collected_totals_from) — la même définition que la colonne
+            // de droite des lignes, pour que tout se recoupe à l'écran.
             'paid_total' => round(
-                (float) $paid->sum(fn (Prestation $invoice) => (float) $invoice->total)
+                (float) $paid->sum(fn (Prestation $invoice) => $this->collectedTotal($invoice))
                     + (float) $legacySales->sum('total'),
                 2,
             ),

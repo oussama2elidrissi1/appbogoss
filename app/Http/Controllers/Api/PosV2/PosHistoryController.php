@@ -49,7 +49,9 @@ class PosHistoryController extends Controller
                 'current_page' => $paginator->currentPage(),
                 'last_page' => $paginator->lastPage(),
                 'total' => $paginator->total(),
-                'page_paid_total' => round((float) $paid->sum(fn ($invoice) => (float) $invoice->total), 2),
+                // Même définition que stats.paid_total : total encaissé,
+                // pourboires comptés inclus (voir PosService::countedTips).
+                'page_paid_total' => round((float) $paid->sum(fn ($invoice) => $this->pos->collectedTotal($invoice)), 2),
                 'page_paid_count' => $paid->count(),
                 'stats' => $stats,
             ],

@@ -153,7 +153,7 @@ class PublicBookingApiTest extends TestCase
             ->assertJsonPath('data.name', 'BOGOSLAND')
             ->assertJsonPath('data.address', '12 rue Exemple, Casablanca')
             ->assertJsonPath('data.opening_hours.open', '09:00')
-            ->assertJsonPath('data.opening_hours.close', '21:00');
+            ->assertJsonPath('data.opening_hours.close', '00:00');
     }
 
     // ------------------------------------------------------------------
@@ -162,6 +162,10 @@ class PublicBookingApiTest extends TestCase
 
     public function test_availability_reflects_hours_lead_time_and_busy_employees(): void
     {
+        // Fermeture epinglee a 21:00 : ce test verifie la REGLE de borne
+        // (dernier creneau = fermeture moins la duree), pas le defaut du
+        // salon (minuit) - teste pour lui-meme plus bas.
+        AppSetting::updateOrCreate(['key' => 'booking_close_time'], ['value' => '21:00']);
         $service = $this->service(); // 60 min
         $sofia = $this->employee('Sofia');
 
@@ -193,6 +197,37 @@ class PublicBookingApiTest extends TestCase
         // 20:00 pour 60 minutes, jamais 20:30.
         $this->assertArrayHasKey('20:00', $slots->all());
         $this->assertArrayNotHasKey('20:30', $slots->all());
+    }
+
+    public function test_midnight_closing_means_end_of_day_not_a_closed_day(): void
+    {
+        // Le salon ferme a MINUIT (defaut 00:00) : la journee est ouverte et
+        // les creneaux courent jusqu'a la fermeture - pour 60 minutes, le
+        // dernier depart est 23:00, jamais 23:30.
+        $service = $this->service(); // 60 min
+        $this->employee('Sofia');
+
+        $response = $this->getJson("/api/public/availability?service_id={$service->id}&date=2026-09-10");
+
+        $response->assertOk()->assertJsonPath('data.open', true);
+        $slots = collect($response->json('data.slots'))->keyBy('time');
+        $this->assertArrayHasKey('23:00', $slots->all());
+        $this->assertTrue($slots['23:00']['available']);
+        $this->assertArrayNotHasKey('23:30', $slots->all());
+
+        // La reservation du dernier creneau aboutit et se termine a minuit
+        // pile ; une demi-heure plus tard, elle deborderait la fermeture.
+        $booked = $this->postJson('/api/public/reservations', $this->bookingPayload($service, [
+            'starts_at' => '2026-09-10 23:00',
+        ]));
+        $booked->assertCreated();
+        $appointment = Appointment::query()->findOrFail($booked->json('data.id'));
+        $this->assertSame('2026-09-11 00:00:00', $appointment->ends_at->format('Y-m-d H:i:s'));
+
+        $this->postJson('/api/public/reservations', $this->bookingPayload($service, [
+            'starts_at' => '2026-09-10 23:30',
+            'phone' => '0698765432',
+        ]))->assertStatus(422);
     }
 
     public function test_availability_closes_days_beyond_horizon(): void
@@ -317,7 +352,9 @@ class PublicBookingApiTest extends TestCase
         $this->postJson('/api/public/reservations', $this->bookingPayload($inactive))
             ->assertStatus(422);
 
-        // Dates impossibles : format libre, créneau passé, hors horaires.
+        // Dates impossibles : format libre, créneau passé, hors horaires
+        // (fermeture épinglée à 21:00 pour tester la borne).
+        AppSetting::updateOrCreate(['key' => 'booking_close_time'], ['value' => '21:00']);
         $this->postJson('/api/public/reservations', $this->bookingPayload($service, ['starts_at' => 'demain']))
             ->assertStatus(422);
         $this->postJson('/api/public/reservations', $this->bookingPayload($service, ['starts_at' => '2026-09-10 08:15']))

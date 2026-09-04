@@ -39,7 +39,7 @@ class PublicBookingService
      */
     public const BOOKING_DEFAULTS = [
         'booking_open_time' => '09:00',
-        'booking_close_time' => '21:00',
+        'booking_close_time' => '00:00',
         'booking_slot_minutes' => '30',
         'booking_lead_minutes' => '60',
         'booking_horizon_days' => '30',
@@ -71,6 +71,28 @@ class PublicBookingService
         $timezone = $this->bookingSettings()['booking_timezone'];
 
         return Carbon::parse(Carbon::now($timezone)->format('Y-m-d H:i:s'));
+    }
+
+    /**
+     * La fenêtre d'ouverture d'un jour donné.
+     *
+     * Une heure de fermeture inférieure ou égale à l'ouverture est comprise
+     * comme APRÈS MINUIT : « 09:00 → 00:00 » ferme à minuit pile (fin de
+     * journée), « 09:00 → 01:00 » fermerait à une heure du matin. Sans cette
+     * règle, régler la fermeture sur 00:00 rendrait chaque journée
+     * entièrement fermée — minuit serait lu comme précédant l'ouverture.
+     *
+     * @return array{0: Carbon, 1: Carbon} [ouverture, fermeture]
+     */
+    private function openingWindowFor(string $date, array $settings): array
+    {
+        $open = Carbon::parse($date.' '.$settings['booking_open_time']);
+        $close = Carbon::parse($date.' '.$settings['booking_close_time']);
+        if ($close <= $open) {
+            $close->addDay();
+        }
+
+        return [$open, $close];
     }
 
     /**
@@ -120,8 +142,7 @@ class PublicBookingService
         $horizonEnd = $now->copy()->addDays((int) $settings['booking_horizon_days'])->endOfDay();
         $withinHorizon = ! $day->isBefore($now->copy()->startOfDay()) && ! $day->isAfter($horizonEnd);
 
-        $open = Carbon::parse($day->toDateString().' '.$settings['booking_open_time']);
-        $close = Carbon::parse($day->toDateString().' '.$settings['booking_close_time']);
+        [$open, $close] = $this->openingWindowFor($day->toDateString(), $settings);
         $step = max(5, (int) $settings['booking_slot_minutes']);
         $lead = $now->copy()->addMinutes((int) $settings['booking_lead_minutes']);
         $duration = max(5, (int) $service->duration_minutes);
@@ -207,8 +228,7 @@ class PublicBookingService
             ]);
         }
 
-        $open = Carbon::parse($startsAt->toDateString().' '.$settings['booking_open_time']);
-        $close = Carbon::parse($startsAt->toDateString().' '.$settings['booking_close_time']);
+        [$open, $close] = $this->openingWindowFor($startsAt->toDateString(), $settings);
         if ($startsAt < $open || $endsAt > $close) {
             throw ValidationException::withMessages([
                 'starts_at' => 'Le salon est fermé sur ce créneau.',

@@ -17,7 +17,7 @@ class SettingsController extends Controller
         // Reservation en ligne (vitrine mobile publique) - memes cles que
         // PublicBookingService::BOOKING_DEFAULTS.
         'booking_open_time' => '09:00',
-        'booking_close_time' => '21:00',
+        'booking_close_time' => '00:00',
         'booking_slot_minutes' => '30',
         'booking_lead_minutes' => '60',
         'booking_horizon_days' => '30',
