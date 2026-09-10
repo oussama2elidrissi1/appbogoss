@@ -144,6 +144,28 @@ class WorkDayServiceTest extends TestCase
         app(WorkDayService::class)->openDay(['opening_balance' => 100]);
     }
 
+    /**
+     * Le cas qui renvoyait « Server Error » : la journee du jour avait deja
+     * ete cloturee (cloture apres minuit, ou cloture prematuree), et
+     * l'insertion heurtait l'unicite sur `date`. Une seconde session sur la
+     * meme date est desormais legitime.
+     */
+    public function test_open_day_allows_a_second_session_on_a_date_already_closed(): void
+    {
+        $closed = WorkDay::factory()->create([
+            'date' => now()->toDateString(),
+            'status' => 'closed',
+            'closed_at' => now(),
+            'closing_report' => ['revenue_total' => 0],
+        ]);
+
+        $reopened = app(WorkDayService::class)->openDay(['opening_balance' => 392]);
+
+        $this->assertNotSame($closed->id, $reopened->id);
+        $this->assertSame('open', $reopened->status);
+        $this->assertSame($closed->date->toDateString(), $reopened->date->toDateString());
+    }
+
     public function test_closed_day_pdf_route_returns_a_report_response(): void
     {
         $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);

@@ -27,13 +27,24 @@ class WorkDayService
     ) {
     }
 
+    /**
+     * Ouvre une session de caisse. L'unique invariant est « une seule journee
+     * ouverte a la fois » : plusieurs sessions peuvent partager la meme date
+     * (cloture apres minuit, reouverture apres une cloture prematuree).
+     *
+     * Le controle est fait DANS la transaction, verrou pose sur les journees
+     * ouvertes : deux ouvertures simultanees ne peuvent plus se croiser entre
+     * la lecture et l'insertion.
+     */
     public function openDay(array $data): WorkDay
     {
-        if ($this->getActiveDay() !== null) {
-            throw new DayAlreadyOpenException('Une journee est deja ouverte.');
-        }
-
         return DB::transaction(function () use ($data) {
+            $alreadyOpen = WorkDay::where('status', 'open')->lockForUpdate()->exists();
+
+            if ($alreadyOpen) {
+                throw new DayAlreadyOpenException('Une journée est déjà ouverte.');
+            }
+
             $workDay = WorkDay::create([
                 'date' => now()->toDateString(),
                 'opened_by_user_id' => Auth::id(),
@@ -77,7 +88,7 @@ class WorkDayService
     public function closeDay(WorkDay $day, ?float $actualBalance = null, ?string $comment = null): WorkDay
     {
         if ($day->status === 'closed') {
-            throw new DayAlreadyClosedException('Cette journee est deja cloturee.');
+            throw new DayAlreadyClosedException('Cette journée est déjà clôturée.');
         }
 
         return DB::transaction(function () use ($day, $actualBalance, $comment) {
