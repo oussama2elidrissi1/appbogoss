@@ -37,6 +37,7 @@
     <tr>
         @foreach ([
             ['CA', $totals['revenue_total'] ?? 0],
+            ['Pourboires', $totals['tips_total'] ?? 0],
             ['Depenses', $totals['expenses_total'] ?? 0],
             ['Avances', $totals['advances_total'] ?? 0],
             ['Resultat de la caisse', $totals['net_result'] ?? 0],

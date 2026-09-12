@@ -1,6 +1,7 @@
 import type {
     Pos2BreakdownRow,
     Pos2CheckoutPayload,
+    Pos2Commission,
     Pos2Invoice,
     Pos2InvoiceLine,
     Pos2PaymentMethod,
@@ -245,6 +246,45 @@ export function resolveCommission(
     if (employee.default_commission_rate === null || employee.default_commission_rate === undefined) return 0;
 
     return round2((base * employee.default_commission_rate) / 100);
+}
+
+/** §40 — la part maison d'un pourboire coiffure, comme `PosService`. */
+const COIFFURE_TIP_COMMISSION_RATE = 50;
+
+/**
+ * Part commissionnable d'un pourboire, calquée sur `coiffureTipBasis()` :
+ *
+ *  - un pourboire attaché à une ligne suit cette ligne — la coiffure gagne le
+ *    partage à 50 %, tout le reste ne gagne rien ;
+ *  - un pourboire donné globalement à un employé est réparti sur SES lignes au
+ *    prorata de leur valeur, donc seule sa part coiffure est partagée ; la
+ *    commission se pose sur sa plus grosse ligne de coiffure.
+ */
+function coiffureTipBasis(
+    items: Pos2InvoiceLine[],
+    employeeId: number,
+    lineId: number | null,
+    amount: number,
+): { line: Pos2InvoiceLine | null; base: number } {
+    if (lineId !== null) {
+        const line = items.find((item) => item.id === lineId) ?? null;
+        return line && line.category === 'coiffure' ? { line, base: amount } : { line: null, base: 0 };
+    }
+
+    const employeeLines = items.filter((item) => item.employee_id === employeeId);
+    const coiffureLines = employeeLines.filter((item) => item.category === 'coiffure');
+    if (coiffureLines.length === 0) return { line: null, base: 0 };
+
+    const value = (item: Pos2InvoiceLine) => (item.is_free ? 0 : item.effective_line_total);
+    const linesTotal = round2(employeeLines.reduce((sum, item) => sum + value(item), 0));
+    const share =
+        linesTotal > 0
+            ? round2(coiffureLines.reduce((sum, item) => sum + value(item), 0)) / linesTotal
+            : coiffureLines.length / Math.max(1, employeeLines.length);
+
+    const biggest = [...coiffureLines].sort((a, b) => value(b) - value(a))[0];
+
+    return { line: biggest, base: round2(amount * share) };
 }
 
 // ------------------------------------------------------------------ totaux
@@ -682,6 +722,29 @@ export function checkout(
     // serveur, et non le total de ligne d'avant répartition.
     const paidTotals = computeTotals(withDiscount);
 
+    // §40 — le pourboire coiffure est partagé à 50 % avec la maison : c'est
+    // une commission de plus pour l'employé, en plus de celle de son service.
+    const tipCommissions: Pos2Commission[] = [];
+
+    tips.forEach((tip, index) => {
+        const { line, base } = coiffureTipBasis(items, tip.employee_id, tip.prestation_item_id, tip.amount);
+        if (!line || base <= 0) return;
+
+        tipCommissions.push({
+            id: -(index + 1),
+            prestation_item_id: line.id,
+            tip_id: tip.id,
+            employee_id: tip.employee_id,
+            employee_name: tip.employee_name,
+            service_id: line.service_id,
+            type: 'tip_percentage',
+            rate_or_amount: COIFFURE_TIP_COMMISSION_RATE,
+            base_amount: base,
+            amount: round2((base * COIFFURE_TIP_COMMISSION_RATE) / 100),
+            status: 'validated',
+        });
+    });
+
     const paidItems = items.map((line) => ({
         ...line,
         commission_amount:
@@ -708,6 +771,7 @@ export function checkout(
         confirmed_at: new Date().toISOString(),
         tips,
         tips_total: tipsTotal,
+        commissions: tipCommissions,
         total_collected: due,
         sale_id: null,
     };
@@ -803,6 +867,13 @@ export function buildReport(state: SandboxState): SandboxReport {
     state.paid.forEach((invoice) => {
         bump(methods, invoice.payment_method ?? 'especes', invoice.payment_method ?? 'especes', invoice.total);
 
+        // Les commissions de pourboire vivent à part des lignes : sans elles,
+        // le rapport sous-estimerait ce que le salon doit à ses coiffeurs.
+        (invoice.commissions ?? []).forEach((row) => {
+            commissionsTotal = round2(commissionsTotal + row.amount);
+            bump(employeeRows, String(row.employee_id), row.employee_name ?? 'Employé', 0, 0, row.amount);
+        });
+
         (invoice.items ?? []).forEach((line) => {
             const amount = line.effective_line_total;
             const commission = line.commission_amount ?? 0;
@@ -823,7 +894,10 @@ export function buildReport(state: SandboxState): SandboxReport {
         });
     });
 
-    const netResult = round2(revenueTotal - expensesTotal - advancesTotal);
+    // Même formule que `WorkDayService::buildDetailedReport()` : le pourboire
+    // n'est pas du chiffre d'affaires, mais il a bien été encaissé au
+    // comptoir — il est donc dans le tiroir et dans le résultat.
+    const netResult = round2(revenueTotal + tipsTotal - expensesTotal - advancesTotal);
 
     return {
         opening_balance: openingBalance,
@@ -832,7 +906,7 @@ export function buildReport(state: SandboxState): SandboxReport {
         advances_total: advancesTotal,
         commissions_total: commissionsTotal,
         net_result: netResult,
-        cash_expected: round2(openingBalance + revenueTotal - expensesTotal - advancesTotal),
+        cash_expected: round2(openingBalance + revenueTotal + tipsTotal - expensesTotal - advancesTotal),
         ticket_count: state.paid.length,
         average_ticket: state.paid.length > 0 ? round2(revenueTotal / state.paid.length) : 0,
         tips_total: tipsTotal,

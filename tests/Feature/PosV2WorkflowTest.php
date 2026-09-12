@@ -13,6 +13,7 @@ use App\Models\Tip;
 use App\Models\User;
 use App\Models\WorkDay;
 use App\Services\PrestationService;
+use App\Services\WorkDayService;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -469,6 +470,78 @@ class PosV2WorkflowTest extends TestCase
         $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/refund", ['reason' => 'Erreur de caisse'])->assertOk();
         $this->assertSame(0, Tip::count());
         $this->assertSame(2, Tip::withTrashed()->count());
+    }
+
+    /**
+     * Le pourboire est encaisse AU COMPTOIR — la monnaie rendue se calcule sur
+     * prestation + pourboire, donc ces billets sont dans le tiroir. Ils ne
+     * sont pas du chiffre d'affaires, mais ils doivent entrer dans le resultat
+     * de la journee et dans l'attendu de caisse : sinon chaque pourboire en
+     * especes creait un ecart de caisse positif a la cloture, et cet argent
+     * n'etait credite a aucun portefeuille.
+     */
+    public function test_a_tip_collected_at_the_counter_enters_the_day_result_and_the_drawer(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $kamal = Employee::factory()->create(['name' => 'Kamal', 'default_commission_rate' => 50]);
+        $coupe = Service::factory()->create(['category' => 'coiffure', 'price' => 40]);
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $coupe->id, 'employee_id' => $kamal->id]],
+        ])->assertCreated()->json('data');
+
+        $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", [
+            'payment_method' => 'especes',
+            'amount_received' => 60,
+            'expected_total' => 40,
+            'tips' => [['employee_id' => $kamal->id, 'amount' => 20]],
+        ])->assertOk();
+
+        $day = WorkDay::where('status', 'open')->sole();
+        $report = app(WorkDayService::class)->buildClosingReport($day);
+
+        // Le CA reste celui des prestations : un pourboire n'est pas une vente.
+        $this->assertEquals(40.0, $report['revenue_total']);
+        $this->assertEquals(20.0, $report['tips_total']);
+        // Mais l'argent, lui, est bien la.
+        $this->assertEquals(60.0, $report['net_result']);
+        $this->assertEquals(
+            round((float) $day->opening_balance + 60, 2),
+            $report['cash_expected'],
+        );
+        $this->assertSame($kamal->id, $report['tips_by_employee'][0]['employee_id']);
+
+        // La moitie du pourboire revient a l'employe, en plus de la commission
+        // de son service : 40 x 50 % + 20 / 2.
+        $this->assertEquals(
+            30.0,
+            (float) Commission::where('prestation_id', $invoice['id'])->sum('amount'),
+        );
+    }
+
+    /** Un remboursement annule le pourboire : il ressort aussi du resultat. */
+    public function test_a_refunded_tip_leaves_the_day_result(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $kamal = Employee::factory()->create(['name' => 'Kamal']);
+        $coupe = Service::factory()->create(['category' => 'coiffure', 'price' => 40]);
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $coupe->id, 'employee_id' => $kamal->id]],
+        ])->assertCreated()->json('data');
+
+        $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", [
+            'payment_method' => 'especes',
+            'tips' => [['employee_id' => $kamal->id, 'amount' => 20]],
+        ])->assertOk();
+
+        $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/refund", ['reason' => 'Erreur'])->assertOk();
+
+        $day = WorkDay::where('status', 'open')->sole();
+        $report = app(WorkDayService::class)->buildClosingReport($day);
+
+        $this->assertEquals(0.0, $report['tips_total']);
+        $this->assertEquals(0.0, $report['net_result']);
     }
 
     public function test_coiffure_tips_generate_a_50_percent_commission_without_inflating_revenue(): void

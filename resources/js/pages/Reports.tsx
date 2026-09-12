@@ -515,13 +515,29 @@ function WorkDayReportCard({ day }: { day: WorkDay }) {
                 <CardContent className="space-y-4">
                     {report ? (
                         <>
-                            <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                            <div
+                                className={cn(
+                                    'grid grid-cols-2 gap-2',
+                                    report.tips_total ? 'lg:grid-cols-5' : 'lg:grid-cols-4',
+                                )}
+                            >
                                 <ReportStat
                                     label={t('CA')}
                                     value={formatCurrency(report.revenue_total, {
                                         maximumFractionDigits: 2,
                                     })}
                                 />
+                                {/* Le pourboire n'est pas du chiffre d'affaires, mais il
+                                    est bien dans le tiroir : sans cette tuile, le
+                                    resultat ne serait plus explicable a l'ecran. */}
+                                {report.tips_total ? (
+                                    <ReportStat
+                                        label={t('Pourboires')}
+                                        value={formatCurrency(report.tips_total, {
+                                            maximumFractionDigits: 2,
+                                        })}
+                                    />
+                                ) : null}
                                 <ReportStat
                                     label={t('Dépenses')}
                                     value={formatCurrency(report.expenses_total, {

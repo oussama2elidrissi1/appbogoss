@@ -31,8 +31,20 @@ class WorkDayResource extends JsonResource
         // commissions no longer reduce the register's cash result, see
         // WorkDayService::buildDetailedReport().
         if (array_key_exists('revenue_total', $reportSnapshot)) {
+            // Les instantanes anterieurs a la correction ne portent pas
+            // `tips_total` : on relit alors les pourboires de la journee, pour
+            // que TOUS les ecrans affichent le meme resultat corrige. Une
+            // journee cloturee avant la correction affichera donc un resultat
+            // superieur a ce qui avait ete credite au portefeuille — l'ecart
+            // est reel, c'est l'argent des pourboires qui dormait hors du
+            // circuit, et le badge du portefeuille le rend visible.
+            $reportSnapshot['tips_total'] ??= $this->resource->relationLoaded('tips')
+                ? round((float) $this->resource->tips->sum('amount'), 2)
+                : round((float) $this->resource->tips()->sum('amount'), 2);
+
             $reportSnapshot['net_result'] = round(
                 ($reportSnapshot['revenue_total'] ?? 0)
+                    + ($reportSnapshot['tips_total'] ?? 0)
                     - ($reportSnapshot['expenses_total'] ?? 0)
                     - ($reportSnapshot['advances_total'] ?? 0),
                 2,

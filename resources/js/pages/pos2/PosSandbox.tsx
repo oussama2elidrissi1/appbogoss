@@ -636,14 +636,18 @@ export default function PosSandbox() {
     );
 }
 
-/** Ce qu'un ticket de test doit au total à ses employés. */
+/**
+ * Ce qu'un ticket de test doit au total à ses employés : les commissions de
+ * ses lignes, PLUS le partage à 50 % des pourboires coiffure, qui vit à part.
+ */
 function ticketCommission(invoice: Pos2Invoice): number {
-    const total = (invoice.items ?? []).reduce(
+    const lines = (invoice.items ?? []).reduce(
         (sum, line) => sum + (line.commission_amount ?? line.estimated_commission ?? 0),
         0,
     );
+    const tips = (invoice.commissions ?? []).reduce((sum, row) => sum + row.amount, 0);
 
-    return Math.round(total * 100) / 100;
+    return Math.round((lines + tips) * 100) / 100;
 }
 
 function StatCard({

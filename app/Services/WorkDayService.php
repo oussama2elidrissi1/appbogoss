@@ -12,6 +12,7 @@ use App\Models\Prestation;
 use App\Models\PrestationItem;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Models\Tip;
 use App\Models\User;
 use App\Models\WorkDay;
 use App\Support\BusinessDay;
@@ -161,8 +162,19 @@ class WorkDayService
             ->orderBy('given_on')
             ->get();
         $cashMovements = CashMovement::where('work_day_id', $day->id)->orderBy('created_at')->get();
+        // Le pourboire est encaisse au comptoir : la monnaie rendue se calcule
+        // sur prestation + pourboire, donc cet argent est dans le tiroir et
+        // doit se retrouver dans le resultat de la journee.
+        $tips = Tip::with('employee')->where('work_day_id', $day->id)->orderBy('created_at')->get();
 
-        return $this->buildDetailedReport($sales, $expenses, $advances, (float) $day->opening_balance, $cashMovements);
+        return $this->buildDetailedReport(
+            $sales,
+            $expenses,
+            $advances,
+            (float) $day->opening_balance,
+            $cashMovements,
+            $tips,
+        );
     }
 
     /** Build the complete report for a calendar month, using cash-day dates. */
@@ -199,6 +211,7 @@ class WorkDayService
             ->orderBy('given_on')
             ->get();
         $cashMovements = CashMovement::whereIn('work_day_id', $dayIds)->get();
+        $tips = Tip::with('employee')->whereIn('work_day_id', $dayIds)->get();
 
         $totals = $this->buildDetailedReport(
             $sales,
@@ -206,15 +219,17 @@ class WorkDayService
             $advances,
             (float) $days->sum('opening_balance'),
             $cashMovements,
+            $tips,
         );
 
-        $daily = $days->map(function (WorkDay $day) use ($sales, $expenses, $advances, $cashMovements) {
+        $daily = $days->map(function (WorkDay $day) use ($sales, $expenses, $advances, $cashMovements, $tips) {
             $dayReport = $this->buildDetailedReport(
                 $sales->where('work_day_id', $day->id)->values(),
                 $expenses->where('work_day_id', $day->id)->values(),
                 $advances->where('work_day_id', $day->id)->values(),
                 (float) $day->opening_balance,
                 $cashMovements->where('work_day_id', $day->id)->values(),
+                $tips->where('work_day_id', $day->id)->values(),
             );
 
             return [
@@ -228,6 +243,7 @@ class WorkDayService
                 'revenue_total' => $dayReport['revenue_total'],
                 'expenses_total' => $dayReport['expenses_total'],
                 'advances_total' => $dayReport['advances_total'],
+                'tips_total' => $dayReport['tips_total'],
                 'commissions_total' => $dayReport['commissions_total'],
                 'net_result' => $dayReport['net_result'],
                 // Ou est parti ce resultat. Informatif : aucun total du rapport
@@ -253,19 +269,23 @@ class WorkDayService
     /** @param Collection<int, Expense> $expenses */
     /** @param Collection<int, Advance> $advances */
     /** @param Collection<int, CashMovement> $cashMovements */
+    /** @param Collection<int, Tip> $tips */
     protected function buildDetailedReport(
         Collection $sales,
         Collection $expenses,
         Collection $advances,
         float $openingBalance = 0.0,
         ?Collection $cashMovements = null,
+        ?Collection $tips = null,
     ): array {
         $cashMovements ??= collect();
+        $tips ??= collect();
         $activeSales = $sales->filter(fn (Sale $sale) => ! $sale->trashed())->values();
         $deletedSales = $sales->filter(fn (Sale $sale) => $sale->trashed())->values();
         $revenueTotal = (float) $activeSales->sum('total');
         $expensesTotal = (float) $expenses->sum('amount');
         $advancesTotal = (float) $advances->sum('amount');
+        $tipsTotal = (float) $tips->sum('amount');
         $cashInTotal = (float) $cashMovements->where('type', 'in')->sum('amount');
         $cashOutTotal = (float) $cashMovements->where('type', 'out')->sum('amount');
         $commissionsTotal = (float) $activeSales->sum(
@@ -277,7 +297,14 @@ class WorkDayService
         // concern settled on the "Paie" page, not money that leaves the
         // till day-to-day, so they no longer reduce this figure. commissions_total
         // is still returned below for whatever still needs the raw figure.
-        $netResult = round($revenueTotal - $expensesTotal - $advancesTotal, 2);
+        //
+        // Le pourboire, lui, EST dans le tiroir : il est encaisse avec la
+        // prestation. Il ne gonfle pas le chiffre d'affaires — ce n'est pas
+        // une vente — mais il entre dans le resultat de la caisse, sans quoi
+        // chaque pourboire en especes creait un ecart de caisse positif et
+        // cet argent n'etait credite nulle part. La moitie revient a
+        // l'employe sous forme de commission, payee en fin de mois.
+        $netResult = round($revenueTotal + $tipsTotal - $expensesTotal - $advancesTotal, 2);
 
         $revenueByCategory = $activeSales
             ->groupBy(fn (Sale $sale) => $sale->category ?? 'autre')
@@ -384,11 +411,23 @@ class WorkDayService
             'revenue_total' => round($revenueTotal, 2),
             'expenses_total' => round($expensesTotal, 2),
             'advances_total' => round($advancesTotal, 2),
+            'tips_total' => round($tipsTotal, 2),
+            'tips_by_employee' => $tips
+                ->groupBy(fn (Tip $tip) => $tip->employee_id)
+                ->map(fn (Collection $group, $employeeId) => [
+                    'employee_id' => (int) $employeeId,
+                    'employee_name' => $group->first()->employee->name ?? 'Employe',
+                    'count' => $group->count(),
+                    'total' => round((float) $group->sum('amount'), 2),
+                ])
+                ->sortByDesc('total')
+                ->values()
+                ->all(),
             'commissions_total' => round($commissionsTotal, 2),
             'net_result' => $netResult,
             'cash_in_total' => round($cashInTotal, 2),
             'cash_out_total' => round($cashOutTotal, 2),
-            'cash_expected' => round($openingBalance + $revenueTotal - $expensesTotal - $advancesTotal + $cashInTotal - $cashOutTotal, 2),
+            'cash_expected' => round($openingBalance + $revenueTotal + $tipsTotal - $expensesTotal - $advancesTotal + $cashInTotal - $cashOutTotal, 2),
             'cash_movements' => $cashMovements->map(fn (CashMovement $movement) => [
                 'id' => $movement->id,
                 'type' => $movement->type,

@@ -50,7 +50,9 @@ class WorkDayController extends Controller
     {
         // `walletTransactions` charge en amont : sans lui, le statut wallet de
         // la ressource couterait une requete par journee affichee.
-        $workDays = WorkDay::with(['employees', 'openedBy', 'advances.employee', 'walletTransactions.wallet.user'])
+        // `tips` charge en amont : la ressource s'en sert pour recalculer le
+        // resultat des journees cloturees avant que les pourboires n'y entrent.
+        $workDays = WorkDay::with(['employees', 'openedBy', 'advances.employee', 'tips', 'walletTransactions.wallet.user'])
             ->orderByDesc('date')
             ->orderByDesc('id')
             ->limit(60)

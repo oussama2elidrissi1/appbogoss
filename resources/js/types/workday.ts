@@ -82,6 +82,18 @@ export interface ClosingReport {
     revenue_total: number;
     expenses_total: number;
     advances_total: number;
+    /**
+     * Encaisse au comptoir avec la prestation, donc present dans le tiroir :
+     * il ne compte pas dans le CA mais bien dans le resultat de la caisse.
+     * Absent des instantanes anterieurs a la correction.
+     */
+    tips_total?: number;
+    tips_by_employee?: Array<{
+        employee_id: number;
+        employee_name: string;
+        count: number;
+        total: number;
+    }>;
     commissions_total: number;
     net_result: number;
     clients_count: number;
@@ -133,6 +145,7 @@ export interface MonthlyReport {
         revenue_total: number;
         expenses_total: number;
         advances_total: number;
+        tips_total?: number;
         commissions_total: number;
         net_result: number;
         /** Ou est parti ce resultat. Informatif : aucun total n'en depend. */

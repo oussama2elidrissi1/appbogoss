@@ -50,6 +50,11 @@ class WorkDay extends Model
         return $this->hasMany(Advance::class);
     }
 
+    public function tips(): HasMany
+    {
+        return $this->hasMany(Tip::class);
+    }
+
     public function employees(): BelongsToMany
     {
         return $this->belongsToMany(Employee::class, 'work_day_employees')

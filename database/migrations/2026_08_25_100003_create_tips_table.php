@@ -10,9 +10,13 @@ use Illuminate\Support\Facades\Schema;
  *
  * Deliberately its own table, NOT a column on sales/prestations: a tip is
  * voluntary client money for a specific employee and must never blend into
- * revenue (Sale.total), commissions, or the closing report's cash formula.
- * One row per beneficiary — a 50 MAD tip split "Omar 20 / Yassine 30" is two
- * rows on the same prestation.
+ * revenue (Sale.total) or commissions. One row per beneficiary — a 50 MAD tip
+ * split "Omar 20 / Yassine 30" is two rows on the same prestation.
+ *
+ * Il entre EN REVANCHE dans la formule de caisse de la cloture : le pourboire
+ * est encaisse au comptoir, donc ces billets sont physiquement dans le
+ * tiroir. Les exclure creait un ecart de caisse a chaque pourboire en
+ * especes. Voir WorkDayService::buildDetailedReport().
  *
  * work_day_id is stamped from the day the tip was collected so the V2
  * dashboard can show "Pourboires aujourd'hui" without date arithmetic.
