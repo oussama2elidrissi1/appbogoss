@@ -31,6 +31,7 @@ import type {
     Client,
     ClientOverview,
     ClientPayload,
+    CommissionRule,
     CreateAdvancePayload,
     CreatedPartnerResponse,
     Partner,
@@ -408,6 +409,18 @@ export async function getEmployees(options?: {
             ...(options?.includeInactive ? { include_inactive: 1 } : {}),
             ...(options?.search ? { search: options.search } : {}),
         },
+    });
+    return data.data;
+}
+
+/**
+ * Regles de commission par service. Sans `employeeId`, renvoie celles de tout
+ * le salon — c'est ce que lit la caisse de test pour estimer ses commissions
+ * avec les memes regles que la vraie caisse.
+ */
+export async function getCommissionRules(employeeId?: number): Promise<CommissionRule[]> {
+    const { data } = await api.get<{ data: CommissionRule[] }>('/api/employee-service-commissions', {
+        params: employeeId ? { employee_id: employeeId } : {},
     });
     return data.data;
 }

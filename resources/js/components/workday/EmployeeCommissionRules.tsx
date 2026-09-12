@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, CheckCircle2, ChevronDown, Loader2, Plus, RefreshCw, Trash2, Wrench } from 'lucide-react';
-import { api, getErrorMessage, getServices } from '@/lib/api';
+import { api, getCommissionRules, getErrorMessage, getServices } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import type { Employee } from '@/types/workday';
@@ -17,25 +17,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-
-interface CommissionRule {
-    id: number;
-    employee_id: number;
-    service_id: number;
-    service_name: string | null;
-    type: 'percentage' | 'fixed';
-    value: number;
-    starts_on: string;
-    ends_on: string | null;
-    is_active: boolean;
-}
-
-async function getCommissionRules(employeeId: number): Promise<CommissionRule[]> {
-    const { data } = await api.get<{ data: CommissionRule[] }>('/api/employee-service-commissions', {
-        params: { employee_id: employeeId },
-    });
-    return data.data;
-}
 
 function today(): string {
     return new Date().toISOString().slice(0, 10);

@@ -448,6 +448,24 @@ export interface ClientOverview {
     }>;
 }
 
+/**
+ * Regle de commission d'un employe pour un service donne. Elle prime sur le
+ * `default_commission_rate` de l'employe, et c'est la plus recente en vigueur
+ * qui gagne — meme ordre que CommissionResolver cote serveur.
+ */
+export interface CommissionRule {
+    id: number;
+    employee_id: number;
+    employee_name?: string | null;
+    service_id: number;
+    service_name: string | null;
+    type: 'percentage' | 'fixed';
+    value: number;
+    starts_on: string;
+    ends_on: string | null;
+    is_active: boolean;
+}
+
 export interface Service {
     id: number;
     name: string;

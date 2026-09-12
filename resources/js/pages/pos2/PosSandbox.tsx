@@ -10,10 +10,11 @@ import {
     RotateCcw,
     ShoppingCart,
     Sunrise,
+    Percent,
     Wallet,
     X,
 } from 'lucide-react';
-import { getEmployees, getServices, getSettings } from '@/lib/api';
+import { getCommissionRules, getEmployees, getServices, getSettings } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { canPerform, eligibleEmployees } from '@/lib/pos2Eligibility';
 import { paymentMethodLabel, printInvoiceA4, printInvoiceReceipt } from '@/lib/receiptV2';
@@ -38,6 +39,7 @@ import {
     toggleHold,
     updateInvoice,
     updateLine,
+    type SandboxCatalog,
     type SandboxLineInput,
     type SandboxState,
 } from '@/lib/posSandbox';
@@ -71,6 +73,11 @@ import { Label } from '@/components/ui/label';
  * Les seules requêtes qu'il déclenche sont les lectures du catalogue
  * (employés, services, produits, réglages) et la recherche de clients — les
  * mêmes GET que n'importe quelle page de consultation.
+ *
+ * Les commissions sont résolues avec les VRAIES règles du salon (règle par
+ * service, sinon taux par défaut de l'employé) : c'est tout l'intérêt d'un
+ * essai — voir ce que chaque employé gagnerait sur un ticket avant de le
+ * passer pour de bon. Rien n'est enregistré pour autant.
  *
  * Les modules liés aux clients (abonnements, fidélité, QR, réservations,
  * prestations envoyées par les employés) sont volontairement absents : ils
@@ -113,6 +120,14 @@ export default function PosSandbox() {
         staleTime: 5 * 60_000,
     });
 
+    // Lecture seule, comme tout le reste de cet écran : les règles servent à
+    // calculer la commission exacte de chaque ligne, jamais à l'enregistrer.
+    const { data: commissionRules } = useQuery({
+        queryKey: ['commission-rules', 'sandbox'],
+        queryFn: () => getCommissionRules(),
+        staleTime: 5 * 60_000,
+    });
+
     const staff = useMemo(() => employees ?? [], [employees]);
 
     /**
@@ -125,9 +140,26 @@ export default function PosSandbox() {
         return onDuty.length > 0 ? onDuty : staff;
     }, [staff, state.day]);
 
+    const catalog: SandboxCatalog = useMemo(
+        () => ({ employees: roster, commissionRules: commissionRules ?? [] }),
+        [roster, commissionRules],
+    );
+
     const currentInvoice = useMemo(
         () => state.invoices.find((invoice) => invoice.id === currentInvoiceId) ?? null,
         [state.invoices, currentInvoiceId],
+    );
+
+    /** Ce que la facture en cours promet déjà aux employés. */
+    const cartCommission = useMemo(
+        () =>
+            Math.round(
+                (currentInvoice?.items ?? []).reduce(
+                    (sum, line) => sum + (line.commission_amount ?? line.estimated_commission ?? 0),
+                    0,
+                ) * 100,
+            ) / 100,
+        [currentInvoice],
     );
 
     const report = useMemo(() => buildReport(state), [state]);
@@ -151,7 +183,7 @@ export default function PosSandbox() {
     function addToInvoice(input: SandboxLineInput) {
         setActionError(null);
         const base = currentInvoice ? { state, invoice: currentInvoice } : openInvoice(state);
-        setState(addLine(base.state, base.invoice.id, input).state);
+        setState(addLine(base.state, base.invoice.id, input, catalog).state);
         setCurrentInvoiceId(base.invoice.id);
     }
 
@@ -215,7 +247,7 @@ export default function PosSandbox() {
 
         // `checkout()` rejoue les contrôles du serveur et lève comme lui ; le
         // dialogue d'encaissement affiche le message tel quel.
-        const result = checkout(state, currentInvoice.id, payload, roster);
+        const result = checkout(state, currentInvoice.id, payload, catalog);
         setState(result.state);
         return result.invoice;
     }
@@ -344,7 +376,7 @@ export default function PosSandbox() {
             allowClientCreation={false}
             onClientChange={handleClientChange}
             onUpdateLine={(lineId, payload) =>
-                currentInvoice && setState(updateLine(state, currentInvoice.id, lineId, payload, roster).state)
+                currentInvoice && setState(updateLine(state, currentInvoice.id, lineId, payload, catalog).state)
             }
             onRemoveLine={(lineId) =>
                 currentInvoice && setState(removeLine(state, currentInvoice.id, lineId).state)
@@ -405,7 +437,7 @@ export default function PosSandbox() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
                 <StatCard icon={Wallet} label={t('CA de test')} value={formatCurrency(report.revenue_total)} />
                 <StatCard icon={ReceiptText} label={t('Tickets')} value={`${report.ticket_count}`} />
                 <StatCard
@@ -415,6 +447,16 @@ export default function PosSandbox() {
                     hint={formatCurrency(state.invoices.reduce((sum, invoice) => sum + invoice.total, 0))}
                 />
                 <StatCard icon={HandCoins} label={t('Pourboires')} value={formatCurrency(report.tips_total)} />
+                <StatCard
+                    icon={Percent}
+                    label={t('Commissions')}
+                    value={formatCurrency(report.commissions_total)}
+                    hint={
+                        cartCommission > 0
+                            ? t('+ {amount} en cours', { amount: formatCurrency(cartCommission) })
+                            : undefined
+                    }
+                />
             </div>
 
             {state.invoices.length > 0 && (
@@ -491,9 +533,16 @@ export default function PosSandbox() {
                                         {t((invoice.items ?? []).length > 1 ? 'lignes' : 'ligne')}
                                     </p>
                                 </div>
-                                <span className="shrink-0 text-sm font-semibold tabular-nums">
-                                    {formatCurrency(invoice.total_collected ?? invoice.total)}
-                                </span>
+                                <div className="shrink-0 text-right">
+                                    <p className="text-sm font-semibold tabular-nums">
+                                        {formatCurrency(invoice.total_collected ?? invoice.total)}
+                                    </p>
+                                    <p className="text-[11px] tabular-nums text-muted-foreground">
+                                        {t('commission {amount}', {
+                                            amount: formatCurrency(ticketCommission(invoice)),
+                                        })}
+                                    </p>
+                                </div>
                             </button>
                         ))}
                     </CardContent>
@@ -585,6 +634,16 @@ export default function PosSandbox() {
             />
         </motion.div>
     );
+}
+
+/** Ce qu'un ticket de test doit au total à ses employés. */
+function ticketCommission(invoice: Pos2Invoice): number {
+    const total = (invoice.items ?? []).reduce(
+        (sum, line) => sum + (line.commission_amount ?? line.estimated_commission ?? 0),
+        0,
+    );
+
+    return Math.round(total * 100) / 100;
 }
 
 function StatCard({
@@ -898,9 +957,18 @@ function SandboxTicketDialog({ invoice, onClose }: { invoice: Pos2Invoice | null
                                         {formatCurrency(line.unit_price)}
                                     </p>
                                 </div>
-                                <span className="shrink-0 text-sm font-semibold tabular-nums">
-                                    {formatCurrency(line.effective_line_total)}
-                                </span>
+                                <div className="shrink-0 text-right">
+                                    <p className="text-sm font-semibold tabular-nums">
+                                        {formatCurrency(line.effective_line_total)}
+                                    </p>
+                                    {line.commission_amount !== null && (
+                                        <p className="text-[11px] tabular-nums text-muted-foreground">
+                                            {t('commission {amount}', {
+                                                amount: formatCurrency(line.commission_amount),
+                                            })}
+                                        </p>
+                                    )}
+                                </div>
                             </div>
                         ))}
 
@@ -909,6 +977,10 @@ function SandboxTicketDialog({ invoice, onClose }: { invoice: Pos2Invoice | null
                             <span className="tabular-nums">
                                 {formatCurrency(invoice.total_collected ?? invoice.total)}
                             </span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm text-muted-foreground">
+                            <span>{t('Commissions du ticket')}</span>
+                            <span className="tabular-nums">{formatCurrency(ticketCommission(invoice))}</span>
                         </div>
                     </div>
                 )}

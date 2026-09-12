@@ -24,11 +24,12 @@ export function SandboxDayReport({ report }: { report: SandboxReport }) {
                 />
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-5">
                 <Stat label={t('Fond de caisse')} value={formatCurrency(report.opening_balance)} />
                 <Stat label={t('Attendu en tiroir')} value={formatCurrency(report.cash_expected)} />
                 <Stat label={t('Tickets')} value={`${report.ticket_count}`} />
                 <Stat label={t('Ticket moyen')} value={formatCurrency(report.average_ticket)} />
+                <Stat label={t('Commissions')} value={formatCurrency(report.commissions_total)} />
             </div>
 
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -36,7 +37,16 @@ export function SandboxDayReport({ report }: { report: SandboxReport }) {
                     <Rows rows={report.revenue_by_category} labelOf={(row) => t(getCategoryLabel(row.label))} />
                 </Section>
                 <Section title={t('Par employé')}>
-                    <Rows rows={report.revenue_by_employee} labelOf={(row) => row.label} />
+                    <Rows
+                        rows={report.revenue_by_employee}
+                        labelOf={(row) => row.label}
+                        hintOf={(row) =>
+                            t('{count} ligne(s) · commission {amount}', {
+                                count: row.count,
+                                amount: formatCurrency(row.commission),
+                            })
+                        }
+                    />
                 </Section>
                 <Section title={t('Top prestations')}>
                     <Rows
@@ -85,8 +95,7 @@ export function SandboxDayReport({ report }: { report: SandboxReport }) {
 
             <p className="text-xs text-muted-foreground">
                 {t(
-                    'Commissions estimées à {amount} avec le taux par défaut de chaque employé — la vraie caisse applique d’abord les règles par service.',
-                    { amount: formatCurrency(report.commissions_total) },
+                    'Commissions calculées avec les règles réelles du salon — règle par service si elle existe, sinon taux par défaut de l’employé. Rien n’en est enregistré.',
                 )}
             </p>
         </div>

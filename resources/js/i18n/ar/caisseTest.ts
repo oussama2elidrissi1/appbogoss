@@ -50,13 +50,19 @@ const caisseTest: Record<string, string> = {
     '{n} facture(s) encore ouverte(s) : elles seront abandonnées, elles n’ont jamais été encaissées.':
         '{n} فاتورة ما زالت مفتوحة: ستُهمَل، فهي لم تُحصَّل قط.',
 
+    // ----------------------------------------------------------- Commissions
+    'commission {amount}': 'عمولة {amount}',
+    'Commissions du ticket': 'عمولات التذكرة',
+    '+ {amount} en cours': '+ {amount} جارية',
+    '{count} ligne(s) · commission {amount}': '{count} سطر · عمولة {amount}',
+    'Commissions calculées avec les règles réelles du salon — règle par service si elle existe, sinon taux par défaut de l’employé. Rien n’en est enregistré.':
+        'العمولات محسوبة بقواعد الصالون الحقيقية — قاعدة الخدمة إن وُجدت، وإلا النسبة الافتراضية للموظف. ولا يُسجَّل منها شيء.',
+
     // --------------------------------------------------------------- Rapport
     'Avances détaillées': 'تفاصيل السلف',
     'Aucune dépense sur cette journée de test.': 'لا توجد مصاريف في يوم الاختبار هذا.',
     'Aucune avance sur cette journée de test.': 'لا توجد سلفة في يوم الاختبار هذا.',
     'Rien à afficher.': 'لا شيء لعرضه.',
-    'Commissions estimées à {amount} avec le taux par défaut de chaque employé — la vraie caisse applique d’abord les règles par service.':
-        'العمولات مقدَّرة بـ {amount} حسب النسبة الافتراضية لكل موظف — الصندوق الحقيقي يطبّق أولاً قواعد كل خدمة.',
 };
 
 export default caisseTest;

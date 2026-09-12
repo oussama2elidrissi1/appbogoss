@@ -6,7 +6,7 @@ import type {
     Pos2PaymentMethod,
     Pos2Tip,
 } from '@/types/pos2';
-import type { Employee, Product, Service } from '@/types/workday';
+import type { CommissionRule, Employee, Product, Service } from '@/types/workday';
 import { UserFacingError } from '@/lib/userFacingError';
 
 /**
@@ -21,13 +21,12 @@ import { UserFacingError } from '@/lib/userFacingError';
  * en cours, et aucune autre session ne le voit.
  *
  * Les calculs reproduisent volontairement ceux du serveur (PosService::
- * computeTotals, PosService::validatePayment, WorkDayService::
- * buildDetailedReport) pour que les montants testés soient ceux de la vraie
- * caisse. Deux écarts assumés, signalés dans l'écran :
+ * computeTotals, PosService::validatePayment, CommissionResolver::resolve,
+ * WorkDayService::buildDetailedReport) pour que les montants testés soient
+ * ceux de la vraie caisse — commissions comprises, règle par service d'abord
+ * puis taux par défaut de l'employé, comme le serveur.
  *
- *  - les commissions utilisent le taux par défaut de l'employé ; la vraie
- *    caisse applique d'abord les règles par service (CommissionResolver) ;
- *  - le stock n'est pas décrémenté, puisqu'il vit en base.
+ * Un seul écart assumé : le stock n'est pas décrémenté, puisqu'il vit en base.
  *
  * Les identifiants créés ici sont NÉGATIFS. Un ticket de test ne peut donc
  * jamais être confondu avec une facture réelle, ni dans l'interface, ni dans
@@ -79,6 +78,8 @@ export interface SandboxReportRow {
     label: string;
     count: number;
     total: number;
+    /** Renseignée pour les lignes « par employé » : ce que le ticket lui doit. */
+    commission: number;
 }
 
 export interface SandboxReport {
@@ -98,6 +99,16 @@ export interface SandboxReport {
     payment_methods: SandboxReportRow[];
     expenses_detail: SandboxExpense[];
     advances_detail: SandboxAdvance[];
+}
+
+/**
+ * Les données de référence lues en base (GET) dont la caisse de test a besoin
+ * pour calculer juste. Passées en argument plutôt qu'importées : c'est ce qui
+ * garde ce module sans la moindre dépendance réseau.
+ */
+export interface SandboxCatalog {
+    employees: Employee[];
+    commissionRules: CommissionRule[];
 }
 
 /** Ce qu'un clic sur le catalogue veut ajouter à la facture en cours. */
@@ -190,13 +201,42 @@ function effectiveLineTotalOf(line: Pos2InvoiceLine): number {
 }
 
 /**
- * Commission estimée d'une ligne. Le serveur cherche d'abord une règle par
- * service ; faute de pouvoir la lire sans requête, la caisse de test s'en
- * tient au taux par défaut de l'employé — l'écran le dit.
+ * Commission d'une ligne, résolue comme `CommissionResolver::resolve()` :
+ * la règle par service en vigueur aujourd'hui d'abord — la plus récente
+ * gagne —, sinon le taux par défaut de l'employé, sinon rien. Une ligne sans
+ * employé responsable (un produit du comptoir) ne porte aucune commission.
  */
-function estimateCommission(employee: Employee | null | undefined, base: number): number | null {
+export function resolveCommission(
+    catalog: SandboxCatalog,
+    employeeId: number | null | undefined,
+    serviceId: number | null | undefined,
+    base: number,
+): number | null {
+    if (employeeId === null || employeeId === undefined) return null;
+
+    const employee = catalog.employees.find((item) => item.id === employeeId);
     if (!employee) return null;
+
+    if (serviceId !== null && serviceId !== undefined) {
+        const today = todayIso();
+        const rule = catalog.commissionRules
+            .filter(
+                (item) =>
+                    item.employee_id === employeeId &&
+                    item.service_id === serviceId &&
+                    item.is_active &&
+                    item.starts_on <= today &&
+                    (item.ends_on === null || item.ends_on >= today),
+            )
+            .sort((a, b) => b.starts_on.localeCompare(a.starts_on) || b.id - a.id)[0];
+
+        if (rule) {
+            return rule.type === 'percentage' ? round2((base * rule.value) / 100) : round2(rule.value);
+        }
+    }
+
     if (employee.default_commission_rate === null || employee.default_commission_rate === undefined) return 0;
+
     return round2((base * employee.default_commission_rate) / 100);
 }
 
@@ -367,6 +407,7 @@ export function addLine(
     state: SandboxState,
     invoiceId: number,
     input: SandboxLineInput,
+    catalog: SandboxCatalog,
 ): { state: SandboxState; invoice: Pos2Invoice | null } {
     const target = state.invoices.find((invoice) => invoice.id === invoiceId);
     if (!target) return { state, invoice: null };
@@ -413,7 +454,9 @@ export function addLine(
         client_subscription_id: null,
         loyalty_reward_id: null,
         commission_amount: null,
-        estimated_commission: input.product ? null : estimateCommission(employee, unitPrice),
+        estimated_commission: input.product
+            ? null
+            : resolveCommission(catalog, employee?.id ?? null, input.service?.id ?? null, unitPrice),
     };
 
     const invoice = recomputeInvoice({ ...target, items: [...(target.items ?? []), line] });
@@ -426,7 +469,7 @@ export function updateLine(
     invoiceId: number,
     lineId: number,
     patch: Record<string, unknown>,
-    employees: Employee[],
+    catalog: SandboxCatalog,
 ): { state: SandboxState; invoice: Pos2Invoice | null } {
     const target = state.invoices.find((invoice) => invoice.id === invoiceId);
     if (!target) return { state, invoice: null };
@@ -445,7 +488,7 @@ export function updateLine(
         if ('notes' in patch) next.notes = (patch.notes as string) || null;
         if ('beneficiary_name' in patch) next.beneficiary_name = (patch.beneficiary_name as string) || null;
         if ('employee_id' in patch) {
-            const employee = employees.find((item) => item.id === Number(patch.employee_id)) ?? null;
+            const employee = catalog.employees.find((item) => item.id === Number(patch.employee_id)) ?? null;
             next.employee_id = employee?.id ?? null;
             next.employee_name = employee?.name ?? null;
             next.employee_avatar_color = employee?.avatar_color ?? null;
@@ -456,10 +499,7 @@ export function updateLine(
         next.estimated_commission =
             next.product_id != null
                 ? null
-                : estimateCommission(
-                      employees.find((item) => item.id === next.employee_id) ?? null,
-                      next.effective_line_total,
-                  );
+                : resolveCommission(catalog, next.employee_id, next.service_id, next.effective_line_total);
 
         return next;
     });
@@ -538,7 +578,7 @@ export function checkout(
     state: SandboxState,
     invoiceId: number,
     payload: Pos2CheckoutPayload,
-    employees: Employee[],
+    catalog: SandboxCatalog,
 ): { state: SandboxState; invoice: Pos2Invoice } {
     const target = state.invoices.find((invoice) => invoice.id === invoiceId);
     if (!target) throw new UserFacingError('Facture de test introuvable.');
@@ -564,7 +604,7 @@ export function checkout(
     const tips: Pos2Tip[] = (payload.tips ?? []).map((tip, index) => ({
         id: -(index + 1),
         employee_id: tip.employee_id,
-        employee_name: employees.find((employee) => employee.id === tip.employee_id)?.name ?? null,
+        employee_name: catalog.employees.find((employee) => employee.id === tip.employee_id)?.name ?? null,
         prestation_item_id: tip.prestation_item_id ?? null,
         amount: round2(tip.amount),
         payment_method: tip.payment_method ?? null,
@@ -603,10 +643,7 @@ export function checkout(
         commission_amount:
             line.product_id != null
                 ? null
-                : estimateCommission(
-                      employees.find((employee) => employee.id === line.employee_id) ?? null,
-                      line.effective_line_total,
-                  ),
+                : resolveCommission(catalog, line.employee_id, line.service_id, line.effective_line_total),
     }));
 
     const paid: Pos2Invoice = {
@@ -679,10 +716,18 @@ function rank(rows: Map<string, SandboxReportRow>): SandboxReportRow[] {
     return [...rows.values()].sort((a, b) => b.total - a.total);
 }
 
-function bump(rows: Map<string, SandboxReportRow>, key: string, label: string, amount: number, count = 1): void {
-    const row = rows.get(key) ?? { key, label, count: 0, total: 0 };
+function bump(
+    rows: Map<string, SandboxReportRow>,
+    key: string,
+    label: string,
+    amount: number,
+    count = 1,
+    commission = 0,
+): void {
+    const row = rows.get(key) ?? { key, label, count: 0, total: 0, commission: 0 };
     row.count += count;
     row.total = round2(row.total + amount);
+    row.commission = round2(row.commission + commission);
     rows.set(key, row);
 }
 
@@ -710,12 +755,20 @@ export function buildReport(state: SandboxState): SandboxReport {
 
         (invoice.items ?? []).forEach((line) => {
             const amount = line.effective_line_total;
+            const commission = line.commission_amount ?? 0;
             bump(categories, line.category ?? 'autre', line.category ?? 'autre', amount);
             bump(prestations, line.label, line.label, amount, line.quantity);
-            commissionsTotal = round2(commissionsTotal + (line.commission_amount ?? 0));
+            commissionsTotal = round2(commissionsTotal + commission);
 
             if (line.employee_id !== null) {
-                bump(employeeRows, String(line.employee_id), line.employee_name ?? 'Employé', amount);
+                bump(
+                    employeeRows,
+                    String(line.employee_id),
+                    line.employee_name ?? 'Employé',
+                    amount,
+                    1,
+                    commission,
+                );
             }
         });
     });
