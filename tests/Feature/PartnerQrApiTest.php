@@ -125,8 +125,37 @@ class PartnerQrApiTest extends TestCase
 
         $this->assertNotSame($tokenA, $tokenB);
         $this->assertSame(48, strlen($tokenA));
-        // Ni l'id du partenaire, ni rien qui s'en approche.
-        $this->assertStringNotContainsString((string) $a->id, $tokenA);
+
+        // L'URL publique ne porte QUE le jeton : aucun segment n'est
+        // l'identifiant du partenaire, et le jeton n'en derive pas.
+        $path = parse_url(app(PartnerQrService::class)->publicUrl($tokenA), PHP_URL_PATH);
+        $this->assertSame(['p', $tokenA], array_values(array_filter(explode('/', (string) $path))));
+        $this->assertNotSame((string) $a->id, $tokenA);
+    }
+
+    /**
+     * Ce que l'affiche encode : l'URL publique du partenaire, et rien
+     * d'autre. Deux partenaires ne peuvent pas porter le meme QR, et aucune
+     * des deux URL ne laisse deviner l'identifiant du partenaire.
+     */
+    public function test_two_partners_get_two_different_public_urls(): void
+    {
+        $a = $this->partner('Hotel A');
+        $b = $this->partner('Salle B');
+        $qr = app(PartnerQrService::class);
+
+        $urlA = $qr->publicUrl($this->token($a));
+        $urlB = $qr->publicUrl($this->token($b));
+
+        $this->assertStringEndsWith('/p/'.$this->token($a), $urlA);
+        $this->assertStringEndsWith('/p/'.$this->token($b), $urlB);
+        $this->assertNotSame($urlA, $urlB);
+
+        // Et l'URL scannee ouvre bien la vitrine du bon partenaire.
+        $this->assertSame(
+            $a->id,
+            $qr->resolveToken($this->token($a))?->partner_id,
+        );
     }
 
     public function test_regenerating_revokes_the_previous_token_and_keeps_its_trace(): void

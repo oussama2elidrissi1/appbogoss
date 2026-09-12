@@ -1,0 +1,19 @@
+AFFICHE PARTENAIRE BOGOS LAND
+=============================
+
+Deposez ici la maquette validee, sous le nom EXACT :
+
+    affiche-partenaire.png
+
+C'est le gabarit unique de tous les partenaires. Le generateur
+(resources/js/lib/partnerPoster.ts) ne le redessine jamais : il remplace
+uniquement le QR du panneau blanc central par celui du partenaire.
+
+Recommandations :
+
+  - PNG, portrait, sans compression destructive ;
+  - le plus defini possible (2480 px de large = A4 a 300 dpi). Une image
+    moins definie fonctionne, elle sera agrandie -- le QR, lui, reste net
+    dans tous les cas puisqu'il est regenere a la resolution d'export ;
+  - ne retouchez pas le panneau blanc du QR : c'est lui qui est detecte
+    automatiquement pour placer le nouveau QR au bon endroit.

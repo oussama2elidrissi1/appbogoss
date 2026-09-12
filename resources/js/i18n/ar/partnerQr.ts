@@ -21,6 +21,8 @@ const partnerQr: Record<string, string> = {
     // ------------------------------------------------------------------- QR
     'QR Code partenaire': 'رمز QR للشريك',
     'Aucun QR actif': 'لا يوجد رمز QR نشط',
+    'Affiche partenaire': 'ملصق الشريك',
+    'Aperçu de l’affiche': 'معاينة الملصق',
     'L’affiche est la même pour tous les partenaires — seul ce QR change. Il n’expose jamais l’identifiant du partenaire.':
         'الملصق نفسه لجميع الشركاء — وحده رمز QR يتغيّر. ولا يكشف أبداً معرّف الشريك.',
     Copier: 'نسخ',

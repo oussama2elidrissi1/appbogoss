@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import QRCode from 'qrcode';
 import { Copy, Download, ExternalLink, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { getErrorMessage } from '@/lib/api';
 import { getOwnPartnerQr, getOwnPartnerQrBookings } from '@/lib/partnerQrApi';
-import { downloadPartnerPoster, downloadPartnerQr } from '@/lib/partnerPoster';
+import {
+    downloadPartnerPoster,
+    downloadPartnerQr,
+    renderPartnerPosterPreview,
+} from '@/lib/partnerPoster';
 import { useI18n } from '@/lib/i18n';
 import { pageFade } from '@/lib/motion';
 import { cn, formatCurrency } from '@/lib/utils';
@@ -27,7 +30,7 @@ import { Skeleton } from '@/components/ui/skeleton';
  */
 export default function PartnerQr() {
     const { t } = useI18n();
-    const [qrImage, setQrImage] = useState<string | null>(null);
+    const [poster, setPoster] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -37,9 +40,20 @@ export default function PartnerQr() {
 
     const url = data?.url ?? '';
 
+    // Le partenaire voit son affiche telle qu'elle s'imprimera.
     useEffect(() => {
         if (!url) return;
-        void QRCode.toDataURL(url, { errorCorrectionLevel: 'H', margin: 1, width: 420 }).then(setQrImage);
+        let cancelled = false;
+        renderPartnerPosterPreview(url)
+            .then((dataUrl) => {
+                if (!cancelled) setPoster(dataUrl);
+            })
+            .catch((err) => {
+                if (!cancelled) setError(getErrorMessage(err, 'L’affiche n’a pas pu être générée.'));
+            });
+        return () => {
+            cancelled = true;
+        };
     }, [url]);
 
     async function copyLink() {
@@ -80,12 +94,16 @@ export default function PartnerQr() {
                 </p>
             )}
 
-            <Card className="grid gap-5 p-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+            <Card className="grid gap-5 p-5 lg:grid-cols-[260px_minmax(0,1fr)]">
                 <div className="flex justify-center">
                     {isPending ? (
-                        <Skeleton className="h-[200px] w-[200px] rounded-md" />
-                    ) : qrImage ? (
-                        <img src={qrImage} alt={t('Mon QR Code')} className="h-[200px] w-[200px] rounded-md bg-white p-2" />
+                        <Skeleton className="aspect-[2/3] w-[240px] rounded-md" />
+                    ) : poster ? (
+                        <img
+                            src={poster}
+                            alt={t('Affiche partenaire')}
+                            className="w-[240px] rounded-md ring-1 ring-tint/[0.12]"
+                        />
                     ) : null}
                 </div>
 

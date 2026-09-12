@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import QRCode from 'qrcode';
 import {
     ArrowDown,
     ArrowUp,
@@ -31,7 +30,11 @@ import {
     updatePartnerOffering,
     type PartnerOffering,
 } from '@/lib/partnerQrApi';
-import { downloadPartnerPoster, downloadPartnerQr } from '@/lib/partnerPoster';
+import {
+    downloadPartnerPoster,
+    downloadPartnerQr,
+    renderPartnerPosterPreview,
+} from '@/lib/partnerPoster';
 import { useI18n } from '@/lib/i18n';
 import { cn, formatCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -59,7 +62,10 @@ export function PartnerQrPanel({ partnerId, partnerName }: { partnerId: number; 
     const queryClient = useQueryClient();
     const [error, setError] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
-    const [qrImage, setQrImage] = useState<string | null>(null);
+    // L'aperçu est produit par la MÊME fonction que le téléchargement, au
+    // même gabarit : ce qui est à l'écran est exactement ce qui s'imprime.
+    const [poster, setPoster] = useState<string | null>(null);
+    const [posterError, setPosterError] = useState<string | null>(null);
     const [busyPoster, setBusyPoster] = useState(false);
     const [confirmRegenerate, setConfirmRegenerate] = useState(false);
     const [confirmRevoke, setConfirmRevoke] = useState(false);
@@ -84,9 +90,26 @@ export function PartnerQrPanel({ partnerId, partnerName }: { partnerId: number; 
     const url = tokenQuery.data?.url ?? '';
 
     useEffect(() => {
-        if (!url) return;
-        void QRCode.toDataURL(url, { errorCorrectionLevel: 'H', margin: 1, width: 420 }).then(setQrImage);
-    }, [url]);
+        if (!url) {
+            setPoster(null);
+            return;
+        }
+        let cancelled = false;
+        setPosterError(null);
+        renderPartnerPosterPreview(url)
+            .then((dataUrl) => {
+                if (!cancelled) setPoster(dataUrl);
+            })
+            .catch((err) => {
+                if (!cancelled) {
+                    setPoster(null);
+                    setPosterError(getErrorMessage(err, t('L’affiche n’a pas pu être générée.')));
+                }
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [url, t]);
 
     function invalidate() {
         void queryClient.invalidateQueries({ queryKey: ['partner-qr', partnerId] });
@@ -120,7 +143,7 @@ export function PartnerQrPanel({ partnerId, partnerName }: { partnerId: number; 
         }
     }
 
-    async function poster(kind: 'poster' | 'qr') {
+    async function download(kind: 'poster' | 'qr') {
         setBusyPoster(true);
         setError(null);
         try {
@@ -142,21 +165,22 @@ export function PartnerQrPanel({ partnerId, partnerName }: { partnerId: number; 
             )}
 
             {/* ------------------------------------------------------ le QR */}
-            <Card className="grid gap-5 p-5 lg:grid-cols-[220px_minmax(0,1fr)]">
-                <div className="flex flex-col items-center gap-3">
+            <Card className="grid gap-5 p-5 lg:grid-cols-[260px_minmax(0,1fr)]">
+                <div className="flex flex-col items-center gap-2">
                     {tokenQuery.isPending ? (
-                        <Skeleton className="h-[200px] w-[200px] rounded-md" />
-                    ) : qrImage ? (
+                        <Skeleton className="aspect-[2/3] w-[240px] rounded-md" />
+                    ) : poster ? (
                         <img
-                            src={qrImage}
-                            alt={t('QR Code partenaire')}
-                            className="h-[200px] w-[200px] rounded-md bg-white p-2"
+                            src={poster}
+                            alt={t('Affiche partenaire')}
+                            className="w-[240px] rounded-md ring-1 ring-tint/[0.12]"
                         />
                     ) : (
-                        <div className="flex h-[200px] w-[200px] items-center justify-center rounded-md border border-dashed border-tint/[0.15] text-xs text-muted-foreground">
-                            {t('Aucun QR actif')}
+                        <div className="flex aspect-[2/3] w-[240px] items-center justify-center rounded-md border border-dashed border-tint/[0.15] px-4 text-center text-xs text-muted-foreground">
+                            {posterError ?? t('Aucun QR actif')}
                         </div>
                     )}
+                    <p className="text-[11px] text-muted-foreground">{t('Aperçu de l’affiche')}</p>
                 </div>
 
                 <div className="space-y-3">
@@ -178,11 +202,11 @@ export function PartnerQrPanel({ partnerId, partnerName }: { partnerId: number; 
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                        <Button type="button" variant="accent" disabled={!url || busyPoster} onClick={() => void poster('poster')}>
+                        <Button type="button" variant="accent" disabled={!url || busyPoster} onClick={() => void download('poster')}>
                             {busyPoster ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
                             {t('Télécharger l’affiche partenaire')}
                         </Button>
-                        <Button type="button" variant="outline" disabled={!url} onClick={() => void poster('qr')}>
+                        <Button type="button" variant="outline" disabled={!url} onClick={() => void download('qr')}>
                             <Download className="h-4 w-4" />
                             {t('QR seul (PNG)')}
                         </Button>
