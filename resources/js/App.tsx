@@ -45,6 +45,7 @@ import MonthClosure from '@/pages/MonthClosure';
 import MonthlyClosures from '@/pages/MonthlyClosures';
 import Payroll from '@/pages/Payroll';
 import PlaceholderPage from '@/pages/PlaceholderPage';
+import PosSandbox from '@/pages/pos2/PosSandbox';
 import PosV2 from '@/pages/pos2/PosV2';
 import PosV2History from '@/pages/pos2/PosV2History';
 import Reports from '@/pages/Reports';
@@ -197,6 +198,13 @@ export default function App() {
                         <Route path="/pos/historique" element={<PosV2History />} />
                         <Route path="/pos-v2" element={<Navigate to="/pos" replace />} />
                         <Route path="/pos-v2/historique" element={<Navigate to="/pos/historique" replace />} />
+                    </Route>
+
+                    {/* Caisse de test : le parcours complet, en memoire, sans
+                        la moindre ecriture. Verrouillee sur le ROLE et non sur
+                        une permission, que le super-admin satisfait toujours. */}
+                    <Route element={<ProtectedRoute role="super-admin" />}>
+                        <Route path="/caisse-test" element={<PosSandbox />} />
                     </Route>
 
                     <Route element={<ProtectedRoute permission="employees.manage" />}>

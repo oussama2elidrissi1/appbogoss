@@ -1,0 +1,62 @@
+/**
+ * Caisse de test — français → arabe.
+ *
+ * L'écran vit entièrement dans le navigateur, mais il parle la même langue
+ * que le reste de l'application : le dictionnaire est partagé avec le mobile
+ * (exporté en JSON dans ses assets), donc une chaîne ajoutée ici doit y être
+ * ré-exportée.
+ */
+const caisseTest: Record<string, string> = {
+    // ------------------------------------------------------------ Navigation
+    'Caisse de test': 'صندوق الاختبار',
+    'La caisse complète pour essayer : journée, factures, encaissement et clôture, sans rien écrire en base.':
+        'الصندوق الكامل للتجربة: اليوم، الفواتير، التحصيل والإقفال، دون أي كتابة في قاعدة البيانات.',
+
+    // ---------------------------------------------------------------- Entête
+    'Aucune écriture en base': 'لا كتابة في قاعدة البيانات',
+    'Le parcours complet de la caisse, en mémoire : tout disparaît à la fermeture de l’onglet.':
+        'مسار الصندوق كاملاً، في الذاكرة: كل شيء يختفي عند إغلاق التبويب.',
+    '{count} en service · fond de caisse {amount} · ouverte à {time}':
+        '{count} في الخدمة · رصيد افتتاحي {amount} · فُتح على الساعة {time}',
+    TEST: 'اختبار',
+
+    // --------------------------------------------------------- Ouverture
+    'Ouvrir une journée de test': 'فتح يوم اختبار',
+    'Ouvrir la journée de test': 'فتح يوم الاختبار',
+    'Nouvelle journée de test': 'يوم اختبار جديد',
+    'Employés en service': 'الموظفون في الخدمة',
+    'Rien de ce qui suit ne quitte le navigateur : ni journée, ni ticket, ni commission, ni mouvement de stock.':
+        'لا شيء مما يلي يغادر المتصفّح: لا يوم، ولا تذكرة، ولا عمولة، ولا حركة مخزون.',
+
+    // ----------------------------------------------------------- Encaissement
+    'CA de test': 'رقم معاملات الاختبار',
+    'Aucune facture en cours.': 'لا توجد فاتورة جارية.',
+    'Tickets encaissés (test)': 'التذاكر المحصّلة (اختبار)',
+    Comptoir: 'الكاونتر',
+    'Total encaissé': 'المجموع المحصَّل',
+
+    // ---------------------------------------------------- Dépense et avance
+    'Dépense de test': 'مصروف اختباري',
+    'Avance de test': 'سلفة اختبارية',
+
+    // --------------------------------------------------------------- Clôture
+    'Clôturer la journée de test': 'إقفال يوم الاختبار',
+    'Journée de test clôturée à {time}': 'أُقفل يوم الاختبار على الساعة {time}',
+    'Attendu en tiroir': 'المتوقع في الصندوق',
+    'Attendu en tiroir : {amount}': 'المتوقع في الصندوق: {amount}',
+    'Compté en tiroir (optionnel)': 'المحسوب في الصندوق (اختياري)',
+    'Tiroir juste': 'الصندوق مطابق',
+    'Écart {amount}': 'فرق {amount}',
+    '{n} facture(s) encore ouverte(s) : elles seront abandonnées, elles n’ont jamais été encaissées.':
+        '{n} فاتورة ما زالت مفتوحة: ستُهمَل، فهي لم تُحصَّل قط.',
+
+    // --------------------------------------------------------------- Rapport
+    'Avances détaillées': 'تفاصيل السلف',
+    'Aucune dépense sur cette journée de test.': 'لا توجد مصاريف في يوم الاختبار هذا.',
+    'Aucune avance sur cette journée de test.': 'لا توجد سلفة في يوم الاختبار هذا.',
+    'Rien à afficher.': 'لا شيء لعرضه.',
+    'Commissions estimées à {amount} avec le taux par défaut de chaque employé — la vraie caisse applique d’abord les règles par service.':
+        'العمولات مقدَّرة بـ {amount} حسب النسبة الافتراضية لكل موظف — الصندوق الحقيقي يطبّق أولاً قواعد كل خدمة.',
+};
+
+export default caisseTest;

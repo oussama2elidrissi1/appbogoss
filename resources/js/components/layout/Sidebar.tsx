@@ -24,7 +24,7 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onToggle, variant = 'desktop', onNavigate }: SidebarProps) {
     const isMobile = variant === 'mobile';
     const isCollapsed = isMobile ? false : collapsed;
-    const { user, logout, hasPermission } = useAuth();
+    const { user, logout, hasPermission, hasRole } = useAuth();
     const { t } = useI18n();
     const { data: settings } = useQuery({ queryKey: ['settings'], queryFn: getSettings, staleTime: 5 * 60_000 });
     const location = useLocation();
@@ -76,7 +76,8 @@ export function Sidebar({ collapsed, onToggle, variant = 'desktop', onNavigate }
                                 (Array.isArray(item.permission)
                                     ? item.permission.some(hasPermission)
                                     : hasPermission(item.permission))) &&
-                            (!item.requiresEmployee || user?.employee_id !== null),
+                            (!item.requiresEmployee || user?.employee_id !== null) &&
+                            (!item.role || hasRole(item.role)),
                     );
 
                     if (visibleItems.length === 0) return null;

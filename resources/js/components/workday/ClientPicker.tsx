@@ -29,6 +29,12 @@ export const EMPTY_CLIENT_SELECTION: ClientSelection = {
 interface ClientPickerProps {
     value: ClientSelection;
     onChange: (value: ClientSelection) => void;
+    /**
+     * Laisse créer un client depuis le picker. La caisse de test le passe à
+     * `false` : chercher un client est une lecture, en créer un serait la
+     * seule écriture en base de tout cet écran.
+     */
+    allowCreate?: boolean;
 }
 
 /**
@@ -41,7 +47,7 @@ interface ClientPickerProps {
  * whole picker body for a small creation form, independent of the search
  * dropdown's own open/closed state.
  */
-export function ClientPicker({ value, onChange }: ClientPickerProps) {
+export function ClientPicker({ value, onChange, allowCreate = true }: ClientPickerProps) {
     const { t } = useI18n();
     const { hasPermission } = useAuth();
     const queryClient = useQueryClient();
@@ -52,7 +58,7 @@ export function ClientPicker({ value, onChange }: ClientPickerProps) {
     const [newName, setNewName] = useState('');
     const [newPhone, setNewPhone] = useState('');
     const containerRef = useRef<HTMLDivElement>(null);
-    const canCreateClient = hasPermission('caisse.manage');
+    const canCreateClient = allowCreate && hasPermission('caisse.manage');
 
     useEffect(() => {
         const timer = window.setTimeout(() => setDebounced(search.trim()), 250);

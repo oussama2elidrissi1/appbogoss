@@ -34,6 +34,7 @@ import loginA from './loginA';
 import missingE from './missingE';
 import publicBooking from './publicBooking';
 import wallet from './wallet';
+import caisseTest from './caisseTest';
 
 /**
  * Dictionnaire français → arabe, fusionné par domaine. La CLÉ est la chaîne
@@ -78,6 +79,7 @@ const ar: Record<string, string> = {
     ...loginA,
     ...missingE,
     ...wallet,
+    ...caisseTest,
     ...publicBooking,
 };
 

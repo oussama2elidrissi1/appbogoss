@@ -1,4 +1,5 @@
 import axios, { AxiosError } from 'axios';
+import { UserFacingError } from '@/lib/userFacingError';
 import type { ApplicationSettings, ApplicationSettingsPayload, DashboardData, User } from '@/types/dashboard';
 import type {
     ClosureChecklist,
@@ -143,6 +144,7 @@ export const api = axios.create({
 
 /** Pulls a readable message out of a Laravel JSON error response. */
 export function getErrorMessage(error: unknown, fallback = 'Une erreur est survenue.'): string {
+    if (error instanceof UserFacingError) return error.message;
     if (error instanceof AxiosError) {
         const data = error.response?.data as { message?: string } | undefined;
         if (data?.message) return data.message;

@@ -4,6 +4,7 @@ import {
     Calendar,
     CalendarCheck,
     CalendarClock,
+    FlaskConical,
     Gift,
     HandCoins,
     Handshake,
@@ -37,6 +38,11 @@ export interface NavItem {
     permission?: string | string[];
     /** When true, the link is shown only for accounts linked to an employee record. */
     requiresEmployee?: boolean;
+    /**
+     * Quand il est posé, le lien n'apparaît que pour ce rôle exact. Plus strict
+     * que `permission`, que le super-admin satisfait toujours.
+     */
+    role?: string;
 }
 
 export interface NavSection {
@@ -157,6 +163,14 @@ export const navSections: NavSection[] = [
                 icon: ShoppingCart,
                 description: 'Ouverture de journée, factures, encaissement, pourboires et clôture.',
                 permission: 'caisse_v2.access',
+            },
+            {
+                label: 'Caisse de test',
+                to: '/caisse-test',
+                icon: FlaskConical,
+                description:
+                    'La caisse complète pour essayer : journée, factures, encaissement et clôture, sans rien écrire en base.',
+                role: 'super-admin',
             },
             {
                 label: 'Stock',

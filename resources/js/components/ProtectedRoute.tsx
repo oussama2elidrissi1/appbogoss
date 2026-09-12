@@ -7,13 +7,20 @@ import { useI18n } from '@/lib/i18n';
  * Gates the authenticated shell. While the `me` query is in flight we render a
  * neutral splash rather than redirecting, so a cold load never flashes /login.
  *
+ * `role` verrouille une route sur un rôle précis. C'est plus strict que
+ * `permission`, que le super-admin satisfait TOUJOURS (voir useAuth) : une
+ * route réservée au patron — la caisse de test — ne peut se garder qu'ainsi.
+ *
  * When `permission` is set, an authenticated user lacking it is redirected to
  * "/" instead of the page rendering and failing on every request — "/" then
  * resolves to the right landing page per role (see RoleAwareRedirect), so this
  * never loops back into another permission-gated route.
  */
-export function ProtectedRoute({ permission }: { permission?: string | string[] } = {}) {
-    const { user, isLoading, hasPermission } = useAuth();
+export function ProtectedRoute({
+    permission,
+    role,
+}: { permission?: string | string[]; role?: string } = {}) {
+    const { user, isLoading, hasPermission, hasRole } = useAuth();
     const location = useLocation();
 
     if (isLoading) return <AuthSplash />;
@@ -21,8 +28,9 @@ export function ProtectedRoute({ permission }: { permission?: string | string[] 
     if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
 
     const allowed =
-        !permission ||
-        (Array.isArray(permission) ? permission.some(hasPermission) : hasPermission(permission));
+        (!role || hasRole(role)) &&
+        (!permission ||
+            (Array.isArray(permission) ? permission.some(hasPermission) : hasPermission(permission)));
     if (!allowed) return <Navigate to="/" replace />;
 
     return <Outlet />;

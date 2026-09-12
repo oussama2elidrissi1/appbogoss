@@ -34,6 +34,8 @@ interface Pos2InvoicePanelProps {
     onNewInvoice: () => void;
     onUseSubscriptionService: (subscription: Pos2SubscriptionInfo, service: Pos2SubscriptionServiceInfo) => void;
     onUseReward: (rewardId: number, serviceId: number | null) => void;
+    /** Passé à `false` par la caisse de test, seul écran qui n'écrit rien. */
+    allowClientCreation?: boolean;
 }
 
 /**
@@ -60,6 +62,7 @@ export function Pos2InvoicePanel({
     onNewInvoice,
     onUseSubscriptionService,
     onUseReward,
+    allowClientCreation = true,
 }: Pos2InvoicePanelProps) {
     const { t } = useI18n();
     const [cancelling, setCancelling] = useState(false);
@@ -136,7 +139,7 @@ export function Pos2InvoicePanel({
 
             <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
                 {/* Client (§18-§19) */}
-                <ClientPicker value={clientSelection} onChange={onClientChange} />
+                <ClientPicker value={clientSelection} onChange={onClientChange} allowCreate={allowClientCreation} />
 
                 {clientContext && (
                     <Pos2ClientContext
