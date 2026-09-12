@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * External business partner (hotel, riad, guide…) allowed to book
@@ -91,6 +92,34 @@ class Partner extends Model
     public function commissionPayouts(): HasMany
     {
         return $this->hasMany(PartnerCommissionPayout::class);
+    }
+
+    /** Tous ses jetons QR, revoques compris — l'historique de ses affiches. */
+    public function qrTokens(): HasMany
+    {
+        return $this->hasMany(PartnerQrToken::class);
+    }
+
+    /** Le seul jeton qui attribue encore quelque chose. */
+    public function activeQrToken(): HasOne
+    {
+        return $this->hasOne(PartnerQrToken::class)->whereNull('revoked_at')->latestOfMany();
+    }
+
+    /** Sa vitrine : les services et packs qu'il montre, dans son ordre. */
+    public function offerings(): HasMany
+    {
+        return $this->hasMany(PartnerOffering::class)->orderBy('sort_order')->orderBy('id');
+    }
+
+    public function landingSetting(): HasOne
+    {
+        return $this->hasOne(PartnerLandingSetting::class);
+    }
+
+    public function qrVisits(): HasMany
+    {
+        return $this->hasMany(PartnerQrVisit::class);
     }
 
     /** Only an active partner may book, browse clients, or otherwise use the portal. */

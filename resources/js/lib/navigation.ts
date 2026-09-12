@@ -1,6 +1,7 @@
 import {
     BadgeCheck,
     BarChart3,
+    Boxes,
     Calendar,
     CalendarCheck,
     CalendarClock,
@@ -113,6 +114,13 @@ export const navSections: NavSection[] = [
                 to: '/partner-reservations',
                 icon: CalendarCheck,
                 description: 'Demandes de réservation en attente — accepter, refuser ou proposer un autre créneau.',
+                permission: 'partners.manage',
+            },
+            {
+                label: 'Packs',
+                to: '/packs',
+                icon: Boxes,
+                description: 'Assemblages de prestations proposes aux partenaires sur leur page QR.',
                 permission: 'partners.manage',
             },
             {

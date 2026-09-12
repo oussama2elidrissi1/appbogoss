@@ -6,6 +6,7 @@ use App\Models\Appointment;
 use App\Models\Partner;
 use App\Models\PartnerCommission;
 use App\Models\PartnerCommissionPayout;
+use App\Models\PartnerOffering;
 use App\Models\PartnerServiceCommission;
 use App\Models\Prestation;
 use App\Models\PrestationItem;
@@ -17,55 +18,196 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * The real, earned counterpart of Partner::commissionFor() (which only ever
- * estimates). There is no booking→payment conversion in this app, so accrual
- * is driven by client ownership at the moment a Prestation is actually paid,
- * not by matching an Appointment — see accrueForPrestation().
+ * estimates). Accrual happens at the moment a Prestation is actually paid.
+ *
+ * À QUI revient la commission — deux chemins, dans cet ordre :
+ *
+ *  1. LA RÉSERVATION. Si la prestation est née d'une réservation issue d'un
+ *     QR partenaire (`prestations.appointment_id` → `appointments.source =
+ *     partner_qr`), elle revient au partenaire de CETTE réservation. C'est le
+ *     seul chemin qui attribue correctement un client déjà rattaché à un
+ *     confrère, ou un client du salon que personne ne possède.
+ *  2. LA PROPRIÉTÉ DU CLIENT. Sinon, comportement historique inchangé :
+ *     `clients.partner_id` décide. Toute prestation sans QR se comporte
+ *     exactement comme avant.
+ *
+ * COMBIEN — trois niveaux, du plus spécifique au plus général :
+ *
+ *  1. la commission négociée sur l'OFFRE scannée
+ *     (`partner_offerings.custom_commission_*`), quand la réservation en
+ *     porte une. C'est le seul moyen de rémunérer un PACK, qui n'existe pas
+ *     dans la grille par service ;
+ *  2. la grille `PartnerServiceCommission` du partenaire pour ce service ;
+ *  3. rien — la ligne est quand même écrite, à 0, pour que « CA généré »
+ *     reste sommable depuis `base_amount`.
+ *
+ * Une commission d'offre porte sur la prestation entière : elle est répartie
+ * sur les lignes au prorata de leur montant, sans quoi un pack à commission
+ * fixe paierait autant de fois qu'il contient de services.
  */
 class PartnerCommissionService
 {
     /**
-     * Called from PrestationService::confirmPayment(), after the Sale +
-     * employee Commission rows already exist. A no-op unless the prestation's
-     * client belongs to a partner. One row per PrestationItem, always
-     * created (even at 0 commission) so "CA généré" can be summed from
-     * base_amount independently of whether a rate is configured.
+     * Called from PrestationService::confirmPayment() and
+     * PosService::checkout(), after the Sale + employee Commission rows
+     * already exist. One row per PrestationItem, always created (even at 0
+     * commission) so "CA généré" can be summed from base_amount independently
+     * of whether a rate is configured.
+     *
+     * IDEMPOTENT : une prestation déjà accrochée n'est jamais accrochée deux
+     * fois. C'est ce qui protège d'une double commission si l'encaissement
+     * est rejoué, et ce qui rend sûr d'appeler cette méthode depuis les deux
+     * caisses.
      */
     public function accrueForPrestation(Prestation $prestation): void
     {
-        $client = $prestation->client;
-        if ($client === null || $client->partner_id === null) {
+        $partner = $this->partnerFor($prestation);
+        if ($partner === null) {
             return;
         }
 
-        /** @var Partner $partner */
-        $partner = $client->partner()->firstOrFail();
+        $alreadyAccrued = PartnerCommission::where('prestation_id', $prestation->id)
+            ->where('status', '!=', PartnerCommission::STATUS_CANCELLED)
+            ->exists();
+        if ($alreadyAccrued) {
+            return;
+        }
+
+        $offering = $this->offeringFor($prestation);
         $rules = PartnerServiceCommission::where('partner_id', $partner->id)->get()->keyBy('service_id');
+
+        // Assiette de la prestation : sert à répartir une commission d'offre,
+        // qui vaut pour l'ensemble et non pour chaque ligne.
+        $bases = [];
+        foreach ($prestation->items as $item) {
+            $bases[$item->id] = $item->is_free ? (float) ($item->public_price ?? 0) : $item->lineTotal();
+        }
+        $baseSum = round(array_sum($bases), 2);
+        $offeringShares = $this->spreadOfferingCommission($offering, $bases, $baseSum);
 
         foreach ($prestation->items as $item) {
             /** @var PrestationItem $item */
-            $baseAmount = $item->is_free ? (float) ($item->public_price ?? 0) : $item->lineTotal();
+            $baseAmount = $bases[$item->id];
             $rule = $item->service_id ? $rules->get($item->service_id) : null;
 
-            $amount = match ($rule?->type) {
-                'percentage' => round($baseAmount * (float) $rule->value / 100, 2),
-                'fixed' => round((float) $rule->value, 2),
-                default => 0.0,
-            };
+            if ($offeringShares !== null) {
+                $amount = $offeringShares[$item->id] ?? 0.0;
+                $type = $offering->custom_commission_type;
+                $rateOrAmount = $offering->custom_commission_value;
+                $ruleId = null;
+            } else {
+                $amount = match ($rule?->type) {
+                    'percentage' => round($baseAmount * (float) $rule->value / 100, 2),
+                    'fixed' => round((float) $rule->value, 2),
+                    default => 0.0,
+                };
+                $type = $rule?->type;
+                $rateOrAmount = $rule?->value;
+                $ruleId = $rule?->id;
+            }
 
             PartnerCommission::create([
                 'partner_id' => $partner->id,
-                'client_id' => $client->id,
+                // Le client de la prestation, qu'il appartienne ou non au
+                // partenaire : la ligne dit qui a été servi, pas qui possède.
+                'client_id' => $prestation->client_id,
                 'prestation_id' => $prestation->id,
                 'prestation_item_id' => $item->id,
                 'service_id' => $item->service_id,
-                'rule_id' => $rule?->id,
-                'type' => $rule?->type,
-                'rate_or_amount' => $rule?->value,
+                'rule_id' => $ruleId,
+                'type' => $type,
+                'rate_or_amount' => $rateOrAmount,
                 'base_amount' => $baseAmount,
                 'amount' => $amount,
                 'status' => PartnerCommission::STATUS_VALIDATED,
             ]);
         }
+    }
+
+    /**
+     * Le partenaire à qui revient cette prestation : celui de la réservation
+     * QR dont elle est née, sinon le propriétaire du client (historique).
+     */
+    private function partnerFor(Prestation $prestation): ?Partner
+    {
+        $appointment = $prestation->appointment_id !== null ? $prestation->appointment : null;
+
+        if ($appointment !== null
+            && $appointment->source === Appointment::SOURCE_PARTNER_QR
+            && $appointment->partner_id !== null) {
+            return Partner::find($appointment->partner_id);
+        }
+
+        $client = $prestation->client;
+        if ($client === null || $client->partner_id === null) {
+            return null;
+        }
+
+        return $client->partner()->first();
+    }
+
+    /** L'offre scannée, quand la prestation vient bien d'un QR partenaire. */
+    private function offeringFor(Prestation $prestation): ?PartnerOffering
+    {
+        $appointment = $prestation->appointment_id !== null ? $prestation->appointment : null;
+
+        if ($appointment === null
+            || $appointment->source !== Appointment::SOURCE_PARTNER_QR
+            || $appointment->partner_offering_id === null) {
+            return null;
+        }
+
+        return PartnerOffering::find($appointment->partner_offering_id);
+    }
+
+    /**
+     * Répartit la commission négociée d'une offre sur les lignes de la
+     * prestation, au prorata de leur montant et le reste sur la dernière.
+     *
+     * Renvoie null quand l'offre ne porte aucune commission propre : la
+     * grille par service reprend alors la main, niveau par niveau.
+     *
+     * @param  array<int, float>  $bases
+     * @return array<int, float>|null
+     */
+    private function spreadOfferingCommission(?PartnerOffering $offering, array $bases, float $baseSum): ?array
+    {
+        if ($offering === null
+            || $offering->custom_commission_type === null
+            || $offering->custom_commission_value === null) {
+            return null;
+        }
+
+        $value = (float) $offering->custom_commission_value;
+
+        if ($offering->custom_commission_type === 'percentage') {
+            // Un pourcentage se calcule ligne à ligne : il suit naturellement
+            // les montants, aucune répartition à faire.
+            return array_map(fn (float $base) => round($base * $value / 100, 2), $bases);
+        }
+
+        // Montant fixe : il vaut pour LA PRESTATION. Le répartir est ce qui
+        // empêche un pack de trois services de payer trois fois la commission.
+        $total = round($value, 2);
+        $shares = [];
+        $allocated = 0.0;
+        $ids = array_keys($bases);
+        $lastIndex = count($ids) - 1;
+
+        foreach ($ids as $index => $itemId) {
+            if ($index === $lastIndex) {
+                $shares[$itemId] = round($total - $allocated, 2);
+
+                continue;
+            }
+            $share = $baseSum > 0
+                ? round($total * $bases[$itemId] / $baseSum, 2)
+                : round($total / max(1, count($ids)), 2);
+            $shares[$itemId] = $share;
+            $allocated = round($allocated + $share, 2);
+        }
+
+        return $shares;
     }
 
     /** Mirrors PrestationService::refund()'s handling of employee Commission rows. */

@@ -16,6 +16,7 @@ import {
     Wallet,
     X,
     type LucideIcon,
+    QrCode,
 } from 'lucide-react';
 import { getPartnerPortalProfile } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -58,6 +59,7 @@ const NAV_SECTIONS: PartnerNavSection[] = [
         ],
     },
     { heading: 'Clients', items: [{ label: 'Mes clients', to: '/partner/clients', icon: Users }] },
+    { heading: 'Ma vitrine', items: [{ label: 'Mon QR Code', to: '/partner/qr', icon: QrCode }] },
     { heading: 'Finances', items: [{ label: 'Mes commissions', to: '/partner/commissions', icon: Wallet }] },
     {
         heading: 'Compte',

@@ -7,6 +7,8 @@ use App\Models\AppointmentStatusLog;
 use App\Models\AppSetting;
 use App\Models\Client;
 use App\Models\Employee;
+use App\Models\Partner;
+use App\Models\PartnerOffering;
 use App\Models\Service;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
@@ -123,8 +125,12 @@ class PublicBookingService
      *     employees: list<array{id: int, name: string, role: ?string, avatar_color: ?string}>
      * }
      */
-    public function availability(Service $service, string $date, ?int $employeeId = null): array
-    {
+    public function availability(
+        Service $service,
+        string $date,
+        ?int $employeeId = null,
+        ?int $durationOverride = null,
+    ): array {
         $settings = $this->bookingSettings();
         $day = Carbon::parse($date)->startOfDay();
         $now = $this->wallClockNow();
@@ -145,7 +151,10 @@ class PublicBookingService
         [$open, $close] = $this->openingWindowFor($day->toDateString(), $settings);
         $step = max(5, (int) $settings['booking_slot_minutes']);
         $lead = $now->copy()->addMinutes((int) $settings['booking_lead_minutes']);
-        $duration = max(5, (int) $service->duration_minutes);
+        // `durationOverride` sert aux PACKS : plusieurs prestations tiennent
+        // un seul creneau, dont la duree est la somme des leurs. Nul ailleurs,
+        // donc le canal public existant ne change pas d'un cheveu.
+        $duration = max(5, $durationOverride ?? (int) $service->duration_minutes);
 
         $slots = [];
         if ($withinHorizon && $open < $close) {
@@ -211,29 +220,11 @@ class PublicBookingService
             ]);
         }
 
-        $settings = $this->bookingSettings();
-        $now = $this->wallClockNow();
         $startsAt = Carbon::parse($data['starts_at']);
         $duration = max(5, (int) $service->duration_minutes);
         $endsAt = $startsAt->copy()->addMinutes($duration);
 
-        if ($startsAt < $now->copy()->addMinutes((int) $settings['booking_lead_minutes'])) {
-            throw ValidationException::withMessages([
-                'starts_at' => 'Ce créneau est trop proche ou déjà passé. Choisissez un horaire plus tard.',
-            ]);
-        }
-        if ($startsAt > $now->copy()->addDays((int) $settings['booking_horizon_days'])->endOfDay()) {
-            throw ValidationException::withMessages([
-                'starts_at' => 'Ce créneau est trop lointain pour une réservation en ligne.',
-            ]);
-        }
-
-        [$open, $close] = $this->openingWindowFor($startsAt->toDateString(), $settings);
-        if ($startsAt < $open || $endsAt > $close) {
-            throw ValidationException::withMessages([
-                'starts_at' => 'Le salon est fermé sur ce créneau.',
-            ]);
-        }
+        $this->assertSlotIsBookable($startsAt, $endsAt);
 
         return DB::transaction(function () use ($data, $service, $phoneE164, $startsAt, $endsAt, $duration) {
             $client = $this->findOrCreateClient($data, $phoneE164);
@@ -286,6 +277,203 @@ class PublicBookingService
     }
 
     /**
+     * Les trois mêmes verrous de créneau pour tous les canaux publics : délai
+     * minimum, horizon, salon ouvert. Extraits pour que la réservation venue
+     * d'un QR partenaire ne puisse pas dériver de celle de l'application.
+     */
+    private function assertSlotIsBookable(Carbon $startsAt, Carbon $endsAt): void
+    {
+        $settings = $this->bookingSettings();
+        $now = $this->wallClockNow();
+
+        if ($startsAt < $now->copy()->addMinutes((int) $settings['booking_lead_minutes'])) {
+            throw ValidationException::withMessages([
+                'starts_at' => 'Ce créneau est trop proche ou déjà passé. Choisissez un horaire plus tard.',
+            ]);
+        }
+        if ($startsAt > $now->copy()->addDays((int) $settings['booking_horizon_days'])->endOfDay()) {
+            throw ValidationException::withMessages([
+                'starts_at' => 'Ce créneau est trop lointain pour une réservation en ligne.',
+            ]);
+        }
+
+        [$open, $close] = $this->openingWindowFor($startsAt->toDateString(), $settings);
+        if ($startsAt < $open || $endsAt > $close) {
+            throw ValidationException::withMessages([
+                'starts_at' => 'Le salon est fermé sur ce créneau.',
+            ]);
+        }
+    }
+
+    /**
+     * RÉSERVATION NÉE D'UN QR PARTENAIRE.
+     *
+     * Même écriture, mêmes tables, même arbitre de créneau que `book()` : la
+     * réservation créée est une réservation Bogosland ordinaire. Trois seules
+     * différences, et elles viennent toutes du SERVEUR :
+     *
+     *  - `partner_id` est celui du jeton résolu dans l'URL. Le formulaire
+     *    public n'a aucun champ partenaire, et en aurait-il un qu'il ne serait
+     *    pas lu : l'appelant passe un Partner déjà authentifié par son jeton ;
+     *  - `source = partner_qr`, ce qui distingue le scan client du partenaire
+     *    qui saisit lui-même depuis son portail (`source = partner`) ;
+     *  - `partner_offering_id` garde l'offre vendue, seul moyen de retrouver
+     *    la commission négociée d'un PACK au moment de l'encaissement.
+     *
+     * Le prix vient de l'offre côté serveur (`effectivePrice`), jamais du
+     * navigateur : un prix falsifié dans la requête n'a nulle part où entrer.
+     *
+     * Propriété du client — la règle, et pourquoi :
+     *
+     *  - client inconnu : il est créé et rattaché au partenaire, qui l'a
+     *    réellement amené (c'est ce qui alimente « clients apportés ») ;
+     *  - client déjà rattaché à un autre partenaire : il NE CHANGE PAS de
+     *    propriétaire. Seule la réservation est attribuée au scanneur. Voler
+     *    un client par un scan casserait l'historique du premier partenaire ;
+     *  - client déjà connu du salon sans partenaire : il reste sans
+     *    propriétaire. Le salon le connaissait avant le partenaire, celui-ci
+     *    ne l'a pas amené — mais la réservation lui est bien attribuée, donc
+     *    il en touche la commission.
+     */
+    public function bookFromPartnerOffering(array $data, Partner $partner, PartnerOffering $offering): Appointment
+    {
+        $serviceIds = $offering->serviceIds();
+        if ($serviceIds === []) {
+            throw ValidationException::withMessages([
+                'offering_id' => 'Cette offre n’est plus disponible.',
+            ]);
+        }
+
+        $services = Service::query()->whereIn('id', $serviceIds)->get()->keyBy('id');
+        foreach ($serviceIds as $serviceId) {
+            if (! ($services[$serviceId] ?? null)?->is_active) {
+                throw ValidationException::withMessages([
+                    'offering_id' => 'Cette offre n’est plus disponible.',
+                ]);
+            }
+        }
+
+        $phoneE164 = PhoneNumberNormalizer::toE164($data['phone']);
+        if ($phoneE164 === null) {
+            throw ValidationException::withMessages([
+                'phone' => 'Numéro de téléphone invalide. Utilisez un numéro marocain (ex. 06 12 34 56 78).',
+            ]);
+        }
+
+        $startsAt = Carbon::parse($data['starts_at']);
+        $duration = max(5, $offering->durationMinutes());
+        $endsAt = $startsAt->copy()->addMinutes($duration);
+
+        $this->assertSlotIsBookable($startsAt, $endsAt);
+
+        return DB::transaction(function () use (
+            $data, $partner, $offering, $serviceIds, $services, $phoneE164, $startsAt, $endsAt, $duration
+        ) {
+            $client = $this->findOrCreateClient($data, $phoneE164);
+            $this->assertClientNotSaturated($client);
+
+            // Le partenaire ne prend possession que d'un client qu'il amène
+            // vraiment : jamais de celui d'un confrère, jamais d'un client que
+            // le salon connaissait déjà.
+            if ($client->wasRecentlyCreated && $client->partner_id === null) {
+                $client->forceFill(['partner_id' => $partner->id])->save();
+            }
+
+            $prices = $this->spreadOfferingPrice($offering, $serviceIds, $services);
+            $busyFor = $startsAt;
+
+            $items = [];
+            foreach ($serviceIds as $index => $serviceId) {
+                /** @var Service $service */
+                $service = $services[$serviceId];
+                $items[] = [
+                    'uid' => (string) Str::random(12),
+                    'service_id' => $service->id,
+                    // Un employé est cherché pour chaque prestation du pack,
+                    // sur le créneau complet : la réservation vaut pour tout
+                    // le passage, comme une réservation multi-services saisie
+                    // par le salon.
+                    'employee_id' => $this->resolveEmployee($service, null, $busyFor, $endsAt),
+                    'person_index' => 0,
+                    'price_snapshot' => $prices[$index],
+                    'commission_snapshot' => null,
+                    'duration_minutes_snapshot' => max(5, (int) $service->duration_minutes),
+                ];
+            }
+
+            $this->conflicts->assertNoConflict($items, $startsAt, $endsAt);
+
+            $appointment = Appointment::create([
+                'client_id' => $client->id,
+                'client_ids' => [$client->id],
+                'partner_id' => $partner->id,
+                'partner_offering_id' => $offering->id,
+                'employee_id' => $items[0]['employee_id'],
+                'service_id' => $items[0]['service_id'],
+                'starts_at' => $startsAt,
+                'ends_at' => $endsAt,
+                'status' => 'pending',
+                'source' => Appointment::SOURCE_PARTNER_QR,
+                'notes' => filled($data['note'] ?? null) ? trim((string) $data['note']) : null,
+                'reservation_items' => $items,
+                'people' => [['name' => $client->name]],
+                'created_by_user_id' => null,
+            ]);
+
+            AppointmentStatusLog::create([
+                'appointment_id' => $appointment->id,
+                'from_status' => null,
+                'to_status' => 'pending',
+                'user_id' => null,
+                'reason' => null,
+            ]);
+
+            $appointment->load(['client', 'employee', 'service']);
+            $this->notifier->publicBookingCreated($appointment);
+
+            return $appointment;
+        });
+    }
+
+    /**
+     * Répartit le prix de l'offre sur ses prestations, au prorata du tarif
+     * catalogue, le reste sur la dernière — exactement la technique de
+     * PosService::computeTotals(). Un pack à 250 DH dont les services valent
+     * 300 doit rester un pack à 250 : la somme des `price_snapshot` ne peut
+     * pas s'écarter du prix annoncé au client.
+     *
+     * @param  array<int, int>  $serviceIds
+     * @return array<int, float>
+     */
+    private function spreadOfferingPrice(PartnerOffering $offering, array $serviceIds, Collection $services): array
+    {
+        $total = $offering->effectivePrice();
+        $catalogue = array_map(
+            fn (int $id) => round((float) ($services[$id]->price ?? 0), 2),
+            $serviceIds,
+        );
+        $catalogueSum = round(array_sum($catalogue), 2);
+        $last = count($serviceIds) - 1;
+
+        $spread = [];
+        $allocated = 0.0;
+        foreach ($serviceIds as $index => $_) {
+            if ($index === $last) {
+                $spread[$index] = round($total - $allocated, 2);
+
+                continue;
+            }
+            $share = $catalogueSum > 0
+                ? round($total * $catalogue[$index] / $catalogueSum, 2)
+                : round($total / max(1, count($serviceIds)), 2);
+            $spread[$index] = $share;
+            $allocated = round($allocated + $share, 2);
+        }
+
+        return $spread;
+    }
+
+    /**
      * Retrouve le client par téléphone normalisé — jamais de doublon — ou le
      * crée. Un client existant n'est PAS réécrit : son nom et son email font
      * foi, seule sa dernière intention de visite est mise à jour.
@@ -310,7 +498,9 @@ class PublicBookingService
     {
         $upcoming = Appointment::query()
             ->where('client_id', $client->id)
-            ->where('source', Appointment::SOURCE_MOBILE_PUBLIC)
+            // Les deux canaux publics comptent ensemble : sinon le QR
+            // rouvrirait la porte que ce plafond ferme.
+            ->whereIn('source', [Appointment::SOURCE_MOBILE_PUBLIC, Appointment::SOURCE_PARTNER_QR])
             ->whereNotIn('status', ['cancelled', 'no_show', 'refused', 'completed'])
             ->where('starts_at', '>=', $this->wallClockNow())
             ->count();

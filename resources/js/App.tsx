@@ -45,7 +45,10 @@ import MonthClosure from '@/pages/MonthClosure';
 import MonthlyClosures from '@/pages/MonthlyClosures';
 import Payroll from '@/pages/Payroll';
 import PlaceholderPage from '@/pages/PlaceholderPage';
+import PartnerLanding from '@/pages/PartnerLanding';
+import PartnerQr from '@/pages/partner/PartnerQr';
 import PosSandbox from '@/pages/pos2/PosSandbox';
+import ServicePacks from '@/pages/ServicePacks';
 import PosV2 from '@/pages/pos2/PosV2';
 import PosV2History from '@/pages/pos2/PosV2History';
 import Reports from '@/pages/Reports';
@@ -104,6 +107,9 @@ export default function App() {
             {/* Public customer-facing surface — no staff auth, no AppLayout. Separate
                 `client` guard/session via PortalAuthProvider (see main.tsx). */}
             <Route path="/join" element={<Join />} />
+            {/* QR partenaire : page publique, aucune authentification. Le
+                partenaire est deduit du jeton par le serveur. */}
+            <Route path="/p/:token" element={<PartnerLanding />} />
             <Route path="/mon-compte/connexion" element={<PortalLogin />} />
             <Route element={<PortalProtectedRoute />}>
                 <Route element={<PortalLayout />}>
@@ -126,6 +132,7 @@ export default function App() {
                     <Route path="/partner/reservations/:id" element={<PartnerReservationDetail />} />
                     <Route path="/partner/agenda" element={<PartnerAgenda />} />
                     <Route path="/partner/commissions" element={<PartnerCommissions />} />
+                    <Route path="/partner/qr" element={<PartnerQr />} />
                     <Route path="/partner/clients" element={<PartnerClients />} />
                     <Route path="/partner/clients/:id" element={<PartnerClientDetail />} />
                     <Route path="/partner/profile" element={<PartnerProfile />} />
@@ -176,6 +183,7 @@ export default function App() {
                         <Route path="/partenaires" element={<Partenaires />} />
                         <Route path="/partenaires/:id" element={<PartnerDetail />} />
                         <Route path="/partner-commissions" element={<PartnerCommissionsAdmin />} />
+                        <Route path="/packs" element={<ServicePacks />} />
                         <Route path="/partner-reservations" element={<PartnerReservationsReview />} />
                         <Route path="/support-inbox" element={<SupportInbox />} />
                     </Route>

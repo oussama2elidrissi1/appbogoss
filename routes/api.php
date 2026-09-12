@@ -55,7 +55,10 @@ use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\Public\ClientLoginController;
 use App\Http\Controllers\Api\Public\PublicBookingController;
 use App\Http\Controllers\Api\Public\JoinController;
+use App\Http\Controllers\Api\PartnerQrAdminController;
+use App\Http\Controllers\Api\Public\PartnerLandingController;
 use App\Http\Controllers\Api\ReportController;
+use App\Http\Controllers\Api\ServicePackController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\SubscriptionAdminController;
@@ -114,6 +117,20 @@ Route::prefix('public')->group(function () {
     });
     Route::middleware('throttle:public-booking')
         ->post('/reservations', [PublicBookingController::class, 'store']);
+
+    // QR PARTENAIRE — la vitrine d'un partenaire et la reservation qui en
+    // nait. Le partenaire vient du JETON dans l'URL, resolu cote serveur :
+    // aucun de ces points d'entree n'accepte d'identifiant de partenaire.
+    // Memes limiteurs que la vitrine publique, dont ces routes sont une
+    // variante personnalisee.
+    Route::prefix('p/{token}')->group(function () {
+        Route::middleware('throttle:public-read')->group(function () {
+            Route::get('/', [PartnerLandingController::class, 'show']);
+            Route::get('/availability', [PartnerLandingController::class, 'availability']);
+        });
+        Route::middleware('throttle:public-booking')
+            ->post('/reservations', [PartnerLandingController::class, 'store']);
+    });
 });
 
 // Mobile (Flutter) authentication. Additive surface: it mints Sanctum
@@ -212,6 +229,28 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::middleware('permission:partners.manage')->group(function () {
         Route::apiResource('/partners', PartnerController::class);
+
+        // PACKS — catalogue transverse, edite depuis la meme permission que
+        // les partenaires puisque c'est pour eux qu'il existe.
+        Route::apiResource('/service-packs', ServicePackController::class)->except(['create', 'edit']);
+
+        // LE QR D'UN PARTENAIRE : jeton, vitrine, page, chiffres. Tout est
+        // scope au partenaire de l'URL par la relation elle-meme.
+        Route::get('/partner-qr/catalog', [PartnerQrAdminController::class, 'catalog']);
+        Route::prefix('/partners/{partner}/qr')->group(function () {
+            Route::get('/token', [PartnerQrAdminController::class, 'token']);
+            Route::post('/token/regenerate', [PartnerQrAdminController::class, 'regenerateToken']);
+            Route::delete('/token', [PartnerQrAdminController::class, 'revokeToken']);
+            Route::get('/stats', [PartnerQrAdminController::class, 'stats']);
+            Route::get('/bookings', [PartnerQrAdminController::class, 'bookings']);
+            Route::get('/landing', [PartnerQrAdminController::class, 'landing']);
+            Route::patch('/landing', [PartnerQrAdminController::class, 'updateLanding']);
+            Route::get('/offerings', [PartnerQrAdminController::class, 'offerings']);
+            Route::post('/offerings', [PartnerQrAdminController::class, 'storeOffering']);
+            Route::post('/offerings/reorder', [PartnerQrAdminController::class, 'reorderOfferings']);
+            Route::patch('/offerings/{offering}', [PartnerQrAdminController::class, 'updateOffering']);
+            Route::delete('/offerings/{offering}', [PartnerQrAdminController::class, 'destroyOffering']);
+        });
         Route::post('/partners/{partner}/reset-password', [PartnerController::class, 'resetPassword']);
         Route::patch('/partners/{partner}/status', [PartnerController::class, 'status']);
 
@@ -234,6 +273,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // AppointmentController::restrictedPartner() already does for /appointments.
     Route::prefix('partner')->group(function () {
         Route::get('/dashboard', [PartnerDashboardController::class, 'index']);
+        // Son QR et ce qu'il rapporte. Lecture seule, scopee par
+        // RequiresActivePartner : aucun identifiant de partenaire en entree.
+        Route::get('/qr', [\App\Http\Controllers\Api\Partner\PartnerQrController::class, 'show']);
+        Route::get('/qr/bookings', [\App\Http\Controllers\Api\Partner\PartnerQrController::class, 'bookings']);
         Route::get('/services', [PartnerPortalServiceController::class, 'index']);
         Route::get('/clients', [PartnerClientController::class, 'index']);
         Route::get('/clients/{client}', [PartnerClientController::class, 'show']);

@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { PartnerQrPanel } from '@/components/partners/PartnerQrPanel';
 import { pageFade } from '@/lib/motion';
 import type { PartnerStatus } from '@/types/workday';
 
@@ -147,6 +148,7 @@ export default function PartnerDetail() {
                     <TabsTrigger value="clients">{t('Clients')} ({clients?.length ?? 0})</TabsTrigger>
                     <TabsTrigger value="reservations">{t('Réservations')} ({reservations?.length ?? 0})</TabsTrigger>
                     <TabsTrigger value="commissions">{t('Commissions')}</TabsTrigger>
+                    <TabsTrigger value="qr">{t('QR & Offres')}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="info">
@@ -245,6 +247,12 @@ export default function PartnerDetail() {
                             </ul>
                         )}
                     </Card>
+                </TabsContent>
+
+                {/* QR partenaire : jeton, affiche, vitrine, page publique et
+                    chiffres. Tout y est scope a CE partenaire. */}
+                <TabsContent value="qr">
+                    <PartnerQrPanel partnerId={partner.id} partnerName={partner.trade_name || partner.name} />
                 </TabsContent>
             </Tabs>
         </motion.div>

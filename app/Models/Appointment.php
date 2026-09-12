@@ -20,10 +20,19 @@ class Appointment extends Model
 
     public const SOURCE_POS = 'pos';
 
+    /**
+     * Reservation nee du scan de l'affiche d'un partenaire. Distincte de
+     * SOURCE_PARTNER, qui est le partenaire saisissant lui-meme depuis son
+     * portail : ici c'est le CLIENT qui reserve, et l'attribution vient du
+     * jeton QR resolu par le serveur, jamais d'un champ du formulaire.
+     */
+    public const SOURCE_PARTNER_QR = 'partner_qr';
+
     protected $fillable = [
         'client_id',
         'client_ids',
         'partner_id',
+        'partner_offering_id',
         'employee_id',
         'service_id',
         'starts_at',
