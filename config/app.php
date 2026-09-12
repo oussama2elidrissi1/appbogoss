@@ -74,6 +74,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Business Timezone
+    |--------------------------------------------------------------------------
+    |
+    | Le fuseau dans lequel le salon vit ses journees. Les horodatages restent
+    | stockes en UTC ci-dessus ; ce reglage ne sert qu'a decider a quel JOUR de
+    | travail appartient l'instant present (journee de caisse, depense, avance).
+    | Voir App\Support\BusinessDay.
+    |
+    */
+
+    'business_timezone' => env('BUSINESS_TIMEZONE', 'Africa/Casablanca'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------
     |

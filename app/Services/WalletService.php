@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WalletTransaction;
 use App\Models\WorkDay;
+use App\Support\BusinessDay;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -672,7 +673,7 @@ class WalletService
     public function recordExpense(Wallet $wallet, array $data, User $actor): WalletTransaction
     {
         $cents = $this->positiveCents((float) $data['amount']);
-        $spentOn = CarbonImmutable::parse($data['spent_on'] ?? now()->toDateString())->startOfDay();
+        $spentOn = CarbonImmutable::parse($data['spent_on'] ?? BusinessDay::today())->startOfDay();
 
         return DB::transaction(function () use ($wallet, $data, $actor, $cents, $spentOn) {
             $locked = $this->lock($wallet);
@@ -788,7 +789,7 @@ class WalletService
                     'origin' => Advance::ORIGIN_WALLET,
                     'amount' => $this->fromCents($cents),
                     'reason' => $note ?: $label,
-                    'given_on' => now()->toDateString(),
+                    'given_on' => BusinessDay::today(),
                 ]);
             }
 

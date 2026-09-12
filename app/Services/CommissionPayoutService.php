@@ -10,6 +10,7 @@ use App\Models\MonthlyClosure;
 use App\Models\User;
 use App\Models\WalletTransaction;
 use App\Models\WorkDay;
+use App\Support\BusinessDay;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -206,7 +207,7 @@ class CommissionPayoutService
                     'work_day_id' => $openDay->id,
                     'amount' => $netAmount,
                     'reason' => 'Paiement commission '.$payout->period,
-                    'given_on' => now()->toDateString(),
+                    'given_on' => BusinessDay::today(),
                     'settled_at' => now(),
                     'commission_payout_id' => $payout->id,
                 ]);

@@ -14,6 +14,7 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\User;
 use App\Models\WorkDay;
+use App\Support\BusinessDay;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -46,7 +47,9 @@ class WorkDayService
             }
 
             $workDay = WorkDay::create([
-                'date' => now()->toDateString(),
+                // Le jour du salon, pas le jour UTC : une caisse ouverte a
+                // 00h30 appartient au jour qui commence, pas a la veille.
+                'date' => BusinessDay::today(),
                 'opened_by_user_id' => Auth::id(),
                 'opening_balance' => $data['opening_balance'] ?? 0,
                 'status' => 'open',

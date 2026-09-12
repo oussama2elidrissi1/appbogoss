@@ -10,6 +10,8 @@ use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\WorkDay;
 use App\Services\WorkDayService;
+use App\Support\BusinessDay;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -153,7 +155,7 @@ class WorkDayServiceTest extends TestCase
     public function test_open_day_allows_a_second_session_on_a_date_already_closed(): void
     {
         $closed = WorkDay::factory()->create([
-            'date' => now()->toDateString(),
+            'date' => BusinessDay::today(),
             'status' => 'closed',
             'closed_at' => now(),
             'closing_report' => ['revenue_total' => 0],
@@ -164,6 +166,38 @@ class WorkDayServiceTest extends TestCase
         $this->assertNotSame($closed->id, $reopened->id);
         $this->assertSame('open', $reopened->status);
         $this->assertSame($closed->date->toDateString(), $reopened->date->toDateString());
+    }
+
+    /**
+     * Le bug des « deux journees du 10 » : l'application stocke en UTC, mais
+     * le salon vit a Casablanca. Une caisse ouverte a 00h30 le 11 tombait sur
+     * le 10 en UTC et venait se ranger a cote de la vraie journee du 10, avec
+     * son propre CA et son propre fond de caisse.
+     */
+    public function test_open_day_dates_a_session_opened_after_midnight_on_the_new_day(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-09-10 23:30:00', 'UTC'));
+
+        try {
+            $day = app(WorkDayService::class)->openDay(['opening_balance' => 392]);
+
+            $this->assertSame('2026-09-11', $day->date->toDateString());
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_open_day_keeps_the_calendar_date_during_business_hours(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-09-10 14:00:00', 'UTC'));
+
+        try {
+            $day = app(WorkDayService::class)->openDay(['opening_balance' => 392]);
+
+            $this->assertSame('2026-09-10', $day->date->toDateString());
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_closed_day_pdf_route_returns_a_report_response(): void
