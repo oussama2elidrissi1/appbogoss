@@ -44,8 +44,9 @@
 <table class="grid">
     <tr>
         @foreach ([
-            ['CA', $report['revenue_total'] ?? 0],
-            ['Pourboires', $report['tips_total'] ?? 0],
+            ['CA (pourboires compris)', $report['revenue_total'] ?? 0],
+            ['dont prestations', $report['sales_total'] ?? (($report['revenue_total'] ?? 0) - ($report['tips_total'] ?? 0))],
+            ['dont pourboires', $report['tips_total'] ?? 0],
             ['Depenses', $report['expenses_total'] ?? 0],
             ['Avances', $report['advances_total'] ?? 0],
             ['Resultat de la caisse', $report['net_result'] ?? 0],

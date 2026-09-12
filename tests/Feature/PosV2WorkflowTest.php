@@ -474,13 +474,14 @@ class PosV2WorkflowTest extends TestCase
 
     /**
      * Le pourboire est encaisse AU COMPTOIR — la monnaie rendue se calcule sur
-     * prestation + pourboire, donc ces billets sont dans le tiroir. Ils ne
-     * sont pas du chiffre d'affaires, mais ils doivent entrer dans le resultat
-     * de la journee et dans l'attendu de caisse : sinon chaque pourboire en
-     * especes creait un ecart de caisse positif a la cloture, et cet argent
-     * n'etait credite a aucun portefeuille.
+     * prestation + pourboire, donc ces billets sont dans le tiroir. Ils font
+     * partie du CA de la journee, de son resultat et de l'attendu de caisse :
+     * sinon chaque pourboire en especes creait un ecart de caisse positif a la
+     * cloture, et cet argent n'etait credite a aucun portefeuille.
+     *
+     * `sales_total` garde la seule part prestations, pour qui en a besoin.
      */
-    public function test_a_tip_collected_at_the_counter_enters_the_day_result_and_the_drawer(): void
+    public function test_a_tip_collected_at_the_counter_enters_the_day_revenue_and_the_drawer(): void
     {
         Sanctum::actingAs($this->superAdmin());
         $kamal = Employee::factory()->create(['name' => 'Kamal', 'default_commission_rate' => 50]);
@@ -500,10 +501,10 @@ class PosV2WorkflowTest extends TestCase
         $day = WorkDay::where('status', 'open')->sole();
         $report = app(WorkDayService::class)->buildClosingReport($day);
 
-        // Le CA reste celui des prestations : un pourboire n'est pas une vente.
-        $this->assertEquals(40.0, $report['revenue_total']);
+        // Le CA est ce qui est ENTRE DANS LE TIROIR : prestation + pourboire.
+        $this->assertEquals(60.0, $report['revenue_total']);
+        $this->assertEquals(40.0, $report['sales_total']);
         $this->assertEquals(20.0, $report['tips_total']);
-        // Mais l'argent, lui, est bien la.
         $this->assertEquals(60.0, $report['net_result']);
         $this->assertEquals(
             round((float) $day->opening_balance + 60, 2),
@@ -541,6 +542,7 @@ class PosV2WorkflowTest extends TestCase
         $report = app(WorkDayService::class)->buildClosingReport($day);
 
         $this->assertEquals(0.0, $report['tips_total']);
+        $this->assertEquals(0.0, $report['revenue_total']);
         $this->assertEquals(0.0, $report['net_result']);
     }
 

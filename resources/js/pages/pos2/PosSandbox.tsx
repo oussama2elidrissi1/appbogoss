@@ -438,7 +438,18 @@ export default function PosSandbox() {
             </div>
 
             <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
-                <StatCard icon={Wallet} label={t('CA de test')} value={formatCurrency(report.revenue_total)} />
+                <StatCard
+                    icon={Wallet}
+                    label={t('CA de test')}
+                    value={formatCurrency(report.revenue_total)}
+                    hint={
+                        report.tips_total > 0
+                            ? t('dont {amount} de pourboires', {
+                                  amount: formatCurrency(report.tips_total),
+                              })
+                            : undefined
+                    }
+                />
                 <StatCard icon={ReceiptText} label={t('Tickets')} value={`${report.ticket_count}`} />
                 <StatCard
                     icon={ShoppingCart}

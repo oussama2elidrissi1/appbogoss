@@ -79,15 +79,14 @@ export interface AdvanceReportRow {
 
 export interface ClosingReport {
     opening_balance?: number;
+    /** CA encaisse, POURBOIRES COMPRIS : c'est ce qui est entre dans le tiroir. */
     revenue_total: number;
+    /** La seule part prestations du CA. */
+    sales_total?: number;
+    /** La seule part pourboires du CA. Absent des instantanes les plus anciens. */
+    tips_total?: number;
     expenses_total: number;
     advances_total: number;
-    /**
-     * Encaisse au comptoir avec la prestation, donc present dans le tiroir :
-     * il ne compte pas dans le CA mais bien dans le resultat de la caisse.
-     * Absent des instantanes anterieurs a la correction.
-     */
-    tips_total?: number;
     tips_by_employee?: Array<{
         employee_id: number;
         employee_name: string;

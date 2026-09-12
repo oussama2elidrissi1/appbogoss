@@ -50,6 +50,8 @@ const caisseTest: Record<string, string> = {
     '{n} facture(s) encore ouverte(s) : elles seront abandonnées, elles n’ont jamais été encaissées.':
         '{n} فاتورة ما زالت مفتوحة: ستُهمَل، فهي لم تُحصَّل قط.',
 
+    'dont {amount} de pourboires': 'منها {amount} بقشيش',
+
     // ----------------------------------------------------------- Commissions
     'commission {amount}': 'عمولة {amount}',
     'Commissions du ticket': 'عمولات التذكرة',

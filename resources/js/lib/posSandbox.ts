@@ -85,7 +85,10 @@ export interface SandboxReportRow {
 
 export interface SandboxReport {
     opening_balance: number;
+    /** CA encaissé, pourboires compris. */
     revenue_total: number;
+    /** La seule part prestations du CA. */
+    sales_total: number;
     expenses_total: number;
     advances_total: number;
     commissions_total: number;
@@ -853,10 +856,13 @@ function bump(
 export function buildReport(state: SandboxState): SandboxReport {
     const openingBalance = state.day?.opening_balance ?? 0;
 
-    const revenueTotal = round2(state.paid.reduce((sum, invoice) => sum + invoice.total, 0));
+    const salesTotal = round2(state.paid.reduce((sum, invoice) => sum + invoice.total, 0));
     const expensesTotal = round2(state.expenses.reduce((sum, expense) => sum + expense.amount, 0));
     const advancesTotal = round2(state.advances.reduce((sum, advance) => sum + advance.amount, 0));
     const tipsTotal = round2(state.paid.reduce((sum, invoice) => sum + (invoice.tips_total ?? 0), 0));
+    // Même règle que `WorkDayService::buildDetailedReport()` : le pourboire est
+    // encaissé au comptoir avec la prestation, il fait donc partie du CA.
+    const revenueTotal = round2(salesTotal + tipsTotal);
 
     const categories = new Map<string, SandboxReportRow>();
     const employeeRows = new Map<string, SandboxReportRow>();
@@ -894,19 +900,17 @@ export function buildReport(state: SandboxState): SandboxReport {
         });
     });
 
-    // Même formule que `WorkDayService::buildDetailedReport()` : le pourboire
-    // n'est pas du chiffre d'affaires, mais il a bien été encaissé au
-    // comptoir — il est donc dans le tiroir et dans le résultat.
-    const netResult = round2(revenueTotal + tipsTotal - expensesTotal - advancesTotal);
+    const netResult = round2(revenueTotal - expensesTotal - advancesTotal);
 
     return {
         opening_balance: openingBalance,
         revenue_total: revenueTotal,
+        sales_total: salesTotal,
         expenses_total: expensesTotal,
         advances_total: advancesTotal,
         commissions_total: commissionsTotal,
         net_result: netResult,
-        cash_expected: round2(openingBalance + revenueTotal + tipsTotal - expensesTotal - advancesTotal),
+        cash_expected: round2(openingBalance + revenueTotal - expensesTotal - advancesTotal),
         ticket_count: state.paid.length,
         average_ticket: state.paid.length > 0 ? round2(revenueTotal / state.paid.length) : 0,
         tips_total: tipsTotal,

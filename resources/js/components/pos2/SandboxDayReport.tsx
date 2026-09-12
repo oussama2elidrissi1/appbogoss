@@ -13,11 +13,20 @@ export function SandboxDayReport({ report }: { report: SandboxReport }) {
 
     return (
         <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-5">
-                <Stat label={t('CA')} value={formatCurrency(report.revenue_total)} />
-                {/* Pas du chiffre d'affaires, mais bien dans le tiroir : sans cette
-                    tuile le résultat ne se lirait plus. */}
-                <Stat label={t('Pourboires')} value={formatCurrency(report.tips_total)} />
+            <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+                {/* Le CA inclut les pourboires ; l'indice dit la part de chacun,
+                    « Par catégorie » ne comptant que les prestations. */}
+                <Stat
+                    label={t('CA')}
+                    value={formatCurrency(report.revenue_total)}
+                    hint={
+                        report.tips_total > 0
+                            ? t('dont {amount} de pourboires', {
+                                  amount: formatCurrency(report.tips_total),
+                              })
+                            : undefined
+                    }
+                />
                 <Stat label={t('Dépenses')} value={formatCurrency(report.expenses_total)} />
                 <Stat label={t('Avances')} value={formatCurrency(report.advances_total)} />
                 <Stat
@@ -105,7 +114,17 @@ export function SandboxDayReport({ report }: { report: SandboxReport }) {
     );
 }
 
-function Stat({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
+function Stat({
+    label,
+    value,
+    hint,
+    accent = false,
+}: {
+    label: string;
+    value: string;
+    hint?: string;
+    accent?: boolean;
+}) {
     return (
         <div className="rounded-md border border-tint/[0.07] bg-tint/[0.02] px-3.5 py-3">
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
@@ -118,6 +137,7 @@ function Stat({ label, value, accent = false }: { label: string; value: string; 
             >
                 {value}
             </p>
+            {hint && <p className="text-[11px] tabular-nums text-muted-foreground">{hint}</p>}
         </div>
     );
 }

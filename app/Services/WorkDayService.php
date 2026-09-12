@@ -282,10 +282,17 @@ class WorkDayService
         $tips ??= collect();
         $activeSales = $sales->filter(fn (Sale $sale) => ! $sale->trashed())->values();
         $deletedSales = $sales->filter(fn (Sale $sale) => $sale->trashed())->values();
-        $revenueTotal = (float) $activeSales->sum('total');
+        $salesTotal = (float) $activeSales->sum('total');
         $expensesTotal = (float) $expenses->sum('amount');
         $advancesTotal = (float) $advances->sum('amount');
         $tipsTotal = (float) $tips->sum('amount');
+        // LE POURBOIRE FAIT PARTIE DU CA. Il est encaisse au comptoir avec la
+        // prestation — la monnaie rendue se calcule sur le total pourboire
+        // compris — donc il entre dans le tiroir et dans la recette de la
+        // journee. `sales_total` reste disponible pour qui veut la seule part
+        // prestations, et `tips_total` la seule part pourboires : c'est la
+        // somme des deux qui est affichee comme CA.
+        $revenueTotal = round($salesTotal + $tipsTotal, 2);
         $cashInTotal = (float) $cashMovements->where('type', 'in')->sum('amount');
         $cashOutTotal = (float) $cashMovements->where('type', 'out')->sum('amount');
         $commissionsTotal = (float) $activeSales->sum(
@@ -298,13 +305,11 @@ class WorkDayService
         // till day-to-day, so they no longer reduce this figure. commissions_total
         // is still returned below for whatever still needs the raw figure.
         //
-        // Le pourboire, lui, EST dans le tiroir : il est encaisse avec la
-        // prestation. Il ne gonfle pas le chiffre d'affaires — ce n'est pas
-        // une vente — mais il entre dans le resultat de la caisse, sans quoi
-        // chaque pourboire en especes creait un ecart de caisse positif et
-        // cet argent n'etait credite nulle part. La moitie revient a
-        // l'employe sous forme de commission, payee en fin de mois.
-        $netResult = round($revenueTotal + $tipsTotal - $expensesTotal - $advancesTotal, 2);
+        // Le pourboire est deja dans `$revenueTotal` : la formule du resultat
+        // reste donc recette moins depenses moins avances, inchangee. La
+        // moitie du pourboire revient a l'employe sous forme de commission,
+        // payee en fin de mois comme les autres.
+        $netResult = round($revenueTotal - $expensesTotal - $advancesTotal, 2);
 
         $revenueByCategory = $activeSales
             ->groupBy(fn (Sale $sale) => $sale->category ?? 'autre')
@@ -409,6 +414,7 @@ class WorkDayService
         return [
             'opening_balance' => round($openingBalance, 2),
             'revenue_total' => round($revenueTotal, 2),
+            'sales_total' => round($salesTotal, 2),
             'expenses_total' => round($expensesTotal, 2),
             'advances_total' => round($advancesTotal, 2),
             'tips_total' => round($tipsTotal, 2),
@@ -427,7 +433,7 @@ class WorkDayService
             'net_result' => $netResult,
             'cash_in_total' => round($cashInTotal, 2),
             'cash_out_total' => round($cashOutTotal, 2),
-            'cash_expected' => round($openingBalance + $revenueTotal + $tipsTotal - $expensesTotal - $advancesTotal + $cashInTotal - $cashOutTotal, 2),
+            'cash_expected' => round($openingBalance + $revenueTotal - $expensesTotal - $advancesTotal + $cashInTotal - $cashOutTotal, 2),
             'cash_movements' => $cashMovements->map(fn (CashMovement $movement) => [
                 'id' => $movement->id,
                 'type' => $movement->type,
