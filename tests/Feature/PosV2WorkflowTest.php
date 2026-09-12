@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Commission;
 use App\Models\Employee;
+use App\Models\EmployeeServiceCommission;
 use App\Models\Prestation;
 use App\Models\PrestationItem;
 use App\Models\Sale;
@@ -217,6 +218,86 @@ class PosV2WorkflowTest extends TestCase
         // Invariant G3 fixed for V2: Sale.total === Σ sale_items.
         $itemsSum = $sale->items->sum(fn ($item) => $item->quantity * (float) $item->unit_price);
         $this->assertEquals((float) $sale->total, round($itemsSum, 2));
+    }
+
+    /**
+     * Une commission se gagne PAR SERVICE RENDU. Un pourcentage suivait deja
+     * la quantite, puisque son assiette est le total de la ligne ; un montant
+     * fixe, lui, restait bloque sur la valeur d'un seul service — trois
+     * hammams payaient une commission de un. Le bug se voyait des la caisse,
+     * sur l'estimation affichee a cote de la ligne.
+     */
+    public function test_a_fixed_commission_rule_follows_the_line_quantity(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $ahmed = Employee::factory()->create(['name' => 'Ahmed', 'default_commission_rate' => null]);
+        $hammam = Service::factory()->create(['category' => 'hammam', 'price' => 250]);
+
+        EmployeeServiceCommission::create([
+            'employee_id' => $ahmed->id,
+            'service_id' => $hammam->id,
+            'type' => 'fixed',
+            'value' => 30,
+            'starts_on' => now()->subDay()->toDateString(),
+            'is_active' => true,
+        ]);
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $hammam->id, 'employee_id' => $ahmed->id]],
+        ])->assertCreated()->json('data');
+
+        $this->assertEquals(30.0, $invoice['items'][0]['estimated_commission']);
+
+        $lineId = $invoice['items'][0]['id'];
+        $updated = $this->patchJson("/api/pos-v2/invoices/{$invoice['id']}/lines/{$lineId}", [
+            'quantity' => 3,
+        ])->assertOk()->json('data');
+
+        $this->assertEquals(750, $updated['total']);
+        $this->assertEquals(90.0, $updated['items'][0]['estimated_commission']);
+
+        $paid = $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", [
+            'payment_method' => 'especes',
+            'expected_total' => 750,
+        ])->assertOk()->json('data');
+
+        $commission = Commission::where('prestation_id', $invoice['id'])->sole();
+        $this->assertEquals(90.0, (float) $commission->amount);
+        // La VALEUR reste celle de la regle — 30 MAD par service —, seul le
+        // montant du pour la ligne est multiplie.
+        $this->assertEquals(30.0, (float) $commission->rate_or_amount);
+        $this->assertEquals(90.0, (float) Sale::find($paid['sale_id'])->commission_amount);
+    }
+
+    /** Le pourcentage, lui, ne doit surtout pas etre multiplie deux fois. */
+    public function test_a_percentage_commission_is_not_multiplied_twice_by_the_quantity(): void
+    {
+        Sanctum::actingAs($this->superAdmin());
+        $omar = Employee::factory()->create(['default_commission_rate' => 20]);
+        $coupe = Service::factory()->create(['category' => 'coiffure', 'price' => 70]);
+
+        $invoice = $this->postJson('/api/pos-v2/invoices', [
+            'items' => [['service_id' => $coupe->id, 'employee_id' => $omar->id]],
+        ])->assertCreated()->json('data');
+
+        $lineId = $invoice['items'][0]['id'];
+        $updated = $this->patchJson("/api/pos-v2/invoices/{$invoice['id']}/lines/{$lineId}", [
+            'quantity' => 3,
+        ])->assertOk()->json('data');
+
+        // 3 x 70 = 210, a 20 % = 42 — et non 126.
+        $this->assertEquals(210, $updated['total']);
+        $this->assertEquals(42.0, $updated['items'][0]['estimated_commission']);
+
+        $this->postJson("/api/pos-v2/invoices/{$invoice['id']}/checkout", [
+            'payment_method' => 'especes',
+            'expected_total' => 210,
+        ])->assertOk();
+
+        $this->assertEquals(
+            42.0,
+            (float) Commission::where('prestation_id', $invoice['id'])->sole()->amount,
+        );
     }
 
     public function test_double_click_checkout_is_rejected(): void

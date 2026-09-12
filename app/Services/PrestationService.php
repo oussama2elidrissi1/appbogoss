@@ -318,7 +318,13 @@ class PrestationService
                     );
                 } else {
                     $baseAmount = $item->lineTotal();
-                    $resolved = $this->commissionResolver->resolve($locked->employee, $service, $baseAmount);
+                    $resolved = $this->commissionResolver->resolve(
+                        $locked->employee,
+                        $service,
+                        $baseAmount,
+                        null,
+                        (int) $item->quantity,
+                    );
                 }
 
                 $item->update([

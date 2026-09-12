@@ -205,12 +205,17 @@ function effectiveLineTotalOf(line: Pos2InvoiceLine): number {
  * la règle par service en vigueur aujourd'hui d'abord — la plus récente
  * gagne —, sinon le taux par défaut de l'employé, sinon rien. Une ligne sans
  * employé responsable (un produit du comptoir) ne porte aucune commission.
+ *
+ * `base` est le total de la ligne (quantité comprise) et `quantity` la
+ * quantité elle-même : un pourcentage se calcule sur le total, un montant
+ * fixe se gagne PAR SERVICE RENDU et se multiplie donc par la quantité.
  */
 export function resolveCommission(
     catalog: SandboxCatalog,
     employeeId: number | null | undefined,
     serviceId: number | null | undefined,
     base: number,
+    quantity = 1,
 ): number | null {
     if (employeeId === null || employeeId === undefined) return null;
 
@@ -231,7 +236,9 @@ export function resolveCommission(
             .sort((a, b) => b.starts_on.localeCompare(a.starts_on) || b.id - a.id)[0];
 
         if (rule) {
-            return rule.type === 'percentage' ? round2((base * rule.value) / 100) : round2(rule.value);
+            return rule.type === 'percentage'
+                ? round2((base * rule.value) / 100)
+                : round2(rule.value * Math.max(1, quantity));
         }
     }
 
@@ -242,13 +249,25 @@ export function resolveCommission(
 
 // ------------------------------------------------------------------ totaux
 
+export interface SandboxTotals {
+    subtotal: number;
+    lineDiscounts: number;
+    invoiceDiscount: number;
+    total: number;
+    /** Par ligne : ce qu'elle pèse VRAIMENT une fois la remise de facture répartie. */
+    lines: Map<number, number>;
+}
+
 /**
  * Reproduit `PosService::computeTotals()` : remises de ligne d'abord, puis
  * remise de facture répartie au prorata sur les lignes payantes, le reste
  * sur la dernière. Le total découle des lignes arrondies, jamais l'inverse —
  * c'est ce qui garantit total === Σ(quantité × prix unitaire).
+ *
+ * `lines` est la sortie qui compte pour les commissions : c'est l'assiette
+ * que le serveur leur donne à l'encaissement, remise de facture comprise.
  */
-export function recomputeInvoice(invoice: Pos2Invoice): Pos2Invoice {
+export function computeTotals(invoice: Pos2Invoice): SandboxTotals {
     const items = invoice.items ?? [];
     const invoiceDiscountAsked = round2(invoice.discount_amount ?? 0);
 
@@ -285,25 +304,39 @@ export function recomputeInvoice(invoice: Pos2Invoice): Pos2Invoice {
         allocated = round2(allocated + share);
     });
 
+    const lines = new Map<number, number>();
     let total = 0;
-    const recomputed = items.map((line) => {
+
+    items.forEach((line) => {
         const base = bases.get(line.id) ?? 0;
         const effective = Math.max(0, round2(base - (shares.get(line.id) ?? 0)));
         const quantity = Math.max(1, line.quantity);
-        const unitPrice = round2(effective / quantity);
-        const lineTotal = round2(unitPrice * quantity);
-        total += lineTotal;
+        const lineTotal = round2(round2(effective / quantity) * quantity);
 
-        return { ...line, effective_line_total: effectiveLineTotalOf(line), line_total: lineTotalOf(line) };
+        lines.set(line.id, lineTotal);
+        total += lineTotal;
     });
+
+    return { subtotal, lineDiscounts, invoiceDiscount, total: round2(total), lines };
+}
+
+export function recomputeInvoice(invoice: Pos2Invoice): Pos2Invoice {
+    const items = invoice.items ?? [];
+    const totals = computeTotals(invoice);
+
+    const recomputed = items.map((line) => ({
+        ...line,
+        effective_line_total: effectiveLineTotalOf(line),
+        line_total: lineTotalOf(line),
+    }));
 
     return {
         ...invoice,
         items: recomputed,
         items_count: recomputed.length,
-        subtotal,
-        line_discounts_total: lineDiscounts,
-        total: round2(total),
+        subtotal: totals.subtotal,
+        line_discounts_total: totals.lineDiscounts,
+        total: totals.total,
         status: recomputed.length > 0 ? 'in_progress' : 'draft',
     };
 }
@@ -456,7 +489,7 @@ export function addLine(
         commission_amount: null,
         estimated_commission: input.product
             ? null
-            : resolveCommission(catalog, employee?.id ?? null, input.service?.id ?? null, unitPrice),
+            : resolveCommission(catalog, employee?.id ?? null, input.service?.id ?? null, unitPrice, 1),
     };
 
     const invoice = recomputeInvoice({ ...target, items: [...(target.items ?? []), line] });
@@ -499,7 +532,13 @@ export function updateLine(
         next.estimated_commission =
             next.product_id != null
                 ? null
-                : resolveCommission(catalog, next.employee_id, next.service_id, next.effective_line_total);
+                : resolveCommission(
+                      catalog,
+                      next.employee_id,
+                      next.service_id,
+                      next.effective_line_total,
+                      next.quantity,
+                  );
 
         return next;
     });
@@ -638,12 +677,23 @@ export function checkout(
         changeGiven = round2(amountReceived - due);
     }
 
+    // L'assiette est ce que le client paie VRAIMENT pour la ligne, remise de
+    // facture répartie comprise — la même que `$effective['total']` côté
+    // serveur, et non le total de ligne d'avant répartition.
+    const paidTotals = computeTotals(withDiscount);
+
     const paidItems = items.map((line) => ({
         ...line,
         commission_amount:
             line.product_id != null
                 ? null
-                : resolveCommission(catalog, line.employee_id, line.service_id, line.effective_line_total),
+                : resolveCommission(
+                      catalog,
+                      line.employee_id,
+                      line.service_id,
+                      paidTotals.lines.get(line.id) ?? line.effective_line_total,
+                      line.quantity,
+                  ),
     }));
 
     const paid: Pos2Invoice = {

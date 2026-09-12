@@ -24,10 +24,15 @@ class PosInvoiceLineResource extends JsonResource
             return null;
         }
 
+        // La quantite est passee explicitement : sans elle, une regle a
+        // montant fixe afficherait la commission d'UN service alors que la
+        // ligne en porte plusieurs.
         $resolved = app(CommissionResolver::class)->resolve(
             $this->employee,
             $this->service,
             $this->effectiveLineTotal(),
+            null,
+            (int) $this->quantity,
         );
 
         return $resolved['amount'] !== null ? (float) $resolved['amount'] : 0.0;

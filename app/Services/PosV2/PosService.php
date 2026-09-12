@@ -744,7 +744,13 @@ class PosService
                     // Base = what the client actually pays for this line
                     // (after line + invoice discounts).
                     $baseAmount = $effective['total'];
-                    $resolved = $this->commissionResolver->resolve($lineEmployee, $service, $baseAmount);
+                    $resolved = $this->commissionResolver->resolve(
+                        $lineEmployee,
+                        $service,
+                        $baseAmount,
+                        null,
+                        (int) $item->quantity,
+                    );
                 }
 
                 $item->update([

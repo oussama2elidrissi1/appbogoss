@@ -13,14 +13,32 @@ use Carbon\Carbon;
  * default rate, then nothing. Never called before payment confirmation — the
  * result is meant to be frozen onto the prestation item / commission row so a
  * later rule change never retroactively alters a historical commission.
+ *
+ * UNE COMMISSION SE GAGNE PAR SERVICE RENDU, pas par ligne de facture. La
+ * quantite d'une ligne compte donc toujours :
+ *
+ *  - un pourcentage la prend deja en compte, puisque son assiette est le total
+ *    de la ligne (quantite x prix unitaire, remises deduites) ;
+ *  - un montant FIXE ne la prenait pas : une regle « 30 MAD sur le hammam »
+ *    versait 30 MAD que l'employe en ait fait un ou trois. C'est le
+ *    `$quantity` ci-dessous qui repare cela.
+ *
+ * Les appelants qui n'ont pas de quantite a fournir — une vente rapide V1, un
+ * rattrapage sur une vente historique sans lignes — laissent la valeur par
+ * defaut de 1, qui reproduit le comportement precedent.
  */
 class CommissionResolver
 {
     /**
      * @return array{type: string, value: float, rule_id: int|null, amount: float}
      */
-    public function resolve(Employee $employee, ?Service $service, float $baseAmount, ?Carbon $date = null): array
-    {
+    public function resolve(
+        Employee $employee,
+        ?Service $service,
+        float $baseAmount,
+        ?Carbon $date = null,
+        int $quantity = 1,
+    ): array {
         $date = $date ?? Carbon::now();
 
         if ($service !== null) {
@@ -37,15 +55,15 @@ class CommissionResolver
                 ->first();
 
             if ($rule !== null) {
-                return $this->computed($rule->type, (float) $rule->value, $baseAmount, $rule->id);
+                return $this->computed($rule->type, (float) $rule->value, $baseAmount, $rule->id, $quantity);
             }
         }
 
         if ($employee->default_commission_rate !== null) {
-            return $this->computed('percentage', (float) $employee->default_commission_rate, $baseAmount, null);
+            return $this->computed('percentage', (float) $employee->default_commission_rate, $baseAmount, null, $quantity);
         }
 
-        return $this->computed('none', 0.0, $baseAmount, null);
+        return $this->computed('none', 0.0, $baseAmount, null, $quantity);
     }
 
     /**
@@ -77,13 +95,19 @@ class CommissionResolver
     }
 
     /**
+     * `$value` reste la valeur de la REGLE (un taux, ou un montant par service)
+     * et `$amount` ce qui est du pour la ligne entiere. Seul le montant fixe se
+     * multiplie par la quantite : l'assiette d'un pourcentage la porte deja.
+     *
      * @return array{type: string, value: float, rule_id: int|null, amount: float}
      */
-    private function computed(string $type, float $value, float $baseAmount, ?int $ruleId): array
+    private function computed(string $type, float $value, float $baseAmount, ?int $ruleId, int $quantity = 1): array
     {
+        $units = max(1, $quantity);
+
         $amount = match ($type) {
             'percentage' => round($baseAmount * $value / 100, 2),
-            'fixed' => round($value, 2),
+            'fixed' => round($value * $units, 2),
             default => 0.0,
         };
 

@@ -84,6 +84,7 @@ class CommissionRuleRecalculator
                 $service,
                 (float) $item->lineTotal(),
                 $prestation->confirmed_at,
+                (int) $item->quantity,
             );
 
             if ($resolved['amount'] === (float) $item->commission_amount && $resolved['rule_id'] === $item->commission_rule_id) {
