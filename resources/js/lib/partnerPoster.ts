@@ -3,27 +3,34 @@ import QRCode from 'qrcode';
 /**
  * L'AFFICHE PARTENAIRE BOGOSLAND — un gabarit fixe, un QR variable.
  *
- * L'affiche n'est PAS dessinée ici : elle est une image, la maquette Bogos
- * Land validée, déposée une fois pour toutes dans `public/img/`. Ce module ne
- * fait qu'une chose — remplacer proprement la zone QR de cette image par le
- * QR du partenaire. Rien d'autre n'est touché : ni le logo, ni les couleurs,
- * ni les textes, ni le cadre doré, ni l'ambiance.
+ * L'affiche n'est PAS dessinée ici : c'est la maquette officielle, une image
+ * déposée dans `public/img/`. Ce module ne fait qu'une chose — remplacer le
+ * QR central par celui du partenaire. Ni le logo, ni les couleurs, ni les
+ * textes, ni le cadre doré, ni la photo ne sont touchés : ils vivent dans le
+ * fichier, pas dans le code.
  *
- * Affiche Hôtel A = affiche Hôtel B, au QR près. C'est la contrainte, et elle
- * est structurelle : le fond est un fichier, pas du code.
+ * Affiche Hôtel A = affiche Hôtel B, au QR près. La contrainte est
+ * structurelle, pas déclarative.
  *
- * TROUVER LA ZONE QR — pourquoi une détection plutôt que des coordonnées en
- * dur : la maquette peut être re-exportée un jour dans une autre définition
- * ou un cadrage légèrement différent, et des pixels codés en dur décaleraient
- * alors le QR sans prévenir. `locateQrPanel()` retrouve le panneau blanc à
- * chaque rendu, en cherchant les lignes de l'image qui portent une longue
- * plage blanche continue — le panneau du QR est de loin la plus large surface
- * blanche de l'affiche. Les proportions mesurées sur la maquette de référence
- * restent en secours si la détection échoue.
+ * COMMENT LE QR EST PLACÉ — en deux mesures faites sur le gabarit lui-même,
+ * à chaque rendu, plutôt qu'en coordonnées codées en dur qui décaleraient
+ * tout le jour où la maquette est ré-exportée :
+ *
+ *  1. `locateWhitePanel()` trouve le panneau blanc — les lignes de l'image
+ *     portant une longue plage blanche continue. Le titre blanc de l'affiche
+ *     est fait de lettres séparées et ne produit jamais d'aussi longue plage,
+ *     c'est ce qui le distingue du panneau.
+ *  2. `locateQrSquare()` mesure, DANS ce panneau, l'emprise des modules noirs
+ *     du QR d'origine. Le nouveau QR reprend exactement cette emprise : même
+ *     centre, même taille. C'est la différence entre « remplacer le QR » et
+ *     « poser un QR par-dessus ».
+ *
+ * Mesures relevées sur la maquette officielle (1024 × 1536) : panneau blanc
+ * x 293→731, y 538→934 ; QR x 330→692, y 562→912. Ces valeurs servent de
+ * repli si une mesure échoue, jamais de chemin principal.
  *
  * IMPRESSION — le QR est régénéré à la résolution finale de l'export, pas
- * agrandi depuis l'image : il reste net au pixel près quelle que soit la
- * définition du gabarit, et c'est lui qui doit être scannable.
+ * agrandi depuis l'image : ses modules restent nets au pixel près.
  */
 
 /** Le gabarit, servi tel quel depuis `public/`. Même origine : pas de CORS. */
@@ -35,14 +42,12 @@ const TEMPLATE_URL = '/img/affiche-partenaire.png';
  */
 const MIN_EXPORT_WIDTH = 2480;
 
-/**
- * Proportions du panneau blanc, mesurées sur la maquette de référence
- * (portrait 2:3). Secours uniquement — la détection passe avant.
- */
-const FALLBACK_PANEL = { x: 0.291, y: 0.349, size: 0.425 };
+/** Replis, en proportions de la maquette officielle. Secours uniquement. */
+const FALLBACK_PANEL = { x: 0.2861, y: 0.3503, width: 0.4287, height: 0.2585 };
+const FALLBACK_QR = { x: 0.3247, y: 0.3636, size: 0.3486 };
 
-/** Marge de silence autour du QR, en part du panneau. Sous 6 %, un scan rate. */
-const QUIET_ZONE = 0.085;
+/** Marge de silence si l'emprise du QR d'origine n'a pas pu être mesurée. */
+const FALLBACK_QUIET_ZONE = 0.085;
 
 export class PosterTemplateMissing extends Error {
     constructor() {
@@ -51,6 +56,19 @@ export class PosterTemplateMissing extends Error {
         );
         this.name = 'PosterTemplateMissing';
     }
+}
+
+interface Rect {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
+interface Square {
+    x: number;
+    y: number;
+    size: number;
 }
 
 function loadTemplate(): Promise<HTMLImageElement> {
@@ -62,25 +80,15 @@ function loadTemplate(): Promise<HTMLImageElement> {
     });
 }
 
-interface Panel {
-    x: number;
-    y: number;
-    size: number;
-}
-
 /**
- * Retrouve le panneau blanc du QR dans le gabarit.
+ * Le panneau blanc du QR : la boîte englobante des lignes qui portent une
+ * plage blanche continue d'au moins un quart de la largeur de l'affiche.
  *
- * Méthode : pour chaque ligne de pixels, on mesure la plus longue plage
- * continue de blanc. Les lignes dont la plage dépasse le quart de la largeur
- * de l'affiche appartiennent au panneau — le texte blanc du titre, lui, est
- * fait de lettres séparées et ne produit jamais d'aussi longue plage. Le
- * panneau est la boîte englobante de ces lignes.
- *
- * On rend ensuite un CARRÉ : un QR est carré, et le panneau de la maquette
- * l'est à quelques pixels près.
+ * Le panneau de la maquette est plus large que haut (439 × 397) : on rend
+ * donc le rectangle réel, sans le forcer au carré — c'est lui qu'on repeint,
+ * et le QR carré viendra se placer dedans.
  */
-function locateQrPanel(data: Uint8ClampedArray, width: number, height: number): Panel | null {
+function locateWhitePanel(data: Uint8ClampedArray, width: number, height: number): Rect | null {
     const minRun = Math.floor(width * 0.25);
     const isWhite = (index: number) => data[index] > 233 && data[index + 1] > 233 && data[index + 2] > 233;
 
@@ -116,27 +124,82 @@ function locateQrPanel(data: Uint8ClampedArray, width: number, height: number): 
 
     if (top === -1 || right <= left || bottom <= top) return null;
 
-    // Le panneau doit ressembler à un carré et occuper une part crédible de
-    // l'affiche : sinon c'est que la détection a attrapé autre chose, et on
-    // préfère les proportions de référence à un QR posé n'importe où.
     const w = right - left + 1;
     const h = bottom - top + 1;
     const ratio = w / h;
 
-    if (ratio < 0.8 || ratio > 1.25 || w < width * 0.2 || w > width * 0.75) return null;
+    // Un panneau crédible : à peu près carré, et d'une taille plausible sur
+    // l'affiche. Sinon la mesure a attrapé autre chose et le repli vaut mieux.
+    if (ratio < 0.8 || ratio > 1.35 || w < width * 0.2 || w > width * 0.75) return null;
 
-    const size = Math.min(w, h);
-
-    return {
-        x: left + (w - size) / 2,
-        y: top + (h - size) / 2,
-        size,
-    };
+    return { x: left, y: top, width: w, height: h };
 }
 
 /**
- * Compose l'affiche : le gabarit intact, le QR du partenaire à la place du
- * QR d'origine.
+ * L'emprise du QR d'origine, mesurée à l'intérieur du panneau : boîte
+ * englobante des modules noirs, ramenée au carré sur son propre centre.
+ *
+ * Le carré retenu prend la moyenne des deux côtés mesurés — un QR imprimé
+ * peut être large d'un pixel de plus que haut selon l'anti-crénelage, et la
+ * moyenne évite de rétrécir ou d'étirer inutilement.
+ */
+function locateQrSquare(
+    data: Uint8ClampedArray,
+    width: number,
+    panel: Rect,
+): Square | null {
+    const isDark = (index: number) => data[index] < 110 && data[index + 1] < 110 && data[index + 2] < 110;
+
+    let left = Number.POSITIVE_INFINITY;
+    let top = Number.POSITIVE_INFINITY;
+    let right = -1;
+    let bottom = -1;
+
+    const xEnd = panel.x + panel.width;
+    const yEnd = panel.y + panel.height;
+
+    for (let y = panel.y; y < yEnd; y++) {
+        for (let x = panel.x; x < xEnd; x++) {
+            if (isDark((y * width + x) * 4)) {
+                if (x < left) left = x;
+                if (x > right) right = x;
+                if (y < top) top = y;
+                if (y > bottom) bottom = y;
+            }
+        }
+    }
+
+    if (right < 0 || bottom < 0) return null;
+
+    const w = right - left + 1;
+    const h = bottom - top + 1;
+    const ratio = w / h;
+
+    // Le QR occupe la majeure partie du panneau et il est carré. Toute autre
+    // forme signifie qu'on a mesuré autre chose que des modules.
+    if (ratio < 0.9 || ratio > 1.15 || w < panel.width * 0.5) return null;
+
+    const size = Math.round((w + h) / 2);
+    const centerX = (left + right + 1) / 2;
+    const centerY = (top + bottom + 1) / 2;
+
+    // Le carré reste dans le panneau, avec au moins 2 % de marge blanche :
+    // la zone de silence du QR ne doit jamais toucher le cadre doré.
+    const margin = Math.round(Math.min(panel.width, panel.height) * 0.02);
+    const maxSize = Math.min(panel.width, panel.height) - margin * 2;
+    const finalSize = Math.min(size, maxSize);
+
+    let x = Math.round(centerX - finalSize / 2);
+    let y = Math.round(centerY - finalSize / 2);
+    x = Math.max(panel.x + margin, Math.min(x, panel.x + panel.width - margin - finalSize));
+    y = Math.max(panel.y + margin, Math.min(y, panel.y + panel.height - margin - finalSize));
+
+    return { x, y, size: finalSize };
+}
+
+/**
+ * Compose l'affiche : la maquette intacte, le QR du partenaire à la place
+ * exacte du QR d'origine.
  *
  * @param url L'adresse encodée — l'URL publique du partenaire, /p/{token}.
  * @param exportWidth Largeur d'export. Par défaut le maximum entre la taille
@@ -148,7 +211,7 @@ export async function renderPartnerPoster(url: string, exportWidth?: number): Pr
     const naturalWidth = template.naturalWidth;
     const naturalHeight = template.naturalHeight;
 
-    // ---- repérage de la zone QR, à la définition native du gabarit -------
+    // ---- mesures, à la définition native du gabarit ----------------------
     const probe = document.createElement('canvas');
     probe.width = naturalWidth;
     probe.height = naturalHeight;
@@ -156,25 +219,50 @@ export async function renderPartnerPoster(url: string, exportWidth?: number): Pr
     if (!probeCtx) throw new Error('Impossible de préparer l’affiche.');
     probeCtx.drawImage(template, 0, 0);
 
-    let panel: Panel | null = null;
+    let panel: Rect | null = null;
+    let qr: Square | null = null;
+
     try {
         const pixels = probeCtx.getImageData(0, 0, naturalWidth, naturalHeight).data;
-        panel = locateQrPanel(pixels, naturalWidth, naturalHeight);
+        panel = locateWhitePanel(pixels, naturalWidth, naturalHeight);
+        if (panel !== null) {
+            qr = locateQrSquare(pixels, naturalWidth, panel);
+        }
     } catch {
-        // Lecture de pixels refusée : on retombe sur les proportions.
+        // Lecture de pixels refusée : on retombe sur les proportions relevées.
         panel = null;
+        qr = null;
     }
 
     if (panel === null) {
         panel = {
             x: FALLBACK_PANEL.x * naturalWidth,
             y: FALLBACK_PANEL.y * naturalHeight,
-            size: FALLBACK_PANEL.size * naturalWidth,
+            width: FALLBACK_PANEL.width * naturalWidth,
+            height: FALLBACK_PANEL.height * naturalHeight,
+        };
+        qr = {
+            x: FALLBACK_QR.x * naturalWidth,
+            y: FALLBACK_QR.y * naturalHeight,
+            size: FALLBACK_QR.size * naturalWidth,
+        };
+    }
+
+    if (qr === null) {
+        // Panneau trouvé mais QR non mesuré : carré centré dans le panneau.
+        const side = Math.min(panel.width, panel.height) * (1 - FALLBACK_QUIET_ZONE * 2);
+        qr = {
+            x: panel.x + (panel.width - side) / 2,
+            y: panel.y + (panel.height - side) / 2,
+            size: side,
         };
     }
 
     // ---------------------------------------------------------- export ---
-    const width = Math.max(exportWidth ?? MIN_EXPORT_WIDTH, naturalWidth);
+    // Une largeur explicite est honoree telle quelle — c'est l'appelant qui
+    // sait ce qu'il veut (une vignette d'apercu n'a pas besoin des 2480 px).
+    // Sans consigne, on ne descend jamais sous la definition du gabarit.
+    const width = exportWidth ?? Math.max(MIN_EXPORT_WIDTH, naturalWidth);
     const scale = width / naturalWidth;
     const height = Math.round(naturalHeight * scale);
 
@@ -189,32 +277,32 @@ export async function renderPartnerPoster(url: string, exportWidth?: number): Pr
     ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(template, 0, 0, width, height);
 
-    // ------------------------------------------------------------- QR ----
-    const panelX = panel.x * scale;
-    const panelY = panel.y * scale;
-    const panelSize = panel.size * scale;
+    // ---- le panneau est repeint en blanc AVANT le QR ---------------------
+    // L'ancien QR est ainsi effacé, pas recouvert, et la zone de silence est
+    // garantie propre. Repeint 1 px à l'intérieur pour ne jamais déborder sur
+    // le cadre doré, avec les coins arrondis de la maquette.
+    const panelX = panel.x * scale + 1;
+    const panelY = panel.y * scale + 1;
+    const panelW = panel.width * scale - 2;
+    const panelH = panel.height * scale - 2;
+    const radius = Math.min(panelW, panelH) * 0.045;
 
-    // Le panneau est repeint en blanc franc avant le QR : l'ancien QR est
-    // ainsi effacé, pas recouvert, et la zone de silence est garantie propre.
-    // Coins légèrement arrondis pour épouser le panneau de la maquette et ne
-    // pas déborder sur le cadre doré.
-    const radius = panelSize * 0.045;
     ctx.fillStyle = '#FFFFFF';
     ctx.beginPath();
     ctx.moveTo(panelX + radius, panelY);
-    ctx.arcTo(panelX + panelSize, panelY, panelX + panelSize, panelY + panelSize, radius);
-    ctx.arcTo(panelX + panelSize, panelY + panelSize, panelX, panelY + panelSize, radius);
-    ctx.arcTo(panelX, panelY + panelSize, panelX, panelY, radius);
-    ctx.arcTo(panelX, panelY, panelX + panelSize, panelY, radius);
+    ctx.arcTo(panelX + panelW, panelY, panelX + panelW, panelY + panelH, radius);
+    ctx.arcTo(panelX + panelW, panelY + panelH, panelX, panelY + panelH, radius);
+    ctx.arcTo(panelX, panelY + panelH, panelX, panelY, radius);
+    ctx.arcTo(panelX, panelY, panelX + panelW, panelY, radius);
     ctx.closePath();
     ctx.fill();
 
-    const inset = panelSize * QUIET_ZONE;
-    const qrSize = Math.round(panelSize - inset * 2);
+    // ------------------------------------------------------------- QR ----
+    const qrSize = Math.round(qr.size * scale);
 
     // Le QR est produit À la taille finale : aucun agrandissement, donc des
     // modules aux bords nets. `margin: 0` parce que la zone de silence est
-    // déjà assurée par l'encart blanc ci-dessus.
+    // déjà assurée par le panneau blanc.
     const qrDataUrl = await QRCode.toDataURL(url, {
         errorCorrectionLevel: 'H',
         margin: 0,
@@ -229,16 +317,16 @@ export async function renderPartnerPoster(url: string, exportWidth?: number): Pr
         qrImage.src = qrDataUrl;
     });
 
-    // Lissage coupé pour le QR : un module doit rester un carré net, un bord
-    // interpolé est ce qui fait échouer un scan à l'impression.
+    // Lissage coupé : un module doit rester un carré net, un bord interpolé
+    // est ce qui fait échouer un scan à l'impression.
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(qrImage, Math.round(panelX + inset), Math.round(panelY + inset), qrSize, qrSize);
+    ctx.drawImage(qrImage, Math.round(qr.x * scale), Math.round(qr.y * scale), qrSize, qrSize);
 
     // PNG : sans perte, donc aucune compression destructive sur les modules.
     return canvas.toDataURL('image/png');
 }
 
-/** Rendu allégé pour l'aperçu à l'écran — même composition, même gabarit. */
+/** Rendu allégé pour l'aperçu à l'écran — même gabarit, même composition. */
 export function renderPartnerPosterPreview(url: string): Promise<string> {
     return renderPartnerPoster(url, 860);
 }
