@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { NavLink, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -23,6 +23,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useI18n } from '@/lib/i18n';
 import { cn, getInitials } from '@/lib/utils';
 import { NotificationsBell } from '@/components/layout/NotificationsBell';
+import { RouteFallback } from '@/components/RouteFallback';
 
 interface PartnerNavItem {
     label: string;
@@ -220,7 +221,9 @@ export default function PartnerLayout() {
                             transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
                             className="mx-auto min-h-full max-w-6xl px-4 py-6 sm:px-6 lg:px-10 lg:py-10"
                         >
-                            <Outlet />
+                            <Suspense fallback={<RouteFallback />}>
+                                <Outlet />
+                            </Suspense>
                         </motion.div>
                     </main>
                 </div>

@@ -29,12 +29,23 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     {{-- Tajawal couvre l'arabe : placé APRÈS Inter dans la pile de polices,
          il ne sert que pour les glyphes arabes (Inter n'en a pas). --}}
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    {{-- Non bloquant : display=swap affiche déjà la police de secours en
+         attendant ; la feuille Google n'a donc pas à retarder le 1er affichage. --}}
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet"></noscript>
 
     @viteReactRefresh
-    @vite(['resources/css/app.css', 'resources/js/main.tsx'])
+    @vite('resources/js/main.tsx')
 </head>
 <body class="bg-background antialiased">
-    <div id="root"></div>
+    {{-- Écran de chargement affiché dès l'arrivée du HTML, remplacé par React
+         au premier rendu (même visuel que RouteFallback). --}}
+    <div id="root">
+        <div role="status" aria-busy="true" class="flex h-screen items-center justify-center bg-background">
+            <span class="flex h-12 w-12 animate-pulse items-center justify-center rounded-md bg-accent/[0.14] ring-1 ring-accent/25">
+                <svg class="h-5 w-5 text-accent" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3"/><path d="M8.12 8.12 12 12"/><path d="M20 4 8.12 15.88"/><circle cx="6" cy="18" r="3"/><path d="M14.8 14.8 20 20"/></svg>
+            </span>
+        </div>
+    </div>
 </body>
 </html>

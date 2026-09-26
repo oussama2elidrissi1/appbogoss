@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { useEffect, useState, type ReactNode } from 'react';
+import { Suspense, useEffect, useState, type ReactNode } from 'react';
 import {
     BarChart3,
     CalendarDays,
@@ -21,6 +21,7 @@ import {
     type LucideIcon,
 } from 'lucide-react';
 import { NotificationsBell } from '@/components/layout/NotificationsBell';
+import { RouteFallback } from '@/components/RouteFallback';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
@@ -189,7 +190,9 @@ export function EmployeeLayout() {
                 <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
                     <EmployeeHeader onOpenMenu={() => setMobileMenuOpen(true)} />
                     <main className="flex-1 overflow-x-hidden overflow-y-auto px-3 pb-24 pt-4 sm:px-6 lg:px-8 lg:pb-8 lg:pt-5">
-                        <Outlet />
+                        <Suspense fallback={<RouteFallback />}>
+                            <Outlet />
+                        </Suspense>
                     </main>
                     <MobileBottomNav />
                 </div>

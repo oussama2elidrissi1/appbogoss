@@ -19,6 +19,22 @@ const queryClient = new QueryClient({
     },
 });
 
+// Chaque page est un fichier JS séparé (voir App.tsx). Après un déploiement,
+// un onglet resté ouvert réclame des fichiers dont le nom haché n'existe plus :
+// on recharge une fois pour récupérer la nouvelle version au lieu d'un écran
+// vide. Le délai de 10 s empêche une boucle si le fichier manque vraiment.
+window.addEventListener('vite:preloadError', (event) => {
+    const key = 'bogosland-chunk-reload';
+    try {
+        if (Date.now() - Number(sessionStorage.getItem(key) ?? 0) < 10_000) return;
+        sessionStorage.setItem(key, String(Date.now()));
+    } catch {
+        return;
+    }
+    event.preventDefault();
+    window.location.reload();
+});
+
 const container = document.getElementById('root');
 
 if (!container) {

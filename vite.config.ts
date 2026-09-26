@@ -6,7 +6,9 @@ import { fileURLToPath, URL } from 'node:url';
 export default defineConfig({
     plugins: [
         laravel({
-            input: ['resources/css/app.css', 'resources/js/main.tsx'],
+            // app.css is imported by main.tsx — listing it here too shipped
+            // the whole Tailwind stylesheet twice.
+            input: ['resources/js/main.tsx'],
             refresh: true,
         }),
         react(),

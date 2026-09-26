@@ -8,6 +8,22 @@
 </IfModule>
 Header always set X-LiteSpeed-Cache-Control "no-cache"
 
+# Exception volontaire : les fichiers de /build/assets/ portent un hash dans
+# leur nom (main-C-4WR4n0.js) qui change a chaque build. Le probleme de noms
+# perimes venait du HTML mis en cache, jamais de ces fichiers : le navigateur
+# peut donc les garder un an sans jamais servir une version obsolete.
+<IfModule mod_headers.c>
+    <If "%{REQUEST_URI} =~ m#^/build/assets/#">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </If>
+</IfModule>
+
+# Compression : le JS de l'application partait non compresse (2,7 Mo au lieu
+# d'environ 0,7 Mo).
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json image/svg+xml
+</IfModule>
+
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes

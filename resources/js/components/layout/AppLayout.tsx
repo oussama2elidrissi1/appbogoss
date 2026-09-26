@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
+import { RouteFallback } from '@/components/RouteFallback';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
@@ -120,7 +121,9 @@ export function AppLayout() {
                             transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
                             className="min-h-full max-w-full px-3 py-4 sm:px-4 sm:py-6 lg:px-8 lg:py-8"
                         >
-                            <Outlet />
+                            <Suspense fallback={<RouteFallback />}>
+                                <Outlet />
+                            </Suspense>
                         </motion.div>
                     </main>
                 </div>

@@ -1,5 +1,7 @@
+import { Suspense } from 'react';
 import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { CalendarClock, Gift, LogOut, Scissors, Sparkles } from 'lucide-react';
+import { RouteFallback } from '@/components/RouteFallback';
 import { usePortalAuth } from '@/hooks/usePortalAuth';
 import { useI18n } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
@@ -69,7 +71,9 @@ export default function PortalLayout() {
             </header>
 
             <main className="mx-auto max-w-xl px-5 py-6">
-                <Outlet />
+                <Suspense fallback={<RouteFallback />}>
+                    <Outlet />
+                </Suspense>
             </main>
 
             <nav className="fixed inset-x-0 bottom-0 border-t border-tint/[0.06] bg-card/95 backdrop-blur">
