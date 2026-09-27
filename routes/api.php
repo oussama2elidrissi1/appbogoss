@@ -228,10 +228,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/appointments/{appointment}/proposal/decline', [AppointmentController::class, 'proposalDecline']);
     });
 
-    // Réservations prises sur bogosland.com (plugin WordPress), en lecture
-    // seule — staff de l'agenda uniquement, pas les partenaires.
+    // Réservations prises sur bogosland.com (plugin WordPress) : liste, et
+    // les boutons Confirmer / Terminer du plugin — staff de l'agenda
+    // uniquement, pas les partenaires.
     Route::middleware('permission:agenda.manage')->group(function () {
         Route::get('/site-reservations', [SiteReservationController::class, 'index']);
+        Route::post('/site-reservations/{id}/status', [SiteReservationController::class, 'updateStatus'])->whereNumber('id');
     });
 
     Route::middleware('permission:partners.manage')->group(function () {

@@ -1,7 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import { UserFacingError } from '@/lib/userFacingError';
 import type { ApplicationSettings, ApplicationSettingsPayload, DashboardData, User } from '@/types/dashboard';
-import type { SiteReservationPage, SiteReservationStatus } from '@/types/site-reservation';
+import type { SiteReservation, SiteReservationPage, SiteReservationStatus } from '@/types/site-reservation';
 import type {
     ClosureChecklist,
     MonthlyClosureRow,
@@ -1138,6 +1138,12 @@ export async function getSiteReservations(options?: {
         },
     });
     return data;
+}
+
+/** Boutons « Confirmer » (en attente → confirmée) et « Terminer » (confirmée → terminée) du plugin. */
+export async function updateSiteReservationStatus(id: number, status: 'confirmed' | 'completed'): Promise<SiteReservation> {
+    const { data } = await api.post<{ data: SiteReservation }>(`/api/site-reservations/${id}/status`, { status });
+    return data.data;
 }
 
 export async function getActivityLogs(options?: {

@@ -3,7 +3,7 @@ const siteReservations: Record<string, string> = {
     'Réservations site web': 'حجوزات الموقع',
     'Les réservations faites sur bogosland.com.': 'الحجوزات التي تمت عبر bogosland.com.',
     'Les réservations faites sur bogosland.com, les plus récentes d’abord.': 'الحجوزات التي تمت عبر bogosland.com، الأحدث أولاً.',
-    'Confirmer sur le site': 'التأكيد على الموقع',
+    'Ouvrir l’admin du site': 'فتح إدارة الموقع',
     'Confirmées': 'المؤكَّدة',
     'Terminées': 'المنتهية',
     'Annulées': 'الملغاة',

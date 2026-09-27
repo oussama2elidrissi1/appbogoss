@@ -57,9 +57,16 @@ class SiteReservationApiTest extends TestCase
             $table->string('status')->default('pending');
             $table->text('notes')->nullable();
             $table->dateTime('created_at');
+            $table->dateTime('updated_at')->nullable();
+        });
+        $schema->create('options', function (Blueprint $table) {
+            $table->increments('option_id');
+            $table->string('option_name');
+            $table->text('option_value');
         });
 
         $db = DB::connection('wordpress');
+        $db->table('options')->insert(['option_name' => 'timezone_string', 'option_value' => 'Africa/Casablanca']);
         $db->table('bgl_services')->insert(['id' => 1, 'name' => 'Hammam Royale', 'category' => 'hammam']);
         $db->table('bgl_packs')->insert(['id' => 7, 'name' => 'Pack Détente']);
         $db->table('bgl_appointments')->insert([
@@ -85,6 +92,7 @@ class SiteReservationApiTest extends TestCase
             'status' => 'pending',
             'notes' => null,
             'created_at' => '2026-09-01 00:00:00',
+            'updated_at' => null,
         ], $attributes);
     }
 
@@ -136,6 +144,53 @@ class SiteReservationApiTest extends TestCase
         Sanctum::actingAs($employee);
 
         $this->getJson('/api/site-reservations')->assertForbidden();
+    }
+
+    public function test_confirms_a_pending_reservation_like_the_plugin_admin_and_logs_it(): void
+    {
+        $this->actingAsAgendaManager();
+        $this->travelTo('2026-09-27 10:00:00'); // UTC → 11:00 à Casablanca
+
+        $this->postJson('/api/site-reservations/1/status', ['status' => 'confirmed'])
+            ->assertOk()
+            ->assertJsonPath('data.id', 1)
+            ->assertJsonPath('data.status', 'confirmed')
+            ->assertJsonPath('data.service', 'Hammam Royale');
+
+        $row = DB::connection('wordpress')->table('bgl_appointments')->find(1);
+        $this->assertSame('confirmed', $row->status);
+        $this->assertSame('2026-09-27 11:00:00', $row->updated_at);
+        $this->assertDatabaseHas('activity_logs', ['action' => 'site_reservation.confirmed']);
+
+        $this->postJson('/api/site-reservations/1/status', ['status' => 'completed'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'completed');
+    }
+
+    public function test_refuses_to_skip_a_step_or_touch_an_unknown_reservation(): void
+    {
+        $this->actingAsAgendaManager();
+
+        // #1 est en attente : on ne peut pas la terminer sans la confirmer.
+        $this->postJson('/api/site-reservations/1/status', ['status' => 'completed'])->assertStatus(409);
+        // #3 est déjà terminée.
+        $this->postJson('/api/site-reservations/3/status', ['status' => 'confirmed'])->assertStatus(409);
+        // Pas d'annulation ni de retour en arrière depuis l'application.
+        $this->postJson('/api/site-reservations/2/status', ['status' => 'cancelled'])->assertUnprocessable();
+        $this->postJson('/api/site-reservations/999/status', ['status' => 'confirmed'])->assertNotFound();
+
+        $this->assertSame('pending', DB::connection('wordpress')->table('bgl_appointments')->find(1)->status);
+        $this->assertSame('completed', DB::connection('wordpress')->table('bgl_appointments')->find(3)->status);
+    }
+
+    public function test_status_changes_require_the_agenda_permission(): void
+    {
+        $employee = User::factory()->create(['role' => 'employee']);
+        $employee->assignRole('employee');
+        Sanctum::actingAs($employee);
+
+        $this->postJson('/api/site-reservations/1/status', ['status' => 'confirmed'])->assertForbidden();
+        $this->assertSame('pending', DB::connection('wordpress')->table('bgl_appointments')->find(1)->status);
     }
 
     public function test_answers_503_when_the_wordpress_database_is_not_configured(): void

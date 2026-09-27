@@ -63,11 +63,12 @@ return [
             ]) : [],
         ],
 
-        // Base WordPress du site vitrine (bogosland.com), lue en LECTURE SEULE
-        // pour afficher les réservations faites sur le site (plugin
-        // bogosland-reservation). Même serveur MySQL et même utilisateur que
-        // l'application par défaut : seule la base change. Non configurée
-        // (WP_DB_DATABASE vide) → la page répond « non disponible ».
+        // Base WordPress du site vitrine (bogosland.com) : page « Réservations
+        // site web » (plugin bogosland-reservation). Lecture, plus le statut
+        // d'une réservation (Confirmer / Terminer) — l'utilisateur MySQL n'a
+        // besoin que de SELECT et UPDATE sur cette base. Même serveur et même
+        // utilisateur que l'application par défaut : seule la base change.
+        // Non configurée (WP_DB_DATABASE vide) → la page répond « non disponible ».
         'wordpress' => [
             'driver' => 'mysql',
             'host' => env('WP_DB_HOST', env('DB_HOST', '127.0.0.1')),

@@ -1,8 +1,21 @@
 import { useEffect, useState } from 'react';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { AlertCircle, CalendarClock, ChevronLeft, ChevronRight, ExternalLink, Globe, Phone, Search } from 'lucide-react';
-import { getErrorMessage, getSiteReservations } from '@/lib/api';
+import {
+    AlertCircle,
+    CalendarClock,
+    Check,
+    CheckCheck,
+    ChevronLeft,
+    ChevronRight,
+    ExternalLink,
+    Globe,
+    Loader2,
+    Phone,
+    Search,
+    X,
+} from 'lucide-react';
+import { getErrorMessage, getSiteReservations, updateSiteReservationStatus } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { useI18n } from '@/lib/i18n';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +28,7 @@ import { EmptyState } from '@/components/dashboard/EmptyState';
 import { pageFade } from '@/lib/motion';
 import type { SiteReservation, SiteReservationStatus } from '@/types/site-reservation';
 
-/** Où confirmer / terminer une réservation : l'admin du plugin sur le site. */
+/** L'admin du plugin sur le site : annuler, modifier, supprimer une réservation. */
 const WP_ADMIN_URL = 'https://bogosland.com/wp-admin/admin.php?page=bgl-res-appointments';
 
 const STATUS_TABS: Array<{ value: SiteReservationStatus | 'all'; label: string }> = [
@@ -44,7 +57,9 @@ function formatWallDateTime(value: string): string {
     return `${formatWallDate(value)} ${value.slice(11, 16)}`.trim();
 }
 
-/** Réservations prises sur bogosland.com (plugin WordPress), en lecture seule. */
+type StatusAction = (id: number, status: 'confirmed' | 'completed') => void;
+
+/** Réservations prises sur bogosland.com (plugin WordPress), avec ses boutons Confirmer / Terminer. */
 export default function SiteReservations() {
     const { t } = useI18n();
     const [status, setStatus] = useState<SiteReservationStatus | 'all'>('all');
@@ -67,6 +82,18 @@ export default function SiteReservations() {
         refetchInterval: 60_000,
     });
 
+    const queryClient = useQueryClient();
+    const [actionError, setActionError] = useState<string | null>(null);
+    const statusMutation = useMutation({
+        mutationFn: ({ id, status: next }: { id: number; status: 'confirmed' | 'completed' }) =>
+            updateSiteReservationStatus(id, next),
+        onMutate: () => setActionError(null),
+        onError: (mutationError) => setActionError(getErrorMessage(mutationError)),
+        onSettled: () => queryClient.invalidateQueries({ queryKey: ['site-reservations'] }),
+    });
+    const busyId = statusMutation.isPending ? statusMutation.variables?.id : undefined;
+    const onAction: StatusAction = (id, next) => statusMutation.mutate({ id, status: next });
+
     const reservations = data?.data ?? [];
     const meta = data?.meta;
 
@@ -82,7 +109,7 @@ export default function SiteReservations() {
                 <Button asChild variant="outline" size="sm">
                     <a href={WP_ADMIN_URL} target="_blank" rel="noopener noreferrer">
                         <ExternalLink />
-                        {t('Confirmer sur le site')}
+                        {t('Ouvrir l’admin du site')}
                     </a>
                 </Button>
             </div>
@@ -120,6 +147,16 @@ export default function SiteReservations() {
                 </div>
             </div>
 
+            {actionError && (
+                <Card className="flex items-start gap-3 border-destructive/30 px-4 py-3 text-sm text-destructive" role="alert">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <p className="flex-1">{actionError}</p>
+                    <button type="button" onClick={() => setActionError(null)} aria-label={t('Fermer')}>
+                        <X className="h-4 w-4" />
+                    </button>
+                </Card>
+            )}
+
             {isPending ? (
                 <div className="space-y-2">
                     {Array.from({ length: 5 }).map((_, index) => (
@@ -151,11 +188,17 @@ export default function SiteReservations() {
                                     <th className="px-4 py-3 text-right font-medium">{t('Prix')}</th>
                                     <th className="px-4 py-3 font-medium">{t('Statut')}</th>
                                     <th className="px-4 py-3 font-medium">{t('Reçue le')}</th>
+                                    <th className="px-4 py-3 text-right font-medium">{t('Actions')}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {reservations.map((reservation) => (
-                                    <ReservationRow key={reservation.id} reservation={reservation} />
+                                    <ReservationRow
+                                        key={reservation.id}
+                                        reservation={reservation}
+                                        busy={busyId === reservation.id}
+                                        onAction={onAction}
+                                    />
                                 ))}
                             </tbody>
                         </table>
@@ -164,7 +207,12 @@ export default function SiteReservations() {
                     {/* Mobile cards */}
                     <div className="space-y-2 lg:hidden">
                         {reservations.map((reservation) => (
-                            <ReservationCard key={reservation.id} reservation={reservation} />
+                            <ReservationCard
+                                key={reservation.id}
+                                reservation={reservation}
+                                busy={busyId === reservation.id}
+                                onAction={onAction}
+                            />
                         ))}
                     </div>
 
@@ -216,7 +264,35 @@ function ServiceLabel({ reservation }: { reservation: SiteReservation }) {
     );
 }
 
-function ReservationRow({ reservation }: { reservation: SiteReservation }) {
+/** Les deux boutons de l'admin du plugin : Confirmer (en attente), Terminer (confirmée). */
+function StatusActionButton({ reservation, busy, onAction }: { reservation: SiteReservation; busy: boolean; onAction: StatusAction }) {
+    const { t } = useI18n();
+    if (reservation.status === 'pending') {
+        return (
+            <Button size="sm" variant="accent" disabled={busy} onClick={() => onAction(reservation.id, 'confirmed')}>
+                {busy ? <Loader2 className="animate-spin" /> : <Check />}
+                {t('Confirmer')}
+            </Button>
+        );
+    }
+    if (reservation.status === 'confirmed') {
+        return (
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => onAction(reservation.id, 'completed')}>
+                {busy ? <Loader2 className="animate-spin" /> : <CheckCheck />}
+                {t('Terminer')}
+            </Button>
+        );
+    }
+    return null;
+}
+
+interface ReservationItemProps {
+    reservation: SiteReservation;
+    busy: boolean;
+    onAction: StatusAction;
+}
+
+function ReservationRow({ reservation, busy, onAction }: ReservationItemProps) {
     return (
         <tr className="border-b border-tint/[0.04] align-top last:border-0">
             <td className="px-4 py-3 text-xs text-muted-foreground">#{reservation.id}</td>
@@ -244,11 +320,14 @@ function ReservationRow({ reservation }: { reservation: SiteReservation }) {
                 <StatusBadge status={reservation.status} />
             </td>
             <td className="px-4 py-3 text-xs text-muted-foreground">{formatWallDateTime(reservation.created_at)}</td>
+            <td className="px-4 py-3 text-right">
+                <StatusActionButton reservation={reservation} busy={busy} onAction={onAction} />
+            </td>
         </tr>
     );
 }
 
-function ReservationCard({ reservation }: { reservation: SiteReservation }) {
+function ReservationCard({ reservation, busy, onAction }: ReservationItemProps) {
     const { t } = useI18n();
     return (
         <Card className="p-4">
@@ -275,9 +354,12 @@ function ReservationCard({ reservation }: { reservation: SiteReservation }) {
                 </span>
                 <span className="font-medium text-foreground">{formatCurrency(reservation.price)}</span>
             </div>
-            <p className="mt-2 text-[11px] text-muted-foreground">
-                {t('Reçue le {date}', { date: formatWallDateTime(reservation.created_at) })}
-            </p>
+            <div className="mt-3 flex items-center justify-between gap-2">
+                <p className="text-[11px] text-muted-foreground">
+                    {t('Reçue le {date}', { date: formatWallDateTime(reservation.created_at) })}
+                </p>
+                <StatusActionButton reservation={reservation} busy={busy} onAction={onAction} />
+            </div>
         </Card>
     );
 }
