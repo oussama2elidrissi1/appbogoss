@@ -41,6 +41,22 @@ class AppointmentNotifier
         );
     }
 
+    /** Nouvelle réservation du site bogosland.com, importée dans l'agenda (SiteReservationSync). */
+    public function siteBookingCreated(Appointment $appointment): void
+    {
+        $this->notifyStaff(
+            'site_booking_created',
+            sprintf(
+                'Nouvelle réservation depuis le site : %s — %s le %s à %s (employé à attribuer).',
+                $appointment->client?->name ?? 'Client',
+                $appointment->service?->name ?? 'Prestation',
+                $appointment->starts_at?->format('d/m/Y') ?? '?',
+                $appointment->starts_at?->format('H:i') ?? '?',
+            ),
+            $appointment,
+        );
+    }
+
     public function bookingConfirmed(Appointment $appointment): void
     {
         $this->notifyPartner(

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Services\ActivityLogger;
+use App\Services\SiteReservationSync;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\QueryException;
@@ -91,7 +92,7 @@ class SiteReservationController extends Controller
      * (BGL_Booking::ajax_update_status) : même écriture — statut + updated_at
      * à l'heure de WordPress —, aucun email ni autre effet côté plugin.
      */
-    public function updateStatus(Request $request, int $id, ActivityLogger $activityLogger): JsonResponse
+    public function updateStatus(Request $request, int $id, ActivityLogger $activityLogger, SiteReservationSync $sync): JsonResponse
     {
         $validated = $request->validate([
             'status' => ['required', Rule::in(array_keys(self::TRANSITIONS))],
@@ -116,7 +117,7 @@ class SiteReservationController extends Controller
                 ->where('status', self::TRANSITIONS[$target])
                 ->update([
                     'status' => $target,
-                    'updated_at' => now($this->wordpressTimezone($db))->format('Y-m-d H:i:s'),
+                    'updated_at' => $sync->wordpressTimestamp($db),
                 ]);
             if (! $updated) {
                 return response()->json([
@@ -172,14 +173,6 @@ class SiteReservationController extends Controller
                 'bgl_services.name as service_name',
                 'bgl_packs.name as pack_name',
             ]);
-    }
-
-    /** Fuseau configuré dans WordPress (Réglages → Général), comme current_time('mysql'). */
-    private function wordpressTimezone(ConnectionInterface $db): string
-    {
-        $timezone = $db->table('options')->where('option_name', 'timezone_string')->value('option_value');
-
-        return $timezone ?: config('app.timezone');
     }
 
     /** @return array<string, mixed> */

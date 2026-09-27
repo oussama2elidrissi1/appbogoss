@@ -730,6 +730,7 @@ class EmployeeWorkspaceService
             'notes' => $appointment->notes,
             'origin' => match (true) {
                 $appointment->source === \App\Models\Appointment::SOURCE_MOBILE_PUBLIC => 'Application mobile',
+                $appointment->source === \App\Models\Appointment::SOURCE_SITE => 'Site bogosland.com',
                 $appointment->partner_id !== null => 'Reservation partenaire',
                 default => 'Reservation BOGOSLAND',
             },

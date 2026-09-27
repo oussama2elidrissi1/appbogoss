@@ -22,6 +22,8 @@ const NOTIFICATION_ROUTES: Partial<Record<string, (data: Record<string, unknown>
     // Reservation prise depuis l'application mobile publique : elle attend
     // dans l'agenda, vue liste (statut « En attente »).
     public_booking_created: () => '/agenda',
+    // Réservation du site bogosland.com importée dans l'agenda, sans employé.
+    site_booking_created: () => '/agenda',
     proposal_accepted: () => '/partner-reservations',
     proposal_declined: () => '/partner-reservations',
     booking_confirmed: (d) => {
@@ -43,6 +45,7 @@ const NOTIFICATION_ROUTES: Partial<Record<string, (data: Record<string, unknown>
 const NOTIFICATION_ICONS: Record<string, LucideIcon> = {
     partner_booking_created: CalendarPlus,
     public_booking_created: CalendarPlus,
+    site_booking_created: CalendarPlus,
     proposal_accepted: CalendarCheck,
     proposal_declined: CalendarX,
     booking_confirmed: CalendarCheck,

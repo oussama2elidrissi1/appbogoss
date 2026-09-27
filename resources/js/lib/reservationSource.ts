@@ -9,7 +9,7 @@ import type { Appointment } from '@/types/workday';
  * « Origine », variante visuelle. Une réservation d'avant la colonne
  * (source null) est traitée comme créée par le staff.
  */
-export type ReservationSource = 'web_admin' | 'partner' | 'mobile_public' | 'pos';
+export type ReservationSource = 'web_admin' | 'partner' | 'mobile_public' | 'pos' | 'site';
 
 export const SOURCE_META: Record<
     ReservationSource,
@@ -23,6 +23,8 @@ export const SOURCE_META: Record<
     partner: { label: 'Partenaire', longLabel: 'Portail partenaire', variant: 'outline' },
     web_admin: { label: 'Web', longLabel: 'Agenda BOGOSLAND', variant: 'outline' },
     pos: { label: 'POS', longLabel: 'Caisse', variant: 'outline' },
+    // Importée depuis le site bogosland.com (plugin WordPress), sans employé.
+    site: { label: 'Site web', longLabel: 'Site bogosland.com', variant: 'accent' },
 };
 
 export function sourceMeta(appointment: Pick<Appointment, 'source' | 'partner_id'>) {
@@ -35,6 +37,7 @@ export function sourceMeta(appointment: Pick<Appointment, 'source' | 'partner_id
 export const SOURCE_FILTERS: Array<{ value: ReservationSource | 'all'; label: string }> = [
     { value: 'all', label: 'Toutes sources' },
     { value: 'mobile_public', label: 'App mobile' },
+    { value: 'site', label: 'Site web' },
     { value: 'web_admin', label: 'Web' },
     { value: 'partner', label: 'Partenaire' },
 ];

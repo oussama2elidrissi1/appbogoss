@@ -16,6 +16,8 @@ const siteReservations: Record<string, string> = {
     'Reçue le {date}': 'استُلمت في {date}',
     'Page {page} sur {pages} · {total} réservations': 'الصفحة {page} من {pages} · {total} حجز',
     'Pack': 'باقة',
+    'Site web': 'الموقع الإلكتروني',
+    'Site bogosland.com': 'موقع bogosland.com',
 };
 
 export default siteReservations;

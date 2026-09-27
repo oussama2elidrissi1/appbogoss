@@ -336,6 +336,7 @@ export function ReservationList({
                                                 <Badge variant={status.variant}>{t(status.label)}</Badge>
                                                 {!partnerMode &&
                                                     (appointment.source === 'mobile_public' ||
+                                                        appointment.source === 'site' ||
                                                         appointment.source === 'pos') && (
                                                         <Badge variant={sourceMeta(appointment).variant}>
                                                             {t(sourceMeta(appointment).label)}

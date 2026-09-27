@@ -521,7 +521,7 @@ export interface ProductPayload {
 }
 
 /** Canal de creation d'une reservation (colonne appointments.source). */
-export type AppointmentSource = 'web_admin' | 'partner' | 'mobile_public' | 'pos';
+export type AppointmentSource = 'web_admin' | 'partner' | 'mobile_public' | 'pos' | 'site';
 
 export type AppointmentStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show' | 'refused';
 

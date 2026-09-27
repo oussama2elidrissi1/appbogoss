@@ -155,7 +155,7 @@ export function ReservationDetailsDialog({
                     <div className="flex items-center justify-between gap-3">
                         <DialogTitle>{t('Détail de la réservation')}</DialogTitle>
                         <div className="flex items-center gap-1.5">
-                            {appointment.source === 'mobile_public' && (
+                            {(appointment.source === 'mobile_public' || appointment.source === 'site') && (
                                 <Badge variant={sourceMeta(appointment).variant}>
                                     {t(sourceMeta(appointment).label)}
                                 </Badge>

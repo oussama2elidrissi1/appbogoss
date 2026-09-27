@@ -28,6 +28,13 @@ class Appointment extends Model
      */
     public const SOURCE_PARTNER_QR = 'partner_qr';
 
+    /**
+     * Reservation prise sur le site bogosland.com (plugin WordPress) et
+     * importee par App\Services\SiteReservationSync ; external_ref la relie a
+     * la reservation d'origine.
+     */
+    public const SOURCE_SITE = 'site';
+
     protected $fillable = [
         'client_id',
         'client_ids',
@@ -39,6 +46,8 @@ class Appointment extends Model
         'ends_at',
         'status',
         'source',
+        'external_ref',
+        'external_status',
         'notes',
         'reservation_items',
         'people',
