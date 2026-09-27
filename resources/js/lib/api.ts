@@ -1,6 +1,7 @@
 import axios, { AxiosError } from 'axios';
 import { UserFacingError } from '@/lib/userFacingError';
 import type { ApplicationSettings, ApplicationSettingsPayload, DashboardData, User } from '@/types/dashboard';
+import type { SiteReservationPage, SiteReservationStatus } from '@/types/site-reservation';
 import type {
     ClosureChecklist,
     MonthlyClosureRow,
@@ -1121,6 +1122,22 @@ export async function getMyReport(options?: { from?: string; to?: string }): Pro
         },
     });
     return data.data;
+}
+
+/** Réservations prises sur bogosland.com (lecture seule, les plus récentes d'abord). */
+export async function getSiteReservations(options?: {
+    status?: SiteReservationStatus;
+    search?: string;
+    page?: number;
+}): Promise<SiteReservationPage> {
+    const { data } = await api.get<SiteReservationPage>('/api/site-reservations', {
+        params: {
+            ...(options?.status ? { status: options.status } : {}),
+            ...(options?.search ? { search: options.search } : {}),
+            ...(options?.page && options.page > 1 ? { page: options.page } : {}),
+        },
+    });
+    return data;
 }
 
 export async function getActivityLogs(options?: {

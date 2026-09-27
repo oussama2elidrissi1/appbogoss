@@ -58,6 +58,7 @@ const PartnerLanding = lazy(() => import('@/pages/PartnerLanding'));
 const PartnerQr = lazy(() => import('@/pages/partner/PartnerQr'));
 const PosSandbox = lazy(() => import('@/pages/pos2/PosSandbox'));
 const ServicePacks = lazy(() => import('@/pages/ServicePacks'));
+const SiteReservations = lazy(() => import('@/pages/SiteReservations'));
 const PosV2 = lazy(() => import('@/pages/pos2/PosV2'));
 const PosV2History = lazy(() => import('@/pages/pos2/PosV2History'));
 const Reports = lazy(() => import('@/pages/Reports'));
@@ -83,6 +84,7 @@ const EmployeeSupport = lazy(() => import('@/pages/employee/EmployeeSupport'));
 const realRoutes = new Set([
     '/dashboard',
     '/agenda',
+    '/reservations-site',
     '/pos',
     '/expenses',
     '/mon-espace',
@@ -187,6 +189,10 @@ export default function App() {
 
                         <Route element={<ProtectedRoute permission={['agenda.manage', 'agenda.partner']} />}>
                             <Route path="/agenda" element={<Agenda />} />
+                        </Route>
+
+                        <Route element={<ProtectedRoute permission="agenda.manage" />}>
+                            <Route path="/reservations-site" element={<SiteReservations />} />
                         </Route>
 
                         <Route element={<ProtectedRoute permission="partners.manage" />}>

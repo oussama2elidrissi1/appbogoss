@@ -60,6 +60,7 @@ use App\Http\Controllers\Api\Public\PartnerLandingController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\ServicePackController;
 use App\Http\Controllers\Api\ServiceController;
+use App\Http\Controllers\Api\SiteReservationController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\SubscriptionAdminController;
 use App\Http\Controllers\Api\SubscriptionPlanController;
@@ -225,6 +226,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/appointments/{appointment}/propose-alternate', [AppointmentController::class, 'proposeAlternate']);
         Route::post('/appointments/{appointment}/proposal/accept', [AppointmentController::class, 'proposalAccept']);
         Route::post('/appointments/{appointment}/proposal/decline', [AppointmentController::class, 'proposalDecline']);
+    });
+
+    // Réservations prises sur bogosland.com (plugin WordPress), en lecture
+    // seule — staff de l'agenda uniquement, pas les partenaires.
+    Route::middleware('permission:agenda.manage')->group(function () {
+        Route::get('/site-reservations', [SiteReservationController::class, 'index']);
     });
 
     Route::middleware('permission:partners.manage')->group(function () {

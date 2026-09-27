@@ -36,6 +36,7 @@ import publicBooking from './publicBooking';
 import wallet from './wallet';
 import caisseTest from './caisseTest';
 import partnerQr from './partnerQr';
+import siteReservations from './siteReservations';
 
 /**
  * Dictionnaire français → arabe, fusionné par domaine. La CLÉ est la chaîne
@@ -82,6 +83,7 @@ const ar: Record<string, string> = {
     ...wallet,
     ...caisseTest,
     ...partnerQr,
+    ...siteReservations,
     ...publicBooking,
 };
 
